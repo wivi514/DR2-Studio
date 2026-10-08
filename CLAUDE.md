@@ -1,0 +1,114 @@
+# CLAUDE.md — DR2 CZ/CW Modding Toolkit
+
+A modding toolkit for **Dead Rising 2: Case Zero** and **Dead Rising 2: Case West**
+(Xbox 360 XBLA titles, Blue Castle Games engine) as run by the two Xenon recomps.
+
+Goal: make modding easy. Browse every asset in both games, **see** what a texture is
+and **hear** a sound before extracting it, export models and skeletons to Blender, and
+put edited or new models back into the game when their bones match the game's rig.
+
+**Status: preparation only (2026-10-08).** No code yet. Read these before writing any:
+
+| Doc | What it holds |
+|---|---|
+| `docs/ARCHITECTURE.md` | Components, data flow, the asset index, the mod package format, stack choices |
+| `docs/formats.md` | Everything known about every file format, with a status per format (cracked / partial / unknown) |
+| `docs/roadmap.md` | Phases, what each phase delivers, and the gate that proves it works |
+| `docs/prior-art.md` | Community tools (ProBoards, wiki, Gibbed, mariokart64n's MaxScript, Chrrox) and what to learn or avoid from each |
+
+## Where the games live
+
+Both recomps sit next to this repo. They are separate repos with their own CLAUDE.md
+files and conventions. Treat them as **read-only references**, except for the two
+approved integration changes (a `game_mods/` VFS layer and PCM audio substitution,
+`docs/ARCHITECTURE.md` §Recomp integration). Make those in each recomp following its own
+CLAUDE.md, and keep CZ and CW in step.
+
+| | Case Zero | Case West |
+|---|---|---|
+| Recomp repo | `../Dead_Rising_2_Case_Zero_Xenon_Recomp` | `../Dead_Rising_2_Case_West_Xenon_Recomp` |
+| Unpacked game data | `…/assets/game/data/` (146 `.big`, 832 MB) | `…/assets/game/data/` (154 `.big`, 1.2 GB) |
+| Title ID | `58410A8D` | see the CW recomp's README |
+| Extra content vs CZ | — | `.bik` movies (Bink), `controls/`, `dynamicprops/`, more `.csv` |
+| Runtime VFS overlays | `assets/game_bootskip`, `game_kbm`, `game_patched` | `game_kbm`, `game_patched` |
+
+The game data is **copyrighted**. Never commit it, never copy it into this repo, never
+put extracted assets in test fixtures. Tests that need real data locate it through the
+game profile config and **skip, saying so,** when it is absent.
+
+## Prior work to reuse (in the CZ recomp's `tools/`)
+
+The CZ recomp already cracked a lot. Port it here, don't rediscover it. Its docs record
+*why* each detail is the way it is, including retractions; read them before changing
+behaviour.
+
+| Existing | What it gives us |
+|---|---|
+| `docs/big-archive-format.md` | The `.big` container: layout, the variable-length names, the compression, two retractions |
+| `tools/big_list.py` | Listing and extracting `.big` entries (stored bytes) |
+| `tools/big_decompress.cpp` | LZX decode of compressed entries, linked from XenonRecomp's `lzxDecompress`, checked against an oracle |
+| `tools/gen_pc_options.py` | `read_big` / `write_big`, a **real pure-Python LZX encoder** (`lzx_encode_stream`), `verify_fake_lzx`, a `.bcs` string-bank patcher |
+| `tools/patch_coop_ending_bike.py` | A worked example of re-packing a modified entry that the game accepted |
+| `tools/tex_decode.py` | Xenos `Tiled2DOffset` untiling + DXT1/DXT5 decode |
+| `tools/name_hash.py` | The engine's string hash (`h = h*33 ^ c`); `.big` entries are looked up by hash |
+| `runtime/audio/xma_decoder.cpp` | How to feed raw XMA to ffmpeg's `xma2` decoder (the 34-byte XMA2 extradata) |
+| `runtime/kernel/vfs.cpp` | The overlay layers; a `game_mods/` layer would slot in here |
+
+## Hard-won rules (inherited from the recomp work, all measured)
+
+1. **Endianness flips inside one file.** The `.big` header and index are **little-endian**;
+   the compressed stream inside an entry, and every payload (textures, models,
+   skeletons), is **big-endian**. Choose byte order per structure, never per file.
+2. **`.big` names are variable-length.** Read each name up to the NUL from its own
+   `name_offset`. A fixed width only holds within the shader banks.
+3. **`size` is the stored length, `size2` the uncompressed length; `resv == 2` marks
+   compression.** 1,671 CZ entries are compressed.
+4. **Compressed entries must be re-encoded, not stored.** The game asserts and crashes on
+   a stored replacement where it expects compression, and crashes on degenerate LZX
+   streams that other decoders accept. Use the real encoder and verify by decoding.
+5. **Shipped textures are tiled.** Untile with `Tiled2DOffset` before you look at them, and
+   re-tile before you write them back.
+6. **Name what you could not parse.** A tool that silently skips what it can't read gives
+   confident wrong answers (the first `big_list` dropped 95 of 146 archives). Every
+   reader reports unknown chunks, unknown formats and leftover bytes.
+7. **A structural constant seen in one family of files belongs to that family** until a
+   second family agrees. Check a format claim against more than one archive *and* both
+   games before writing it down as a rule.
+
+## Verification gates (use these, not eyeballing)
+
+- **Round-trip identity.** `read → write` with no edits must produce byte-identical
+  output for every archive in both games. This is the first test of every writer.
+- **Decode oracles.** LZX output must have the right `size2` and the expected magic
+  (`05 01 01 E2` for `.bct`). Decoded skeleton quaternions must have unit norm.
+- **Cross-game census.** A format change is not done until a census over *all* entries of
+  that type in CZ and CW reports zero unparsed entries (or names each one).
+- **In-game proof.** A replacement counts only once it loads in the recomp. The
+  recomp's `game_patched` overlay is the existing path for that.
+
+## Conventions
+
+- Language: **Python 3.11+** for the core library, CLI and GUI. Pure Python plus optional
+  numpy, so the same core imports inside Blender's bundled Python. The only native code
+  is the LZX decoder (a small C shared library loaded through ctypes, with a pure-Python
+  fallback). See `docs/ARCHITECTURE.md` §Stack.
+- Paths inside archives are written `data/models/npcs.big/chest_default.tex/chest_default_cm`
+  (archive path, then `/` for each nesting level). This "virtual path" is the asset's
+  identity everywhere: the index, mod manifests, the CLI and the GUI.
+- Every format module has a reader, a writer (once supported), a census command and a
+  section in `docs/formats.md`. When a fact changes, update that doc in the same commit,
+  and keep a retraction in place rather than silently rewriting history.
+- **Windows, Linux and macOS are all supported** (core, CLI, PySide6 Studio). `pathlib`
+  only, case-insensitive virtual paths, `platformdirs` for user folders, no shelling out
+  to Unix tools, and a pure-Python fallback for every native piece. Data must be
+  obtainable without a recomp (the STFS package). Details: `docs/ARCHITECTURE.md` §Platforms.
+- License: `LICENSE`, free and non-commercial. The toolkit can't be sold, and mods for these
+  games can't be sold or paywalled. Don't add dependencies whose licenses conflict
+  with distributing the toolkit for free (LGPL/MIT/BSD/Apache are fine; PySide6 is LGPL).
+- Game profiles (`cz`, `cw`) are data, not branches in code. Format differences between
+  the games go into the profile.
+
+## Host environment (as of 2026-10-08)
+
+Fedora 44, Python 3.14 (system), Blender 5.2.1 LTS at `/usr/bin/blender`, ffmpeg with
+`xma1`/`xma2` and Bink decoders. No `xxd` (use `od`). `vgmstream-cli` not installed.

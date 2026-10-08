@@ -1,0 +1,34 @@
+# Game data is copyrighted: never commit it or anything extracted from it.
+*.big
+*.tex
+*.bct
+*.bcf
+*.bcs
+*.xma
+*.bik
+*.xex
+*.anm
+extracted/
+out/
+build/
+mods/*/replace/
+*.sqlite
+*.db
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+dist/
+
+# Native
+native/**/build/
+*.so
+*.dll
+*.dylib
+
+# Editors / Blender
+*.blend1
+.vscode/
+.idea/
