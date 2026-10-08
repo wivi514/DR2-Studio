@@ -1,4 +1,4 @@
-"""The ``dr2`` command: list, search, extract and census the games' archives.
+"""The ``dr2`` command: list, search, extract, census, index and mod the games' data.
 
 Every command is a thin layer over `dr2kit`; no format knowledge lives here. Each
 subcommand has a ``cmd_<name>`` function; `build_parser` wires them up. Run
@@ -127,6 +127,8 @@ def cmd_extract(args) -> int:
 
     def write(vpath: str, data: bytes) -> None:
         nonlocal written
+        if args.png and data[:3] == b"\x05\x01\x01":
+            vpath, data = vpath + ".png", _texture_png(vpath, data, args.level)
         dest = out.joinpath(*vpath.split("/"))
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_bytes(data)
@@ -163,6 +165,184 @@ def cmd_extract(args) -> int:
     return 0
 
 
+def _texture_png(vpath: str, data: bytes, level: int = 0) -> bytes:
+    from ..convert import png
+    from ..convert.texture import png_mode, to_image
+    from ..formats.bct import Bct
+    tex = Bct.parse(data, vpath)
+    img = to_image(tex, level)
+    return png.encode(img, png_mode(tex, img))
+
+
+# ---- info -----------------------------------------------------------------------------
+
+def cmd_info(args) -> int:
+    """Describe one asset: its index entry and, for a texture, the header and layout."""
+    tree = _tree(args)
+    node = tree.resolve(args.vpath)
+    if node.kind == "dir":
+        raise Dr2Error(f"{node.vpath} is a folder (use dr2 ls)")
+    print(f"vpath:      {node.vpath}")
+    if node.kind == "entry":
+        e = node.entry
+        print(f"entry:      #{e.index} of {node.archive.source}, flags {e.flags:#x}, "
+              f"hash {e.hash:08X}")
+        print(f"stored:     {e.size:,} bytes{' (LZX-compressed)' if e.compressed else ''}")
+    data = node.data()
+    print(f"size:       {len(data):,} bytes")
+    from ..census import content_kind
+    kind = content_kind(data)
+    print(f"content:    {kind}")
+    if kind == "bct":
+        from ..formats.bct import Bct, model_data_size
+        tex = Bct.parse(data, node.vpath)
+        h = tex.header
+        print(f"texture:    {h.width}x{h.height} {tex.format.name} ({tex.format.channels}), "
+              f"{h.levels} mip level{'s' if h.levels > 1 else ''}"
+              f"{', cube map (6 faces)' if h.is_cube else ''}")
+        print(f"header:     flags {h.flags:#04x}, byte 9 {h.version:#04x}, bpp {h.bpp}, "
+              f"word 0x0C {h.word_0c:08X}, payload {h.data_size:#x} "
+              f"(layout model {model_data_size(h):#x})")
+        print(f"{'level':>5} {'face':>4} {'size':>11} {'offset':>8} {'pitch':>5}  packed at")
+        for lv in tex.levels():
+            where = f"({lv.tile_x},{lv.tile_y})" if lv.packed else ""
+            print(f"{lv.level:>5} {lv.face:>4} {f'{lv.width}x{lv.height}':>11} "
+                  f"{lv.offset:>#8x} {lv.pitch:>5}  {where}")
+    elif kind == "big":
+        from ..container.big import BigArchive
+        print(f"archive:    {len(BigArchive.parse(data, node.vpath))} entries (dr2 ls {node.vpath})")
+    return 0
+
+
+# ---- index ----------------------------------------------------------------------------
+
+def _db(args):
+    from ..index.build import connect
+    return connect(args.db)
+
+
+def cmd_index(args) -> int:
+    """Build, refresh or search the asset index."""
+    from ..index import query
+    if args.action == "build":
+        from ..container.vpath import AssetTree
+        from ..index.build import build_index, default_db_path, format_stats
+        games = list(GAME_IDS) if args.games in ([], ["all"]) else args.games
+        problems = 0
+        for g in games:
+            tree = AssetTree(locate(g).root)
+            progress = None if args.quiet else (lambda vp: print(f"  {vp}", file=sys.stderr))
+            st = build_index(g, tree, args.db, thumbs=not args.no_thumbs, full=args.full,
+                             progress=progress)
+            print(format_stats(st))
+            problems += len(st.problems)
+        print(f"index: {args.db or default_db_path()}", file=sys.stderr)
+        return 1 if problems else 0
+    con = _db(args)
+    if args.action == "stats":
+        for r in query.counts(con):
+            print(f"{r['game']}  {r['kind']:>13}  {r['n']:>8}")
+        return 0
+    if args.action == "search":
+        rows = query.search(con, " ".join(args.text), game=args.game, kind=args.kind,
+                            fmt=args.format, limit=args.limit)
+        for r in rows:
+            print(f"{r['game']}  {r['kind']:>13}  {_human(r['size']):>10}  {r['vpath']}")
+        print(f"{len(rows)} result{'s' if len(rows) != 1 else ''}"
+              f"{' (limit reached)' if len(rows) == args.limit else ''}", file=sys.stderr)
+        return 0
+    row = query.get(con, args.game or "cz", args.vpath)
+    if row is None:
+        raise Dr2Error(f"{args.vpath}: not in the index for {args.game or 'cz'} "
+                       f"(dr2 index build?)")
+    if args.action == "textures-of":
+        for r in query.textures_of(con, row["id"]):
+            where = r["vpath"] or "(not found in this game)"
+            print(f"slot {r['slot']:>3}  {r['dst_name']:<32} {where}")
+    elif args.action == "used-by":
+        for r in query.used_by(con, row["id"]):
+            print(f"{'next to it' if r['rank'] == 0 else 'elsewhere':>10}  {r['vpath']}")
+    return 0
+
+
+# ---- mods -----------------------------------------------------------------------------
+
+def cmd_mod(args) -> int:
+    """Create, check, build and deploy mod packages."""
+    from ..mods import manifest
+    if args.action == "new":
+        root = manifest.create(args.folder, args.id, args.name)
+        print(f"created {root / manifest.MANIFEST}; put replacement files under "
+              f"{root / manifest.REPLACE_DIR}/ (see docs/modding/06-mod-packages.md)")
+        return 0
+    from ..container.vpath import AssetTree
+    from ..mods import build as mbuild
+    from ..mods import deploy as mdeploy
+    game = args.game
+    loc = locate(game)
+    tree = AssetTree(loc.root)
+    if args.action == "undeploy":
+        target = Path(args.to) if args.to else mdeploy.recomp_folders(loc.root)["mods"]
+        removed = mdeploy.undeploy(target)
+        print(f"removed {len(removed)} file{'s' if len(removed) != 1 else ''} from {target}")
+        return 0
+    mods = [manifest.Mod.load(m) for m in args.mods]
+    if args.action == "check":
+        plan = mbuild.classify(mods, game, tree)
+        for p in plan:
+            print(f"{p.mod.id:>16}  {p.override.kind:<11}  {p.vpath}")
+        print(f"{len(plan)} override{'s' if len(plan) != 1 else ''} OK for {game}")
+        return 0
+    recomp = mdeploy.is_recomp_root(loc.root)
+    base = []
+    if not args.no_patched_base:
+        base = [Path(b) for b in (args.base or [])]
+        patched = mdeploy.recomp_folders(loc.root)["patched"]
+        if recomp and not args.base and patched.is_dir():
+            base = [patched]
+    progress = None if args.quiet else (lambda vp: print(f"  built {vp}", file=sys.stderr))
+    if args.action == "build":
+        res = mbuild.build(mods, game, tree, args.out, base, progress=progress)
+        print(f"built {len(res.files)} file{'s' if len(res.files) != 1 else ''} for {game} "
+              f"in {args.out}")
+        for vp, b in res.base_used.items():
+            print(f"    {vp}: built on top of {b}")
+        return 0
+    # deploy
+    import tempfile
+    if args.to:
+        target = Path(args.to)
+    elif recomp:
+        target = mdeploy.recomp_folders(loc.root)["mods"]
+    else:
+        raise Dr2Error(f"{game}'s data is not in a recomp ({loc.root}); say where to put "
+                       f"the files with --to FOLDER")
+    with tempfile.TemporaryDirectory(prefix="dr2mod-") as tmp:
+        res = mbuild.build(mods, game, tree, tmp, base, progress=progress)
+        written = mdeploy.deploy(res, target)
+    for vp in written:
+        print(f"deployed {vp}")
+    for vp, b in res.base_used.items():
+        print(f"    {vp}: built on top of {b}")
+    if recomp and not args.to:
+        for w in mdeploy.shadowed_layers(loc.root, written):
+            print(f"warning: {w}", file=sys.stderr)
+        env = "CZ_NO_MODS" if game == "cz" else "CW_NO_MODS"
+        print(f"{len(written)} file{'s' if len(written) != 1 else ''} in {target}. "
+              f"Start the recomp to use them; {env}=1 turns mods off, "
+              f"`dr2 mod undeploy -g {game}` removes them.")
+    return 0
+
+
+def cmd_studio(args) -> int:
+    """Start DR2 Studio (needs PySide6)."""
+    try:
+        from ..studio.app import main as studio_main
+    except ImportError as e:
+        raise Dr2Error(f"DR2 Studio needs PySide6: pip install 'dr2kit[studio]' ({e})") from None
+    return studio_main([])
+
+
 # ---- census ---------------------------------------------------------------------------
 
 def cmd_census(args) -> int:
@@ -175,7 +355,7 @@ def cmd_census(args) -> int:
         tree = AssetTree(locate(g).root)
         progress = None if args.quiet else (lambda vp: print(f"  {vp}", file=sys.stderr))
         rep = run_census(g, tree, python_lzx=args.python_lzx, reencode=args.reencode,
-                         workers=args.workers, progress=progress)
+                         textures=args.textures, workers=args.workers, progress=progress)
         print(format_report(rep))
         reports.append(rep)
     if args.json:
@@ -245,9 +425,72 @@ def build_parser() -> argparse.ArgumentParser:
                    help="decompress compressed entries (the default; kept for clarity)")
     p.add_argument("--raw", action="store_true",
                    help="write compressed entries as stored (the LZX stream), not decoded")
+    p.add_argument("--png", action="store_true",
+                   help="write textures as PNG images (<name>.png) instead of .bct bytes")
+    p.add_argument("--level", type=int, default=0,
+                   help="with --png: which mip level (0 = full size)")
     p.add_argument("-q", "--quiet", action="store_true")
     game_opt(p)
     p.set_defaults(func=cmd_extract)
+
+    p = sub.add_parser("info", help="describe one asset (texture header and layout, ...)")
+    p.add_argument("vpath")
+    game_opt(p)
+    p.set_defaults(func=cmd_info)
+
+    p = sub.add_parser("index", help="build or search the asset index (SQLite)")
+    isub = p.add_subparsers(dest="action", required=True, metavar="ACTION")
+    pi = isub.add_parser("build", help="index one or both games (only changed files are re-read)")
+    pi.add_argument("games", nargs="*", choices=[*GAME_IDS, "all"], metavar="GAME")
+    pi.add_argument("--full", action="store_true", help="re-read every file")
+    pi.add_argument("--no-thumbs", action="store_true", help="skip texture thumbnails (faster)")
+    pi.add_argument("-q", "--quiet", action="store_true")
+    pi = isub.add_parser("search", help="find assets by name (words, * and ? wildcards)")
+    pi.add_argument("text", nargs="+")
+    pi.add_argument("-g", "--game", choices=GAME_IDS)
+    pi.add_argument("--kind", help="texture, model, skeleton, audio, text, ...")
+    pi.add_argument("--format", help="texture format: DXT1, DXT5, DXN, A8R8G8B8, L8")
+    pi.add_argument("--limit", type=int, default=200)
+    isub.add_parser("stats", help="assets per game and kind")
+    for name, helptext in (("textures-of", "the textures a model's materials name"),
+                           ("used-by", "the models whose materials name this texture")):
+        pi = isub.add_parser(name, help=helptext)
+        pi.add_argument("vpath")
+        pi.add_argument("-g", "--game", choices=GAME_IDS, default="cz")
+    for pi in isub.choices.values():
+        pi.add_argument("--db", help="index file (default: the per-user cache folder)")
+    p.set_defaults(func=cmd_index)
+
+    p = sub.add_parser("mod", help="create, check, build and deploy mod packages")
+    msub = p.add_subparsers(dest="action", required=True, metavar="ACTION")
+    pm = msub.add_parser("new", help="make an empty mod folder with a mod.toml")
+    pm.add_argument("folder")
+    pm.add_argument("--id")
+    pm.add_argument("--name")
+    for name, helptext in (("check", "check a mod's files against the game, write nothing"),
+                           ("build", "build replacement files into a folder"),
+                           ("deploy", "build and copy into the recomp's game_mods/ (or --to)")):
+        pm = msub.add_parser(name, help=helptext)
+        pm.add_argument("mods", nargs="+", metavar="MOD", help="mod folder(s)")
+        game_opt(pm)
+        pm.add_argument("-q", "--quiet", action="store_true")
+        if name == "build":
+            pm.add_argument("-o", "--out", required=True, help="output folder")
+        if name == "deploy":
+            pm.add_argument("--to", help="deploy into this folder instead of the recomp")
+        if name != "check":
+            pm.add_argument("--base", action="append",
+                            help="patch this folder's copy of a file when it has one "
+                                 "(default: the recomp's game_patched)")
+            pm.add_argument("--no-patched-base", action="store_true",
+                            help="always start from the shipped files")
+    pm = msub.add_parser("undeploy", help="remove what the last deploy wrote")
+    game_opt(pm)
+    pm.add_argument("--to", help="the folder deployed to with --to")
+    p.set_defaults(func=cmd_mod)
+
+    p = sub.add_parser("studio", help="start DR2 Studio, the graphical browser")
+    p.set_defaults(func=cmd_studio)
 
     p = sub.add_parser("census", help="read everything, report it, and run the format gates")
     p.add_argument("games", nargs="*", choices=[*GAME_IDS, "all"], metavar="GAME",
@@ -257,6 +500,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="also re-encode every compressed entry and decode it back (slow)")
     p.add_argument("--python-lzx", action="store_true",
                    help="also decode every compressed entry with the pure-Python decoder")
+    p.add_argument("--textures", action="store_true",
+                   help="also decode every texture and re-encode it to the same bytes (slow)")
     p.add_argument("--workers", type=int, help="processes for --reencode (default: all CPUs)")
     p.add_argument("-q", "--quiet", action="store_true", help="no per-archive progress")
     p.set_defaults(func=cmd_census)

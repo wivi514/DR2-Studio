@@ -12,17 +12,17 @@ New to the vocabulary? Keep the [glossary](../glossary.md) open.
 |---|---|---|
 | `01-install.md` | Install DR2 Studio on Windows, Linux or macOS | planned (phase 6, early builds from phase 2) |
 | [`02-game-data.md`](02-game-data.md) | Point the toolkit at your game: a recomp folder, an unpacked `data/` folder, or the XBLA package; look around and copy files out | ✅ written (phase 1, CLI) |
-| `03-browsing.md` | Find assets, search, see which textures a model uses, play sounds | planned (phase 2) |
-| `04-extracting.md` | Export textures (PNG), models and skeletons (`.glb`), sounds (WAV) | planned (phases 2-5) |
-| `05-first-mod-texture.md` | **Your first mod:** recolour a texture and see it in game | planned (phase 2) |
-| `06-mod-packages.md` | What's in a mod folder, `mod.toml`, building, sharing | planned (phase 2) |
+| [`03-browsing.md`](03-browsing.md) | Find assets, search, see which textures a model uses (playing sounds: phase 5) | ✅ written (phase 2: Studio + CLI) |
+| [`04-extracting.md`](04-extracting.md) | Export textures (PNG), models and skeletons (`.glb`), sounds (WAV) | started (phase 2: textures) |
+| [`05-first-mod-texture.md`](05-first-mod-texture.md) | **Your first mod:** recolour a texture and see it in game | ✅ written (phase 2), checked in both recomps |
+| [`06-mod-packages.md`](06-mod-packages.md) | What's in a mod folder, `mod.toml`, building, sharing | ✅ written (phase 2) |
 | `07-blender-setup.md` | Set up Blender to work with DR2 models and skeletons | planned (phase 3) |
 | `08-edit-a-model.md` | Edit an existing model in Blender and put it back | planned (phase 4) |
 | `09-new-model.md` | Rig a brand-new model to a game skeleton and replace a character/outfit/weapon | planned (phase 4) |
 | `10-audio.md` | Replace music, voices and sound effects | planned (phase 5) |
 | `11-text.md` | Change in-game text and translations | planned (phase 6) |
-| [`12-troubleshooting.md`](12-troubleshooting.md) | Fix common problems: the mod doesn't show, the game crashes, rig errors | started (phase 1: game data); grows with each phase |
-| `asset-catalogue.md` | Where things are: Chuck's outfits, zombies, weapons, music, maps… | grows from phase 2 |
+| [`12-troubleshooting.md`](12-troubleshooting.md) | Fix common problems: the mod doesn't show, the game crashes, rig errors | started (phases 1-2: game data, textures, mods); grows with each phase |
+| [`asset-catalogue.md`](asset-catalogue.md) | Where things are: Chuck's outfits, zombies, weapons, music, maps… | started (phase 2); grows |
 
 ## Rules for mods made with this toolkit
 

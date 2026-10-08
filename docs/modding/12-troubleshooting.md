@@ -15,7 +15,29 @@ one guide. Search the page for the error text you see.
 | `dr2: command not found` / `'dr2' is not recognized` | The toolkit's Python environment isn't active | Activate it ([`../dev/setup.md`](../dev/setup.md)) or run `python -m dr2kit …`. |
 | Everything is slow; `dr2 doctor` says `LZX decoder: python (slow fallback …)` | The fast decoder library isn't built, or the OS blocked it (macOS Gatekeeper) | It still works. To speed it up, build it: [`../dev/setup.md`](../dev/setup.md). |
 | `no entry named …` | A typo, or the file is inside another archive | `dr2 ls <archive>` to see exact names, or `dr2 find <part of name>`. |
-| An extracted texture doesn't open as a picture | Phase 1 extracts the game's own formats | Texture conversion to PNG comes in phase 2. |
+| An extracted texture doesn't open as a picture | `dr2 extract` writes the game's own format by default | Add `--png` ([`04-extracting.md`](04-extracting.md)), or use **Export PNG…** in DR2 Studio. |
+
+## Textures, the index and DR2 Studio (phase 2)
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `DR2 Studio needs PySide6` | The GUI extras aren't installed | `pip install -e ".[studio]"` in the toolkit's environment. |
+| DR2 Studio's tree is empty | The game isn't indexed yet | **Build / refresh index**, or `dr2 index build`. |
+| `… (The index may be out of date: rebuild it.)` | Game files changed (a recomp update, another unpack) | Rebuild the index; only changed files are re-read. |
+| A texture looks purple, rainbow-coloured or black-and-white | Normal map (`_nm`), specular (`_sm`), mask (`_mask`) or a font page | Normal; edit the `_cm` (colour) texture for colours. |
+| `interlaced PNG; save it without interlacing, or install Pillow` | Your editor saved an interlaced ("Adam7") PNG | Save again with interlacing off, or `pip install pillow`. |
+
+## Mods (phase 2)
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `the image is WxH; this texture needs exactly …` | The PNG's size changed | Resize it back; size changes come later. Cube maps need all six faces side by side. |
+| `no asset '…' in cz` | Wrong path under `replace/`, or the asset only exists in the other game | Copy the vpath from DR2 Studio; limit `games` in `mod.toml`. |
+| `… is not a texture, so a PNG can't replace it` | A `.png` was placed next to something that isn't a texture | Only textures take PNGs; other assets are replaced by a file with their exact name. |
+| `replaced by both a and b at the same priority` | Two mods change the same asset | Raise one mod's `priority`. |
+| Mod deployed but nothing changes in game | The outfit/object on screen uses another texture, `CZ_NO_MODS`/`CW_NO_MODS` is set, or the recomp predates `game_mods/` | Check the recomp log for `served from the MODS overlay`; check which texture the model uses (`dr2 index textures-of`). |
+| `warning: … the recomp's game_kbm layer also has this file` | Your mod and a recomp option layer change the same file | While the mod is installed, the mod's copy wins (keyboard prompts or the logo skip may revert for that file). |
+| The game crashes or hangs after deploying | Possibly an archive the game reads at boot (`preload4.big`) rejecting a re-compressed entry; not yet proven safe | `dr2 mod undeploy -g cz`, then report it with the mod and the recomp log. Textures in model packs (`npcs.big`) are tested and work. |
 
 ## Reporting a problem
 

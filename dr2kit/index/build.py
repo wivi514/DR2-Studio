@@ -1,0 +1,336 @@
+"""Build the asset index: every file and entry of a game into one SQLite database.
+
+Why an index: the games hold ~125k (CZ) and ~172k (CW) entries, many inside compressed,
+nested archives. Searching them by walking the archives takes half a minute; the index
+answers "every texture named *apron*" or "which models use this texture" in
+milliseconds, and keeps a small thumbnail of every texture for DR2 Studio's grid.
+
+What goes in (schema: ``schema.sql``, design: docs/ARCHITECTURE.md §The asset index):
+
+* ``asset``: one row per file on disk and per archive entry at every depth, with its
+  vpath, kind, sizes, compression and the SHA-1 of its uncompressed bytes (equal hashes
+  = the same asset stored twice, which is common for textures);
+* ``texture``: header facts and a PNG thumbnail (``THUMB_SIZE`` px) per texture;
+* ``material_slot`` + ``relation``: what each model's ``MatTextureInfoArray`` names,
+  linked to the textures of that name.
+
+**Incremental.** Each file on disk is recorded with its size and modification time; a
+rebuild re-reads only files that changed (and drops files that are gone). Relations are
+recomputed for the whole game after each build, because a texture added in one archive
+can satisfy a model in another.
+
+Anything that fails to parse is counted and listed in the returned `IndexStats`, never
+skipped silently (CLAUDE.md rule 6).
+"""
+
+from __future__ import annotations
+
+import hashlib
+import sqlite3
+import time
+from dataclasses import dataclass, field
+from importlib import resources
+from pathlib import Path
+
+from ..census import content_kind, texture_suffix
+from ..container.big import BigArchive, is_big
+from ..container.vpath import AssetTree, entry_components, join
+from ..formats.bct import Bct, is_bct
+
+SCHEMA_VERSION = "1"
+THUMB_SIZE = 128
+SCENE_HEADER = "sceneheader"
+MAT_TEXTURE_INFO = "mattextureinfoarray"
+MAT_RECORD = 100          # bytes per MatTextureInfoArray record (formats.md)
+MAT_NAME = slice(4, 56)   # NUL-padded texture name inside a record
+
+_EXT_KIND = {"xma": "audio", "anm": "anim", "po": "shader", "vo": "shader", "pdo": "shader",
+             "vdo": "shader", "sdo": "shader", "scv": "shader", "bik": "video"}
+
+
+def default_db_path() -> Path:
+    """Where the index lives: the per-user cache folder (platformdirs)."""
+    from platformdirs import user_cache_dir
+    return Path(user_cache_dir("dr2kit", appauthor=False)) / "index.sqlite"
+
+
+@dataclass
+class IndexStats:
+    """What one build did. ``problems`` lists (vpath, reason) for anything unparsed."""
+    game: str
+    files_seen: int = 0
+    files_indexed: int = 0
+    files_unchanged: int = 0
+    files_removed: int = 0
+    assets: int = 0
+    textures: int = 0
+    models: int = 0
+    material_slots: int = 0
+    relations: int = 0
+    unresolved_slots: int = 0
+    problems: list = field(default_factory=list)
+    seconds: float = 0.0
+
+
+def connect(db_path: str | Path | None = None) -> sqlite3.Connection:
+    """Open (creating if needed) the index database, with the current schema."""
+    path = Path(db_path) if db_path else default_db_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    con = sqlite3.connect(path, timeout=60)
+    con.row_factory = sqlite3.Row
+    con.execute("PRAGMA foreign_keys = ON")
+    # WAL lets DR2 Studio keep reading while a build writes in another thread.
+    con.execute("PRAGMA journal_mode = WAL")
+    ver = None
+    try:
+        row = con.execute("SELECT value FROM meta WHERE key='schema'").fetchone()
+        ver = row[0] if row else None
+    except sqlite3.OperationalError:
+        pass
+    if ver not in (None, SCHEMA_VERSION):
+        # An index from an older toolkit: drop it, it is only a cache.
+        for (name,) in con.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall():
+            con.execute(f"DROP TABLE IF EXISTS {name}")
+    con.executescript(resources.files(__package__).joinpath("schema.sql").read_text("utf-8"))
+    con.execute("INSERT OR REPLACE INTO meta VALUES ('schema', ?)", (SCHEMA_VERSION,))
+    con.commit()
+    return con
+
+
+def thumbnail(tex: Bct) -> bytes:
+    """A small PNG of a texture: the first mip level that fits in ``THUMB_SIZE``."""
+    from ..convert import png
+    from ..convert.texture import decode_level, downsample, png_mode
+    levels = [lv for lv in tex.levels() if lv.face == 0]
+    lv = next((x for x in levels if max(x.width, x.height) <= THUMB_SIZE), levels[-1])
+    rgba = decode_level(tex, lv)
+    w, h = lv.width, lv.height
+    while max(w, h) > THUMB_SIZE:            # no small enough mip stored
+        nw, nh = max(1, w // 2), max(1, h // 2)
+        rgba = downsample(rgba, w, h, nw, nh)
+        w, h = nw, nh
+    img = png.Image(w, h, rgba)
+    return png.encode(img, "RGBA" if png_mode(tex, img) == "RGBA" else "RGB", level=6)
+
+
+def classify(name: str, ext: str, data: bytes, arc: BigArchive | None) -> str:
+    """The ``kind`` of an asset from its name, extension, bytes and (for archives) entries."""
+    if not data:
+        return "empty"
+    if is_bct(data):
+        return "texture"
+    if arc is not None:
+        names = {e.name.lower() for e in arc.entries}
+        if SCENE_HEADER in names:
+            if any(n.endswith(" vertices 0") or n.startswith("combined vertices") for n in names):
+                return "model"
+            return "skeleton"
+        if ext == "tex":
+            return "texture-pack"
+        return "archive"
+    if ext in _EXT_KIND:
+        return _EXT_KIND[ext]
+    return "text" if content_kind(data) == "text" else "binary"
+
+
+def _material_slots(data: bytes) -> list[tuple[int, str, bool]] | None:
+    if len(data) % MAT_RECORD:
+        return None
+    out = []
+    for i in range(len(data) // MAT_RECORD):
+        raw = data[i * MAT_RECORD:][MAT_NAME]
+        name = raw.split(b"\0", 1)[0].decode("latin-1")
+        engine = len(name) > 1 and name[0] == "g" and name[1].isupper()
+        out.append((i, name, engine))
+    return out
+
+
+class _Builder:
+    def __init__(self, con: sqlite3.Connection, game: str, stats: IndexStats, thumbs: bool):
+        self.con, self.game, self.stats, self.thumbs = con, game, stats, thumbs
+
+    def insert(self, source_id, parent_id, depth, position, vpath, name, name_hash, ext,
+               kind, stored, size, compressed, flags, data) -> int:
+        cur = self.con.execute(
+            "INSERT INTO asset (game, vpath, vpath_lower, source_id, parent_id, depth, "
+            "position, name, name_hash, ext, kind, stored_size, size, compressed, flags, sha1) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (self.game, vpath, vpath.lower(), source_id, parent_id, depth, position, name,
+             name_hash, ext, kind, stored, size, int(compressed), flags,
+             hashlib.sha1(data).hexdigest()))
+        self.stats.assets += 1
+        return cur.lastrowid
+
+    def texture(self, asset_id: int, vpath: str, name: str, data: bytes) -> None:
+        try:
+            tex = Bct.parse(data, vpath)
+            thumb = thumbnail(tex) if self.thumbs else None
+        except Exception as ex:  # noqa: BLE001 - reported
+            self.stats.problems.append((vpath, f"texture: {ex}"))
+            return
+        h = tex.header
+        tex_name = name[:-4] if name.lower().endswith(".bct") else name
+        suffix = texture_suffix(name)
+        self.con.execute("INSERT INTO texture VALUES (?,?,?,?,?,?,?,?,?,?)",
+                         (asset_id, h.width, h.height, tex.format.name, h.levels,
+                          int(h.is_cube), h.flags, "" if suffix == "(none)" else suffix,
+                          tex_name.lower(), thumb))
+        self.stats.textures += 1
+
+    def archive(self, arc: BigArchive, vpath: str, source_id: int, parent_id: int,
+                depth: int) -> None:
+        for pos, (comp, e) in enumerate(zip(entry_components(arc), arc.entries)):
+            evp = join(vpath, comp)
+            try:
+                data = e.data()
+            except Exception as ex:  # noqa: BLE001 - reported
+                self.stats.problems.append((evp, f"decode: {ex}"))
+                continue
+            sub = None
+            if is_big(data):
+                try:
+                    sub = BigArchive.parse(data, evp)
+                except Exception as ex:  # noqa: BLE001 - reported
+                    self.stats.problems.append((evp, f"nested archive: {ex}"))
+            kind = classify(e.name, e.ext, data, sub)
+            aid = self.insert(source_id, parent_id, depth, pos, evp, e.name, e.hash, e.ext,
+                              kind, e.size, e.size2, e.compressed, e.flags, data)
+            if kind == "texture":
+                self.texture(aid, evp, e.name, data)
+            elif kind == "model":
+                self.stats.models += 1
+            if sub is not None:
+                if kind == "model":
+                    self.model_slots(aid, sub, evp)
+                self.archive(sub, evp, source_id, aid, depth + 1)
+
+    def model_slots(self, model_id: int, arc: BigArchive, vpath: str) -> None:
+        for e in arc.entries:
+            if e.name.lower() != MAT_TEXTURE_INFO:
+                continue
+            slots = _material_slots(e.data())
+            if slots is None:
+                self.stats.problems.append((join(vpath, e.name),
+                                            f"{e.size2} bytes, not a whole number of "
+                                            f"{MAT_RECORD}-byte records"))
+                return
+            self.con.executemany("INSERT INTO material_slot VALUES (?,?,?,?)",
+                                 [(model_id, i, n, int(g)) for i, n, g in slots])
+            self.stats.material_slots += len(slots)
+
+
+def build_index(game: str, tree: AssetTree, db_path: str | Path | None = None, *,
+                thumbs: bool = True, full: bool = False, progress=None) -> IndexStats:
+    """Index one game. Re-reads only changed files unless ``full``.
+
+    ``progress(vpath)`` is called for each file being (re)indexed.
+    """
+    t0 = time.time()
+    stats = IndexStats(game)
+    con = connect(db_path)
+    b = _Builder(con, game, stats, thumbs)
+    if full:
+        con.execute("DELETE FROM source_file WHERE game=?", (game,))
+    known = {r["vpath"]: r for r in con.execute(
+        "SELECT id, vpath, size, mtime_ns FROM source_file WHERE game=?", (game,))}
+    seen = set()
+    for vp, path in tree.files():
+        stats.files_seen += 1
+        seen.add(vp)
+        st = path.stat()
+        old = known.get(vp)
+        if old and old["size"] == st.st_size and old["mtime_ns"] == st.st_mtime_ns:
+            stats.files_unchanged += 1
+            continue
+        if old:
+            con.execute("DELETE FROM source_file WHERE id=?", (old["id"],))
+        if progress:
+            progress(vp)
+        raw = path.read_bytes()
+        sid = con.execute("INSERT INTO source_file (game, vpath, size, mtime_ns) VALUES (?,?,?,?)",
+                          (game, vp, st.st_size, st.st_mtime_ns)).lastrowid
+        name = path.name
+        ext = path.suffix.lower().lstrip(".")
+        arc = None
+        if is_big(raw):
+            try:
+                arc = BigArchive.parse(raw, vp)
+            except Exception as ex:  # noqa: BLE001 - reported
+                stats.problems.append((vp, f"parse: {ex}"))
+        kind = classify(name, ext, raw, arc)
+        aid = b.insert(sid, None, 0, 0, vp, name, None, ext, kind, len(raw), len(raw),
+                       False, None, raw)
+        if kind == "texture":
+            b.texture(aid, vp, name, raw)
+        if arc is not None:
+            if kind == "model":
+                stats.models += 1
+                b.model_slots(aid, arc, vp)
+            b.archive(arc, vp, sid, aid, 1)
+        stats.files_indexed += 1
+        con.commit()
+    for vp, row in known.items():
+        if vp not in seen:
+            con.execute("DELETE FROM source_file WHERE id=?", (row["id"],))
+            stats.files_removed += 1
+    link_relations(con, game, stats)
+    con.execute("ANALYZE")          # table statistics, so the query planner chooses well
+    con.execute("INSERT OR REPLACE INTO meta VALUES (?, ?)",
+                (f"built:{game}", time.strftime("%Y-%m-%d %H:%M:%S")))
+    con.execute("INSERT OR REPLACE INTO meta VALUES (?, ?)", (f"root:{game}", str(tree.root)))
+    con.commit()
+    con.close()
+    stats.seconds = time.time() - t0
+    return stats
+
+
+def link_relations(con: sqlite3.Connection, game: str, stats: IndexStats) -> None:
+    """Recompute model→texture relations of ``game`` from the material slots."""
+    con.execute("DELETE FROM relation WHERE src_id IN (SELECT id FROM asset WHERE game=?)",
+                (game,))
+    # CROSS JOIN fixes the join order (SQLite never reorders it): start from the slots,
+    # look each name up through the texture_name index. Left to the planner, without
+    # statistics, this query nested two scans of every asset and took ten minutes.
+    con.execute("""
+        INSERT INTO relation (src_id, dst_id, kind, slot, dst_name, rank)
+        SELECT m.id, t.asset_id, 'material-texture', s.slot, s.name,
+               CASE WHEN ta.parent_id = m.parent_id
+                      OR (SELECT p.parent_id FROM asset p WHERE p.id = ta.parent_id) = m.parent_id
+                      OR ta.parent_id = m.id
+                    THEN 0 ELSE 1 END
+        FROM material_slot s
+        CROSS JOIN asset m ON m.id = s.model_id
+        CROSS JOIN texture t ON t.tex_name = lower(s.name)
+        CROSS JOIN asset ta ON ta.id = t.asset_id
+        WHERE s.engine = 0 AND s.name <> '' AND m.game = ? AND ta.game = ?
+    """, (game, game))
+    con.execute("""
+        INSERT INTO relation (src_id, dst_id, kind, slot, dst_name, rank)
+        SELECT s.model_id, NULL, 'material-texture', s.slot, s.name, 9
+        FROM material_slot s CROSS JOIN asset m ON m.id = s.model_id
+        WHERE s.engine = 0 AND s.name <> '' AND m.game = ?
+          AND NOT EXISTS (SELECT 1 FROM texture t CROSS JOIN asset ta ON ta.id = t.asset_id
+                          WHERE t.tex_name = lower(s.name) AND ta.game = ?)
+    """, (game, game))
+    stats.relations = con.execute(
+        "SELECT count(*) FROM relation r JOIN asset a ON a.id = r.src_id "
+        "WHERE a.game=? AND r.dst_id IS NOT NULL", (game,)).fetchone()[0]
+    stats.unresolved_slots = con.execute(
+        "SELECT count(*) FROM relation r JOIN asset a ON a.id = r.src_id "
+        "WHERE a.game=? AND r.dst_id IS NULL", (game,)).fetchone()[0]
+
+
+def format_stats(s: IndexStats) -> str:
+    lines = [
+        f"== index: {s.game}",
+        f"files: {s.files_seen} seen, {s.files_indexed} (re)indexed, {s.files_unchanged} "
+        f"unchanged, {s.files_removed} removed",
+        f"assets added: {s.assets}; textures: {s.textures}; models: {s.models} "
+        f"({s.material_slots} material slots)",
+        f"model->texture links: {s.relations}; slots naming a texture found nowhere: "
+        f"{s.unresolved_slots}",
+        f"PROBLEMS (unparsed): {len(s.problems)}",
+    ]
+    lines += [f"    {vp}: {why}" for vp, why in s.problems[:40]]
+    lines.append(f"took {s.seconds:.1f} s")
+    return "\n".join(lines)

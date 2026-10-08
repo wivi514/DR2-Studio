@@ -41,8 +41,13 @@ jobs:
           dr2 doctor
           dr2 doctor | grep -q "LZX decoder: native"
 
-      - name: Unit tests (native decoder)
+      - name: Unit tests (native decoder; no numpy/Pillow, so the pure-Python paths)
         run: python -m pytest -q -m "not gamedata"
+
+      - name: Texture, index and mod tests again with numpy + Pillow (the fast paths)
+        run: |
+          python -m pip install numpy pillow
+          python -m pytest -q -m "not gamedata" tests/test_bct.py tests/test_texture.py tests/test_mods.py tests/test_index.py
 
       - name: LZX tests with the pure-Python fallback only
         shell: bash

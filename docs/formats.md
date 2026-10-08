@@ -8,7 +8,7 @@ Case West census before they count as rules (CLAUDE.md rule 7).
 |---|---|---|---|
 | `.big` container | everywhere, nested (up to 3 levels) | ✅ read + write | `dr2kit/container/big.py`. Every archive of both games round-trips byte-identically (phase 1 census, below) |
 | LZX compressed entry | inside `.big` | ✅ decode + encode | `dr2kit/container/xcompress.py`, `lzx/`. Every compressed entry of both games decodes (two independent decoders agree) and re-encodes |
-| `.bct` texture | loose, inside `.tex` | 🟡 | header + tiling known; magic is `05 01 01` + a flags byte (retraction below); format-code table and mips not yet |
+| `.bct` texture | loose, inside `.tex` | ✅ read + write | `dr2kit/formats/bct.py`, `convert/texture.py`. Every texture of both games decodes and re-encodes to its exact bytes; flags byte bits 0x04/0xE0 and header word 0x0C still unexplained (preserved) |
 | `.tex` texture pack | next to every model `.big` | ✅ | a `.big` whose entries are `.bct`, named without extension |
 | scene (model / skeleton) | `models/**/*.big`, `skeleton/*.big` | 🟡 | chunk table known; bone records ✅; vertices ❓ |
 | `.xma` audio | `audio/*.big` | 🟡 | raw XMA, decoded on the host by the recomp through ffmpeg; header and rate source ❓ |
@@ -158,19 +158,85 @@ shipped ones.
 
 ## Textures: `.tex` and `.bct`
 
-A `.tex` file is a `.big` holding one or more `.bct` payloads, named without extension
-(e.g. `goretech_head_combine_cm`). The name suffix gives the role: `_cm` colour map; other
-suffixes (`_nm`, `_sm`, …) still need a census.
+Implemented by `dr2kit/formats/bct.py` (header, layout, tiling) and
+`dr2kit/convert/texture.py` + `dxt.py` (pixels). **✅ cracked (phase 2, 2026-10-08):**
+every texture of both games parses, decodes, and re-encodes to its exact shipped bytes
+(census below).
 
-`.bct` header, 48 bytes, big-endian:
+A `.tex` file is a `.big` holding one or more textures, usually named without extension
+(e.g. `goretech_head_combine_cm`); textures also appear as `*.bct` entries in other
+archives and as 13 loose files on disk. Only the first three bytes `05 01 01` identify a
+texture (retraction below).
+
+### Header: 48 bytes, big-endian
+
+It is **not** a GPU fetch constant (the phase 0 guess): it is the engine's own compact
+description.
 
 ```
-0x00  05 01 01 xx        magic 05 01 01, then a flags-like byte (see retraction below)
-0x04  u16 width, u16 height
-0x08  24 bytes           Xenos GPUTEXTURE_FETCH_CONSTANT-like words (format, tiling, pitch, mip info)
-0x20  …                  more header words (seen: 0x00000018, 0, 0x30 = data offset?, sizes)
-0x30  payload            tiled; DXT payloads are 16-bit-word big-endian (swap16 before decoding)
+0x00  05 01 01         magic
+0x03  u8   flags        bit 0x02 always set; 0x08 = cube map; 0x04 = alpha? (table below)
+0x04  u16  width, u16 height
+0x08  u8   format       engine code: 08 DXT1, 0A DXT5, 1B DXN, 00 A8R8G8B8, 21 L8
+0x09  u8   0x23 (every CZ texture) / 0x24 (all but 4 CW textures): writer version?
+0x0A  u8   mip levels   stored levels, base included (1-10)
+0x0B  u8   bits per pixel (4, 8 or 32; always agrees with the format)
+0x0C  u32  unknown      differs per texture, low 5 bits always 0; not the name hash,
+                        not CRC-32 of the name (checked); preserved on write
+0x10  u32  0x18         in every texture
+0x14  u32  0
+0x18  u32  0x30         payload offset
+0x1C  u32  payload size
+0x20  u32  0x30 + payload size = file size (every texture)
+0x24  u32  faces - 1    5 on cube maps, 0 otherwise
+0x28  u32  0, 0x2C u32 0
+0x30  payload           tiled; byte order per format (below)
 ```
+
+| Format code | Format | Unit | Stored byte order | CZ | CW | Verified by |
+|---|---|---|---|---|---|---|
+| `0x08` | DXT1 (BC1) | 4×4 block, 8 B | 16-bit words BE | 10,073 | 18,910 | decoded images (faces, clothing) |
+| `0x0A` | DXT5 (BC3) | 4×4 block, 16 B | 16-bit words BE | 1,524 | 1,564 | decoded UI icons with alpha |
+| `0x1B` | DXN (BC5, two channels) | 4×4 block, 16 B | 16-bit words BE | 594 | 2,623 | decoded `_nm` maps look like normal maps |
+| `0x00` | A8R8G8B8 | texel, 4 B | 32-bit words BE (A,R,G,B) | 37 | 36 | `cc_00.bct`, an identity colour LUT: R = x mod 32, G = y, B = slice, mean error 0.5 |
+| `0x21` | L8 (one channel) | texel, 1 B | as is | 9 | 6 | font atlases decode to readable glyphs |
+
+Normal maps are not all DXN: 583 `_nm` textures in CZ (325 in CW) are DXT1.
+
+### Layout of the payload
+
+Every texture is **tiled** with the Xbox 360's `XGAddress2DTiledOffset` (the CZ recomp's
+`Tiled2DOffset`), with the row pitch rounded up to 32 units. Regions:
+
+1. **Level 0**, then each mip level, each region starting on a 4 KB boundary and taking
+   its whole tile footprint: `align(pitch × align(rows, 32) × unit bytes, 4096)`. Level
+   *L* ≥ 1 is sized from the *next power of two* of the base size, shifted by *L*
+   (Xenia's `GetGuestTextureLayout` rule). No texture with mips has a
+   non-power-of-two size (351 NPOT textures in CZ, 518 in CW, all single-level), so this
+   rule is only exercised on powers of two.
+2. **Packed mips.** Once a level's shorter side is ≤ 16 texels, that level and all smaller
+   ones share one 32×32-unit tile, each at a fixed offset (Xenia's `GetPackedMipOffset`):
+   16, 8, 4 texels across for square and tall textures, down for wide ones, then the long
+   side's size shifted down. A small texture's **level 0 is itself packed**: a 16×16 DXT1
+   base sits at block (4,0), a 16×8 DXN base at block row 4. *Verified* by locating the
+   non-zero blocks of real 4×16, 8×32, 4×8 and 16×8 textures: they sit exactly at those
+   offsets.
+3. **Cube maps**: each level stores its six faces one after another (face order +X, −X,
+   +Y, −Y, +Z, −Z assumed from D3D), each a whole 4 KB-aligned region. *Verified*: for
+   every cube map, each face's level 1 matches its level 0 downsampled (mean error 0-13 of
+   255; a wrong layout gives noise).
+
+**Payload size model** (`bct.model_data_size`): the regions above, with the *last*
+region of a 2D texture cut to the 4 KB page that holds its last used unit. It matches
+12,186 of 12,237 CZ textures and 23,038 of 23,139 CW ones exactly; the rest are **larger**
+than predicted, by up to one tile footprint, and never smaller. Every one of those 152 is
+either a non-power-of-two size (40×40, 160×160, 288×144 …) or a tall, narrow packed
+texture (4×16, 8×32, 4×8). Which rule makes the game's exporter keep the whole last tile
+for those is **unknown**. It doesn't matter for reading (each level is addressed from the
+layout, and the reader checks that every unit fits the payload) or for replacing (the
+toolkit keeps the original payload size).
+
+### Flags byte (byte 3)
 
 **Retraction (2026-10-08):** "magic `05 01 01 E2` on every loose `.bct`" was based on the
 few files the recomp checked. The census found that **the 4th byte varies**, in loose files
@@ -193,16 +259,54 @@ CZ, 23,126 in CW; `dr2 census`, "texture (.bct) header byte 3"):
 | `A2` | 2 | 0 |
 | `A6` | 0 | 1 |
 
-All 13 values have bit `0x02` set; it looks like a flags byte (phase 2). 11 `.bct` entries
+11 `.bct` entries
 in CZ's `streamedassets.big` weapon models are empty (0 bytes).
 
-Examples: `grid.bct` 128×128; `goretech_head_combine_cm` 512×512; `cc_03.bct`
-1024×32 = a 32³ colour-grading LUT unrolled into a 2D strip.
+What is known now (phase 2 census, counts for CZ / CW):
 
-**TODO (phase 1):** decode the fetch-constant words into (format, endian, tiled, pitch,
-mip levels, packed mips, dimension/cube), using the recomp's `vk_renderer.cpp` texture
-path as the reference, then run a census over every `.bct` in both games: format
-histogram, cube count, mip presence, zero unparsed.
+- `0x02`: set on every texture of both games.
+- `0x08`: **cube map**, verified: set exactly on the textures whose word 0x24 is 5 and
+  whose payload holds six faces (57 / 229, flag value `EA`).
+- `0x04` (counted over textures inside archives): set on every DXT5 but one (1,518 of
+  1,519 / 1,558 of 1,559), on 456 / 793 DXT1s, 35 / 15 DXNs, 15 of 35 / 14 of 34
+  A8R8G8B8 and on every L8. *Hypothesis:* "has alpha" (DXT1 can carry 1-bit alpha).
+  Unconfirmed.
+- `0xE0` (bits 0x20, 0x40, 0x80): all three are set on 92% of textures. All three are
+  clear on most front-end (UI) textures and on the 4×4 defaults in `preload4.big`.
+  *Hypothesis:* addressing (wrap vs clamp) or filtering per axis, since UI art is clamped.
+  Unconfirmed.
+
+The toolkit preserves the byte on write, like every field it doesn't understand.
+
+### Census (2026-10-08, `dr2 census --textures`)
+
+| | Case Zero | Case West |
+|---|---|---|
+| textures (in archives + loose files) | 12,237 (12,224 + 13) | 23,139 (23,126 + 13) |
+| parse with no problem | 12,237 | 23,139 |
+| decode → re-encode → re-tile gives the identical file | **12,237** | **23,139** |
+| cube maps | 57 | 229 |
+| mip levels 1 / 2-6 / 7-10 | 1,291 / 6,301 / 4,645 | 2,286 / 13,914 / 6,939 |
+| largest | 2048×2048 (`cine_wasps_cm`) | 2048×2048 (`glass_tube_cm400e`) |
+
+The re-encode gate: every level of every texture is untiled, swapped to little-endian,
+decoded to RGBA, encoded again with the original blocks as reference (`dxt.encode`
+keeps any block whose pixels are unchanged), swapped back and re-tiled into a fresh
+copy. The result must be byte-identical. That proves the layout, the byte order and the
+decoders are consistent with every shipped texture; whether they are *right* is checked
+by the images above and by the in-game gate.
+
+**Role suffixes** seen (CZ): `_cm` colour (DXT1 5,197, DXT5 208), `_nm` normal (DXN 594,
+DXT1 583), `_sm` specular (435), `_ne`, `_rm`, `_si`, `_no`, `_mask` (clothing tint
+masks), `_det`, `_om`, `_ig`; 4,245 textures have no suffix.
+
+Examples: `grid.bct` 128×128; `goretech_head_combine_cm` 512×512; `cc_03.bct` 1024×32 =
+a 32³ colour-grading LUT unrolled into a 2D strip (A8R8G8B8); `reflection_basic` a
+128×128 DXT1 cube map.
+
+*Retraction of the phase 0 plan text* ("`.bct` header: 48 bytes … then a Xenos texture
+fetch constant", ARCHITECTURE.md §Textures): the header holds no fetch constant. Format,
+size and mip count are plain fields; tiling is always on and implied.
 
 ## Scene container (models and skeletons)
 

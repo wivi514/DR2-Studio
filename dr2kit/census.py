@@ -14,6 +14,15 @@ The phase 1 gates are checks inside the census:
 * **Python cross-check** (``python_lzx=True``): the pure-Python decoder gives the same
   bytes as the native one, for every compressed entry.
 
+Phase 2 adds textures (every entry starting ``05 01 01``):
+
+* **texture parse**: every texture's header decodes, its format is known, and its layout
+  fits in its payload (`dr2kit.formats.bct`); format, mip, cube and flag histograms;
+* **texture re-encode** (``textures=True``, slower): every level of every texture,
+  decoded to pixels and encoded again with the original blocks as reference, gives back
+  the identical stored bytes (`dr2kit.convert.texture`). This is the phase 2
+  "decode then re-encode" gate.
+
 Results for both games are recorded in docs/formats.md. Run it with ``dr2 census``.
 """
 
@@ -30,6 +39,7 @@ from .container import xcompress
 from .container.big import BigArchive, is_big, STORED, LZX
 from .container.lzx.pydecode import _Bits
 from .container.vpath import AssetTree, entry_components, join
+from .formats import bct as bctfmt
 
 # A .bct texture starts 05 01 01; the 4th byte varies (a flags byte, phase 2 work), so
 # only the first three are a magic (docs/formats.md, "Textures", retraction 2026-10-08).
@@ -87,6 +97,17 @@ class CensusReport:
     zero_size: int = 0
     alignments: Counter = field(default_factory=Counter)
     bct_byte3: Counter = field(default_factory=Counter)  # 4th header byte of textures
+    tex_parsed: int = 0
+    tex_formats: Counter = field(default_factory=Counter)
+    tex_format_by_suffix: dict = field(default_factory=lambda: defaultdict(Counter))
+    tex_levels: Counter = field(default_factory=Counter)
+    tex_versions: Counter = field(default_factory=Counter)
+    tex_cubes: int = 0
+    tex_npot: int = 0
+    tex_npot_mipped: int = 0
+    tex_size_model: Counter = field(default_factory=Counter)   # exact / larger / SMALLER
+    tex_largest: tuple = (0, 0, "")
+    tex_reencoded_ok: int = 0
     duplicate_name_archives: int = 0
     duplicate_name_entries: int = 0
     unsafe_names: list = field(default_factory=list)
@@ -113,9 +134,64 @@ def _first_block_type(stream: bytes) -> int:
     return b.read(3)
 
 
+def texture_suffix(name: str) -> str:
+    """The role suffix of a texture name (``_cm``, ``_nm``…), lower-case, or ``(none)``."""
+    stem = name.rsplit(".", 1)[0] if name.lower().endswith(".bct") else name
+    head, sep, tail = stem.rpartition("_")
+    return f"_{tail.lower()}" if sep and head and 1 <= len(tail) <= 3 and tail.isalpha() else "(none)"
+
+
+def check_texture(rep: "CensusReport", evp: str, name: str, data: bytes,
+                  reencode: bool) -> None:
+    """Parse one texture into the report; with ``reencode``, run the re-encode gate."""
+    try:
+        tex = bctfmt.Bct.parse(data, evp)
+    except Exception as ex:  # noqa: BLE001 - reported
+        rep.problems.append((evp, f"texture: {ex}"))
+        return
+    h = tex.header
+    rep.tex_parsed += 1
+    rep.tex_formats[tex.format.name] += 1
+    rep.tex_format_by_suffix[texture_suffix(name)][tex.format.name] += 1
+    rep.tex_levels[h.levels] += 1
+    rep.tex_versions[f"{h.version:#04x}"] += 1
+    rep.tex_cubes += h.is_cube
+    npot = (h.width & (h.width - 1)) or (h.height & (h.height - 1))
+    if npot:
+        rep.tex_npot += 1
+        rep.tex_npot_mipped += h.levels > 1
+    model = bctfmt.model_data_size(h)
+    rep.tex_size_model["exact" if model == h.data_size else
+                       "larger" if h.data_size > model else "SMALLER"] += 1
+    if model > h.data_size:
+        rep.problems.append((evp, f"texture: payload {h.data_size:#x} smaller than the "
+                                  f"layout model {model:#x}"))
+    if h.width * h.height > rep.tex_largest[0] * rep.tex_largest[1]:
+        rep.tex_largest = (h.width, h.height, evp)
+    if reencode:
+        from .convert.texture import decode_level, encode_level
+        try:
+            for lv in tex.levels():
+                stored = tex.untile(lv)
+                again = encode_level(tex, lv, decode_level(tex, lv))
+                if again != stored:
+                    rep.problems.append((evp, f"texture re-encode: level {lv.level} face "
+                                              f"{lv.face} differs"))
+                    return
+            out = bctfmt.Bct(tex.header, bytearray(tex.payload), evp)
+            for lv in tex.levels():
+                out.set_level(lv, tex.untile(lv))
+            if out.to_bytes() != data:
+                rep.problems.append((evp, "texture re-tile: file differs"))
+                return
+            rep.tex_reencoded_ok += 1
+        except Exception as ex:  # noqa: BLE001 - reported
+            rep.problems.append((evp, f"texture re-encode: {ex}"))
+
+
 def run_census(game: str, tree: AssetTree, *, python_lzx: bool = False,
-               reencode: bool = False, workers: int | None = None,
-               progress=None) -> CensusReport:
+               reencode: bool = False, textures: bool = False,
+               workers: int | None = None, progress=None) -> CensusReport:
     """Census one game's data folder. See the module docstring for what is checked.
 
     ``progress(message)`` is called once per file on disk. ``workers`` sets the process
@@ -216,6 +292,7 @@ def run_census(game: str, tree: AssetTree, *, python_lzx: bool = False,
             rep.kind_by_ext[ext][kind] += 1
             if kind == "bct":
                 rep.bct_byte3[f"{data[3]:02X}"] += 1
+                check_texture(rep, evp, e.name, data, textures)
             if kind == "big":
                 try:
                     sub = BigArchive.parse(data, evp)
@@ -229,6 +306,10 @@ def run_census(game: str, tree: AssetTree, *, python_lzx: bool = False,
             ext = path.suffix.lower().lstrip(".") or "(none)"
             rep.files_by_ext[ext] += 1
             raw = path.read_bytes()
+            if raw[:3] == BCT_MAGIC:       # a loose texture on disk
+                rep.bct_byte3[f"{raw[3]:02X}"] += 1
+                check_texture(rep, vp, path.name, raw, textures)
+                continue
             if not is_big(raw):
                 continue
             rep.archive_files += 1
@@ -282,6 +363,15 @@ def format_report(rep: CensusReport) -> str:
     w(f"payload alignment (largest power of two dividing the offset, capped 0x800): "
       f"{_fmt({hex(k): v for k, v in rep.alignments.items()})}")
     w(f"texture (.bct) header byte 3: {_fmt(rep.bct_byte3)}")
+    w(f"textures parsed: {rep.tex_parsed}; formats: {_fmt(rep.tex_formats)}; "
+      f"cube maps: {rep.tex_cubes}; header byte 9: {_fmt(rep.tex_versions)}")
+    w(f"    mip levels: {_fmt(rep.tex_levels, sort_keys=True)}")
+    w(f"    non-power-of-two: {rep.tex_npot} ({rep.tex_npot_mipped} with mips); "
+      f"largest: {rep.tex_largest[0]}x{rep.tex_largest[1]} {rep.tex_largest[2]}")
+    w(f"    payload size vs layout model: {_fmt(rep.tex_size_model)}")
+    w("    format by name suffix:")
+    for suf, c in sorted(rep.tex_format_by_suffix.items(), key=lambda kv: -sum(kv[1].values()))[:12]:
+        w(f"        {suf:>7}: {_fmt(c)}")
     w(f"duplicate names: {rep.duplicate_name_entries} entries in "
       f"{rep.duplicate_name_archives} archives")
     w(f"names unsafe in a vpath or as a Windows file name: {len(rep.unsafe_names)}")
@@ -298,6 +388,9 @@ def format_report(rep: CensusReport) -> str:
         ours, shipped = rep.reencode_ratio
         w(f"re-encoded and decoded back: {rep.reencoded_ok}/{n} "
           f"(our streams are {ours / max(shipped, 1):.2f}x the shipped size)")
+    if rep.tex_reencoded_ok:
+        w(f"textures decoded + re-encoded to identical bytes: "
+          f"{rep.tex_reencoded_ok}/{rep.tex_parsed}")
     w(f"PROBLEMS (unparsed or failed): {len(rep.problems)}")
     for vp, why in rep.problems[:40]:
         w(f"    {vp}: {why}")

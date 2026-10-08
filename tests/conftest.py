@@ -26,6 +26,21 @@ def make_archive(*entries, alignment: int = 4) -> BigArchive:
     return arc
 
 
+def make_bct(fmt_name: str = "DXT1", width: int = 64, height: int = 64, levels: int = 1,
+             cube: bool = False, fill=None) -> bytes:
+    """A synthetic `.bct` texture: header built field by field, payload sized by the
+    layout model and filled by ``fill(i) -> byte`` (default: a repeating pattern)."""
+    from dr2kit.formats.bct import FORMATS, FLAG_ALWAYS, FLAG_CUBE, BctHeader, model_data_size
+    fmt = next(f for f in FORMATS.values() if f.name == fmt_name)
+    hdr = BctHeader(flags=0xE0 | FLAG_ALWAYS | (FLAG_CUBE if cube else 0), width=width,
+                    height=height, format_code=fmt.code, version=0x23, levels=levels,
+                    bpp=fmt.bpp, word_0c=0x12345660, depth_minus_1=5 if cube else 0)
+    size = model_data_size(hdr)
+    hdr.data_size, hdr.data_end = size, 0x30 + size
+    fill = fill or (lambda i: (i * 37 + 11) & 0xFF)
+    return hdr.to_bytes() + bytes(fill(i) for i in range(size))
+
+
 @pytest.fixture
 def game_root():
     """Return a function: ``game_root("cz")`` -> the data root, or skip saying why."""
@@ -39,4 +54,4 @@ def game_root():
     return get
 
 
-__all__ = ["make_archive", "BigArchive", "BigEntry", "LZX", "STORED"]
+__all__ = ["make_archive", "make_bct", "BigArchive", "BigEntry", "LZX", "STORED"]

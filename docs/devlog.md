@@ -17,6 +17,64 @@ Entry template:
 
 ---
 
+## 2026-10-08 — Phase 2: textures, index, DR2 Studio, mods, in-game gate
+**Done:**
+- `.bct` textures decoded: `formats/bct.py` (header, layout, tiling),
+  `convert/dxt.py` (DXT1/DXT5/DXN encode + decode, numpy and pure Python),
+  `convert/png.py` (pure-Python PNG), `convert/texture.py` (texture ⇄ image, replace).
+- Census of every texture in both games, with a re-encode gate (`dr2 census --textures`).
+- The SQLite asset index (`index/`, `dr2 index …`): every asset, texture thumbnails,
+  model→texture links.
+- DR2 Studio v0 (`studio/`, `dr2 studio`).
+- Mod packages (`mods/`, `dr2 mod new|check|build|deploy|undeploy`).
+- `dr2 extract --png`, `dr2 info`.
+- The `game_mods/` VFS layer in both recomps (CZ `057d45b`, CW `ebf0bb2`), each with an
+  off switch, a log line per served file and a gotcha entry.
+
+**Why:** phase 2 of the roadmap: see and replace textures, the first thing modders
+want, and prove end to end that a toolkit-built archive loads in the game.
+
+**Learned:**
+- **The `.bct` header is not a fetch constant** (retracting the phase 0 plan). It is
+  the engine's own description: format code (08 DXT1, 0A DXT5, 1B DXN, 00 A8R8G8B8,
+  21 L8), mip count, bits per pixel, a flags byte (0x08 = cube map, verified), a
+  version byte (0x23 CZ / 0x24 CW). The layout (4 KB-aligned levels, packed mip tail
+  including small bases, six faces per level) was confirmed by where real data sits,
+  by mip chains, and by a payload-size model that matches 99.6% of textures (the rest
+  are larger, never smaller).
+- Every one of 12,237 + 23,139 textures decodes and re-encodes to its exact bytes.
+  Keeping reference blocks makes PNG round trips lossless where pixels are unchanged.
+- **The game accepts our LZX encoder's output.** Chuck's shirt (CZ,
+  `chest_young_chuck.tex/young_cr_shirt_cm`) and jacket (CW, `chest_default.tex/cr_jacket_cm`),
+  both inside compressed `.tex` entries of `npcs.big`, turned green in game and are back
+  to normal with `CZ_NO_MODS=1` / `CW_NO_MODS=1`. The user pointed out that CZ's default
+  outfit is the orange "04" shirt, not the IJIEK jacket (DR2's); the first run had
+  recoloured the jacket, which this save doesn't wear. `dr2 index textures-of` on
+  `chest_young_chuck.big` then found the right texture at once.
+- Headless recomp runs play the save (START,A,A = Continue): use a copy of the save
+  folder (`CZ_SAVE_DIR`). The user's save was checked unchanged.
+- SQLite without statistics planned the relation join as two nested 125k-row scans
+  (10 minutes); a `CROSS JOIN` order plus `ANALYZE` made it 0.4 s.
+- Normal maps aren't all DXN (583 DXT1 `_nm` in CZ). `MatTextureInfoArray` is 100-byte
+  records, name at +4; its hash at +0x38 is not the engine hash.
+
+**Decisions:** the runtime layer only swaps whole files and is checked first; the
+toolkit builds mod files on top of `game_patched` and warns about the toggle layers
+(`dev/recomp-integration.md`). Studio lives in `dr2kit/studio/` so `pip install` ships
+it. No DDS round trip: reference blocks make PNG lossless enough. No game imagery in the
+repository, screenshots included.
+
+**Docs updated:** `formats.md` (§Textures rewritten, with the retraction), `ARCHITECTURE.md`,
+`roadmap.md`, `glossary.md`, `dev/code-tour.md`, `dev/testing.md`, `dev/setup.md`,
+`dev/adding-a-format.md`, `dev/studio.md` (new), `dev/recomp-integration.md` (new),
+`modding/03`, `04`, `05`, `06`, `asset-catalogue.md` (new), `12-troubleshooting.md`,
+`modding/README.md`, `README.md`, `docs/README.md`, `CLAUDE.md`, `THIRD_PARTY.md`,
+`phase2-kickoff.md` (marked historical), `phase3-kickoff.md` (new); in the recomps:
+`docs/gotchas.md` (CZ 634, CW 330), CZ `docs/instruments.md`.
+
+**Next:** phase 3 from `phase3-kickoff.md`: skeletons → `.glb`, then vertex streams
+and bone palettes.
+
 ## 2026-10-08 — Phase 1: container, LZX, census, `dr2` CLI
 **Done:**
 - `dr2kit` package (`pyproject.toml`, `dr2` entry point, `python -m dr2kit`), CI on

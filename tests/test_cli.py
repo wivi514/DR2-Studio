@@ -7,13 +7,13 @@ import pytest
 from dr2kit.cli.main import main
 from dr2kit.container.big import LZX
 
-from conftest import make_archive
+from conftest import make_archive, make_bct
 
 
 @pytest.fixture
 def game(tmp_path, monkeypatch):
     nested = make_archive(("leaf.txt", b"leaf text " * 50, LZX))
-    pack = make_archive(("tex_cm", b"\x05\x01\x01\xe2" + bytes(60)),
+    pack = make_archive(("tex_cm", make_bct("DXT1", 32, 32, 2), LZX),
                         ("model.big", nested.to_bytes()),
                         ("notes.txt", b"hello zombies " * 100, LZX))
     (tmp_path / "game" / "data").mkdir(parents=True)
@@ -55,12 +55,15 @@ def test_extract_recursive(game):
 
 def test_census_clean(game, capsys, tmp_path):
     report = tmp_path / "c.json"
-    assert main(["census", "cz", "-q", "--python-lzx", "--json", str(report)]) == 0
+    assert main(["census", "cz", "-q", "--python-lzx", "--textures",
+                 "--json", str(report)]) == 0
     out = capsys.readouterr().out
     assert "round trip identical: 2/2 archives" in out
+    assert "textures decoded + re-encoded to identical bytes: 1/1" in out
     assert "PROBLEMS (unparsed or failed): 0" in out
     data = json.loads(report.read_text())
-    assert data[0]["archives"] == 2 and data[0]["decoded_ok"] == 2
+    assert data[0]["archives"] == 2 and data[0]["decoded_ok"] == 3
+    assert data[0]["tex_formats"] == {"DXT1": 1}
 
 
 def test_census_reports_broken_archive(game, capsys):

@@ -39,6 +39,16 @@ python -m pip install -e ".[dev]"
 This gives you the `dr2` command. `python -m dr2kit` does the same if `dr2` isn't on
 your PATH.
 
+Optional extras (phase 2):
+
+```
+python -m pip install -e ".[dev,studio]"   # + PySide6 and numpy: DR2 Studio (`dr2 studio`)
+python -m pip install numpy pillow         # just the fast paths (texture work ~50x faster)
+```
+
+Everything works without numpy and Pillow (pure-Python fallbacks, tested in CI), just
+slower: the texture census and the index build want numpy.
+
 ## Build the native LZX library (recommended)
 
 About one entry in eight is LZX-compressed (glossary: [LZX](../glossary.md)). The native

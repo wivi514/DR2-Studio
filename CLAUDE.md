@@ -7,16 +7,18 @@ Goal: make modding easy. Browse every asset in both games, **see** what a textur
 and **hear** a sound before extracting it, export models and skeletons to Blender, and
 put edited or new models back into the game when their bones match the game's rig.
 
-**Status: phase 1 (container + census) done 2026-10-08: `.big` read/write, LZX
-decode/encode, vpaths, profiles, STFS unpack, the `dr2` CLI, all gates green on both
-games. Next: phase 2; start from `docs/phase2-kickoff.md`.** Read these before writing
+**Status: phase 2 (textures + index + Studio + mods) done 2026-10-08: `.bct` decode/
+encode with every texture of both games re-encoding to identical bytes, the SQLite asset
+index, DR2 Studio v0, mod packages, and the recomps' `game_mods/` layer, with the
+in-game gate passed in both recomps. Phase 1 (container, LZX, census, CLI) done the same
+day. Next: phase 3; start from `docs/phase3-kickoff.md`.** Read these before writing
 code:
 
 | Doc | What it holds |
 |---|---|
 | `docs/ARCHITECTURE.md` | Components, data flow, the asset index, the mod package format, stack choices |
 | `docs/formats.md` | Everything known about every file format, with a status per format (cracked / partial / unknown) |
-| `docs/phase2-kickoff.md` | Phase 2 handoff: order of work, sources to port, facts to keep in mind |
+| `docs/phase3-kickoff.md` | Phase 3 handoff: order of work, sources to port, facts to keep in mind |
 | `docs/dev/code-tour.md` | Every module of `dr2kit` and how a read flows through them |
 | `THIRD_PARTY.md` | Reused code and its licenses (libmspack is LGPL: keep it in its own library) |
 | `docs/roadmap.md` | Phases, what each phase delivers, and the gate that proves it works |
@@ -79,10 +81,10 @@ behaviour.
 | `tools/big_decompress.cpp` | LZX decode of compressed entries, linked from XenonRecomp's `lzxDecompress` (which wraps libmspack's **LGPL-2.1** `lzxd.c`, so keep it a separate shared library), checked against an oracle |
 | `tools/gen_pc_options.py` | `read_big` / `write_big`, a **real pure-Python LZX encoder** (`lzx_encode_stream`), `verify_fake_lzx`, a `.bcs` string-bank patcher |
 | `tools/patch_coop_ending_bike.py` | A worked example of re-packing a modified entry that the game accepted |
-| `tools/tex_decode.py` | Xenos `Tiled2DOffset` untiling + DXT1/DXT5 decode |
+| `tools/tex_decode.py` | Xenos `Tiled2DOffset` untiling + DXT1/DXT5 decode (ported in phase 2) |
 | `tools/name_hash.py` | The engine's string hash (`h = h*33 ^ c`); `.big` entries are looked up by hash |
 | `runtime/audio/xma_decoder.cpp` | How to feed raw XMA to ffmpeg's `xma2` decoder (the 34-byte XMA2 extradata) |
-| `runtime/kernel/vfs.cpp` | The overlay layers; a `game_mods/` layer would slot in here |
+| `runtime/kernel/vfs.cpp` | The overlay layers; the `game_mods/` layer was added here in phase 2 (both recomps) |
 
 ## Hard-won rules (inherited from the recomp work, all measured)
 
@@ -128,6 +130,9 @@ python -m pytest -q                       # unit + game-data tests (game tests s
 dr2 doctor                                # LZX backend in use, games found
 dr2 census                                # both games: counts + round-trip/decode gates (~30 s)
 dr2 census --reencode --python-lzx        # the slow LZX gates (~20 min, all CPUs)
+dr2 census --textures                     # the texture re-encode gate (~4 min CZ, ~6 min CW)
+dr2 index build                           # the asset index (~1-2 min per game)
+dr2 studio                                # the GUI (pip install -e ".[studio]")
 ```
 
 ## Conventions
@@ -157,7 +162,8 @@ dr2 census --reencode --python-lzx        # the slow LZX gates (~20 min, all CPU
 Fedora 44, Python 3.14 (system), Blender 5.2.1 LTS at `/usr/bin/blender`, ffmpeg with
 `xma1`/`xma2` and Bink decoders. No `xxd` (use `od`). `vgmstream-cli` not installed.
 `uv` is available (it also provides Python 3.11/3.12 for compatibility checks). Dev venv:
-`.venv/` (`uv venv .venv --python 3.14 && uv pip install -e ".[dev]"`; PyAV installed there
-too). CMake + Ninja + gcc/clang present; the native LZX library is built in
+`.venv/` (`uv venv .venv --python 3.14 && uv pip install -e ".[dev,studio]"`; PyAV, numpy,
+PySide6 6.12 and Pillow installed there too). DR2 Studio runs headless with
+`QT_QPA_PLATFORM=offscreen` (screenshots via `window.grab()`). CMake + Ninja + gcc/clang present; the native LZX library is built in
 `native/lzx/build/`. Python 3.14 uses the *forkserver* start method, so any script that
 runs `dr2 census --reencode` (a process pool) needs an `if __name__ == "__main__"` guard.

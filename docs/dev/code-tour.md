@@ -17,6 +17,22 @@ dr2kit/
     lzx/               LZX: native loader, pure-Python decoder, encoder
     vpath.py           virtual paths + AssetTree (any asset at any depth)
     stfs.py            the XBLA package (STFS) reader / unpacker
+  formats/
+    bct.py             textures: 48-byte header, mip/face layout, Xenos tiling
+  convert/
+    png.py             pure-Python PNG reader/writer (Pillow used when present)
+    dxt.py             DXT1/DXT5/DXN block decode + encode (numpy, pure-Python fallback)
+    texture.py         .bct <-> RGBA image: decode, replace (reference blocks), mips
+  index/
+    schema.sql         the SQLite tables
+    build.py           build / refresh the asset index (incremental), thumbnails, relations
+    query.py           search, children, model<->texture relations
+  mods/
+    manifest.py        mod.toml, the list of overrides
+    build.py           overrides -> whole replacement files (re-pack, re-compress, verify)
+    deploy.py          copy a build into a recomp's game_mods/ (and undo it)
+  studio/
+    app.py, viewers.py DR2 Studio (PySide6): tree, search, texture viewer, mod bar
   cli/main.py          the `dr2` command
 native/lzx/            the C library behind the fast LZX decoder (libmspack, LGPL)
 tests/                 unit tests (synthetic data) + game-data tests (skip if absent)
@@ -110,9 +126,58 @@ header bytes, and runs the gates: round trip, decode, and optionally re-encode
 be empty.
 
 ### `dr2kit/cli/main.py`
-`dr2 doctor | games | ls | find | extract | census | unpack`. One `cmd_<name>`
+`dr2 doctor | games | ls | find | extract [--png] | info | index … | mod … | studio |
+census [--textures] | unpack`. One `cmd_<name>`
 function per command, no format logic. Exit code 1 on a `Dr2Error` or when a census
 finds problems.
+
+### `dr2kit/formats/bct.py` (phase 2)
+A texture's bytes → `Bct` (a `BctHeader` with every field kept, plus the still-tiled
+payload). `layout(header)` lists every `Level` (mip level × cube face) with its byte
+offset, row pitch and, for packed levels, its unit offset inside the shared tile.
+`untile()` / `tile()` move one level between tiled order and plain rows (numpy when
+available); `swap_to_little()` undoes the big-endian storage. Read its docstring and
+`formats.md` §Textures first: the layout rules there are what everything else trusts.
+`Bct.parse` checks the header and that every unit of every level fits in the payload.
+
+### `dr2kit/convert/png.py`, `dxt.py`, `texture.py` (phase 2)
+- `png`: `Image` (width, height, RGBA bytes) is the one image type of the toolkit.
+  `encode()` writes 8-bit RGBA/RGB/L; `decode()` reads what editors write (uses Pillow
+  if installed, `decode_pure()` otherwise).
+- `dxt`: `decode(fmt, blocks, w, h)` and `encode(fmt, rgba, w, h, reference=None)` for
+  DXT1/DXT5/DXN (and BC4). With a `reference`, blocks whose pixels are unchanged are
+  copied from it, and only the others are encoded. That is what makes "export, re-import
+  unchanged" give back the shipped bytes. Pure-Python twins of both exist and are tested
+  against the numpy ones.
+- `texture`: `to_image(bct, level)` (cube maps as a 6-face strip), `decode_level`,
+  `encode_level`, and `replace_image(bct, image)`: same size only (v1), reference
+  blocks, mips kept if level 0 is unchanged, else rebuilt by `downsample`.
+
+### `dr2kit/index/` (phase 2)
+`build.build_index(game, tree, db)` walks every file and archive (like the census) and
+fills `asset`, `texture` (with a PNG thumbnail), `material_slot` (the names in each
+model's `MatTextureInfoArray`), then `link_relations()` joins slot names to textures.
+Unchanged files (same size and mtime) are skipped on a rebuild. `connect()` creates the
+schema, drops an index from an older schema version, and uses WAL mode. `query` holds
+every SELECT: `search`, `get`, `children`, `files`, `textures_of`, `used_by`,
+`same_content`, `thumbnail`. The default database is in the user cache folder
+(`default_db_path()`).
+
+### `dr2kit/mods/` (phase 2)
+- `manifest`: `Mod.load(folder)` reads `mod.toml`; `Mod.files()` lists `replace/`;
+  `create()` makes a new mod folder.
+- `build`: `classify()` checks every override against the game and returns a plan (or
+  one `ModError` listing every problem: unknown path, not a texture, conflicts).
+  `build()` groups overrides by file on disk, runs `patch_archive()` down each vpath
+  (re-encoding compressed entries via `BigEntry.set_data`), writes whole files, then
+  `verify()` reads every override back through a fresh `AssetTree`. `base_dirs` makes
+  it patch a recomp's `game_patched` copy instead of the shipped file.
+- `deploy`: `deploy(build, target)` copies files and records them in
+  `dr2kit-deployed.json`; `undeploy(target)` removes exactly those. `recomp_folders()`
+  names `game_mods` / `game_patched` / `game_kbm` / `game_bootskip` next to a game root.
+
+### `dr2kit/studio/` (phase 2)
+DR2 Studio; see [`studio.md`](studio.md).
 
 ## Tests
 

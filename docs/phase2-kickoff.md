@@ -1,5 +1,10 @@
 # Phase 2 kickoff: textures, index, first GUI, first mod
 
+> **Historical.** Phase 2 was completed on 2026-10-08 (devlog, "Phase 2"); the next
+> handoff is [`phase3-kickoff.md`](phase3-kickoff.md). Kept as the record of the plan.
+> Corrected since: the `.bct` header holds no fetch constant (`formats.md` §Textures),
+> and the in-game gate used Chuck's own outfit textures, not a generic `npcs.big` one.
+
 A handoff for the session that starts phase 2. Read `CLAUDE.md` first (especially the
 documentation rules), then this. Scope and gate: `roadmap.md` §Phase 2. What phase 1
 built: `dev/code-tour.md`; what it learned: `devlog.md` (2026-10-08, "Phase 1").

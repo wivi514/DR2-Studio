@@ -34,19 +34,30 @@ record layout verified across all 76 skeleton files in both games.
 - **Not proven yet:** that the *game* accepts entries re-encoded by our encoder. That
   is the phase 2 in-game gate (`game_mods/`).
 
-## Phase 2: textures + index + first GUI
-Handoff: `phase2-kickoff.md`.
-- `.bct` header decode (incl. the 4th magic byte, which varies: `formats.md`) (fetch constant → format/mips/cube), untile, DXT1/3/5, DXN,
-  A8R8G8B8, … → PNG. Census of formats in both games.
-- SQLite index with thumbnails; model→texture relations from `MatTextureInfoArray`.
-- DR2 Studio v0: tree, search, texture viewer, extract.
-- Texture **replacement** (same size and format): PNG → DXT → tile → `.bct` → `.tex` →
-  LZX → archive. First mod-package build.
-- Recomp `game_mods/` VFS layer, in both CZ and CW.
-- **Gate:** decode then re-encode reproduces the original block data for lossless
-  formats; a recoloured texture shows up in **both** recomps through `game_mods/`, and
-  disappears with `CZ_NO_MODS=1` / `CW_NO_MODS=1`. That texture must sit in a
-  compressed entry, so the same test proves the game accepts our LZX encoder's output.
+## Phase 2: textures + index + first GUI ✅ (2026-10-08)
+Handoff was `phase2-kickoff.md`; the next one is `phase3-kickoff.md`.
+- `.bct` decode (`formats/bct.py`): the header is the engine's own (format code, size,
+  mips, flags), not a fetch constant; layout of mips, packed mip tail and cube faces;
+  untile; DXT1/DXT5/DXN/A8R8G8B8/L8 → PNG. Census of every texture in both games. ✅
+- SQLite index (`index/`) with thumbnails; model→texture relations from
+  `MatTextureInfoArray`; incremental rebuilds; `dr2 index build|search|used-by|textures-of`. ✅
+- DR2 Studio v0 (`studio/`): tree, search with thumbnails/grid, texture viewer (zoom,
+  channels, mips, cube faces), related assets, extract / export PNG, mod bar. ✅
+- Texture **replacement** (same size and format): PNG → DXT (reference blocks keep
+  unchanged blocks) → tile → `.bct` → `.tex` → LZX → archive. Mod packages
+  (`mods/`): `dr2 mod new|check|build|deploy|undeploy`. ✅
+- Recomp `game_mods/` VFS layer in both CZ (`057d45b`) and CW (`ebf0bb2`). ✅
+- Docs: `modding/03`, `04` (textures), `05`, `06`, `asset-catalogue.md`,
+  `12-troubleshooting.md`; `dev/studio.md`, `dev/recomp-integration.md`. ✅
+- **Gate:** decode then re-encode reproduces the original data; a recoloured texture in a
+  compressed entry shows up in **both** recomps and disappears with the off switch.
+  **Result:** 12,237 + 23,139 textures re-encode to identical bytes; Chuck's CZ "04"
+  shirt and CW jacket turn green in game through `game_mods/`, and are back to the
+  shipped colours with `CZ_NO_MODS=1` / `CW_NO_MODS=1`. The game accepts our LZX streams.
+  Details: `dev/testing.md`.
+- **Not proven yet:** re-encoded entries in `preload4.big` (boot path); the meaning of
+  `.bct` flag bits 0x04/0xE0 and header word 0x0C; why 0.4% of textures carry a larger
+  payload than the layout model; texture *resizing* (v1 keeps the size).
 
 ## Phase 3: skeletons and models → Blender
 - Skeleton → `.glb` armature (rest pose, names, extras). **Gate:** importing into

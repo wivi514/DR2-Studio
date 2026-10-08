@@ -1,8 +1,8 @@
 # Adding a format
 
 The steps every file format goes through in this toolkit, in order. They were written
-while doing the `.big` container in phase 1; `.bct` textures (phase 2) will be the next
-format through them, and this page will be refined then.
+while doing the `.big` container in phase 1 and refined with `.bct` textures in phase 2
+(lessons at the end).
 
 Each step ends with something you can check. Don't start a step before the previous
 one's check passes.
@@ -92,3 +92,26 @@ logic there).
 
 A viewer for the type in DR2 Studio. The page on Studio's structure (`studio.md`) is
 written in phase 2.
+
+## Lessons from `.bct` (phase 2)
+
+- **Dump the header of every file first, then histogram every field** (both games).
+  The phase 0 guess ("a GPU fetch constant") died in ten minutes against a table of
+  35,000 headers: constant fields, a format byte, a mip count and a bits-per-pixel
+  byte stood out at once.
+- **Predict a size and compare it to the stored size, for every file.** A layout model
+  that reproduces the payload length of 99.6% of textures is strong evidence; the 0.4%
+  it misses are where the open questions are. Report them as "larger/smaller than the
+  model" instead of hiding them.
+- **Find where the data actually sits.** For layout questions (packed mips), invert the
+  addressing: list which units of a real file are non-zero and map them back to (x, y).
+  That settled the packed offsets for tall, wide and tiny textures without guessing.
+- **Use a self-checking oracle when there is one.** An identity colour LUT (`cc_00.bct`)
+  pinned the A8R8G8B8 channel order numerically; mip chains (level 1 ≈ level 0
+  downsampled) checked the cube-face layout.
+- **Make the writer's gate exact even for lossy formats.** DXT encoding is lossy, but
+  "decode, then encode with the original blocks as reference" must give back the
+  original bytes, and that tests the reader, the writer, the tiling and the byte order
+  together on every file.
+- **Look at pictures.** Decode a sample of each format to PNG and look at it before
+  trusting the census: a consistent wrong decode can still round-trip.

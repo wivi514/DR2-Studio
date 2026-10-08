@@ -75,7 +75,8 @@ export. No free XMA encoder exists, which is why audio replacement uses special 
 
 **Overlay / `game_patched` / `game_mods`.** Folders the recomps check before the original
 game files. A file placed there replaces the original without touching it.
-`game_patched` holds the recomp's own fixes; `game_mods` (planned) holds your mods.
+`game_patched` holds the recomp's own fixes; `game_mods` holds your mods (checked first;
+`CZ_NO_MODS=1` / `CW_NO_MODS=1` makes the recomp ignore it).
 
 **Recomp.** A static recompilation: the Xbox 360 game translated to run natively on a
 PC. The Case Zero and Case West recomps are this toolkit's sister projects.
@@ -91,7 +92,8 @@ proven rather than guessed.
 bytes; that's the first test of every writer in the toolkit.
 
 **Mod package.** A folder with a `mod.toml` and your replacement files in normal formats
-(PNG, WAV, `.glb`, JSON). The toolkit builds it into game files for your install.
+(PNG today; WAV, `.glb`, JSON later). The toolkit builds it into game files for your
+install ([`modding/06-mod-packages.md`](modding/06-mod-packages.md)).
 
 **XBLA package / STFS.** The single file Xbox Live Arcade games are sold as (a 42-character
 hex name, under `<TitleID>/000D0000/`). Inside is a small filesystem called STFS.
@@ -123,3 +125,32 @@ Python (the fallback). Both give the same results; `dr2 doctor` says which is in
 
 **`dr2` command.** The toolkit's command-line program, typed in a terminal
 (`dr2 ls`, `dr2 extract`, …). `python -m dr2kit` is the same thing.
+
+**Asset index.** The toolkit's catalogue of every file and archive entry of both games,
+in one SQLite database file, with a thumbnail of each texture and the links between
+models and their textures. Built by `dr2 index build` or DR2 Studio's
+**Build / refresh index**; it makes searching instant.
+
+**DR2 Studio.** The toolkit's window-based app (`dr2 studio`): browse, search, look at
+textures, export them, and build mods without typing commands.
+
+**Cube map.** A texture made of six square images, the six faces of a cube around the
+viewer (+X, −X, +Y, −Y, +Z, −Z). Used for reflections and skies. Exported as a strip of
+six faces.
+
+**Packed mips.** On the Xbox 360 the smallest mip levels of a texture (16 pixels and
+less) share one memory tile, each tucked into a corner of it. For a tiny texture even
+the full-size image sits there. The toolkit knows where each level is.
+
+**Colour map / normal map / mask.** Kinds of texture, named by their ending: `_cm`
+holds the colours you see; `_nm` (normal map) holds the direction of the surface for
+lighting, and looks purple-blue; `_mask` says which parts of a piece of clothing get
+tinted.
+
+**Reference blocks.** When the toolkit turns your PNG back into a game texture, any
+4×4 block whose pixels you didn't change keeps the game's original bytes exactly. Only
+the blocks you painted on are compressed again, so an unedited texture comes back
+bit-for-bit identical.
+
+**Deploy / undeploy.** Copy a built mod into the place the game reads it from (a recomp's
+`assets/game_mods/`), or remove exactly those files again.

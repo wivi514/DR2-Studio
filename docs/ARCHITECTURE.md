@@ -36,13 +36,15 @@ dr2kit/                 core library (pure Python; numpy optional)
                         pure-Python decoder, encoder), vpath.py, stfs.py (XBLA package)
   profiles/ ✅          cz.toml, cw.toml + data discovery (env var, user config, sibling recomp)
   cli/ ✅               the `dr2` command (main.py)
-  formats/              bct.py, tex.py, model/ (chunks, vertex decode, bone palette), skeleton.py,
-                        anim.py, xma.py, bik.py, bcs.py, scripts.py (cAudioScene/mission .txt)
-  convert/              texture.py, gltf.py (model+skeleton), audio.py, strings.py
-  index/                schema.sql, build.py, query.py
-  mods/                 manifest.py, build.py, deploy.py, validate.py
+  formats/              bct.py ✅ (phase 2); later: model/ (chunks, vertex decode, bone palette),
+                        skeleton.py, anim.py, xma.py, bik.py, bcs.py, scripts.py
+  convert/              png.py ✅, dxt.py ✅, texture.py ✅ (phase 2); later: gltf.py, audio.py,
+                        strings.py
+  index/ ✅             schema.sql, build.py, query.py (phase 2)
+  mods/ ✅              manifest.py, build.py, deploy.py (phase 2)
+  studio/ ✅            DR2 Studio v0: app.py, viewers.py (phase 2; inside the package so
+                        `dr2 studio` works after pip install)
 native/lzx/ ✅          dr2lzx: libmspack's lzxd.c (LGPL, separate library) + a small wrapper, CMake
-studio/                 PySide6 GUI
 blender/io_dr2/         Blender add-on (vendors dr2kit at build time)
 tests/ ✅               unit tests on synthetic data; game-data tests (skip if absent)
 tools/ ✅               developer scripts (PyAV codec check)
@@ -237,14 +239,26 @@ preserved.
 
 ## Textures
 
-Decode: `.bct` header (48 bytes, BE, magic `05 01 01 E2`, extent, then a Xenos texture
-fetch constant) → format (DXT1/3/5, DXN/ATI2 for normal maps, A8R8G8B8, …) → untile →
-optional mip chain → PNG (or DDS for lossless re-import of block data).
+Built in phase 2 (`formats/bct.py`, `convert/dxt.py`, `convert/texture.py`; facts in
+`formats.md` §Textures).
 
-Encode: PNG → resize check (v1 keeps the original size) → DXT encode (numpy encoder;
-optionally call `compressonatorcli`/`nvcompress` when installed, for quality) → mips →
-re-tile → `.bct` header with the original fetch constant patched for the new data → back
-into the `.tex` archive (LZX re-encode where the original was compressed).
+Decode: `.bct` header (48 bytes, BE: format code, size, mip count, flags; *not* a fetch
+constant, which was the phase 0 guess) → layout of every level and cube face (4 KB-aligned
+regions, packed mip tail) → untile (`Tiled2DOffset`) → byte swap → DXT1 / DXT5 / DXN /
+A8R8G8B8 / L8 → RGBA → PNG. Cube maps export as a strip of six faces.
+
+Encode (replacement, same size and format in v1): PNG → RGBA → per level: encode with
+the **original blocks as reference** (a block whose pixels are unchanged keeps its exact
+bytes; only edited blocks are re-encoded) → byte swap → re-tile into a copy of the
+original payload → header unchanged → back into the `.tex` archive, LZX re-encoded where
+the original was compressed. Mips: kept as shipped when level 0 is unchanged, otherwise
+rebuilt from the new image with a 2×2 box filter. The encoder is numpy-based (PCA
+endpoints + least-squares refinement); calling an external encoder
+(`compressonatorcli`/`nvcompress`) for higher quality stays an option for later.
+
+*Changed from the phase 0 plan:* no DDS round trip is needed for lossless re-import: the
+reference-block rule makes PNG → `.bct` reproduce the shipped bytes wherever the pixels
+are unchanged (checked on every texture of both games).
 
 ## Recomp integration (approved 2026-10-08 for CZ and CW)
 

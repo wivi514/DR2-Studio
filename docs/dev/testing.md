@@ -10,7 +10,7 @@ independent decoder, the game itself), never against the code's own idea of righ
 |---|---|---|---|
 | **Unit tests** | everywhere, CI included (Windows, Linux x64/arm64, macOS) | tiny synthetic files built in the test | `python -m pytest -m "not gamedata"` |
 | **Game-data tests** (marker `gamedata`) | your machine, if a game is installed | the real game, found through the profiles | `python -m pytest -m gamedata` |
-| **Gates** (slow) | your machine, before calling a phase or format done | every entry of both games | `dr2 census --reencode --python-lzx` |
+| **Gates** (slow) | your machine, before calling a phase or format done | every entry of both games | `dr2 census --reencode --python-lzx`, `dr2 census --textures` |
 
 Game-data tests **skip with a message** when a game is missing (`SKIPPED … cw game data
 not available: …`). A skip is not a pass: before claiming a format works, make sure the
@@ -65,6 +65,32 @@ These come from `CLAUDE.md` ("Verification gates") and each phase's gate in
 | Index hash = engine hash of the lower-cased name | 124,932 / 124,932 | 172,322 / 172,322 |
 | Unparsed entries or archives | 0 | 0 |
 | XBLA package unpacks to the recomp's files, byte for byte | 256 / 256 files | 305 / 305 files |
+
+### Phase 2 results (2026-10-08)
+
+| Gate | Case Zero | Case West |
+|---|---|---|
+| Textures parse (header, known format, layout fits the payload) | 12,237 / 12,237 | 23,139 / 23,139 |
+| Every level decoded → re-encoded (reference blocks) → re-tiled gives the identical file (`dr2 census --textures`, ~4 / ~6 min) | 12,237 / 12,237 | 23,139 / 23,139 |
+| Payload size equals the layout model (informational; the rest are larger, never smaller) | 12,186 | 23,038 |
+| Index built with no unparsed asset (`dr2 index build`) | 125,166 assets, 0 problems, ~90 s | 172,603 assets, 0 problems, 67 s |
+| Model → texture links found (slots naming a texture found nowhere) | 80,230 (56) | 494,475 (93) |
+| **In-game gate**: recoloured texture in a compressed `.tex`, via `game_mods/` | `young_cr_shirt_cm`: green "04" shirt at frame 12864; orange with `CZ_NO_MODS=1` | `cr_jacket_cm`: green IJIEK jacket at frame 6144; yellow with `CW_NO_MODS=1` |
+| Recomp log | 1 "served from the MODS overlay" line (npcs.big); 0 with the off switch | same |
+
+The in-game runs are headless (`*_NO_WINDOW=1 *_VKDRAW=1 *_VK_FRAME_DUMP=…`, scripted
+START,A,A into a *copy* of the save); the recipe is in
+[`recomp-integration.md`](recomp-integration.md). They are the first proof that the game
+accepts entries re-encoded by the toolkit's LZX encoder (verbatim blocks), for model
+texture packs in `npcs.big`. `preload4.big` (read at boot, where the CZ recomp once saw
+re-encodes rejected) is **still unproven**.
+
+Visual checks (by eye, on decoded PNGs): DXT1 faces and clothing, DXT5 UI icons with
+alpha, DXN normal maps, L8 font pages, cube-map faces. A8R8G8B8 is checked numerically
+on the identity colour LUT `cc_00.bct` (R = x mod 32, G = y, B = slice; mean error 0.5).
+
+Unit tests run with and without numpy/Pillow (CI does both); DR2 Studio has an
+off-screen smoke test that skips when PySide6 is missing.
 
 ## Writing a test for new code
 

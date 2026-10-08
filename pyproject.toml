@@ -13,9 +13,11 @@ authors = [{ name = "wivi514" }]
 dependencies = ["platformdirs>=3"]
 
 [project.optional-dependencies]
-# numpy speeds up texture and vertex work from phase 2 on; nothing in phase 1 needs it.
+# numpy speeds up texture work (untiling, DXT) ~50x; everything also runs without it.
 fast = ["numpy"]
 dev = ["pytest>=7"]
+# DR2 Studio, the GUI (LGPL PySide6; see THIRD_PARTY.md).
+studio = ["PySide6>=6.5", "numpy"]
 
 [project.scripts]
 dr2 = "dr2kit.cli.main:main"
@@ -25,6 +27,7 @@ include = ["dr2kit*"]
 
 [tool.setuptools.package-data]
 "dr2kit.profiles" = ["*.toml"]
+"dr2kit.index" = ["*.sql"]
 # Prebuilt native LZX decoders, when a release build drops them in (see docs/dev/setup.md).
 "dr2kit.container.lzx" = ["_native/*"]
 
