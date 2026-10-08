@@ -67,7 +67,9 @@ built: `dev/code-tour.md`; what it learned: `devlog.md` (2026-10-08, "Phase 2").
 - Headless recomp runs **play the game** (`START,A,A` continues the latest save): always
   point `CZ_SAVE_DIR`/`CW_SAVE_DIR` at a copy (`dev/recomp-integration.md`), and
   `dr2 mod undeploy` afterwards.
-- A `cz_runtime` started by the user may be running; leave other processes alone.
+- Check for a recomp the user started (`pgrep -x cz_runtime`, `pgrep -x cw_runtime`)
+  before a headless run, and leave it alone unless they say otherwise (on 2026-10-08 one
+  had been running for hours; the user asked for it to be stopped).
 
 ## Test data policy (unchanged)
 

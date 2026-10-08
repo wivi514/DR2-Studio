@@ -74,6 +74,11 @@ repository, screenshots included.
 
 **Next:** phase 3 from `phase3-kickoff.md`: skeletons → `.glb`, then vertex streams
 and bone palettes.
+**Follow-up (same evening):** a `cz_runtime` the user had left running for ~5 h (started
+before this session, so on the pre-`game_mods` binary) was stopped at the user's request
+with a normal SIGTERM. Their save was checked unchanged. Both recomps' `game_mods/`
+folders were removed after the gate, so the next launch of either recomp runs the new
+binary with an empty mods layer: identical to before unless a mod is deployed.
 
 ## 2026-10-08 — Phase 1: container, LZX, census, `dr2` CLI
 **Done:**
