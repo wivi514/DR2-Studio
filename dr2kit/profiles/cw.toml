@@ -1,0 +1,15 @@
+# Game profile: Dead Rising 2: Case West (Xbox 360 XBLA).
+# A profile is data, not code: per-game differences go here (CLAUDE.md, Conventions).
+# Field reference: docs/dev/code-tour.md, "dr2kit.profiles".
+
+id = "cw"
+name = "Dead Rising 2: Case West"
+title_id = "58410B00"
+
+recomp_dirs = ["../Dead_Rising_2_Case_West_Xenon_Recomp/assets/game"]
+package_globs = ["../Dead_Rising_2_Case_West_Xenon_Recomp/assets/package/58410B00/000D0000/*"]
+
+[census]
+archive_files = 202   # .big files plus .tex packs and 6 .bcf fonts that are archives
+archives = 8017
+entries = 172322

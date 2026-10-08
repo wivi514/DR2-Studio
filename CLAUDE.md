@@ -7,14 +7,18 @@ Goal: make modding easy. Browse every asset in both games, **see** what a textur
 and **hear** a sound before extracting it, export models and skeletons to Blender, and
 put edited or new models back into the game when their bones match the game's rig.
 
-**Status: phase 0 (planning) done 2026-10-08. No code yet. Next: phase 1; start from
-`docs/phase1-kickoff.md`.** Read these before writing any code:
+**Status: phase 1 (container + census) done 2026-10-08: `.big` read/write, LZX
+decode/encode, vpaths, profiles, STFS unpack, the `dr2` CLI, all gates green on both
+games. Next: phase 2; start from `docs/phase2-kickoff.md`.** Read these before writing
+code:
 
 | Doc | What it holds |
 |---|---|
 | `docs/ARCHITECTURE.md` | Components, data flow, the asset index, the mod package format, stack choices |
 | `docs/formats.md` | Everything known about every file format, with a status per format (cracked / partial / unknown) |
-| `docs/phase1-kickoff.md` | Phase 1 handoff: order of work, exact source files to port, licensing of reused code |
+| `docs/phase2-kickoff.md` | Phase 2 handoff: order of work, sources to port, facts to keep in mind |
+| `docs/dev/code-tour.md` | Every module of `dr2kit` and how a read flows through them |
+| `THIRD_PARTY.md` | Reused code and its licenses (libmspack is LGPL: keep it in its own library) |
 | `docs/roadmap.md` | Phases, what each phase delivers, and the gate that proves it works |
 | `docs/README.md` | Docs index: modder guides (`docs/modding/`), developer guides (`docs/dev/`), glossary, devlog |
 | `docs/prior-art.md` | Community tools (ProBoards, wiki, Gibbed, mariokart64n's MaxScript, Chrrox) and what to learn or avoid from each |
@@ -61,7 +65,9 @@ game profile config and **skip, saying so,** when it is absent.
 
 ## Prior work to reuse (in the CZ recomp's `tools/`)
 
-The CZ recomp already cracked a lot. Port it here, don't rediscover it. Its docs record
+The CZ recomp already cracked a lot. Port it here, don't rediscover it. Phase 1 ported
+`big_list.py`, `read_big`/`write_big`, the LZX encoder, `name_hash.py` and
+`extract_stfs.py` (`THIRD_PARTY.md` maps each to its module); the rest is still to port. Its docs record
 *why* each detail is the way it is, including retractions; read them before changing
 behaviour.
 
@@ -85,7 +91,8 @@ behaviour.
 2. **`.big` names are variable-length.** Read each name up to the NUL from its own
    `name_offset`. A fixed width only holds within the shader banks.
 3. **`size` is the stored length, `size2` the uncompressed length; `resv == 2` marks
-   compression.** 1,671 CZ entries are compressed.
+   compression.** 1,671 entries of CZ's `.big` files are compressed (10,754 counting
+   nested archives; CW 21,354). An empty compressed entry is just `00 00 00 00`.
 4. **Compressed entries must be re-encoded, not stored.** The game asserts and crashes on
    a stored replacement where it expects compression, and crashes on degenerate LZX
    streams that other decoders accept. Use the real encoder and verify by decoding.
@@ -103,11 +110,24 @@ behaviour.
 - **Round-trip identity.** `read → write` with no edits must produce byte-identical
   output for every archive in both games. This is the first test of every writer.
 - **Decode oracles.** LZX output must have the right `size2` and the expected magic
-  (`05 01 01 E2` for `.bct`). Decoded skeleton quaternions must have unit norm.
+  (`05 01 01` for `.bct`; the 4th byte varies, so `05 01 01 E2` was a retracted claim).
+  Two independent LZX decoders (native libmspack, pure Python) must agree. Decoded
+  skeleton quaternions must have unit norm.
 - **Cross-game census.** A format change is not done until a census over *all* entries of
   that type in CZ and CW reports zero unparsed entries (or names each one).
 - **In-game proof.** A replacement counts only once it loads in the recomp. The
   recomp's `game_patched` overlay is the existing path for that.
+
+## Commands
+
+```
+python -m venv .venv && . .venv/bin/activate && pip install -e ".[dev]"   # setup (docs/dev/setup.md)
+cmake -S native/lzx -B native/lzx/build -DCMAKE_BUILD_TYPE=Release && cmake --build native/lzx/build
+python -m pytest -q                       # unit + game-data tests (game tests skip if absent)
+dr2 doctor                                # LZX backend in use, games found
+dr2 census                                # both games: counts + round-trip/decode gates (~30 s)
+dr2 census --reencode --python-lzx        # the slow LZX gates (~20 min, all CPUs)
+```
 
 ## Conventions
 

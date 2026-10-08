@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dr2kit"
+version = "0.1.0.dev0"
+description = "Modding toolkit for Dead Rising 2: Case Zero and Case West (Xbox 360)"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = [{ name = "wivi514" }]
+dependencies = ["platformdirs>=3"]
+
+[project.optional-dependencies]
+# numpy speeds up texture and vertex work from phase 2 on; nothing in phase 1 needs it.
+fast = ["numpy"]
+dev = ["pytest>=7"]
+
+[project.scripts]
+dr2 = "dr2kit.cli.main:main"
+
+[tool.setuptools.packages.find]
+include = ["dr2kit*"]
+
+[tool.setuptools.package-data]
+"dr2kit.profiles" = ["*.toml"]
+# Prebuilt native LZX decoders, when a release build drops them in (see docs/dev/setup.md).
+"dr2kit.container.lzx" = ["_native/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "gamedata: needs a real game install (skipped, with the reason, when absent)",
+    "slow: takes more than a few seconds",
+]

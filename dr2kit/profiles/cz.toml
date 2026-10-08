@@ -1,0 +1,20 @@
+# Game profile: Dead Rising 2: Case Zero (Xbox 360 XBLA).
+# A profile is data, not code: per-game differences go here (CLAUDE.md, Conventions).
+# Field reference: docs/dev/code-tour.md, "dr2kit.profiles".
+
+id = "cz"
+name = "Dead Rising 2: Case Zero"
+title_id = "58410A8D"
+
+# Where to look for the unpacked game, relative to this toolkit's checkout. Each entry is
+# a folder that contains `data/`. The first one that exists wins.
+recomp_dirs = ["../Dead_Rising_2_Case_Zero_Xenon_Recomp/assets/game"]
+
+# The XBLA package as it sits in a recomp checkout (used by `dr2 games` to point at it).
+package_globs = ["../Dead_Rising_2_Case_Zero_Xenon_Recomp/assets/package/58410A8D/000D0000/*"]
+
+# Measured by `dr2 census` (2026-10-08). Used by tests to notice a different game version.
+[census]
+archive_files = 197   # .big files plus .tex packs and 9 .bcf fonts that are archives
+archives = 7413        # including nested ones (and compressed nested ones)
+entries = 124932

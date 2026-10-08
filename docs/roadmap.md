@@ -8,24 +8,35 @@ pages (`docs/dev/`), and a devlog entry.
 CLAUDE.md, architecture, format inventory, prior-art survey, this roadmap. Skeleton
 record layout verified across all 76 skeleton files in both games.
 
-## Phase 1: core container and census
+## Phase 1: core container and census ✅ (2026-10-08)
 - `dr2kit.container.big`: read/write ported from `gen_pc_options.read_big/write_big` +
-  `big_list.py`, with nested virtual paths, duplicate names and zlib support in the reader.
-- LZX: native decoder (ctypes) + pure-Python fallback; port `lzx_encode_stream` +
-  `verify_fake_lzx`.
-- Game profiles `cz.toml` / `cw.toml` with auto-discovery of the sibling recomps, plus
-  STFS package extraction (port `extract_stfs.py`) for users without a recomp (macOS).
-- Cross-platform skeleton: `pyproject.toml`, CI matrix on Windows/Linux/macOS, native LZX
-  builds for all three, and a check of PyAV's `xma2`/Bink decoders on each OS.
-- `dr2 ls`, `dr2 extract [--decompress]`, `dr2 census`.
+  `big_list.py`, with nested virtual paths (`name#N` for repeated names, `@N` by
+  position), duplicate names and zlib support in the reader. ✅
+- LZX: native decoder (ctypes, libmspack in its own library) + pure-Python fallback
+  written from the format description; `lzx_encode_stream` ported (now also writes
+  uncompressed blocks for chunks that don't compress, as the game's encoder does). ✅
+- Game profiles `cz.toml` / `cw.toml` with auto-discovery of the sibling recomps, a user
+  config (`dr2 games set`), env vars, plus STFS package extraction (`dr2 unpack`). ✅
+- Cross-platform skeleton: `pyproject.toml`, CI matrix on Windows/Linux (x64 + arm64)/macOS,
+  native LZX builds for all three, and a check of PyAV's `xma2`/Bink decoders on each OS
+  (✅ on Linux; Windows/macOS run in CI once the GitHub remote exists).
+- `dr2 ls`, `dr2 extract [--decompress]` (decompresses by default; `--raw` keeps the
+  stored stream), `dr2 census`, plus `dr2 find`, `dr2 games`, `dr2 unpack`, `dr2 doctor`. ✅
 - Docs: `dev/code-tour.md`, `dev/setup.md`, `dev/adding-a-format.md`, `dev/testing.md`,
-  `modding/02-game-data.md`.
+  `modding/02-game-data.md`, `modding/12-troubleshooting.md`, `THIRD_PARTY.md`. ✅
 - **Gate:** every archive in CZ *and* CW round-trips byte-identically; every compressed
   entry decodes to its `size2`; the census names every extension and every
   unparsed entry (target zero).
+  **Result:** CZ 7,413/7,413 and CW 8,017/8,017 archives (nested included) round-trip;
+  10,754 + 21,354 compressed entries decode, re-encode and decode back, and two
+  independent decoders agree on all of them; 0 unparsed in either game. Details:
+  `dev/testing.md`, `formats.md`.
+- **Not proven yet:** that the *game* accepts entries re-encoded by our encoder. That
+  is the phase 2 in-game gate (`game_mods/`).
 
 ## Phase 2: textures + index + first GUI
-- `.bct` header decode (fetch constant → format/mips/cube), untile, DXT1/3/5, DXN,
+Handoff: `phase2-kickoff.md`.
+- `.bct` header decode (incl. the 4th magic byte, which varies: `formats.md`) (fetch constant → format/mips/cube), untile, DXT1/3/5, DXN,
   A8R8G8B8, … → PNG. Census of formats in both games.
 - SQLite index with thumbnails; model→texture relations from `MatTextureInfoArray`.
 - DR2 Studio v0: tree, search, texture viewer, extract.
@@ -34,7 +45,8 @@ record layout verified across all 76 skeleton files in both games.
 - Recomp `game_mods/` VFS layer, in both CZ and CW.
 - **Gate:** decode then re-encode reproduces the original block data for lossless
   formats; a recoloured texture shows up in **both** recomps through `game_mods/`, and
-  disappears with `CZ_NO_MODS=1` / `CW_NO_MODS=1`.
+  disappears with `CZ_NO_MODS=1` / `CW_NO_MODS=1`. That texture must sit in a
+  compressed entry, so the same test proves the game accepts our LZX encoder's output.
 
 ## Phase 3: skeletons and models → Blender
 - Skeleton → `.glb` armature (rest pose, names, extras). **Gate:** importing into

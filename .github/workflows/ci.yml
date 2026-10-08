@@ -1,0 +1,77 @@
+# Unit tests on Windows, Linux and macOS, the native LZX library built on each, and a
+# check that PyAV's bundled ffmpeg can decode XMA and Bink there.
+# CI has no game data (it is copyrighted), so game-data tests skip themselves.
+# What each job proves: docs/dev/testing.md.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: tests (${{ matrix.os }}, Python ${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-22.04, ubuntu-22.04-arm, macos-14]
+        python: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Build the native LZX library
+        shell: bash
+        run: |
+          # macOS: one universal library for Apple Silicon and Intel.
+          extra=()
+          if [ "$RUNNER_OS" = "macOS" ]; then extra+=('-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64'); fi
+          cmake -S native/lzx -B native/lzx/build -DCMAKE_BUILD_TYPE=Release "${extra[@]}"
+          cmake --build native/lzx/build --config Release
+
+      - name: Install
+        run: python -m pip install -e ".[dev]"
+
+      - name: Show what dr2kit sees (the native decoder must be loaded)
+        shell: bash
+        run: |
+          dr2 doctor
+          dr2 doctor | grep -q "LZX decoder: native"
+
+      - name: Unit tests (native decoder)
+        run: python -m pytest -q -m "not gamedata"
+
+      - name: LZX tests with the pure-Python fallback only
+        shell: bash
+        env:
+          DR2KIT_LZX: python
+        run: python -m pytest -q tests/test_lzx.py tests/test_big.py
+
+      - name: Keep the built library
+        if: matrix.python == '3.13'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dr2lzx-${{ matrix.os }}
+          path: |
+            native/lzx/build/*.so
+            native/lzx/build/*.dylib
+            native/lzx/build/Release/*.dll
+          if-no-files-found: error
+
+  pyav-codecs:
+    name: PyAV codecs (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-22.04, macos-14, macos-13]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python -m pip install av
+      - run: python tools/check_pyav_codecs.py

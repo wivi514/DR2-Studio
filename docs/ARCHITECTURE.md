@@ -22,24 +22,36 @@
 
 Every front end calls one library. Format knowledge lives only in `dr2kit`.
 
-## Repository layout (planned)
+## Repository layout
+
+Phase 1 built the parts marked ✅; the rest is the plan. Module-by-module guide:
+`dev/code-tour.md`.
 
 ```
 dr2kit/                 core library (pure Python; numpy optional)
-  container/            big.py (read/write/census), lzx/ (ctypes native + py fallback), vpath.py
+  errors.py ✅          exception hierarchy (Dr2Error → FormatError/LzxError, GameNotFoundError, VPathError)
+  hashing.py ✅         the engine's string hash
+  census.py ✅          read every archive/entry of a game, count it, run the gates
+  container/ ✅         big.py (read/write), xcompress.py (chunk framing), lzx/ (native loader,
+                        pure-Python decoder, encoder), vpath.py, stfs.py (XBLA package)
+  profiles/ ✅          cz.toml, cw.toml + data discovery (env var, user config, sibling recomp)
+  cli/ ✅               the `dr2` command (main.py)
   formats/              bct.py, tex.py, model/ (chunks, vertex decode, bone palette), skeleton.py,
                         anim.py, xma.py, bik.py, bcs.py, scripts.py (cAudioScene/mission .txt)
   convert/              texture.py, gltf.py (model+skeleton), audio.py, strings.py
   index/                schema.sql, build.py, query.py
   mods/                 manifest.py, build.py, deploy.py, validate.py
-  profiles/             cz.toml, cw.toml (paths, title IDs, known per-game format differences)
-native/lzx/             small C library (XenonRecomp's lzxDecompress), built by CMake / setup
-cli/                    `dr2` entry point (argparse/typer)
+native/lzx/ ✅          dr2lzx: libmspack's lzxd.c (LGPL, separate library) + a small wrapper, CMake
 studio/                 PySide6 GUI
 blender/io_dr2/         Blender add-on (vendors dr2kit at build time)
-tests/                  unit tests on synthetic data; census tests on real data (skip if absent)
-docs/                   this file, formats.md, roadmap.md, prior-art.md
+tests/ ✅               unit tests on synthetic data; game-data tests (skip if absent)
+tools/ ✅               developer scripts (PyAV codec check)
+docs/                   this file, formats.md, roadmap.md, guides
 ```
+
+*Change from the phase 0 plan:* the CLI lives inside the package (`dr2kit/cli/`) rather
+than in a top-level `cli/`, so `pip install` ships it with the `dr2` entry point and
+`python -m dr2kit` works.
 
 ## Stack and why
 
@@ -60,23 +72,32 @@ All three are first-class targets for the core, the CLI and DR2 Studio (decided
 2026-10-08). The recomps don't run on macOS, so the toolkit must **not depend on a
 recomp** to get game data.
 
-- **Game data sources**, in order: a recomp's `assets/game/` (auto-discovered); any
-  folder holding an unpacked `data/` tree; **the XBLA package itself** (port the CZ
-  recomp's `tools/extract_stfs.py` into `dr2kit`, so a macOS user can point it at their
-  STFS package). A profile records the chosen source per game.
+- **Game data sources:** a recomp's `assets/game/` (auto-discovered next to the
+  checkout); any folder holding an unpacked `data/` tree (`dr2 games set`, saved in the
+  user config); **the XBLA package itself**, unpacked by `dr2 unpack`
+  (`dr2kit/container/stfs.py`, ported from the CZ recomp's `tools/extract_stfs.py` in
+  phase 1), so a macOS user needs only their package. Lookup order per game: the
+  `DR2_CZ_DATA` / `DR2_CW_DATA` environment variable, then the user config, then a sibling
+  recomp (`dr2kit/profiles/__init__.py`).
 - **Paths:** `pathlib` everywhere. Virtual paths always use `/` and are compared
-  **case-insensitively** (the archives mix cases, e.g. `Prologue.txt`, `chest_Bowling_…`).
+  **case-insensitively**. A repeated entry name is addressed as `name#1`, `name#2`… and any
+  entry by position as `@N` (phase 1; no shipped name contains `#` or starts with `@`).
+  The archives mix cases (e.g. `Prologue.txt`, `chest_Bowling_…`), and names that
+  differ only in case count as repeats, so `#N` also keeps extracted names distinct.
   macOS and Windows filesystems are case-insensitive by default and Linux is not, so
   output folders must never contain two names that differ only in case.
 - **User folders** via `platformdirs` (config, index database, thumbnail cache):
   `%APPDATA%` on Windows, `~/Library/Application Support` on macOS, XDG dirs on Linux.
 - **Native LZX library:** CI builds `.dll` (x64), `.so` (x86_64, aarch64) and a universal
-  `.dylib` (arm64 + x86_64). Loading falls back to pure Python, so a missing or blocked
-  binary (e.g. macOS Gatekeeper) is slow, not broken. The tool says which path it is using.
+  `.dylib` (arm64 + x86_64), and keeps them as artifacts. Loading falls back to pure
+  Python (about 3-4 MB/s, roughly 30x slower), so a missing or blocked binary (e.g. macOS
+  Gatekeeper) is slow, not broken. `dr2 doctor` says which path it is using.
 - **ffmpeg:** use **PyAV** wheels, which bundle ffmpeg on all three OSes, for XMA and Bink
-  decoding. Falling back to a system `ffmpeg` binary is allowed. **To check in phase 1:**
-  that the PyAV wheels include the `xma2` and Bink decoders on every OS. If not, ship our
-  own minimal ffmpeg build (the CZ recomp has `tools/build_ffmpeg_lgpl.sh`).
+  decoding. Falling back to a system `ffmpeg` binary is allowed. **Checked in phase 1**
+  (`tools/check_pyav_codecs.py`): PyAV 19.0.1 (ffmpeg 9.0.2) on Linux x86_64 has `xma1`,
+  `xma2`, `binkvideo`, `binkaudio_dct` and `binkaudio_rdft`. CI runs the same check on
+  Windows, macOS arm64 and macOS x64 (job `pyav-codecs`); if one lacks a decoder, ship
+  our own minimal ffmpeg build (the CZ recomp has `tools/build_ffmpeg_lgpl.sh`).
 - **3D preview:** `QWebEngineView` + three.js exists on all three platforms in PySide6 6.x.
   The fallback, should WebEngine be unavailable or too heavy, is a `QOpenGLWidget`
   renderer (macOS caps OpenGL at 4.1, so keep the shaders GLSL 3.30-compatible).

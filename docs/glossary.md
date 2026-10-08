@@ -92,3 +92,34 @@ bytes; that's the first test of every writer in the toolkit.
 
 **Mod package.** A folder with a `mod.toml` and your replacement files in normal formats
 (PNG, WAV, `.glb`, JSON). The toolkit builds it into game files for your install.
+
+**XBLA package / STFS.** The single file Xbox Live Arcade games are sold as (a 42-character
+hex name, under `<TitleID>/000D0000/`). Inside is a small filesystem called STFS.
+`dr2 unpack` turns it into an ordinary `data/` folder.
+
+**Title ID.** The Xbox 360's 8-character ID for a game: `58410A8D` is Case Zero,
+`58410B00` Case West.
+
+**Gate.** A measurable check that must pass before a feature or phase counts as done,
+e.g. "every archive in both games re-writes to identical bytes". See `dev/testing.md`.
+
+**Name hash.** A 32-bit number the game computes from a name (`h = h*33 ^ c`) and uses
+to look things up quickly. Every `.big` entry stores the hash of its lower-cased name.
+
+**Flags (entry flags).** A number stored with each archive entry whose meaning is not
+known yet (values seen: `0x4`, `0x10`, `0x20`, `0x80`, `0x100`, `0x800`). The toolkit keeps
+it unchanged when writing.
+
+**Alignment / padding.** Many entries must start at an offset that is a multiple of some
+number (4, 16, 0x800…), so the archive puts zero bytes ("padding") in front of them.
+The toolkit keeps each entry's alignment when it rewrites an archive.
+
+**Chunk (compressed).** Compressed entries are split into pieces of up to 32 KB, each
+compressed on its own. A chunk is one such piece.
+
+**Native library / fallback.** The fast LZX decoder is a small compiled library
+(`dr2lzx`). When it isn't available, the toolkit uses a slower one written in plain
+Python (the fallback). Both give the same results; `dr2 doctor` says which is in use.
+
+**`dr2` command.** The toolkit's command-line program, typed in a terminal
+(`dr2 ls`, `dr2 extract`, …). `python -m dr2kit` is the same thing.
