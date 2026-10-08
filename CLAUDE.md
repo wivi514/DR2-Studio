@@ -55,7 +55,8 @@ CLAUDE.md, and keep CZ and CW in step.
 |---|---|---|
 | Recomp repo | `../Dead_Rising_2_Case_Zero_Xenon_Recomp` | `../Dead_Rising_2_Case_West_Xenon_Recomp` |
 | Unpacked game data | `…/assets/game/data/` (146 `.big`, 832 MB) | `…/assets/game/data/` (154 `.big`, 1.2 GB) |
-| Title ID | `58410A8D` | see the CW recomp's README |
+| Title ID | `58410A8D` | `58410B00` |
+| XBLA package | `…/assets/package/58410A8D/000D0000/` (256 files) | `…/assets/package/58410B00/000D0000/` (305 files) |
 | Extra content vs CZ | — | `.bik` movies (Bink), `controls/`, `dynamicprops/`, more `.csv` |
 | Runtime VFS overlays | `assets/game_bootskip`, `game_kbm`, `game_patched` | `game_kbm`, `game_patched` |
 
@@ -155,3 +156,8 @@ dr2 census --reencode --python-lzx        # the slow LZX gates (~20 min, all CPU
 
 Fedora 44, Python 3.14 (system), Blender 5.2.1 LTS at `/usr/bin/blender`, ffmpeg with
 `xma1`/`xma2` and Bink decoders. No `xxd` (use `od`). `vgmstream-cli` not installed.
+`uv` is available (it also provides Python 3.11/3.12 for compatibility checks). Dev venv:
+`.venv/` (`uv venv .venv --python 3.14 && uv pip install -e ".[dev]"`; PyAV installed there
+too). CMake + Ninja + gcc/clang present; the native LZX library is built in
+`native/lzx/build/`. Python 3.14 uses the *forkserver* start method, so any script that
+runs `dr2 census --reencode` (a process pool) needs an `if __name__ == "__main__"` guard.

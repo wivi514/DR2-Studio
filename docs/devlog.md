@@ -68,6 +68,7 @@ the CLI lives in `dr2kit/cli/` (`ARCHITECTURE.md`).
 `dev/README.md`, `modding/02-game-data.md`, `modding/12-troubleshooting.md`,
 `modding/README.md`, `README.md`, `docs/README.md`, `CLAUDE.md`, `THIRD_PARTY.md`,
 `native/lzx/README.md`, `phase2-kickoff.md` (new).
+**Docs follow-up:** `CLAUDE.md` (CW title ID, package paths, dev environment notes), `phase1-kickoff.md` marked historical.
 **Next:** phase 2 from `phase2-kickoff.md`: `.bct` decode, texture census, the index,
 Studio v0, texture replacement, the recomps' `game_mods/` layer. The in-game gate there
 is also the first proof that the game accepts our LZX streams.

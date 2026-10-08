@@ -1,5 +1,10 @@
 # Phase 1 kickoff: core container and census
 
+> **Historical.** Phase 1 was completed on 2026-10-08 (devlog, "Phase 1"). This page
+> is kept as the record of the plan. Some facts below were later corrected: CW is now
+> counted, and see `formats.md` for the `.bct` magic and duplicate-name retractions. The
+> next handoff is [`phase2-kickoff.md`](phase2-kickoff.md).
+
 A handoff for the session that starts phase 1. Read `CLAUDE.md` first (especially the
 documentation rules), then this. Scope and gate: `roadmap.md` §Phase 1.
 
