@@ -14,7 +14,28 @@ put edited or new models back into the game when their bones match the game's ri
 | `docs/ARCHITECTURE.md` | Components, data flow, the asset index, the mod package format, stack choices |
 | `docs/formats.md` | Everything known about every file format, with a status per format (cracked / partial / unknown) |
 | `docs/roadmap.md` | Phases, what each phase delivers, and the gate that proves it works |
+| `docs/README.md` | Docs index: modder guides (`docs/modding/`), developer guides (`docs/dev/`), glossary, devlog |
 | `docs/prior-art.md` | Community tools (ProBoards, wiki, Gibbed, mariokart64n's MaxScript, Chrrox) and what to learn or avoid from each |
+
+## Documentation rules (user requirement, 2026-10-08)
+
+**Document everything we do**, so people can understand the code and the docs, and can
+learn to mod with the toolkit. Documentation is part of done, not a follow-up task.
+Every change, however small, updates whichever of these it affects, **in the same commit**:
+
+| What changed | Update |
+|---|---|
+| Any code | Module docstring (purpose, *why*, key facts, link to `formats.md`), public docstrings + type hints, `docs/dev/code-tour.md` for new modules |
+| A format fact | `docs/formats.md` (keep retractions; state how it was verified) |
+| Something a modder can now do, or do differently | A guide in `docs/modding/` (template in `docs/modding/README.md`) and its status row there; `asset-catalogue.md` / `12-troubleshooting.md` when relevant |
+| A new term | `docs/glossary.md`, in plain words |
+| A decision or design change | `docs/ARCHITECTURE.md` and/or `docs/roadmap.md` |
+| Every work session | A `docs/devlog.md` entry: done, why, learned, docs updated, next |
+
+Write for a newcomer: plain words, define jargon or link the glossary, explain *why*
+before *how*, and show real examples. Modder guides need no programming knowledge and
+give the Studio (GUI) steps first, then the `dr2` CLI equivalent. Full style and the
+definition-of-done checklist: `docs/dev/README.md`. Docs index: `docs/README.md`.
 
 ## Where the games live
 

@@ -1,0 +1,16 @@
+# Contributing
+
+Thanks for helping. Start with [`docs/README.md`](docs/README.md), which points you to
+the right guide.
+
+- **Code:** read [`docs/dev/README.md`](docs/dev/README.md). It has the documentation
+  style and the **definition of done**: every change ships with its docstrings, tests, and
+  doc updates (formats, modding guide, glossary, devlog).
+- **Format research:** findings go in [`docs/formats.md`](docs/formats.md) with how you
+  verified them. A claim needs a census over both games, not one file. When a past claim
+  turns out wrong, mark it retracted and explain; don't delete it.
+- **Guides:** follow the template in [`docs/modding/README.md`](docs/modding/README.md),
+  and test the guide by following it from scratch.
+- **Never** commit game files or anything extracted from them.
+- By contributing you agree that your work is shared under the project's
+  [`LICENSE`](LICENSE) (free, non-commercial, no paywalled mods).

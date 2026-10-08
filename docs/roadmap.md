@@ -1,6 +1,8 @@
 # Roadmap
 
-Each phase ends with a **gate**: a measurable check, not "it looks right".
+Each phase ends with a **gate**: a measurable check, not "it looks right". A phase is
+also not done until its docs are: the modder guides it enables (`docs/modding/`), the dev
+pages (`docs/dev/`), and a devlog entry.
 
 ## Phase 0: preparation ✅ (2026-10-08)
 CLAUDE.md, architecture, format inventory, prior-art survey, this roadmap. Skeleton
@@ -16,6 +18,8 @@ record layout verified across all 76 skeleton files in both games.
 - Cross-platform skeleton: `pyproject.toml`, CI matrix on Windows/Linux/macOS, native LZX
   builds for all three, and a check of PyAV's `xma2`/Bink decoders on each OS.
 - `dr2 ls`, `dr2 extract [--decompress]`, `dr2 census`.
+- Docs: `dev/code-tour.md`, `dev/setup.md`, `dev/adding-a-format.md`, `dev/testing.md`,
+  `modding/02-game-data.md`.
 - **Gate:** every archive in CZ *and* CW round-trips byte-identically; every compressed
   entry decodes to its `size2`; the census names every extension and every
   unparsed entry (target zero).

@@ -10,7 +10,8 @@ Browse, preview, extract and replace assets in **Dead Rising 2: Case Zero** and
 
 Runs on **Windows, Linux and macOS**.
 
-**Status:** planning. See `CLAUDE.md`, `docs/ARCHITECTURE.md` and `docs/roadmap.md`.
+**Status:** planning. Start at [`docs/README.md`](docs/README.md): modding guides,
+developer guides, glossary, and what's planned. Contributors: [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 You need your own legally obtained copy of the games. This repository contains no game data.
 
