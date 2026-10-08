@@ -9,6 +9,7 @@ Pick the section for what you want to do.
 | **Know how the toolkit is designed** | [`ARCHITECTURE.md`](ARCHITECTURE.md) |
 | **Know how a game file format works** | [`formats.md`](formats.md) |
 | **See what is planned and what is done** | [`roadmap.md`](roadmap.md) |
+| **Start the next phase of work** | [`phase1-kickoff.md`](phase1-kickoff.md) |
 | **See what was done, when, and why** | [`devlog.md`](devlog.md) |
 | **Look up a word** (`.big`, LZX, tiling, bone palette, vpath…) | [`glossary.md`](glossary.md) |
 | **Know what tools existed before this one** | [`prior-art.md`](prior-art.md) |

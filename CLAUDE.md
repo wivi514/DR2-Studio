@@ -7,12 +7,14 @@ Goal: make modding easy. Browse every asset in both games, **see** what a textur
 and **hear** a sound before extracting it, export models and skeletons to Blender, and
 put edited or new models back into the game when their bones match the game's rig.
 
-**Status: preparation only (2026-10-08).** No code yet. Read these before writing any:
+**Status: phase 0 (planning) done 2026-10-08. No code yet. Next: phase 1; start from
+`docs/phase1-kickoff.md`.** Read these before writing any code:
 
 | Doc | What it holds |
 |---|---|
 | `docs/ARCHITECTURE.md` | Components, data flow, the asset index, the mod package format, stack choices |
 | `docs/formats.md` | Everything known about every file format, with a status per format (cracked / partial / unknown) |
+| `docs/phase1-kickoff.md` | Phase 1 handoff: order of work, exact source files to port, licensing of reused code |
 | `docs/roadmap.md` | Phases, what each phase delivers, and the gate that proves it works |
 | `docs/README.md` | Docs index: modder guides (`docs/modding/`), developer guides (`docs/dev/`), glossary, devlog |
 | `docs/prior-art.md` | Community tools (ProBoards, wiki, Gibbed, mariokart64n's MaxScript, Chrrox) and what to learn or avoid from each |
@@ -67,7 +69,7 @@ behaviour.
 |---|---|
 | `docs/big-archive-format.md` | The `.big` container: layout, the variable-length names, the compression, two retractions |
 | `tools/big_list.py` | Listing and extracting `.big` entries (stored bytes) |
-| `tools/big_decompress.cpp` | LZX decode of compressed entries, linked from XenonRecomp's `lzxDecompress`, checked against an oracle |
+| `tools/big_decompress.cpp` | LZX decode of compressed entries, linked from XenonRecomp's `lzxDecompress` (which wraps libmspack's **LGPL-2.1** `lzxd.c`, so keep it a separate shared library), checked against an oracle |
 | `tools/gen_pc_options.py` | `read_big` / `write_big`, a **real pure-Python LZX encoder** (`lzx_encode_stream`), `verify_fake_lzx`, a `.bcs` string-bank patcher |
 | `tools/patch_coop_ending_bike.py` | A worked example of re-packing a modified entry that the game accepted |
 | `tools/tex_decode.py` | Xenos `Tiled2DOffset` untiling + DXT1/DXT5 decode |

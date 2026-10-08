@@ -17,6 +17,16 @@ Entry template:
 
 ---
 
+## 2026-10-08 — Phase 1 handoff
+**Done:** wrote `phase1-kickoff.md` (order of work, exact files and lines to port, test-data
+policy). Checked the licenses of the code we will reuse.
+**Learned:** the LZX decoder behind XenonRecomp's `lzxDecompress` is libmspack's `lzxd.c`
+(**LGPL-2.1**). It's fine as a separate shared library loaded through ctypes, but a
+line-by-line Python translation would also be LGPL. The recomp tools are the user's own
+(PolyForm Noncommercial), so they can be re-licensed here.
+**Docs updated:** `phase1-kickoff.md`, `CLAUDE.md`, `docs/README.md`, this devlog.
+**Next:** phase 1, in a fresh conversation.
+
 ## 2026-10-08 — Documentation rules
 **Done:** set up the documentation layout: `docs/README.md` (index), `glossary.md`, this
 devlog, `modding/` (modder guides), `dev/` (contributor guides), `CONTRIBUTING.md`, and a
