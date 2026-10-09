@@ -9,12 +9,12 @@ Pick the section for what you want to do.
 | **Know how the toolkit is designed** | [`ARCHITECTURE.md`](ARCHITECTURE.md) |
 | **Know how a game file format works** | [`formats.md`](formats.md) |
 | **See what is planned and what is done** | [`roadmap.md`](roadmap.md) |
-| **Start the next phase of work** | [`phase6-kickoff.md`](phase6-kickoff.md) (earlier handoffs, for history: [`phase5-kickoff.md`](phase5-kickoff.md), [`phase4-kickoff.md`](phase4-kickoff.md), [`phase3-kickoff.md`](phase3-kickoff.md), [`phase2-kickoff.md`](phase2-kickoff.md), [`phase1-kickoff.md`](phase1-kickoff.md)) |
+| **Start the next phase of work** | [`phase7-kickoff.md`](phase7-kickoff.md) (proposed; earlier handoffs, for history: [`phase6-kickoff.md`](phase6-kickoff.md), [`phase5-kickoff.md`](phase5-kickoff.md), [`phase4-kickoff.md`](phase4-kickoff.md), [`phase3-kickoff.md`](phase3-kickoff.md), [`phase2-kickoff.md`](phase2-kickoff.md), [`phase1-kickoff.md`](phase1-kickoff.md)) |
 | **See what was done, when, and why** | [`devlog.md`](devlog.md) |
 | **Look up a word** (`.big`, LZX, tiling, bone palette, vpath…) | [`glossary.md`](glossary.md) |
 | **Know what tools existed before this one** | [`prior-art.md`](prior-art.md) |
 
-Phase 6 (in progress) added text and translations
+Phase 6 (done) added text and translations
 ([`modding/11-text.md`](modding/11-text.md)), the mod manager
 ([`modding/06-mod-packages.md`](modding/06-mod-packages.md)), the Blender add-on
 ([`modding/13-blender-addon.md`](modding/13-blender-addon.md)) and release builds

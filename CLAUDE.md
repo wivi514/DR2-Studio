@@ -7,22 +7,19 @@ Goal: make modding easy. Browse every asset in both games, **see** what a textur
 and **hear** a sound before extracting it, export models and skeletons to Blender, and
 put edited or new models back into the game when their bones match the game's rig.
 
-**Status: phase 6 (polish and distribution) mostly done 2026-10-09: string banks
-(`formats/bcs.py`, `dr2 strings`, `.bcs.json` mods merged per id; in-game gate passed in
-CZ and CW), text editing with a diff and a strings table in Studio, CW Bink movies
-(`convert/video.py`, `--mp4`), the mod manager (`mods/library.py`, load order =
-priority), digest-checked files from both XEXs (CZ 1, CW 6) refused by builds, the
-Blender add-on (`blender/io_dr2`, **GPL, never bundles dr2kit**: user decision), and
-release packaging (`tools/build_release.py`: PyInstaller, AppImage, own LGPL ffmpeg +
-licence gate; built and tried on Linux only, the release workflow has not run).
-Open: a first CI run on Windows/macOS (needs the GitHub remote), the rest of
-`docs/phase6-kickoff.md` §Left open.** Read these before writing code:
+**Status: phases 1-6 done (phase 6, 2026-10-09: string banks and `.bcs.json` mods,
+text editing with a diff, CW Bink movies, the mod manager, digest-checked files refused,
+the GPL Blender add-on that never bundles dr2kit, release packaging with an own LGPL
+ffmpeg and a licence gate, built and tried on Linux only). Next: phase 7, **proposed,
+not yet approved by the user**: first release on all three OSes (the release workflow
+has never run: no GitHub remote yet), in-game checks of what is only built, the open
+mod features; start from `docs/phase7-kickoff.md`.** Read these before writing code:
 
 | Doc | What it holds |
 |---|---|
 | `docs/ARCHITECTURE.md` | Components, data flow, the asset index, the mod package format, stack choices |
 | `docs/formats.md` | Everything known about every file format, with a status per format (cracked / partial / unknown) |
-| `docs/phase6-kickoff.md` | Phase 6 handoff: scope, what phase 5 left open, post-phase-5 fixes, facts to keep in mind |
+| `docs/phase7-kickoff.md` | Phase 7 handoff (proposed): first release, in-game gates still owed, open mod features, facts to keep in mind |
 | `docs/dev/packaging.md` | Release builds: the bundle, the LGPL ffmpeg and licence gate, AppImage, CI |
 | `docs/dev/blender-addon.md` | The GPL Blender add-on and why it doesn't contain dr2kit |
 | `docs/dev/code-tour.md` | Every module of `dr2kit` and how a read flows through them |
@@ -154,6 +151,15 @@ blender --command extension build --source-dir blender/io_dr2 --output-dir build
 BLENDER_USER_RESOURCES=<tmp> blender -b --factory-startup --python tools/blender_addon_gate.py -- build/addon/io_dr2-0.1.0.zip . <mod>
 tools/release/build_ffmpeg_lgpl.sh && python tools/build_release.py bundle|archive|appimage  # release (dev/packaging.md)
 ```
+
+## Clean up after yourself (user requirement, 2026-10-09)
+
+When a task or gate is done, delete what you made for it: scratchpad files, recomp
+frame dumps and captures, copied saves, test mods (undeploy, remove the empty
+`game_mods/`), throwaway Blender user folders, one-off build output (`build/release`).
+Keep the build caches the docs name (`build/ffmpeg-lgpl`, `build/ffmpeg-work`,
+`build/release-venv`, `native/lzx/build`). In `/tmp/claude-1000`, only delete folders
+that no running Claude session uses. Say what you removed.
 
 ## Conventions
 

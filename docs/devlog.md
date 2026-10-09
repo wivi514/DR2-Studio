@@ -17,6 +17,20 @@ Entry template:
 
 ---
 
+## 2026-10-09 — Clean-up, phase 6 closed, phase 7 proposed
+**Done:** deleted 17 finished sessions' scratch folders from `/tmp/claude-1000` (25 GB
+→ 4.9 GB used; what is left belongs to running sessions), this phase's test captures,
+test mods and the local Linux release build. Marked phase 6 done; wrote a proposed
+phase 7 (`phase7-kickoff.md`, `roadmap.md`) from what phases 4-6 left open.
+
+**Why:** the user found `/tmp` (RAM-backed) full and asked for clean-up, and for it to
+become a habit: now a rule in `CLAUDE.md` (§Clean up after yourself).
+
+**Docs updated:** `CLAUDE.md`, `roadmap.md`, `phase7-kickoff.md` (new),
+`docs/README.md`, `README.md`.
+
+**Next:** the user decides on phase 7; the first step needs the GitHub remote.
+
 ## 2026-10-09 — Phase 6, part 2: Blender add-on, release builds, game folders
 **Done:** the Blender add-on `blender/io_dr2` (a Blender 4.2+ extension: search the
 index, import a model or skeleton in one click into its own collection, **Check rig**

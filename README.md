@@ -10,8 +10,9 @@ Browse, preview, extract and replace assets in **Dead Rising 2: Case Zero** and
 
 Runs on **Windows, Linux and macOS**.
 
-**Status:** phase 6 of 6 in progress (strings, text, movies, mod manager, Blender add-on
-and Linux packaging done). Every file of both games can be read, searched and
+**Status:** phases 1-6 done (phase 6: strings, text, movies, mod manager, Blender
+add-on, release packaging, built on Linux so far). A phase 7 is proposed: first release
+on all three OSes and in-game checks of what is only built so far. Every file of both games can be read, searched and
 extracted; every texture can be viewed and exported as PNG, and replaced by a mod that
 loads in both recomps (tested in game). Every model and skeleton can be viewed in 3D and
 exported to Blender (`.glb`) with its bones, skin weights and textures, and an edited or

@@ -149,7 +149,7 @@ Handoff was `phase4-kickoff.md`; the next one is `phase5-kickoff.md`.
 - **Not proven yet:** a 5.1 cinematic and an fx-bank sound replaced in game; longer
   replacements than the original (the game sets a sound's length; v1 cuts or pads).
 
-## Phase 6: polish and distribution (in progress, 2026-10-09)
+## Phase 6: polish and distribution ✅ (2026-10-09)
 - Blender add-on `io_dr2` (index browser in Blender, validator panel, export to mod) ✅
   (`blender/io_dr2`, guide `13-blender-addon.md`; scripted through in Blender 5.2).
   *Decision (user, 2026-10-09):* the add-on's own code is **GPL-3.0-or-later** (Blender
@@ -176,7 +176,22 @@ Handoff was `phase4-kickoff.md`; the next one is `phase5-kickoff.md`.
 - **Gate (census):** all 16 string banks re-write byte-identically; all 10 Bink movies
   decode (frames and sound). **Passed.**
 
-## Stretch
+## Phase 7: first release, and proving what isn't proven (proposed 2026-10-09)
+Not part of the original plan, which ended at phase 6, and **not yet approved by the
+user**. It gathers what phases 4-6 left open. Handoff: `phase7-kickoff.md`.
+- First release v0.1.0: run CI and the release workflow on Windows, Linux and macOS once
+  the GitHub remote exists, fix them, try each build on a real game, publish.
+- In-game gates for what was only built: a Case West model replacement, a
+  combined-buffer prop, the Blender add-on's output, a 5.1 cinematic and an fx-bank
+  sound, a text-file mod.
+- Mod features: colour overrides for value-set materials (zombie clothing), sound
+  replacements longer than the original, string mods that keep the recomps' keyboard
+  prompts, Studio previews of a replacement before building.
+- Voice-line names from the GASP tables; finish `asset-catalogue.md`.
+- **Gate:** a published release whose builds were each tried on a real game, and every
+  item above checked in game in both games where it applies.
+
+## Stretch (phase 8 or later)
 - In-game "identify": the recomp sends the textures/models under the crosshair to Studio.
 - Animation export (and later import); environment/zone browsing and editing.
 - PC DR2/OTR read support.
