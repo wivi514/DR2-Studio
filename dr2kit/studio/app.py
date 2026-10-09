@@ -141,11 +141,27 @@ class MainWindow(QMainWindow):
         act = QAction("Build / refresh index", self)
         act.triggered.connect(self.build_index)
         tb.addAction(act)
+        act = QAction("▶ Play", self)
+        act.setToolTip("Put the switched-on mods into the game and start it")
+        act.triggered.connect(lambda: self.play())
+        tb.addAction(act)
+        act = QAction("Play without mods", self)
+        act.triggered.connect(lambda: self.play(mods=False))
+        tb.addAction(act)
+        tb.addSeparator()
         act = QAction("Mod manager…", self)
         act.triggered.connect(self.open_mod_manager)
         tb.addAction(act)
         act = QAction("Game folders…", self)
         act.triggered.connect(self.open_game_setup)
+        tb.addAction(act)
+        act = QAction("Help", self)
+        act.setShortcut("F1")
+        act.triggered.connect(lambda: self.open_help())
+        tb.addAction(act)
+        act = QAction("Welcome", self)
+        act.setToolTip("The first steps, as a checklist")
+        act.triggered.connect(self.open_welcome)
         tb.addAction(act)
 
         # --- left: browse + search
@@ -221,6 +237,14 @@ class MainWindow(QMainWindow):
         self.btn_audio_in.setToolTip("Put a WAV/OGG/FLAC/MP3 in the open mod in place of this "
                                      "sound (the recomp plays it instead)")
         self.btn_audio_in.clicked.connect(self.replace_audio)
+        self.btn_edit_tex = QPushButton("Edit in image editor…")
+        self.btn_edit_tex.setToolTip("Opens the texture in your image editor; each time you "
+                                     "save, it goes into the open mod")
+        self.btn_edit_tex.clicked.connect(self.edit_texture)
+        self.btn_blender = QPushButton("Open in Blender")
+        self.btn_blender.setToolTip("Starts Blender with this model, ready for the DR2 tab's "
+                                    "Check rig and Export to mod")
+        self.btn_blender.clicked.connect(self.open_blender)
         self.btn_mp4 = QPushButton("Export MP4…")
         self.btn_mp4.setToolTip("The movie as .mp4 (MPEG-4 video, AAC stereo sound)")
         self.btn_mp4.clicked.connect(self.export_mp4)
@@ -228,27 +252,51 @@ class MainWindow(QMainWindow):
         self.btn_png.clicked.connect(self.export_png)
         self.btn_glb.clicked.connect(self.export_glb)
         self.btn_replace.clicked.connect(self.replace_png)
+        # "How to mod this": the context help for the selected asset's kind.
+        self.howto = QLabel()
+        self.howto.setWordWrap(True)
+        self.howto.setTextFormat(Qt.RichText)
+        self.howto.setStyleSheet("QLabel { background: palette(alternate-base); "
+                                 "padding: 6px; border-radius: 4px; }")
+        self.howto_btn = QPushButton("Open the guide")
+        self.howto_btn.clicked.connect(lambda: self.open_help(self._howto_guide))
+        self._howto_guide = "README.md"
         rw = QWidget()
         rl = QVBoxLayout(rw)
+        rl.addWidget(self.howto)
+        rl.addWidget(self.howto_btn)
         rl.addWidget(QLabel("<b>Details</b>"))
         rl.addWidget(self.details, 2)
         rl.addWidget(QLabel("<b>Related</b> (double-click to open)"))
         rl.addWidget(self.relations, 1)
-        for b in (self.btn_extract, self.btn_png, self.btn_glb, self.btn_replace,
-                  self.btn_glb_in, self.btn_wav, self.btn_audio_in, self.btn_mp4):
+        for b in (self.btn_edit_tex, self.btn_blender, self.btn_extract, self.btn_png,
+                  self.btn_glb, self.btn_replace, self.btn_glb_in, self.btn_wav,
+                  self.btn_audio_in, self.btn_mp4):
             rl.addWidget(b)
 
         # --- bottom: mod bar + log
-        self.mod_label = QLabel("No mod open.")
+        self.mod_label = QLabel("No mod open: New mod… to start one.")
         self.mod_files = QListWidget()
-        self.mod_files.setMaximumHeight(90)
+        self.mod_files.setMaximumHeight(110)
+        self.mod_files.setToolTip("The open mod's changes. Double-click to see the asset; "
+                                  "select and press Delete to remove a change.")
+        self.mod_files.itemDoubleClicked.connect(self._mod_item_jump)
+        self.mod_files.installEventFilter(self)
         b_open = QPushButton("Open mod…")
         b_new = QPushButton("New mod…")
-        b_deploy = QPushButton("Build && deploy")
-        b_undeploy = QPushButton("Undeploy")
+        b_share = QPushButton("Share…")
+        b_share.setToolTip("Name, preview and readme, a check, then one .dr2mod file to share")
+        b_install = QPushButton("Install mod…")
+        b_install.setToolTip("Install a .dr2mod (or .zip) someone shared; dropping it on "
+                             "this window works too")
+        b_deploy = QPushButton("Deploy")
+        b_deploy.setToolTip("Put the switched-on mods into the game without starting it")
+        b_undeploy = QPushButton("Remove mods from game")
         b_open.clicked.connect(self.open_mod)
         b_new.clicked.connect(self.new_mod)
-        b_deploy.clicked.connect(self.deploy_mod)
+        b_share.clicked.connect(self.share_mod)
+        b_install.clicked.connect(lambda: self.install_mod())
+        b_deploy.clicked.connect(lambda: self.play(start=False))
         b_undeploy.clicked.connect(self.undeploy_mod)
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
@@ -257,7 +305,7 @@ class MainWindow(QMainWindow):
         bl = QVBoxLayout(bw)
         mrow = QHBoxLayout()
         mrow.addWidget(self.mod_label, 1)
-        for b in (b_open, b_new, b_deploy, b_undeploy):
+        for b in (b_new, b_open, b_share, b_install, b_deploy, b_undeploy):
             mrow.addWidget(b)
         bl.addLayout(mrow)
         brow = QHBoxLayout()
@@ -276,15 +324,21 @@ class MainWindow(QMainWindow):
         main.setSizes([700, 180])
         self.setCentralWidget(main)
 
+        self.deploy_status = QLabel()
+        self.statusBar().addPermanentWidget(self.deploy_status)
+        self.setAcceptDrops(True)
         self.game_box.currentIndexChanged.connect(lambda _i: self.set_game(self.game_box.currentData()))
         self._update_buttons()
+        self._show_howto(None)
         self.set_game(self.game)
         from .setup_dialog import game_status
-        if not any(game_status(g)[0] for g in GAME_IDS) and \
-                not os.environ.get("DR2_STUDIO_NO_SETUP"):
+        from .welcome import show_at_start
+        if not any(game_status(g)[0] for g in GAME_IDS):
             self.empty.setText("No game data found yet.\n\nUse “Game folders…” in the "
                                "toolbar to point DR2 Studio at Case Zero and Case West.")
-            QTimer.singleShot(0, self.open_game_setup)
+        if not os.environ.get("DR2_STUDIO_NO_SETUP") and \
+                (show_at_start() or not any(game_status(g)[0] for g in GAME_IDS)):
+            QTimer.singleShot(0, self.open_welcome)
 
     # ---- helpers -----------------------------------------------------------------------
 
@@ -292,8 +346,35 @@ class MainWindow(QMainWindow):
         self.log.appendPlainText(text)
 
     def error(self, text: str) -> None:
+        """Show an error, with a *Help* button that opens the help section about it."""
         self.say("error: " + text)
-        QMessageBox.warning(self, "DR2 Studio", text[:2000])
+        if os.environ.get("DR2_STUDIO_NO_DIALOGS"):          # scripted runs and tests
+            return
+        box = QMessageBox(QMessageBox.Warning, "DR2 Studio", text[:2000], parent=self)
+        help_btn = box.addButton("Help", QMessageBox.HelpRole)
+        box.addButton(QMessageBox.Ok)
+        box.exec()
+        if box.clickedButton() is help_btn:
+            self.open_help(*help_for_error(text))
+
+    def open_help(self, page: str = "README.md", section: str = "") -> None:
+        """Open the help window at ``page`` (a guide's file name), ``section``."""
+        from .help_view import HelpWindow
+        if getattr(self, "_help", None) is None:
+            self._help = HelpWindow(self)
+        self._help.show_page(page, section)
+
+    def _show_howto(self, kind: str | None) -> None:
+        from .. import help as dhelp
+        ctx = dhelp.context(kind) if kind else None
+        if ctx is None:
+            self.howto.setText("<b>How to mod this</b><br>Select an asset on the left. "
+                               "Press F1 for the help.")
+            self._howto_guide = "README.md"
+        else:
+            steps = "".join(f"<li>{s}</li>" for s in ctx.steps)
+            self.howto.setText(f"<b>{ctx.title}</b><ol style='margin-left:-20px'>{steps}</ol>")
+            self._howto_guide = ctx.guide
 
     def asset_tree(self) -> AssetTree:
         if self.game not in self.trees:
@@ -317,24 +398,34 @@ class MainWindow(QMainWindow):
         th.start()
 
     def _update_buttons(self) -> None:
+        """Show only the actions that apply to the selected asset (fewer buttons to read
+        for a newcomer); an action that needs a mod offers to create one."""
         a = self.current
+        kind = a["kind"] if a else None
         self.btn_extract.setEnabled(a is not None)
-        is_tex = bool(a) and a["kind"] == "texture"
-        self.btn_png.setEnabled(is_tex)
-        self.btn_glb.setEnabled(bool(a) and a["kind"] in ("model", "skeleton"))
-        self.btn_replace.setEnabled(is_tex and self.mod_dir is not None)
-        self.btn_replace.setToolTip("" if self.mod_dir else "Open or create a mod first")
-        self.btn_glb_in.setEnabled(bool(a) and a["kind"] == "model")
-        is_audio = bool(a) and a["kind"] == "audio"
-        self.btn_wav.setEnabled(is_audio)
-        self.btn_mp4.setEnabled(bool(a) and a["kind"] == "video")
-        self.btn_audio_in.setEnabled(is_audio and self.mod_dir is not None)
-        self.btn_audio_in.setToolTip("" if self.mod_dir else "Open or create a mod first")
+        shown = {
+            self.btn_edit_tex: kind == "texture", self.btn_replace: kind == "texture",
+            self.btn_png: kind == "texture",
+            self.btn_blender: kind in ("model", "skeleton"),
+            self.btn_glb_in: kind == "model", self.btn_glb: kind in ("model", "skeleton"),
+            self.btn_audio_in: kind == "audio", self.btn_wav: kind == "audio",
+            self.btn_mp4: kind == "video",
+        }
+        for b, on in shown.items():
+            b.setVisible(on)
+
+    def ensure_mod(self) -> bool:
+        """True when a mod is open; otherwise offer to create one (New mod…)."""
+        if self.mod_dir is None:
+            self.new_mod()
+        return self.mod_dir is not None
 
     # ---- game, tree ----------------------------------------------------------------------
 
     def set_game(self, game: str) -> None:
         self.game = game
+        if hasattr(self, "deploy_status"):
+            self.update_deploy_status()
         self.tree_model.removeRows(0, self.tree_model.rowCount())
         try:
             self.say(f"{game}: data at {locate(game).root}")
@@ -442,6 +533,7 @@ class MainWindow(QMainWindow):
             return
         self.current = dict(row)
         self._update_buttons()
+        self._show_howto(row["kind"])
         try:
             data = self.asset_tree().resolve(row["vpath"]).data()
         except Dr2Error as e:
@@ -486,6 +578,17 @@ class MainWindow(QMainWindow):
             lines += [f"texture: {h.width}×{h.height} {tex.format.name} ({tex.format.channels})",
                       f"mip levels: {h.levels}" + ("; cube map, 6 faces" if h.is_cube else ""),
                       f"header flags: {h.flags:#04x}"]
+            mine = self.mod_dir / "replace" / (row["vpath"] + ".png") if self.mod_dir else None
+            if mine is not None and mine.is_file():
+                # Show what the game will get from the open mod (encoded as the build does).
+                from ..convert import png
+                from ..convert.texture import replace_image
+                try:
+                    tex = replace_image(tex, png.read(mine))
+                    lines.append(f"<b>showing the open mod's version</b> "
+                                 f"({self.mod_dir.name})")
+                except Dr2Error as e:
+                    lines.append(f"the open mod's PNG can't be used: {e}")
             self.tex_view.show_texture(tex)
             self.centre.setCurrentWidget(self.tex_view)
             for r in query.used_by(self.con, asset_id):
@@ -746,27 +849,39 @@ class MainWindow(QMainWindow):
         Path(path).write_bytes(data)
         self.say(f"exported {a['vpath']} -> {path} ({what})")
 
-    def replace_png(self) -> None:
+    def replace_png(self, src: str | None = None, vpath: str | None = None,
+                    quiet: bool = False) -> bool:
+        """Put a PNG into the open mod in place of the selected texture (or ``vpath``).
+        Returns True when it went in."""
         a = self.current
-        if not a or not self.mod_dir:
-            return
-        src, _ = QFileDialog.getOpenFileName(self, f"PNG to replace {a['name']}", "", "PNG (*.png)")
+        vpath = vpath or (a["vpath"] if a else None)
+        if not vpath or not self.ensure_mod():
+            return False
         if not src:
-            return
+            src, _ = QFileDialog.getOpenFileName(self, f"PNG to replace {vpath.rsplit('/', 1)[-1]}",
+                                                 "", "PNG (*.png)")
+        if not src:
+            return False
         from ..convert import png
         from ..formats.bct import Bct
-        tex = Bct.parse(self.asset_tree().resolve(a["vpath"]).data(), a["vpath"])
-        img = png.read(src)
+        tex = Bct.parse(self.asset_tree().resolve(vpath).data(), vpath)
+        try:
+            img = png.read(src)
+        except Dr2Error as e:
+            self.error(str(e))
+            return False
         want = (tex.header.width * tex.header.faces, tex.header.height)
         if (img.width, img.height) != want:
-            self.error(f"The PNG is {img.width}×{img.height}; this texture needs exactly "
-                       f"{want[0]}×{want[1]}.")
-            return
-        dest = self.mod_dir / "replace" / (a["vpath"] + ".png")
+            self.error(f"The picture is {img.width}×{img.height}; this texture needs exactly "
+                       f"{want[0]}×{want[1]} (resize it in your editor).")
+            return False
+        dest = self.mod_dir / "replace" / (vpath + ".png")
         dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(src, dest)
-        self.say(f"{self.mod_dir.name}: {a['vpath']} will be replaced by {Path(src).name}")
+        if Path(src).resolve() != dest.resolve():
+            shutil.copyfile(src, dest)
+        self.say(f"{self.mod_dir.name}: {vpath} ← {Path(src).name}")
         self._refresh_mod()
+        return True
 
     def export_mp4(self) -> None:
         a = self.current
@@ -805,7 +920,7 @@ class MainWindow(QMainWindow):
 
     def replace_audio(self, src: str | None = None) -> None:
         a = self.current
-        if not a or a["kind"] != "audio" or not self.mod_dir:
+        if not a or a["kind"] != "audio" or not self.ensure_mod():
             return
         if not src:
             src, _ = QFileDialog.getOpenFileName(self, f"Audio to play instead of {a['name']}",
@@ -869,6 +984,12 @@ class MainWindow(QMainWindow):
         self._refresh_mod()
 
     # ---- mods ---------------------------------------------------------------------------
+    # The open mod is the one new changes go into. It is always in the mod library
+    # (created there, or linked when it lives elsewhere), so Play includes it.
+
+    def library(self):
+        from ..mods.library import ModLibrary
+        return ModLibrary()
 
     def open_mod(self) -> None:
         d = QFileDialog.getExistingDirectory(self, "Open mod folder (with mod.toml)")
@@ -876,87 +997,317 @@ class MainWindow(QMainWindow):
             self._set_mod(Path(d))
 
     def new_mod(self) -> None:
-        from ..mods.manifest import create
-        d = QFileDialog.getExistingDirectory(self, "Choose an empty folder for the new mod")
-        if not d:
+        from PySide6.QtWidgets import QInputDialog
+        name, ok = QInputDialog.getText(self, "New mod", "Name of your mod (you can change "
+                                        "it later):", text="My mod")
+        if not ok or not name.strip():
             return
         try:
-            create(d)
+            mod = self.library().create(name)
         except Dr2Error as e:
             self.error(str(e))
             return
-        self._set_mod(Path(d))
+        self.say(f"new mod {mod.name} in {mod.root} (switched on in the mod library)")
+        self._set_mod(mod.root)
 
     def _set_mod(self, folder: Path) -> None:
         from ..mods.manifest import Mod
         try:
             mod = Mod.load(folder)
+            lib = self.library()
+            if not any(e.mod.root.resolve() == mod.root.resolve() for e in lib.entries()):
+                lib.link(folder)
+                self.say(f"{mod.id}: added to the mod library (linked: it stays in {folder})")
         except Dr2Error as e:
             self.error(str(e))
             return
-        self.mod_dir = folder
-        self.mod_label.setText(f"Mod: <b>{mod.name}</b> ({mod.id}) for {', '.join(mod.games)} — {folder}")
+        self.mod_dir = Path(folder)
+        self.mod_label.setText(f"Mod: <b>{mod.name}</b> ({mod.id}) for "
+                               f"{', '.join(mod.games)} — {folder}")
         self._refresh_mod()
         self._update_buttons()
 
     def _refresh_mod(self) -> None:
+        """The open mod's changes, one row each: what kind, which asset, and whether the
+        build accepts it for the current game (checked in the background)."""
+        from ..mods.build import _kind_of
         from ..mods.manifest import Mod
         self.mod_files.clear()
-        if self.mod_dir:
-            for rel, _ in Mod.load(self.mod_dir).files():
-                self.mod_files.addItem(rel)
-
-    def deploy_mod(self) -> None:
         if not self.mod_dir:
-            self.error("Open or create a mod first.")
             return
-        from ..mods.manifest import Mod
         try:
             mod = Mod.load(self.mod_dir)
         except Dr2Error as e:
-            self.error(str(e))
+            self.mod_files.addItem(str(e))
             return
-        self.deploy_mods([mod])
-
-    def deploy_mods(self, mods: list, report=None) -> None:
-        """Build ``mods`` for the current game and deploy them to the recomp's
-        ``game_mods/`` (on top of ``game_patched``); ``report(line)`` also gets the log."""
-        game = self.game
-        say = (lambda t: (self.say(t), report(t))) if report else self.say
+        labels = {"texture-png": "texture", "model-glb": "model", "audio": "sound",
+                  "strings": "strings", "raw": "file"}
+        for rel, _src in mod.files():
+            kind, target = _kind_of(rel)
+            it = QListWidgetItem(f"{labels[kind]:<8}  {target}")
+            it.setData(ROLE_VPATH, target)
+            it.setData(Qt.UserRole + 4, rel)
+            self.mod_files.addItem(it)
+        if not mod.files():
+            self.mod_files.addItem("(no changes yet: pick an asset and use the buttons on "
+                                   "the right, or drop a file on this window)")
+            return
+        game, folder = self.game, self.mod_dir
+        if game not in mod.games:
+            return
 
         def work(progress):
-            from ..mods import build as mbuild
-            from ..mods import deploy as mdeploy
-            import tempfile
-            loc = locate(game)
-            if not mdeploy.is_recomp_root(loc.root):
-                raise Dr2Error(f"{game}'s data is not in a recomp; use `dr2 mod deploy --to`")
-            dirs = mdeploy.recomp_folders(loc.root)
-            base = [dirs["patched"]] if dirs["patched"].is_dir() else []
-            with tempfile.TemporaryDirectory(prefix="dr2mod-") as tmp:
-                res = mbuild.build(mods, game, AssetTree(loc.root), tmp, base,
-                                   progress=lambda vp: progress(f"built {vp}"))
-                written = mdeploy.deploy(res, dirs["mods"])
-            lines = [f"{what}: {won} wins over {lost}" for what, lost, won in res.shadowed]
-            lines += ["note: " + w for w in res.warnings]
-            lines += ["warning: " + w for w in mdeploy.shadowed_layers(loc.root, written)]
-            return written, dirs["mods"], lines
+            from ..mods.build import plan_mods
+            try:
+                plan_mods([Mod.load(folder)], game, self.asset_tree())
+                return []
+            except Dr2Error as e:
+                return str(e).splitlines()[1:]
 
-        say(f"building {', '.join(m.id for m in mods)} for {game}…")
+        def done(problems, err):
+            if err or self.mod_dir != folder:
+                return
+            for i in range(self.mod_files.count()):
+                it = self.mod_files.item(i)
+                rel = it.data(Qt.UserRole + 4)
+                bad = [p.strip() for p in problems if rel and rel.lower() in p.lower()]
+                if bad:
+                    it.setText("⚠ " + it.text())
+                    it.setToolTip("\n".join(bad))
+            if problems:
+                self.say(f"{folder.name}: problems for {game}:\n  " + "\n  ".join(problems))
+        self.run_job(work, done)
+
+    def _mod_item_jump(self, item) -> None:
+        vpath = item.data(ROLE_VPATH)
+        row = query.get(self.con, self.game, vpath) if vpath else None
+        if row is not None:
+            self.show_asset(row["id"])
+
+    def eventFilter(self, obj, ev):
+        from PySide6.QtCore import QEvent
+        if obj is self.mod_files and ev.type() == QEvent.KeyPress and \
+                ev.key() in (Qt.Key_Delete, Qt.Key_Backspace):
+            self.remove_mod_item()
+            return True
+        return super().eventFilter(obj, ev)
+
+    def remove_mod_item(self) -> None:
+        """Take the selected change out of the open mod (the file goes, after asking)."""
+        it = self.mod_files.currentItem()
+        rel = it.data(Qt.UserRole + 4) if it else None
+        if not rel or not self.mod_dir:
+            return
+        if QMessageBox.question(self, "Remove change",
+                                f"Remove this change from the mod?\n{rel}") != QMessageBox.Yes:
+            return
+        f = self.mod_dir / "replace" / rel
+        f.unlink(missing_ok=True)
+        d = f.parent
+        while d != self.mod_dir / "replace" and d.is_dir() and not any(d.iterdir()):
+            d.rmdir()
+            d = d.parent
+        self.say(f"{self.mod_dir.name}: removed {rel}")
+        self._refresh_mod()
+
+    def share_mod(self) -> None:
+        if not self.mod_dir:
+            self.error("Open or create a mod first (New mod… / Open mod…).")
+            return
+        from .share_dialog import ShareDialog
+        ShareDialog(self, self.mod_dir).exec()
+        self._set_mod(self.mod_dir)
+
+    def install_mod(self, path: str | None = None) -> None:
+        """Install a shared mod (a .dr2mod, .zip or folder) into the library."""
+        if not path:
+            path, _ = QFileDialog.getOpenFileName(self, "Mod to install", "",
+                                                  "DR2 mods (*.dr2mod *.zip)")
+        if not path:
+            return
+        from .share_dialog import InstallDialog
+        InstallDialog(self, Path(path)).exec()
+
+    def play(self, mods: bool = True, start: bool = True) -> None:
+        """Deploy the switched-on mods (or, with ``mods=False``, nothing) and start the
+        recomp: Studio's Play button (`dr2kit.mods.play`)."""
+        from ..mods import play as mplay
+        game = self.game
+        try:
+            exe = mplay.find_recomp(game) if start else None
+        except Dr2Error as e:
+            self.error(str(e))
+            return
+        if not mods:
+            mplay.launch(game, mods=False)
+            self.say(f"started {exe} with mods off")
+            return
+
+        def work(progress):
+            files, res = mplay.deploy_library(game, progress=lambda vp: progress(f"built {vp}"))
+            lines = [] if res is None else (
+                [f"{w}: {b} wins over {a}" for w, a, b in res.shadowed]
+                + ["note: " + n for n in res.warnings])
+            return files, lines
 
         def done(result, err):
             if err:
-                if report:
-                    report("error: " + err)
                 self.error(err)
                 return
-            written, target, lines = result
+            files, lines = result
             for ln in lines:
-                say(ln)
-            env = "CZ_NO_MODS" if game == "cz" else "CW_NO_MODS"
-            say(f"deployed {len(written)} file(s) to {target}. Start the recomp; "
-                f"{env}=1 turns mods off.")
+                self.say(ln)
+            self.update_deploy_status()
+            if start:
+                mplay.launch(game)
+                self.say(f"started {exe}")
+        self.say(f"{'deploying' if not start else 'Play'}: building the switched-on mods "
+                 f"for {game}…")
         self.run_job(work, done)
+
+    def update_deploy_status(self) -> None:
+        from ..mods.play import deployed
+        try:
+            self.deploy_status.setText(f"{self.game}: {deployed(self.game).describe()}")
+        except Dr2Error as e:
+            self.deploy_status.setText(f"{self.game}: {str(e)[:80]}")
+
+    def undeploy_mod(self) -> None:
+        from ..mods.play import undeploy_all
+        try:
+            removed = undeploy_all(self.game)
+        except Dr2Error as e:
+            self.error(str(e))
+            return
+        self.say(f"removed {len(removed)} file(s) from the game: {self.game} runs as shipped")
+        self.update_deploy_status()
+
+    # ---- editing with other programs ---------------------------------------------------
+
+    def edit_texture(self) -> None:
+        a = self.current
+        if not a or a["kind"] != "texture":
+            return
+        if not self.ensure_mod():
+            return
+        from ..convert import png
+        from ..convert.texture import png_mode, to_image
+        from ..formats.bct import Bct
+        from .edit_tools import TextureEdit
+        existing = self.mod_dir / "replace" / (a["vpath"] + ".png")
+        if existing.is_file():
+            data = existing.read_bytes()
+        else:
+            tex = Bct.parse(self.asset_tree().resolve(a["vpath"]).data(), a["vpath"])
+            img = to_image(tex)
+            data = png.encode(img, png_mode(tex, img))
+        if getattr(self, "_tex_edit", None) is None:
+            self._tex_edit = TextureEdit(self)
+            self._tex_edit.saved.connect(self._texture_saved)
+        self._tex_edit_target = (self.game, a["vpath"], a["id"])
+        try:
+            path = self._tex_edit.start(self.game, a["vpath"], data)
+        except Dr2Error as e:
+            self.error(str(e))
+            return
+        self.say(f"editing {a['name']} in your image editor ({path}). Every save goes "
+                 f"into {self.mod_dir.name}.")
+
+    def _texture_saved(self, path: str) -> None:
+        game, vpath, aid = self._tex_edit_target
+        if game != self.game or not self.mod_dir:
+            return
+        if self.replace_png(path, vpath=vpath, quiet=True) and self.current and \
+                self.current["id"] == aid:
+            self.show_asset(aid)
+
+    def open_blender(self) -> None:
+        a = self.current
+        if not a or a["kind"] not in ("model", "skeleton"):
+            return
+        game, vpath, mod_dir = self.game, a["vpath"], self.mod_dir
+        mod_glb = mod_dir / "replace" / (vpath + ".glb") if mod_dir else None
+        self.say(f"exporting {a['name']} for Blender…")
+
+        def work(progress):
+            if mod_glb and mod_glb.is_file():
+                return mod_glb.read_bytes()
+            from ..convert.model import export_glb, export_skeleton_glb
+            tree = self.asset_tree()
+            return export_glb(tree, vpath, game=game) if a["kind"] == "model" else \
+                export_skeleton_glb(tree, vpath)
+
+        def done(glb, err):
+            if err:
+                self.error(err)
+                return
+            from .edit_tools import open_in_blender
+            try:
+                open_in_blender(game, vpath, glb, mod_dir)
+            except Dr2Error as e:
+                self.error(str(e))
+                return
+            self.say("Blender is starting with the model. In its DR2 tab (N key → DR2): "
+                     "Check rig, then Export to mod" + ("" if mod_dir else " (choose a mod "
+                                                         "folder there)") + ".")
+        self.run_job(work, done)
+
+    # ---- drag and drop -------------------------------------------------------------------
+
+    def dragEnterEvent(self, ev):
+        if ev.mimeData().hasUrls():
+            ev.acceptProposedAction()
+
+    def dropEvent(self, ev):
+        for url in ev.mimeData().urls():
+            self.drop_file(Path(url.toLocalFile()))
+
+    def drop_file(self, path: Path) -> None:
+        """What dropping a file on Studio does: a mod package installs; a PNG / audio /
+        .glb replaces the selected asset in the open mod."""
+        from ..mods.manifest import AUDIO_EXTS, MANIFEST
+        ext = path.suffix.lower()
+        if ext in (".dr2mod", ".zip") or (path.is_dir() and (path / MANIFEST).is_file()):
+            self.install_mod(str(path))
+            return
+        a = self.current
+        if a is None:
+            self.error(f"Select the asset that {path.name} should replace first.")
+            return
+        if not self.ensure_mod():
+            return
+        if ext == ".png" and a["kind"] == "texture":
+            if self.replace_png(str(path)):
+                self.show_asset(a["id"])
+        elif ext in AUDIO_EXTS and a["kind"] == "audio":
+            self.replace_audio(str(path))
+        elif ext == ".glb" and a["kind"] == "model":
+            self.replace_glb(str(path))
+        else:
+            self.error(f"{path.name} can't replace {a['name']} (a {a['kind']}). Drop a PNG "
+                       f"on a texture, a WAV/OGG/FLAC/MP3 on a sound, a .glb on a model, "
+                       f"or a .dr2mod anywhere.")
+
+    def wait_for_jobs(self, timeout: float = 30.0) -> bool:
+        """Let background jobs finish (closing, tests). A job's thread quits through a
+        queued signal, so the event loop keeps turning while waiting (a plain wait()
+        would deadlock). Returns True when none is left."""
+        import time
+        deadline = time.monotonic() + timeout
+        while self._threads and time.monotonic() < deadline:
+            QApplication.processEvents()
+            for th, _job, _relay in list(self._threads):
+                th.wait(20)
+        QApplication.processEvents()
+        return not self._threads
+
+    def closeEvent(self, ev):
+        self.wait_for_jobs()
+        super().closeEvent(ev)
+
+    def open_welcome(self) -> None:
+        from .welcome import Welcome
+        Welcome(self).show()
 
     def open_game_setup(self) -> None:
         from .setup_dialog import GameSetup
@@ -965,12 +1316,6 @@ class MainWindow(QMainWindow):
     def open_mod_manager(self) -> None:
         from .mod_manager import ModManager
         ModManager(self).show()
-
-    def undeploy_mod(self) -> None:
-        from ..mods.deploy import recomp_folders, undeploy
-        target = recomp_folders(locate(self.game).root)["mods"]
-        removed = undeploy(target)
-        self.say(f"removed {len(removed)} file(s) from {target}")
 
     # ---- index --------------------------------------------------------------------------
 
@@ -993,6 +1338,28 @@ class MainWindow(QMainWindow):
         self.run_job(work, done)
 
 
+def help_for_error(text: str) -> tuple[str, str]:
+    """The help page and section that explain an error message: the troubleshooting
+    table row (or guide) sharing the most words with it."""
+    import re
+    from .. import help as dhelp
+    from .help_view import slug
+    words = [w for w in re.findall(r"[A-Za-z][A-Za-z'-]{3,}", text.split("\n")[0])
+             if w.lower() not in {"error", "with", "that", "this", "from", "have", "data"}]
+    best, score = ("12-troubleshooting.md", ""), 0
+    for t in dhelp.topics():
+        heading = ""
+        for line in dhelp.read(t.name).splitlines():
+            if line.startswith("#"):
+                heading = line.lstrip("#").strip()
+            elif line.startswith("|"):
+                low = line.lower()
+                n = sum(1 for w in words if w.lower() in low)
+                if n > score:
+                    best, score = (t.name, slug(heading)), n
+    return best if score >= 2 else ("12-troubleshooting.md", "")
+
+
 def app_icon() -> QIcon:
     """DR2 Studio's icon (our own drawing, `icon/dr2studio.svg`; bitmaps for releases
     come from tools/release/make_icons.py)."""
@@ -1005,6 +1372,9 @@ def main(argv: list[str] | None = None) -> int:
     app.setWindowIcon(app_icon())
     win = MainWindow()
     win.show()
+    for arg in argv or []:                  # `dr2 studio x.dr2mod`, or a double-click
+        if Path(arg).suffix.lower() in (".dr2mod", ".zip") and Path(arg).is_file():
+            QTimer.singleShot(0, lambda a=arg: win.install_mod(a))
     return app.exec()
 
 

@@ -44,7 +44,7 @@ def test_window_shows_a_texture(tmp_path, monkeypatch):
     assert model["kind"] == "model"
     win.show_asset(model["id"])
     assert win.centre.currentWidget() is win.model_view
-    assert win.btn_glb.isEnabled() and not win.btn_png.isEnabled()
+    assert not win.btn_glb.isHidden() and win.btn_png.isHidden()   # only what applies
     assert "3 bones, 1 meshes, 1 draws" in win.details.toPlainText()
     # the rig validator: our own export passes and lands in the open mod
     from dr2kit.convert.gltf import model_to_glb
@@ -57,6 +57,7 @@ def test_window_shows_a_texture(tmp_path, monkeypatch):
     win._set_mod(create(tmp_path / "mod", "boxmod"))
     win.replace_glb(str(glb))
     assert (tmp_path / "mod" / "replace" / "data" / "pack.big" / "box.big.glb").is_file()
+    assert win.wait_for_jobs()
     win.close()
     del app
 
@@ -157,5 +158,6 @@ def test_text_strings_and_mod_manager(tmp_path, monkeypatch):
     gs = GameSetup(win)
     assert gs.status["cz"].text().startswith("✔") and "environment" in gs.status["cz"].text()
     gs.close()
+    assert win.wait_for_jobs()
     win.close()
     del app

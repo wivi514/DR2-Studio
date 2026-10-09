@@ -13,6 +13,17 @@ recomp_dirs = ["../Dead_Rising_2_Case_Zero_Xenon_Recomp/assets/game"]
 # The XBLA package as it sits in a recomp checkout (used by `dr2 games` to point at it).
 package_globs = ["../Dead_Rising_2_Case_Zero_Xenon_Recomp/assets/package/58410A8D/000D0000/*"]
 
+# The recomp's program, relative to the recomp's folder (the one holding assets/game):
+# a release puts it next to assets/, a source build under runtime/. DR2 Studio's Play
+# button starts the first one that exists (dr2kit/mods/play.py); `dr2 games set-recomp`
+# overrides it.
+recomp_executables = ["cz_runtime", "cz_runtime.exe", "CaseZeroRecomp-linux-x86_64.AppImage",
+                      "runtime/build-release/cz_runtime", "runtime/build/cz_runtime",
+                      "runtime/build-release/cz_runtime.exe", "runtime/build/cz_runtime.exe",
+                      "runtime/build/Release/cz_runtime.exe"]
+# The variable that turns mods off for one run (Play without mods).
+no_mods_env = "CZ_NO_MODS"
+
 # Files the executable checks against a SHA-1 digest: an edited copy crashes the game
 # The XEX's Digest resource has this one entry (tools/xex_digests.py); an edited copy
 # crashed the game (checked 2026-10-09, docs/formats.md §Digest-checked files).

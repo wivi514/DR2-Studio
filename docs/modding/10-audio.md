@@ -31,12 +31,12 @@ That is also why sound mods work in the recomps only, not on Xenia or a console.
    events play it. For sound effects, the related list shows the `.sfx` that use the
    recording; double-click one to see its event names.
 4. To keep a copy, click **Export WAV…**.
-5. Click **New mod…** at the bottom and choose an empty folder, e.g.
-   `Documents/dr2-mods/title_music`. (Or **Open mod…** for an existing one.)
+5. Click **New mod…** at the bottom and give it a name, e.g. `Title music` (Studio keeps
+   it in your mod library). (Or **Open mod…** for an existing mod folder.)
 6. With the sound still selected, click **Replace with audio…** and pick your file
    (WAV, OGG, FLAC or MP3). The mod's file list shows
    `data/audio/music.big/PressStartPrologue.xma.wav` (or `.ogg`…).
-7. Click **Build && deploy**. The log says what the build did to fit your audio, e.g.
+7. Click **▶ Play**. The log says what the build did to fit your audio, e.g.
    `cut from 180.00 s to the original's 112.00 s`, and where it went (the recomp's
    `assets/game_mods/dr2kit_audio/`).
 8. Start the recomp. The title screen plays your music.
@@ -85,7 +85,7 @@ The build prints a note for each of these it had to do.
   starts, and `[xma] audio mods: ctx0 plays <file> from sample 0` when the sound plays.
 - Compare with the original: start the recomp with `CZ_NO_AUDIO_MODS=1` (Case West:
   `CW_NO_AUDIO_MODS=1`). `CZ_NO_MODS=1` turns off all mods, sounds included.
-- Undo: **Undeploy** in Studio, or `dr2 mod undeploy -g cz`.
+- Undo: **Remove mods from game** in Studio, or `dr2 mod undeploy -g cz`.
 
 ## Why not edit the audio scripts?
 

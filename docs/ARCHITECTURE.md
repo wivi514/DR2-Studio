@@ -46,8 +46,9 @@ dr2kit/                 core library (pure Python; numpy optional)
                         validator); audio.py ✅ (phase 5); material.py ✅; strings.py ✅,
                         video.py ✅ (phase 6: Bink through PyAV, no format code of ours)
   index/ ✅             schema.sql, build.py, query.py (phase 2)
+  help/ ✅              the in-app help: the modding guides as pages, search, context help (phase 7)
   mods/ ✅              manifest.py, build.py, deploy.py (phase 2), audio.py (phase 5),
-                        library.py (phase 6: the mod manager)
+                        library.py (phase 6: the mod manager), play.py (phase 7: Play)
   studio/ ✅            DR2 Studio v0: app.py, viewers.py (phase 2; inside the package so
                         `dr2 studio` works after pip install)
 native/lzx/ ✅          dr2lzx: libmspack's lzxd.c (LGPL, separate library) + a small wrapper, CMake
@@ -180,6 +181,11 @@ This answers the "which texture is what" questions:
     strings: a filterable table whose edits go into the mod's `.bcs.json` (✅ phase 6,
     `studio/text_view.py`; no syntax highlighting yet).
   - Bink (CW): play through ffmpeg, pictures and sound (✅ phase 6, `studio/video_view.py`).
+- **Help inside the app** (✅ phase 7): the modding guides are the help (`dr2kit/help`,
+  copied into packages by `setup.py`; English, one folder per language for
+  translations, user decision 2026-10-09), shown in a searchable window (F1), a "How to
+  mod this" box per asset kind, a Help button on errors, a Welcome checklist, and
+  `dr2 help` in the terminal.
 - **Right:** metadata and relations, plus **Extract** (in native or converted format),
   **Add to mod** and **Replace…** buttons.
 - **Mod panel:** the active mod's overrides, **Build && deploy**, **Undeploy**.
@@ -223,6 +229,16 @@ order** and an on/off switch per mod. *Decision:* the load order *is* the priori
 error; `priority` in `mod.toml` only places a newly installed mod. Mods are shared as
 zips (`dr2 mod pack`), installed with `dr2 mod install` (zip entries that would land
 outside the mod are refused).
+
+**From making to playing (phase 7).** The library also holds the mod being made: a new
+mod is created inside it, a mod opened elsewhere is *linked* (stays in its folder). So
+"what's in the game" is always "the library's switched-on mods": **Play**
+(`mods/play.py`, `dr2 play`) builds them, deploys them into `game_mods/` and starts the
+recomp (found beside its game folder; user decision 2026-10-09: Studio may start it).
+*Decision:* a shared mod is a **`.dr2mod`**, a zip with its own extension
+(`mod.toml`, `replace/`, `preview.png`, `README.md`; never game data), made by *Share…*
+/ `dr2 mod pack` after a check against each game it names. Mod sets save which mods are
+on.
 
 **Files mods can't touch.** The executables digest-check a few data files (CZ 1, CW 6;
 `formats.md` §Digest-checked files). Each game profile lists them (`digest_checked`) and

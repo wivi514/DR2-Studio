@@ -54,7 +54,7 @@ textures in the same step (replace a texture with a PNG as in
    ```
 
    The split is normal and automatic.
-9. **Build and deploy** the mod (Studio **Build && deploy**, or
+9. **See it in game:** **▶ Play** in Studio (deploys the mod, starts the recomp), or
    `dr2 mod deploy my_mod -g cz`), start the game.
 
 ## Check it worked

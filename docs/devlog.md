@@ -17,6 +17,50 @@ Entry template:
 
 ---
 
+## 2026-10-09 — Phase 7: help inside the app, Play, Share and Install
+**Done:** the user's three choices first (Play starts the recomp; mods are shared as
+`.dr2mod`; help in English, laid out for translations). Then:
+- **Help inside DR2 Studio**: the modding guides *are* the help (`dr2kit/help`; a built
+  package carries them through a `setup.py` hook), in a searchable window (F1), a "How
+  to mod this" box per asset kind (`docs/modding/context.toml`), a Help button on every
+  error that opens the matching troubleshooting row, a Welcome checklist, and
+  `dr2 help` in the terminal.
+- **The shortest editing loop**: *Edit in image editor…* (each save goes into the mod
+  and shows in Studio as the game will get it), *Open in Blender* (the model arrives
+  tagged for the add-on), drag and drop, the mod's changes listed with problems marked,
+  only the buttons that apply shown, *New mod…* when an action needs one.
+- **Share and install**: *Share…* (name, preview, readme, a check per game, one
+  `.dr2mod`); *Install mod…* / drop / `dr2 studio file.dr2mod` shows the mod before
+  installing; updates list what changed; mod sets.
+- **Play** (`mods/play.py`, `dr2 play`): deploy the switched-on mods and start the
+  recomp; *Play without mods*; *Remove mods from game*; the status bar says what is in
+  the game. New mods live in the library; opened folders are linked.
+- Guides 01, 05, 06, 08-11, 13 and the guides index rewritten for these buttons.
+- **Gate, scripted in game in both games** (`tools/newcomer_gate.py`): make, share,
+  install on an empty second library, Play: the new title text and a red shirt/jacket.
+
+**Why:** the user's phase 7 direction: modding as easy as possible, documentation in
+the app, packaging and installing easy.
+
+**Learned:** `closeEvent` isn't called for a window never shown, and waiting on a job's
+thread with `wait()` deadlocks (it quits through a queued signal): `wait_for_jobs()`
+keeps the event loop turning. The Studio tests linked test mods into the real mod
+library once the open mod joined the library: every test now gets its own user folders
+(conftest). A one-liner `open(p,'w').write(open(p).read())` empties the file (the write
+open truncates first): `app.py` had to be restored from git and re-patched. The CZ
+recomp's `build-release` is a month older than `build`, so Play takes the newest
+source build. `pkill -f` with a pattern that matches its own command kills the shell.
+
+**Docs updated:** `modding/README.md` (start here), `01-install.md`,
+`05-first-mod-texture.md`, `06-mod-packages.md`, `08`-`11`, `13-blender-addon.md`,
+`context.toml` (new), `dev/studio.md`, `dev/code-tour.md`, `dev/testing.md`,
+`ARCHITECTURE.md`, `roadmap.md`, `phase7-kickoff.md` (decisions), `glossary.md`,
+`CLAUDE.md`.
+
+**Next:** a person runs the gate from the in-app help on a clean profile; `.dr2mod`
+file associations in releases; the carried-over items (first release on all OSes,
+in-game gates owed, value-set colours, longer sounds, keyboard prompts with string mods).
+
 ## 2026-10-09 — Phase 7 set by the user; the app icon
 **Done:** the user set phase 7's direction: the easiest possible modding, the help inside
 DR2 Studio, easy packaging and installing of mods, and an app icon

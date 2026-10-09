@@ -32,7 +32,7 @@ Two kinds of text live in the games:
    list shows `data/frontend/str_en.bcs.json`. Notes under the table warn you when the
    new text breaks a rule (below).
 5. To undo one string: select its row and click **Revert string**.
-6. **Build && deploy**, start the recomp: the title screen says your text.
+6. **▶ Play**: the recomp starts and the title screen says your text.
 
 ### With the `dr2` command
 
@@ -92,7 +92,7 @@ also write it yourself; only `"strings"` matters (ids or labels), the rest is a 
 4. Click **Changes** to see a diff: red lines are the game's, green lines yours. Click it
    again to go back to editing.
 5. **Revert to the game's** removes your copy from the mod.
-6. **Build && deploy**.
+6. **▶ Play**.
 
 Without an open mod the text is read-only. A few files are locked (below).
 

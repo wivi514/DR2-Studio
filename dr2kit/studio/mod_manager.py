@@ -18,12 +18,13 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QDialog, QFileDialog, QHBoxLayout, QLabel, QListWidget,
-                               QListWidgetItem, QMessageBox, QPlainTextEdit, QPushButton,
-                               QVBoxLayout)
+from PySide6.QtGui import QPixmap
+from PySide6.QtWidgets import (QComboBox, QDialog, QFileDialog, QHBoxLayout, QLabel,
+                               QListWidget, QListWidgetItem, QMessageBox, QPlainTextEdit,
+                               QPushButton, QTextBrowser, QVBoxLayout)
 
 from ..errors import Dr2Error
-from ..mods.library import ModLibrary, default_library, pack, set_default_library
+from ..mods.library import ModLibrary, default_library, set_default_library
 
 
 class ModManager(QDialog):
@@ -42,33 +43,62 @@ class ModManager(QDialog):
         self.report.setReadOnly(True)
         self.report.setMaximumHeight(150)
         b = {name: QPushButton(name) for name in (
-            "Install folder…", "Install .zip…", "Remove", "Up", "Down", "Edit in Studio",
-            "Pack .zip…", "Conflicts", "Deploy", "Library folder…")}
+            "Install folder…", "Install mod file…", "Link folder…", "Remove", "Up", "Down",
+            "Edit in Studio", "Share…", "Conflicts", "Deploy", "Library folder…")}
         self.buttons = b
         b["Install folder…"].clicked.connect(lambda: self._install(folder=True))
-        b["Install .zip…"].clicked.connect(lambda: self._install(folder=False))
+        b["Install mod file…"].clicked.connect(lambda: self._install(folder=False))
+        b["Link folder…"].setToolTip("Add a mod folder that stays where it is (a mod you "
+                                     "are making)")
+        b["Link folder…"].clicked.connect(self._link)
         b["Remove"].clicked.connect(self._remove)
         b["Up"].clicked.connect(lambda: self._move("down"))      # up the list = earlier
         b["Down"].clicked.connect(lambda: self._move("up"))
         b["Edit in Studio"].clicked.connect(self._edit)
-        b["Pack .zip…"].clicked.connect(self._pack)
+        b["Share…"].clicked.connect(self._share)
         b["Conflicts"].clicked.connect(self.conflicts)
         b["Deploy"].clicked.connect(self.deploy)
         b["Library folder…"].clicked.connect(self._change_folder)
         self.list.itemChanged.connect(self._toggled)
         row1, row2 = QHBoxLayout(), QHBoxLayout()
-        for name in ("Install folder…", "Install .zip…", "Remove", "Up", "Down"):
+        for name in ("Install mod file…", "Install folder…", "Link folder…", "Remove", "Up",
+                     "Down"):
             row1.addWidget(b[name])
-        for name in ("Edit in Studio", "Pack .zip…", "Conflicts", "Deploy",
-                     "Library folder…"):
+        for name in ("Edit in Studio", "Share…", "Conflicts", "Deploy", "Library folder…"):
             row2.addWidget(b[name])
+        # mod sets: save which mods are on, switch between saved sets
+        self.sets = QComboBox()
+        self.sets.setMinimumWidth(160)
+        use = QPushButton("Use set")
+        save = QPushButton("Save set as…")
+        delete = QPushButton("Delete set")
+        use.clicked.connect(self._use_set)
+        save.clicked.connect(self._save_set)
+        delete.clicked.connect(self._delete_set)
+        row3 = QHBoxLayout()
+        row3.addWidget(QLabel("Mod sets:"))
+        row3.addWidget(self.sets, 1)
+        for w in (use, save, delete):
+            row3.addWidget(w)
+        # the selected mod: preview, description, readme
+        self.pic = QLabel()
+        self.pic.setFixedSize(128, 128)
+        self.pic.setAlignment(Qt.AlignCenter)
+        self.about = QTextBrowser()
+        self.about.setMaximumHeight(128)
+        self.list.currentItemChanged.connect(lambda *_: self._show_selected())
         lay = QVBoxLayout(self)
         lay.addWidget(self.where)
         lay.addWidget(QLabel("Tick a mod to switch it on. Later mods (lower in the list) "
                              "win when two replace the same thing."))
         lay.addWidget(self.list, 1)
+        detail = QHBoxLayout()
+        detail.addWidget(self.pic)
+        detail.addWidget(self.about, 1)
+        lay.addLayout(detail)
         lay.addLayout(row1)
         lay.addLayout(row2)
+        lay.addLayout(row3)
         lay.addWidget(self.report)
         self.refresh()
 
@@ -88,7 +118,8 @@ class ModManager(QDialog):
             it = QListWidgetItem(f"{e.position + 1}. {e.mod.name}  ({e.mod.id} "
                                  f"{e.mod.version}, {'/'.join(e.mod.games)}, {files} "
                                  f"file{'s' if files != 1 else ''})"
-                                 + ("  — new, not on yet" if e.new else ""))
+                                 + ("  — new, not on yet" if e.new else "")
+                                 + ("  — linked folder" if e.linked else ""))
             it.setData(Qt.UserRole, e.mod.id)
             it.setFlags(it.flags() | Qt.ItemIsUserCheckable)
             it.setCheckState(Qt.Checked if e.enabled else Qt.Unchecked)
@@ -97,6 +128,64 @@ class ModManager(QDialog):
             if e.mod.id == select:
                 self.list.setCurrentItem(it)
         self.list.blockSignals(False)
+        self.sets.clear()
+        try:
+            self.sets.addItems(sorted(self.lib.sets()))
+        except Exception:  # noqa: BLE001 - a broken sets file shows as no sets
+            pass
+        self._show_selected()
+
+    def _show_selected(self) -> None:
+        mid = self._selected()
+        self.pic.clear()
+        if not mid:
+            self.about.setMarkdown("")
+            return
+        try:
+            e = self.lib.get(mid)
+        except Dr2Error:
+            return
+        m = e.mod
+        if m.preview_path:
+            self.pic.setPixmap(QPixmap(str(m.preview_path)).scaled(
+                128, 128, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        self.about.setMarkdown(f"**{m.name}** {m.version}"
+                               + (f" by {m.author}" if m.author else "")
+                               + (f"\n\n{m.description}" if m.description else "")
+                               + (f"\n\n{m.readme}" if m.readme else "")
+                               + f"\n\n`{m.root}`")
+
+    def _link(self) -> None:
+        d = QFileDialog.getExistingDirectory(self, "Mod folder to link (it stays where it is)")
+        if d:
+            mod = self._do(self.lib.link, d)
+            if mod:
+                self.refresh(mod.id)
+
+    def _share(self) -> None:
+        mid = self._selected()
+        if mid:
+            from .share_dialog import ShareDialog
+            ShareDialog(self.main, self.lib.get(mid).mod.root).exec()
+            self.refresh(mid)
+
+    def _use_set(self) -> None:
+        name = self.sets.currentText()
+        if name:
+            gone = self._do(self.lib.use_set, name)
+            if gone:
+                self.report.setPlainText(f"not installed any more: {', '.join(gone)}")
+
+    def _save_set(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+        name, ok = QInputDialog.getText(self, "Save mod set", "Name of this set of mods:")
+        if ok and name.strip():
+            self._do(self.lib.save_set, name.strip())
+
+    def _delete_set(self) -> None:
+        name = self.sets.currentText()
+        if name:
+            self._do(self.lib.delete_set, name)
 
     def _selected(self) -> str | None:
         it = self.list.currentItem()
@@ -124,8 +213,14 @@ class ModManager(QDialog):
         if folder:
             src = QFileDialog.getExistingDirectory(self, "Mod folder to install (with mod.toml)")
         else:
-            src, _ = QFileDialog.getOpenFileName(self, "Mod .zip to install", "", "Zip (*.zip)")
+            src, _ = QFileDialog.getOpenFileName(self, "Mod to install", "",
+                                                 "DR2 mods (*.dr2mod *.zip)")
         if not src:
+            return
+        if not folder:                      # a package: show it before installing
+            from .share_dialog import InstallDialog
+            InstallDialog(self.main, Path(src), self.lib).exec()
+            self.refresh()
             return
         try:
             mod = self.lib.install(src)
@@ -151,18 +246,6 @@ class ModManager(QDialog):
         mid = self._selected()
         if mid:
             self.main._set_mod(self.lib.get(mid).mod.root)
-
-    def _pack(self) -> None:
-        mid = self._selected()
-        if not mid:
-            return
-        mod = self.lib.get(mid).mod
-        dest, _ = QFileDialog.getSaveFileName(self, "Save mod as", f"{mod.id}-{mod.version}.zip",
-                                              "Zip (*.zip)")
-        if dest:
-            out = self._do(pack, mod.root, dest, select=mid)
-            if out:
-                self.main.say(f"packed {mid} into {out}")
 
     def _change_folder(self) -> None:
         d = QFileDialog.getExistingDirectory(self, "Mod library folder", str(default_library()))
@@ -196,11 +279,11 @@ class ModManager(QDialog):
         self.main.run_job(work, done)
 
     def deploy(self) -> None:
-        mods = self.lib.active(self.main.game)
-        if not mods:
-            QMessageBox.information(self, "Mod manager",
-                                    f"No switched-on mod is for {self.main.game}.")
-            return
-        self.report.setPlainText(f"building {', '.join(m.id for m in mods)} for "
-                                 f"{self.main.game}…")
-        self.main.deploy_mods(mods, report=self.report.appendPlainText)
+        """Deploy the switched-on mods for the main window's game (Studio's Deploy)."""
+        if not self.lib.active(self.main.game):
+            self.report.setPlainText(f"No switched-on mod is for {self.main.game}: deploying "
+                                     f"removes the mods from the game.")
+        else:
+            self.report.setPlainText(f"deploying the switched-on mods for {self.main.game}… "
+                                     f"(progress in the main window's log)")
+        self.main.play(start=False)

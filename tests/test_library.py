@@ -80,7 +80,7 @@ def test_pack_and_install_zip(tmp_path):
     (src / ".git").mkdir()
     (src / ".git" / "junk").write_text("no")
     z = pack(src, tmp_path)
-    assert z.name == "zipme-1.0.0.zip"
+    assert z.name == "zipme-1.0.0.dr2mod"
     names = zipfile.ZipFile(z).namelist()
     assert "zipme/mod.toml" in names and "zipme/replace/data/x.txt" in names
     assert not any(".git" in n for n in names)
@@ -116,4 +116,81 @@ def test_cli_library_deploy(tmp_path, game, capsys):
     assert deployed.is_file()
     assert main(["mod", "conflicts", "-g", "cz", "--library", lib]) == 0
     assert main(["mod", "pack", str(a), "-o", str(tmp_path)]) == 0
-    assert (tmp_path / "a-1.0.0.zip").is_file()
+    assert (tmp_path / "a-1.0.0.dr2mod").is_file()
+
+
+def test_link_create_and_sets(tmp_path):
+    lib = ModLibrary(tmp_path / "lib")
+    mine = raw_mod(tmp_path, "mine", {"data/x.txt": b"1"})
+    lib.link(mine)
+    made = lib.create("Red Jacket!", games=("cz",))
+    assert made.id == "red_jacket" and made.games == ("cz",)
+    assert lib.create("Red Jacket").id == "red_jacket_2"
+    e = lib.get("mine")
+    assert e.linked and e.enabled and e.mod.root == mine
+    assert ModLibrary(tmp_path / "lib").get("mine").linked          # saved
+    lib.save_set("all")
+    lib.enable("mine", False)
+    lib.save_set("no mine")
+    assert lib.use_set("all") == [] and lib.get("mine").enabled
+    lib.use_set("no mine")
+    assert not lib.get("mine").enabled
+    assert set(lib.sets()) == {"all", "no mine"}
+    lib.remove("mine")                                   # linked: forgotten, not deleted
+    assert mine.is_dir() and "mine" not in [x.mod.id for x in lib.entries()]
+
+
+def test_update_lists_changes(tmp_path):
+    lib = ModLibrary(tmp_path / "lib")
+    src = raw_mod(tmp_path, "upd", {"data/a.txt": b"1", "data/b.txt": b"2"})
+    lib.install(src)
+    (src / "replace/data/a.txt").write_bytes(b"changed")
+    (src / "replace/data/b.txt").unlink()
+    (src / "replace/data/c.txt").write_bytes(b"new")
+    lib.install(src, replace=True)
+    assert lib.last_changes == ["added replace/data/c.txt", "removed replace/data/b.txt",
+                                "changed replace/data/a.txt"]
+
+
+def test_preview_and_readme(tmp_path):
+    root = raw_mod(tmp_path, "pv", {})
+    (root / "preview.png").write_bytes(b"\x89PNG")
+    (root / "README.md").write_text("# Hello")
+    mod = Mod.load(root)
+    assert mod.preview_path == root / "preview.png" and mod.readme == "# Hello"
+
+
+def test_play_deploy_status_and_launch(tmp_path, monkeypatch):
+    import os
+    import sys
+    from dr2kit.mods import play
+    recomp = tmp_path / "recomp"
+    game = recomp / "assets" / "game"
+    (game / "data").mkdir(parents=True)
+    (game / "data" / "datafile.big").write_bytes(make_archive(("a.txt", b"a")).to_bytes())
+    monkeypatch.setenv("DR2_CZ_DATA", str(game))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    lib = ModLibrary(tmp_path / "lib")
+    lib.install(raw_mod(tmp_path, "a", {"data/datafile.big/a.txt": b"A"}))
+    files, res = play.deploy_library("cz", lib)
+    assert files == ["data/datafile.big"]
+    st = play.deployed("cz")
+    assert st.mods == ["a 1.0.0"] and "1 mod(s)" in st.describe()
+    lib.enable("a", False)
+    assert play.deploy_library("cz", lib) == ([], None)     # nothing on: removed
+    assert not (recomp / "assets" / "game_mods").exists()
+    assert play.deployed("cz").describe() == "no mods in the game"
+    # the recomp program: found by the profile's names, started with the mods switch
+    exe = recomp / "runtime" / "build" / "cz_runtime"
+    exe.parent.mkdir(parents=True)
+    out = tmp_path / "ran.txt"
+    exe.write_text(f"#!{sys.executable}\nimport os\nopen({str(out)!r}, 'w').write("
+                   f"os.environ.get('CZ_NO_MODS', '-') + ' ' + os.getcwd())\n")
+    exe.chmod(0o755)
+    if sys.platform == "win32":
+        pytest.skip("launch test uses a script as the program")
+    assert play.find_recomp("cz") == exe
+    play.launch("cz", mods=False).wait(10)
+    assert out.read_text() == f"1 {exe.parent}"
+    with pytest.raises(Exception, match="no such file"):
+        play.set_recomp("cz", tmp_path / "nope")

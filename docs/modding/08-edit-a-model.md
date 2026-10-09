@@ -51,11 +51,13 @@ changed back into the game's model. Parts you didn't touch stay exactly as they 
    Blender, because Blender renumbers vertices; they look the same.) If a mod is open, the file is
    copied into it as `replace/data/models/npcs.big/chest_young_chuck.big.glb`.
    *Command line:* `dr2 model check chest_young_chuck_big_arms.glb data/models/npcs.big/chest_young_chuck.big`
-6. **Make the mod** (if you didn't have one open): **New mod…** in Studio, then repeat
+6. **Make the mod** (if you didn't have one open): **New mod…** in Studio (it asks for a
+   name), then repeat
    step 5. Or by hand: `dr2 mod new big_arms`, then copy the `.glb` to
    `big_arms/replace/data/models/npcs.big/chest_young_chuck.big.glb` (the model's path
    plus `.glb`, exactly like a texture's `.png` in [`05-first-mod-texture.md`](05-first-mod-texture.md)).
-7. **Build and deploy:** **Build && deploy** in Studio, or `dr2 mod deploy big_arms -g cz`.
+7. **See it in game:** **▶ Play** in Studio (it deploys the mod and starts the recomp),
+   or `dr2 mod deploy big_arms -g cz` and start the recomp.
 
 ## Check it worked
 
@@ -63,7 +65,7 @@ Start the recomp and load your save. Chuck's forearms are visibly thicker than w
 the mod (start once with `CZ_NO_MODS=1` to compare). The recomp's log says
 `'game:\data\models\npcs.big' served from the MODS overlay`.
 
-Remove it again with **Undeploy** (or `dr2 mod undeploy -g cz`).
+Remove it again with **Remove mods from game** (or `dr2 mod undeploy -g cz`).
 
 ## If something went wrong
 

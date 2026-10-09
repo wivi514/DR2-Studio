@@ -77,7 +77,24 @@ class Mod:
     author: str = ""
     description: str = ""
     priority: int = 0
+    preview: str = ""       # a picture in the mod folder, shown by the mod manager
     extra: dict = field(default_factory=dict)
+
+    @property
+    def preview_path(self) -> Path | None:
+        """The mod's preview picture (``preview`` in mod.toml, else ``preview.png``)."""
+        for name in (self.preview, "preview.png", "preview.jpg"):
+            if name and (self.root / name).is_file():
+                return self.root / name
+        return None
+
+    @property
+    def readme(self) -> str:
+        """The mod's ``README.md`` (or ``README.txt``), '' if none."""
+        for name in ("README.md", "README.txt", "readme.md", "readme.txt"):
+            if (self.root / name).is_file():
+                return (self.root / name).read_text("utf-8", "replace")
+        return ""
 
     @classmethod
     def load(cls, folder: str | Path) -> "Mod":
@@ -100,12 +117,40 @@ class Mod:
         bad = [g for g in games if g not in GAME_IDS]
         if bad or not games:
             raise ModError(f"{path}: games must be a list from {list(GAME_IDS)}, got {games}")
-        known = {"id", "name", "version", "games", "author", "description", "priority"}
+        known = {"id", "name", "version", "games", "author", "description", "priority",
+                 "preview"}
         return cls(root=root, id=mid, name=str(m.get("name", mid)),
                    version=str(m.get("version", "0")), games=games,
                    author=str(m.get("author", "")), description=str(m.get("description", "")),
-                   priority=int(m.get("priority", 0)),
+                   priority=int(m.get("priority", 0)), preview=str(m.get("preview", "")),
                    extra={k: v for k, v in m.items() if k not in known})
+
+    def save(self) -> Path:
+        """Write this mod's ``mod.toml`` (the fields above, other keys kept), with the
+        template's comments. Returns the file."""
+        def q(v: str) -> str:
+            return '"' + str(v).replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n") + '"'
+        lines = ["# A DR2 Case Zero / Case West mod. Reference: docs/modding/06-mod-packages.md",
+                 "[mod]",
+                 f"id = {q(self.id)}                 # lower-case letters, digits, _ . -",
+                 f"name = {q(self.name)}",
+                 f"version = {q(self.version)}",
+                 "games = [" + ", ".join(q(g) for g in self.games) + "]   # which games it is for",
+                 f"author = {q(self.author)}",
+                 f"description = {q(self.description)}",
+                 "# Higher priority wins when two mods replace the same asset (default 0).",
+                 f"priority = {int(self.priority)}"]
+        if self.preview:
+            lines.append(f"preview = {q(self.preview)}   # the picture the mod manager shows")
+        for k, v in self.extra.items():
+            if isinstance(v, (int, float, bool)):
+                lines.append(f"{k} = {str(v).lower() if isinstance(v, bool) else v}")
+            elif isinstance(v, str):
+                lines.append(f"{k} = {q(v)}")
+        path = self.root / MANIFEST
+        path.write_text("\n".join(lines) + "\n", "utf-8")
+        Mod.load(self.root)                      # what we wrote must read back
+        return path
 
     def files(self) -> list[tuple[str, Path]]:
         """Every file under ``replace/`` as ``(path relative to replace/, file)``, sorted."""

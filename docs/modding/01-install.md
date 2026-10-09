@@ -44,8 +44,9 @@ From the toolkit's releases page, take the file for your system:
 
 ### 3. Point it at your games
 
-On the first start the **Game folders** window opens (later: **Game folders…** in the
-toolbar). For each game:
+On the first start the **Welcome** window opens: five steps with a button each, ticked as
+you do them. Its first button, **Game folders…** (also in the toolbar), opens the window
+where you say where each game is. For each game:
 
 - If you have a **recomp**: **Choose folder…** and pick its `assets/game` folder (the
   one that contains `data`).
@@ -54,12 +55,17 @@ toolbar). For each game:
   `58410A8D/000D0000/` for Case Zero or `58410B00/000D0000/` for Case West):
   **Unpack package…**, pick the file, then an empty folder to unpack into (about 1 GB).
 
-Each line turns into ✔ and the folder. Close the window. More about the three forms:
+Each line turns into ✔ and the folder. The same window shows the programs Studio
+starts: each game's **recomp program** (for **▶ Play**: found by itself next to a recomp's
+`assets/`, otherwise **Choose…** `cz_runtime` / `cw_runtime`, `.exe` on Windows),
+**Blender** (for *Open in Blender*) and your **image editor** (the system's default for
+PNG unless you choose one). Close the window. More about the three forms:
 [`02-game-data.md`](02-game-data.md).
 
 ### 4. Build the index
 
-Pick a game in the toolbar and click **Build / refresh index** (one to three minutes per
+In the Welcome window click **Build index** (or, any time, pick a game in the toolbar
+and click **Build / refresh index**) (one to three minutes per
 game; the log at the bottom shows progress). The index is what search, thumbnails and
 "which model uses this texture" run on. Do it again after a toolkit update that asks for
 it.
@@ -85,6 +91,12 @@ dr2 index build
 
 Python 3.11+: `pip install "dr2kit[studio] @ git+<repository URL>"` or a checkout with
 `pip install -e ".[studio]"` ([`../dev/setup.md`](../dev/setup.md)), then `dr2 studio`.
+
+### 5. Make your first mod
+
+The Welcome window's last steps start a mod and play it; the guide
+[`05-first-mod-texture.md`](05-first-mod-texture.md) shows every click. Press **F1** any
+time for these guides inside the app.
 
 ## Check it worked
 

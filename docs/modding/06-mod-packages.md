@@ -52,14 +52,21 @@ priority = 0                # higher wins when two mods replace the same asset
   Once a mod is installed in the mod manager, its place in the load order decides
   instead (below); `priority` only says where it lands when installed.
 
-## Build, deploy, undeploy
+## Play, deploy, remove
 
 | DR2 Studio | Command | What happens |
 |---|---|---|
-| (automatic) | `dr2 mod check MOD -g cz` | Checks every file: does the asset exist, is the PNG the right size, does each `.glb` pass the model check, do mods clash. Writes nothing. |
-| **Build && deploy** | `dr2 mod deploy MOD [MOD…] -g cz` | Builds the game files that hold your assets and copies them into the recomp's `assets/game_mods/` folder. |
+| (automatic: the mod's list marks problems with ⚠) | `dr2 mod check MOD -g cz` | Checks every file: does the asset exist, is the PNG the right size, does each `.glb` pass the model check, do mods clash. Writes nothing. |
+| **▶ Play** (toolbar) | `dr2 play -g cz` | Builds every switched-on mod of your library, copies the result into the recomp's `assets/game_mods/` folder, and starts the recomp. |
+| **Deploy** (bottom bar) | `dr2 play -g cz --deploy-only`, or `dr2 mod deploy MOD [MOD…] -g cz` | The same without starting the game. |
+| **Play without mods** | `dr2 play -g cz --no-mods` | Starts the recomp with mods switched off for that run (nothing is removed). |
+| **Remove mods from game** | `dr2 mod undeploy -g cz` | Removes exactly the files the last deploy wrote. Files you put there yourself stay. |
+| status line, bottom right | `dr2 mod status` | Which mods are in each game now, and since when. |
 | — | `dr2 mod build MOD [MOD…] -g cz -o OUT` | Builds into the folder `OUT` (laid out like the game: `OUT/data/…`). For Xenia or a console. |
-| **Undeploy** | `dr2 mod undeploy -g cz` | Removes exactly the files the last deploy wrote. Files you put there yourself stay. |
+
+Studio finds the recomp's program next to its game folder (a release has it beside
+`assets/`, a source build under `runtime/build`); if it can't, choose it in **Game
+folders…** (or `dr2 games set-recomp cz <file>`).
 
 Building rewrites whole game files. A texture three archives deep means rewriting the
 `.big` file on disk that holds it, so one small PNG can produce a 100 MB file. The
@@ -93,7 +100,10 @@ same texture, model, sound or string. Deploying deploys every switched-on mod at
 
 1. Click **Mod manager…** in the toolbar. The window lists the library's mods in load
    order (the folder is shown at the top; **Library folder…** changes it).
-2. **Install folder…** or **Install .zip…** copies a mod in, switched on. A mod already
+2. **Install mod file…** (a `.dr2mod` or `.zip`) shows the mod first (picture, readme,
+   what it changes), then copies it in, switched on; **Install folder…** does the same
+   for a folder; **Link folder…** adds a folder that stays where it is (a mod you are
+   making: Studio links the mod you open or create automatically). A mod already
    installed asks whether to update it (it keeps its place and switch).
 3. Tick or untick a mod to switch it on or off; **Up** / **Down** move the selected mod.
    Lower in the list = wins.
@@ -101,9 +111,10 @@ same texture, model, sound or string. Deploying deploys every switched-on mod at
    switched-on mods both change and which one wins:
    `data/models/npcs.big/chest_default.tex/cr_jacket_cm: blue_jacket wins over red_jacket`.
 5. **Deploy** builds and deploys all switched-on mods for that game into the recomp
-   (replacing the previous deploy). **Undeploy** in the main window removes them.
+   (replacing the previous deploy). **Remove mods from game** in the main window removes
+   them; **▶ Play** does the deploy and starts the game.
 6. **Edit in Studio** makes the selected mod the open mod in the main window, so new
-   replacements go into it. **Pack .zip…** saves it as a zip to share; **Remove**
+   replacements go into it. **Share…** packages it (below); **Remove**
    deletes it from the library folder.
 
 ### With the `dr2` command
@@ -127,13 +138,41 @@ library by hand shows up as "new" and switched off until you enable it.
 
 - Recomp: start it with `CZ_NO_MODS=1` (Case Zero) or `CW_NO_MODS=1` (Case West). The
   `game_mods/` folder is ignored and the game is exactly as without mods.
+- In Studio: **Play without mods**, or **Remove mods from game**.
 - Or `dr2 mod undeploy -g cz`.
+
+### Mod sets
+
+A **mod set** remembers which mods are switched on, so you can go back and forth (say,
+"all my mods" and "just the translation"). In the mod manager: switch mods on and off,
+**Save set as…**, and later pick it and **Use set**. Command: `dr2 mod sets save all`,
+`dr2 mod sets use all`, `dr2 mod sets`.
 
 ## Sharing a mod
 
-Click **Pack .zip…** in the mod manager, or run `dr2 mod pack my_mod` (writes
-`my_mod-1.0.0.zip`, leaving out hidden files), and share the zip. Others install it with
-**Install .zip…** or `dr2 mod install my_mod-1.0.0.zip`. Never share the built
+A shared mod is one **`.dr2mod`** file (a zip with its own name, so it's clearly a DR2
+mod; `.zip` works too).
+
+### In DR2 Studio
+
+1. With your mod open, click **Share…** at the bottom (or select it in the mod manager
+   and click **Share…**).
+2. Fill in the name, version, author and description; tick the games it is for; choose a
+   **preview picture** (any image, or **Use one of the mod's textures**); write a short
+   readme (what it changes, anything to know).
+3. Click **Save .dr2mod…**. Studio first checks the mod against each game you ticked (the
+   same checks as a build); if a game reports a problem, nothing is written and the box
+   says why. Otherwise choose where to save `my_mod-1.0.0.dr2mod`.
+4. Share that file. Whoever gets it drops it on DR2 Studio (or **Install mod…**), sees
+   your picture and readme, clicks **Install**, then **▶ Play**.
+
+### With the `dr2` command
+
+`dr2 mod pack my_mod` writes `my_mod-1.0.0.dr2mod` (`-o name.zip` for a plain zip);
+`dr2 mod install my_mod-1.0.0.dr2mod` installs one (`--replace` to update; it lists
+what changed). Hidden files and build leftovers are left out of the package.
+
+Never share the built
 files from `game_mods/` or `dr2 mod build`: those are the game's archives with your
 change inside, i.e. copyrighted game data. The person installing your mod runs
 `dr2 mod deploy` on their own copy of the game.

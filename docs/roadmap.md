@@ -176,24 +176,27 @@ Handoff was `phase4-kickoff.md`; the next one is `phase5-kickoff.md`.
 - **Gate (census):** all 16 string banks re-write byte-identically; all 10 Bink movies
   decode (frames and sound). **Passed.**
 
-## Phase 7: the easiest possible modding, help inside the app (user, 2026-10-09)
+## Phase 7: the easiest possible modding, help inside the app (user, 2026-10-09) ✅ mostly
 The user's direction: make modding as easy as possible, put the documentation inside
 the app, make packaging a mod and installing it in game easy. Handoff and full scope:
 `phase7-kickoff.md`.
 - Help inside DR2 Studio: the guides rendered and searchable, "how to mod this" for the
   selected asset, a first-start walkthrough, errors that link to their explanation;
-  `dr2 help`.
-- Easiest editing loop: *Edit in…* with automatic re-import, *Open in Blender*, drag and
-  drop, the open mod's items with status and revert.
-- Packaging: a *Share mod…* wizard (metadata, preview, checks) writing one file.
+  `dr2 help`. ✅ (`dr2kit/help`, `studio/help_view.py`, `studio/welcome.py`)
+- Easiest editing loop: *Edit in image editor…* with automatic re-import, *Open in
+  Blender*, drag and drop, the open mod's items with status and removal. ✅
+- Packaging: a *Share…* window (metadata, preview, checks) writing one `.dr2mod`. ✅
 - Installing and playing: open a mod package to install it, *Play* (deploy + start the
-  recomp), what is deployed now, uninstall from the game, mod sets.
+  recomp), what is deployed now, remove from the game, mod sets. ✅ (`mods/play.py`)
+  Not done: registering `.dr2mod` with the operating system (double-click).
 - An icon for the app (our own art). ✅ (see devlog)
 - Carried over: the first release on all OSes (needs the GitHub remote), the in-game
   gates still owed, value-set colours, longer sounds, keyboard prompts with string mods.
 - **Gate:** a newcomer, with only the in-app help and no terminal, makes a texture mod
   and a text mod, sees them in game, packages them and installs the package on a second
-  setup (both games).
+  setup (both games). **The chain passed scripted, in game, in CZ and CW**
+  (`tools/newcomer_gate.py`, `dev/testing.md` §Phase 7 results); the run by a person is
+  still owed.
 
 ## Stretch (phase 8 or later)
 - In-game "identify": the recomp sends the textures/models under the crosshair to Studio.

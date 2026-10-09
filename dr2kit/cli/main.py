@@ -69,6 +69,11 @@ def _av_detail() -> str:
 
 def cmd_games(args) -> int:
     """List each game and where its data was found; or `set` a folder for one."""
+    if getattr(args, "action", None) == "set-recomp":
+        from ..mods.play import find_recomp, set_recomp
+        set_recomp(args.set_game, args.program)
+        print(f"{args.set_game}: Play starts {find_recomp(args.set_game)}")
+        return 0
     if getattr(args, "action", None) == "set":
         root = set_game_root(args.set_game, args.folder)
         print(f"{args.set_game}: using {root}  (saved in {config_path()})")
@@ -522,11 +527,20 @@ def _report_build(res) -> None:
 
 
 _LIBRARY_ACTIONS = ("list", "install", "remove", "enable", "disable", "move", "library",
+                    "link", "sets", "status",
                     "pack")
 
 
 def _cmd_library(args, mlib) -> int:
     """The mod manager actions (`dr2kit.mods.library`)."""
+    if args.action == "status":
+        from ..mods.play import deployed
+        for g in ([args.game] if args.game else list(GAME_IDS)):
+            try:
+                print(f"{g}: {deployed(g).describe()}")
+            except Dr2Error as e:
+                print(f"{g}: {e}")
+        return 0
     if args.action == "pack":
         out = mlib.pack(args.folder, args.out)
         print(f"wrote {out}")
@@ -543,6 +557,26 @@ def _cmd_library(args, mlib) -> int:
         for src in args.sources:
             mod = lib.install(src, replace=args.replace)
             print(f"installed {mod.id} {mod.version} ({mod.name}) -> {mod.root}, enabled")
+            for c in lib.last_changes:
+                print(f"    {c}")
+        return 0
+    if args.action == "link":
+        for src in args.sources:
+            mod = lib.link(src)
+            print(f"linked {mod.id} ({mod.root}): it stays there, and it is on")
+        return 0
+    if args.action == "sets":
+        if args.set_action == "save":
+            print(f"set {args.name!r}: {', '.join(lib.save_set(args.name)) or '(no mod on)'}")
+        elif args.set_action == "use":
+            gone = lib.use_set(args.name)
+            print(f"switched on the mods of {args.name!r}"
+                  + (f"; not installed any more: {', '.join(gone)}" if gone else ""))
+        elif args.set_action == "delete":
+            lib.delete_set(args.name)
+        else:
+            for name, ids in lib.sets().items():
+                print(f"{name}: {', '.join(ids) or '(none)'}")
         return 0
     if args.action == "remove":
         for mid in args.ids:
@@ -625,13 +659,69 @@ def cmd_strings(args) -> int:
     return 0
 
 
+# ---- play -----------------------------------------------------------------------------
+
+def cmd_play(args) -> int:
+    """Deploy the library's switched-on mods and start the recomp."""
+    from ..mods import play
+    from ..mods.library import ModLibrary
+    if args.no_mods:
+        print(f"starting {play.find_recomp(args.game)} with mods off "
+              f"({play.load_profile(args.game).no_mods_env}=1)")
+        play.launch(args.game, mods=False)
+        return 0
+    lib = ModLibrary(args.library)
+    progress = None if args.quiet else (lambda vp: print(f"  built {vp}", file=sys.stderr))
+    files, res = play.deploy_library(args.game, lib, progress)
+    print(play.deployed(args.game).describe())
+    if res is not None:
+        _report_build(res)
+    if args.deploy_only:
+        return 0
+    exe = play.find_recomp(args.game)
+    print(f"starting {exe}")
+    play.launch(args.game)
+    return 0
+
+
+# ---- help -----------------------------------------------------------------------------
+
+def cmd_help(args) -> int:
+    """The modding guides in the terminal (the same pages as DR2 Studio's help)."""
+    from .. import help as dhelp
+    topics = dhelp.topics(args.lang)
+    if args.search:
+        hits = dhelp.search(" ".join(args.topic), args.lang)
+        for h in hits:
+            print(f"{h.topic.name:<26} {h.heading[:40]:<40}  {h.line[:90]}")
+        print(f"{len(hits)} line(s); show a page with: dr2 help <page>", file=sys.stderr)
+        return 0
+    if not args.topic:
+        print("Help pages (dr2 help 05, dr2 help text, dr2 help --search <words>):")
+        for t in topics:
+            print(f"  {t.name:<26} {t.title}")
+        return 0
+    want = " ".join(args.topic).lower()
+    if want.isdigit():
+        want = f"{int(want):02d}" if int(want) else "readme"
+    match = next((t for t in topics if t.name.lower().startswith(want)), None) or \
+        next((t for t in topics if want in t.name.lower()[:-3].split("-")), None) or \
+        next((t for t in topics if want in t.name.lower()), None) or \
+        next((t for t in topics if want in t.title.lower()), None)
+    if match is None:
+        raise Dr2Error(f"no help page matches {want!r}; dr2 help lists them, "
+                       f"dr2 help --search {want} searches them")
+    print(dhelp.read(match.name, args.lang))
+    return 0
+
+
 def cmd_studio(args) -> int:
     """Start DR2 Studio (needs PySide6)."""
     try:
         from ..studio.app import main as studio_main
     except ImportError as e:
         raise Dr2Error(f"DR2 Studio needs PySide6: pip install 'dr2kit[studio]' ({e})") from None
-    return studio_main([])
+    return studio_main(args.files)
 
 
 # ---- census ---------------------------------------------------------------------------
@@ -692,6 +782,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("games", help="show where each game's data is, or set it")
     gsub = p.add_subparsers(dest="action")
+    pr = gsub.add_parser("set-recomp", help="the recomp program `dr2 play` starts for a game")
+    pr.add_argument("set_game", choices=GAME_IDS, metavar="GAME")
+    pr.add_argument("program", help="cz_runtime / cw_runtime (.exe), or the recomp's AppImage")
     ps = gsub.add_parser("set", help="use this folder for a game")
     ps.add_argument("set_game", choices=GAME_IDS, metavar="GAME")
     ps.add_argument("folder", help="the folder that contains data/ (or data/ itself)")
@@ -829,7 +922,17 @@ def build_parser() -> argparse.ArgumentParser:
     pm = msub.add_parser("library", help="show or set the mod library folder")
     pm.add_argument("folder", nargs="?")
     pm.add_argument("--reset", action="store_true", help="back to the default folder")
-    pm = msub.add_parser("pack", help="zip a mod folder for sharing (<id>-<version>.zip)")
+    pm = msub.add_parser("link", help="add mod folders that stay where they are (mods you make)")
+    pm.add_argument("sources", nargs="+", metavar="FOLDER")
+    pm.add_argument("--library", help="the mod library folder (default: dr2 mod library)")
+    pm = msub.add_parser("sets", help="saved sets of switched-on mods: list, save, use, delete")
+    pm.add_argument("set_action", nargs="?", choices=["list", "save", "use", "delete"],
+                    default="list")
+    pm.add_argument("name", nargs="?")
+    pm.add_argument("--library", help="the mod library folder (default: dr2 mod library)")
+    pm = msub.add_parser("status", help="what is deployed in each game now")
+    pm.add_argument("-g", "--game", choices=GAME_IDS)
+    pm = msub.add_parser("pack", help="package a mod folder to share (<id>-<version>.dr2mod)")
     pm.add_argument("folder")
     pm.add_argument("-o", "--out", help="zip file or folder (default: current folder)")
     p.set_defaults(func=cmd_mod)
@@ -860,7 +963,23 @@ def build_parser() -> argparse.ArgumentParser:
         game_opt(ps)
     p.set_defaults(func=cmd_strings)
 
+    p = sub.add_parser("play", help="deploy the switched-on mods and start the recomp")
+    game_opt(p)
+    p.add_argument("--no-mods", action="store_true", help="start the game with mods off")
+    p.add_argument("--deploy-only", action="store_true", help="deploy, don't start the game")
+    p.add_argument("--library", help="the mod library folder (default: dr2 mod library)")
+    p.add_argument("-q", "--quiet", action="store_true")
+    p.set_defaults(func=cmd_play)
+
+    p = sub.add_parser("help", help="read the modding guides here (dr2 help, dr2 help 05, "
+                                    "dr2 help --search colour)")
+    p.add_argument("topic", nargs="*", help="a page number, file name or word of its title")
+    p.add_argument("--search", action="store_true", help="search every guide for the words")
+    p.add_argument("--lang", default="en", help="help language (default: en)")
+    p.set_defaults(func=cmd_help)
+
     p = sub.add_parser("studio", help="start DR2 Studio, the graphical browser")
+    p.add_argument("files", nargs="*", help="a .dr2mod to install")
     p.set_defaults(func=cmd_studio)
 
     p = sub.add_parser("census", help="read everything, report it, and run the format gates")

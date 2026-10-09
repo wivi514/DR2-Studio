@@ -17,6 +17,17 @@ from dr2kit.container.big import BigArchive, BigEntry, LZX, STORED
 from dr2kit.errors import GameNotFoundError
 
 
+@pytest.fixture(autouse=True)
+def _isolated_user_folders(tmp_path_factory, monkeypatch):
+    """Every test gets its own config, cache and data folders (`dr2kit.userdirs`), so
+    no test reads or writes the developer's real config, index or mod library."""
+    from dr2kit import userdirs
+    base = tmp_path_factory.mktemp("userdirs")
+    monkeypatch.setattr(userdirs, "_dir", lambda kind: base / kind)
+    monkeypatch.setenv("DR2_STUDIO_NO_DIALOGS", "1")     # Studio: errors go to the log
+    monkeypatch.setenv("DR2_STUDIO_NO_SETUP", "1")       # Studio: no welcome window
+
+
 def make_archive(*entries, alignment: int = 4) -> BigArchive:
     """Build an archive from ``(name, data)`` or ``(name, data, compression)`` tuples."""
     arc = BigArchive(source="<test>")

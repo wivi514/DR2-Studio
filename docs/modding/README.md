@@ -4,6 +4,14 @@ Guides for people who want to **make mods**. You don't need to know how to progr
 Each guide is written when the feature it covers works, and is tested by following it
 step by step on a clean setup.
 
+**Start here.** In DR2 Studio, the **Welcome** window (toolbar) walks you through the
+first steps with buttons, and these guides are inside the app: **Help** in the toolbar
+(or **F1**), with a search box. Next to every asset you select, a box says how to change
+it and opens the right guide. The quickest first mod:
+[`05-first-mod-texture.md`](05-first-mod-texture.md) (about 10 minutes).
+
+In the terminal, `dr2 help` lists these pages and `dr2 help 05` shows one.
+
 New to the vocabulary? Keep the [glossary](../glossary.md) open.
 
 ## Guides

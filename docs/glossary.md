@@ -286,3 +286,15 @@ builds it) can ship inside a program under another licence; GPL ones can't ship 
 the toolkit's releases, which is why releases use an own ffmpeg build. The Blender
 add-on itself is GPL, as Blender requires.
 
+**`.dr2mod`.** A mod packed into one file to share (a zip with its own name). DR2 Studio
+installs it when you drop it on the window or use **Install mod…**; **Share…** makes one.
+
+**Linked mod.** A mod in the library whose folder stays where it is (a mod you are
+making), instead of a copy inside the library folder.
+
+**Mod set.** A saved list of which mods are switched on, so you can switch between, say,
+"all my mods" and "just the translation".
+
+**Play.** DR2 Studio's button (and `dr2 play`) that puts the switched-on mods into the
+game (deploys them) and starts the recomp.
+

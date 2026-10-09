@@ -8,6 +8,9 @@ Blender.   **Time:** ~10 min.   **Games:** both.
 the add-on zip `io_dr2-<version>.zip` (in a DR2 Studio release, or built from the
 toolkit, below).
 
+Shortcut: in DR2 Studio, select a model and click **Open in Blender**: Blender starts
+with it imported and the add-on's mod folder set to Studio's open mod.
+
 The add-on is optional: [`07-blender-setup.md`](07-blender-setup.md) and
 [`08-edit-a-model.md`](08-edit-a-model.md) do the same with export/import by hand. It
 saves the round trips through files and dialogs.
@@ -51,7 +54,7 @@ the toolkit: it uses the copy you already have, from the folder you give it.
 8. Set **Mod folder** to your mod (or an empty folder: the add-on makes a mod there, for
    this game only) and click **Export to mod**. It checks again and, if the check
    passes, writes `replace/<model path>.glb` into the mod.
-9. Deploy the mod with DR2 Studio (**Open mod…**, **Build && deploy**) or
+9. Deploy the mod with DR2 Studio (**Open mod…**, **▶ Play**) or
    `dr2 mod deploy <mod folder> -g cz`.
 
 ### Building the add-on zip yourself

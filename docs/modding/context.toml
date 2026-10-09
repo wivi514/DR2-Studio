@@ -1,0 +1,84 @@
+# "How to mod this": what DR2 Studio shows next to the selected asset, by kind.
+# Part of the in-app help (dr2kit/help). Keep each step one short action, naming the
+# button. A translation copies this file into docs/modding/<lang>/ and translates the
+# text (keep the keys and the guide file names).
+
+[texture]
+title = "Change this texture"
+steps = [
+  "Open or create a mod (bottom bar).",
+  "Click Edit in image editor…: the picture opens in your editor; every time you save it, Studio puts it in your mod and shows it.",
+  "Or drop a PNG of the same size onto this window (or use Replace with PNG…).",
+  "Click Play to see it in game.",
+]
+guide = "05-first-mod-texture.md"
+
+[model]
+title = "Change this model"
+steps = [
+  "Open or create a mod (bottom bar).",
+  "Click Open in Blender: Blender starts with this model loaded.",
+  "Edit it, then in Blender's DR2 tab click Check rig and Export to mod (or export a .glb and drop it here).",
+  "Click Play to see it in game.",
+]
+guide = "08-edit-a-model.md"
+
+[skeleton]
+title = "Use this skeleton"
+steps = [
+  "Skeletons can't be replaced, but new meshes can be rigged to them.",
+  "Click Export .glb… (or Open in Blender) to get the armature for your own model.",
+]
+guide = "09-new-model.md"
+
+[audio]
+title = "Replace this sound"
+steps = [
+  "Click Play (in the middle) to hear it.",
+  "Open or create a mod (bottom bar).",
+  "Drop a WAV, OGG, FLAC or MP3 onto this window (or use Replace with audio…). It is fitted to the sound's length.",
+  "Click Play in the toolbar to hear it in game (recomps only).",
+]
+guide = "10-audio.md"
+
+[sfx]
+title = "A sound effect definition"
+steps = [
+  "The Related list shows the recordings it plays; double-click one to listen.",
+  "To change the sound, replace those recordings.",
+]
+guide = "10-audio.md"
+
+[strings]
+title = "Change in-game text"
+steps = [
+  "Open or create a mod (bottom bar).",
+  "Type in the filter box to find the text, double-click it, type the new one, press Enter.",
+  "Strings that use colours or button icons must start with @. Keep %s and %d.",
+  "Click Play to read it in game.",
+]
+guide = "11-text.md"
+
+[text]
+title = "Edit this text file"
+steps = [
+  "Open or create a mod (bottom bar).",
+  "Edit the text in the middle and click Save to mod. Changes shows what you changed.",
+  "Click Play to try it in game.",
+]
+guide = "11-text.md"
+
+[video]
+title = "A Case West movie"
+steps = [
+  "Play it here, or Export MP4… to keep a copy.",
+  "Movies can't be replaced yet (that needs Bink's own encoder).",
+]
+guide = "04-extracting.md"
+
+[archive]
+title = "An archive"
+steps = [
+  "An archive holds other assets: open it in the tree on the left and pick one.",
+]
+guide = "03-browsing.md"

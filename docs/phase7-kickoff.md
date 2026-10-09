@@ -85,13 +85,14 @@ both in game, packages them, and installs the package on a second setup, **witho
 terminal**. Checked by following the in-app help step by step on a clean user profile,
 in both games; every step's screen matches what the help says.
 
-## Questions to settle with the user early
+## Decisions (user, 2026-10-09)
 
-- Starting the recomp from Studio (it is a separate program; the toolkit only needs its
-  executable path): OK?
-- Mod package file: a `.zip` (works everywhere) or a `.dr2mod` (a zip with our own
-  extension, so double-click can open Studio; needs file associations in the installers)?
-- Help language: English only, or prepare for translations?
+- **Play button: yes.** DR2 Studio deploys the switched-on mods and starts the recomp
+  (found next to its game folder, or picked once); also *Play without mods*.
+- **Mod package: `.dr2mod`**, a zip with our own extension (Studio and `dr2` also accept
+  `.zip`).
+- **Help language: English, laid out for translations** (one folder per language, the
+  English one being `docs/modding/`), so a translation is files, not code.
 
 ## Facts to keep in mind
 

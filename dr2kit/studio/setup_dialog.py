@@ -43,8 +43,8 @@ class GameSetup(QDialog):
     def __init__(self, main):
         super().__init__(main)
         self.main = main
-        self.setWindowTitle("Game folders")
-        self.resize(820, 260)
+        self.setWindowTitle("Game folders and programs")
+        self.resize(900, 420)
         grid = QGridLayout()
         self.status: dict[str, QLabel] = {}
         for row, g in enumerate(GAME_IDS):
@@ -60,6 +60,25 @@ class GameSetup(QDialog):
             grid.addWidget(choose, row, 2)
             grid.addWidget(unpack, row, 3)
             self.status[g] = st
+        # Programs Studio starts: each game's recomp (Play), Blender, the image editor.
+        from ..profiles import set_config
+        row = len(GAME_IDS)
+        self.programs: dict[str, QLabel] = {}
+        rows = [(f"recomp:{g}", f"{load_profile(g).name} recomp program") for g in GAME_IDS]
+        rows += [("tools:blender", "Blender"), ("tools:image_editor", "Image editor")]
+        for key, title in rows:
+            label = QLabel()
+            label.setWordWrap(True)
+            choose = QPushButton("Choose…")
+            reset = QPushButton("Default")
+            choose.clicked.connect(lambda _c=False, k=key: self.choose_program(k))
+            reset.clicked.connect(lambda _c=False, k=key: (self._set_program(k, None)))
+            grid.addWidget(QLabel(title), row, 0)
+            grid.addWidget(label, row, 1)
+            grid.addWidget(choose, row, 2)
+            grid.addWidget(reset, row, 3)
+            self.programs[key] = label
+            row += 1
         grid.setColumnStretch(1, 1)
         lay = QVBoxLayout(self)
         lay.addWidget(QLabel(
@@ -67,6 +86,7 @@ class GameSetup(QDialog):
             "(a recomp's <i>assets/game</i>, or a folder you unpacked before), or unpack "
             "the game's Xbox 360 package file. You need your own copy of the games."))
         lay.addLayout(grid)
+        lay.addStretch(1)
         close = QPushButton("Close")
         close.clicked.connect(self.accept)
         lay.addWidget(close)
@@ -76,6 +96,40 @@ class GameSetup(QDialog):
         for g, label in self.status.items():
             ok, text = game_status(g)
             label.setText(("✔ " if ok else "✘ ") + text)
+        from ..profiles import get_config
+        from .edit_tools import find_blender
+        for key, label in getattr(self, "programs", {}).items():
+            kind, name = key.split(":")
+            if kind == "recomp":
+                from ..mods.play import find_recomp
+                try:
+                    text = "✔ " + str(find_recomp(name))
+                except Dr2Error as e:
+                    text = "✘ " + str(e).split(";")[0]
+            elif name == "blender":
+                b = find_blender()
+                text = ("✔ " + b) if b else "✘ not found (Open in Blender needs it)"
+            else:
+                text = get_config("tools", "image_editor") or "the system's default for PNG"
+            label.setText(text)
+
+    def choose_program(self, key: str) -> None:
+        path, _ = QFileDialog.getOpenFileName(self, "Choose the program")
+        if path:
+            self._set_program(key, path)
+
+    def _set_program(self, key: str, path) -> None:
+        kind, name = key.split(":")
+        try:
+            if kind == "recomp":
+                from ..mods.play import set_recomp
+                set_recomp(name, path)
+            else:
+                from ..profiles import set_config
+                set_config("tools", name, path)
+        except Dr2Error as e:
+            QMessageBox.warning(self, "Game folders", str(e))
+        self.refresh()
 
     def choose(self, game: str) -> None:
         d = QFileDialog.getExistingDirectory(self, f"{load_profile(game).name}: the folder "

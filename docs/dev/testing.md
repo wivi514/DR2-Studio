@@ -182,6 +182,27 @@ folders equal platformdirs'); `test_release.py` (deterministic add-on zip, the l
 gate's names, the icon). Game-data tests: `test_string_banks`, `test_digest_checked_files_exist`,
 `test_movies_probe`.
 
+### Phase 7 results (2026-10-09)
+
+| Gate | Case Zero | Case West |
+|---|---|---|
+| **In game, scripted** (`tools/newcomer_gate.py`): a mod made in library A (red shirt / jacket, `IDS_PRESS_START` changed), shared as `.dr2mod`, installed into an empty library B, **Play** (deploy + start the recomp, headless), then **Remove mods from game** | title shows "DR2KIT PHASE 7 OK"; the loaded save shows Chuck in a red shirt; `game_mods/` gone afterwards | title text shown; Chuck's jacket red in the title scene (the save didn't finish loading in the 170 s) |
+| *Open in Blender*'s script in Blender 5.2 (headless) | imports `chest_young_chuck` into a collection tagged `dr2_game`/`dr2_vpath` | |
+| The built wheel carries the help (`uv build`) | 16 pages + `context.toml` + the icon | |
+| Studio screenshots on real data (main window with the mod's texture, Welcome, Help, Share, Install, mod manager, Game folders) | looked at; fixed a clipped help box and help scrolling | |
+
+**Still owed** (the gate as written is a person, not a script): someone new follows only
+the in-app help on a clean profile, without a terminal, in both games.
+
+Unit tests added: `test_help.py` (pages in the guides' order, search, context help,
+fallback language, `dr2 help`, error → help, **every link between guides resolves**,
+every context entry names a guide); `test_library.py` (linked and new mods, mod sets,
+update summaries, preview/readme, Play: deploy, status, removal, finding and starting
+the recomp with mods off); `test_studio.py` (only applicable buttons shown).
+`conftest.py` now gives every test its own user folders (`userdirs`), and turns
+Studio's dialogs and welcome window off: a phase 7 test run had linked test mods into
+the developer's real mod library before that.
+
 ## Writing a test for new code
 
 - One test file per module (`tests/test_<module>.py`).

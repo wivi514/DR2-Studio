@@ -37,6 +37,8 @@ Rules:
 from __future__ import annotations
 
 import dataclasses
+import hashlib
+import re
 import shutil
 import tempfile
 import tomllib
@@ -47,6 +49,8 @@ from pathlib import Path, PurePosixPath
 from .manifest import MANIFEST, Mod, ModError
 
 LIST_FILE = "modlist.toml"
+SETS_FILE = "modsets.toml"
+PACKAGE_EXT = ".dr2mod"          # a mod to share: a zip (user decision, 2026-10-09)
 
 
 def default_library() -> Path:
@@ -73,6 +77,7 @@ class LibraryEntry:
     enabled: bool
     position: int
     new: bool = False      # found on disk, not yet in modlist.toml
+    linked: bool = False   # the mod's folder is elsewhere (`ModLibrary.link`)
 
 
 class ModLibrary:
@@ -81,6 +86,7 @@ class ModLibrary:
 
     def __init__(self, folder: str | Path | None = None):
         self.folder = Path(folder) if folder else default_library()
+        self.last_changes: list[str] = []    # what the last `install` updated
 
     # ---- reading --------------------------------------------------------------------
 
@@ -95,13 +101,15 @@ class ModLibrary:
         return [m for m in raw.get("mod", []) if isinstance(m, dict) and "id" in m]
 
     def _folders(self) -> dict[str, Mod]:
-        """Every mod folder in the library by id. Raises `ModError` on a broken
-        ``mod.toml`` or two folders with one id."""
+        """Every mod folder in the library by id (its own subfolders, then linked
+        folders). Raises `ModError` on a broken ``mod.toml`` or two folders with one id."""
         out: dict[str, Mod] = {}
         if not self.folder.is_dir():
             return out
         problems = []
-        for d in sorted(self.folder.iterdir()):
+        dirs = sorted(d for d in self.folder.iterdir() if d.is_dir())
+        dirs += [Path(m["path"]) for m in self._listed() if m.get("path")]
+        for d in dirs:
             if not d.is_dir() or not (d / MANIFEST).is_file():
                 continue
             try:
@@ -126,7 +134,8 @@ class ModLibrary:
         for m in self._listed():
             mid = str(m["id"])
             if mid in mods and mid not in seen:
-                out.append(LibraryEntry(mods[mid], bool(m.get("enabled", True)), 0))
+                out.append(LibraryEntry(mods[mid], bool(m.get("enabled", True)), 0,
+                                        linked=bool(m.get("path"))))
                 seen.add(mid)
         rest = sorted((m for i, m in mods.items() if i not in seen),
                       key=lambda m: (m.priority, m.id))
@@ -162,6 +171,9 @@ class ModLibrary:
         for e in entries:
             lines += ["", "[[mod]]", f'id = "{e.mod.id}"',
                       f"enabled = {'true' if e.enabled else 'false'}"]
+            if e.linked:
+                path = str(e.mod.root.resolve()).replace("\\", "/")
+                lines.append(f'path = "{path}"')
         (self.folder / LIST_FILE).write_text("\n".join(lines) + "\n", "utf-8")
 
     def enable(self, mod_id: str, on: bool = True) -> None:
@@ -214,6 +226,10 @@ class ModLibrary:
                                f"use --replace to update it")
             if dest.resolve() == folder.resolve():
                 raise ModError(f"{folder} is already the library's copy")
+            self.last_changes = _changes(old.mod.root, folder) if old is not None else []
+            if old is not None and old.linked:
+                raise ModError(f"{mod.id} is linked to {old.mod.root}, not a copy in the "
+                               f"library; edit it there")
             if old is not None:
                 shutil.rmtree(old.mod.root)
             if dest.exists():
@@ -233,9 +249,89 @@ class ModLibrary:
         self.save(entries)
         return installed
 
+    def link(self, folder: str | Path) -> Mod:
+        """Add a mod folder that stays where it is (a mod you are making), switched on,
+        last in the order. Studio links the mod it has open, so Play includes it."""
+        mod = Mod.load(folder)
+        entries = self.entries()
+        old = next((e for e in entries if e.mod.id == mod.id), None)
+        if old is not None:
+            if old.mod.root.resolve() == mod.root.resolve():
+                return old.mod
+            raise ModError(f"the library already has a mod {mod.id!r} ({old.mod.root})")
+        self.folder.mkdir(parents=True, exist_ok=True)
+        entries.append(LibraryEntry(mod, True, len(entries), linked=True))
+        self.save(entries)
+        return mod
+
+    def create(self, name: str, games: tuple[str, ...] | None = None) -> Mod:
+        """A new, empty mod inside the library, switched on, last in the order."""
+        from .manifest import create as create_mod
+        mid = re.sub(r"[^a-z0-9_.-]+", "_", name.strip().lower()).strip("_.-") or "my_mod"
+        mid = mid[:60]
+        base, n = mid, 2
+        while (self.folder / mid).exists() or any(e.mod.id == mid for e in self.entries()):
+            mid, n = f"{base}_{n}", n + 1
+        root = create_mod(self.folder / mid, mid, name.strip() or mid)
+        if games:
+            text = (root / MANIFEST).read_text("utf-8").replace(
+                'games = ["cz", "cw"]', "games = [" + ", ".join(f'"{g}"' for g in games) + "]")
+            (root / MANIFEST).write_text(text, "utf-8")
+        entries = [e for e in self.entries() if e.mod.id != mid]
+        entries.append(LibraryEntry(Mod.load(root), True, len(entries)))
+        self.save(entries)
+        return Mod.load(root)
+
+    # ---- mod sets ---------------------------------------------------------------------
+
+    def sets(self) -> dict[str, list[str]]:
+        """Saved mod sets: name → the ids switched on in it."""
+        f = self.folder / SETS_FILE
+        if not f.is_file():
+            return {}
+        return {k: list(v) for k, v in tomllib.loads(f.read_text("utf-8")).get("sets", {}).items()}
+
+    def save_set(self, name: str) -> list[str]:
+        """Remember which mods are on now, as set ``name``."""
+        on = [e.mod.id for e in self.entries() if e.enabled]
+        sets = self.sets()
+        sets[name] = on
+        self._write_sets(sets)
+        return on
+
+    def use_set(self, name: str) -> list[str]:
+        """Switch on exactly the mods of set ``name`` (others off; order unchanged).
+        Returns the ids of the set that are no longer installed."""
+        sets = self.sets()
+        if name not in sets:
+            raise ModError(f"no mod set {name!r} (sets: {', '.join(sets) or 'none'})")
+        want = set(sets[name])
+        entries = self.entries()
+        for e in entries:
+            e.enabled = e.mod.id in want
+        self.save(entries)
+        return sorted(want - {e.mod.id for e in entries})
+
+    def delete_set(self, name: str) -> None:
+        sets = self.sets()
+        sets.pop(name, None)
+        self._write_sets(sets)
+
+    def _write_sets(self, sets: dict) -> None:
+        self.folder.mkdir(parents=True, exist_ok=True)
+        lines = ["# Saved mod sets: which mods are switched on in each. Written by",
+                 "# `dr2 mod sets` and DR2 Studio's mod manager.", "", "[sets]"]
+        for k, v in sorted(sets.items()):
+            key = k.replace('"', "'")
+            lines.append(f'"{key}" = [' + ", ".join(f'"{i}"' for i in v) + "]")
+        (self.folder / SETS_FILE).write_text("\n".join(lines) + "\n", "utf-8")
+
     def remove(self, mod_id: str) -> Path:
         """Delete an installed mod's folder from the library. Returns the folder."""
         e = self.get(mod_id)
+        if e.linked:                       # only forget it; the folder is the user's
+            self.save([x for x in self.entries() if x.mod.id != e.mod.id])
+            return e.mod.root
         if e.mod.root.resolve().parent != self.folder.resolve():
             raise ModError(f"{e.mod.root} is not inside the library; not deleting it")
         shutil.rmtree(e.mod.root)
@@ -261,13 +357,26 @@ def _unzip_mod(zip_path: Path, into: Path) -> Path:
     return tops[0]
 
 
+def _changes(old: Path, new: Path) -> list[str]:
+    """What updating the mod at ``old`` with ``new`` changes, file by file."""
+    def files(root: Path) -> dict[str, str]:
+        return {p.relative_to(root).as_posix(): hashlib.sha1(p.read_bytes()).hexdigest()
+                for p in root.rglob("*") if p.is_file()}
+    a, b = files(old), files(new)
+    out = [f"added {f}" for f in sorted(b.keys() - a.keys())]
+    out += [f"removed {f}" for f in sorted(a.keys() - b.keys())]
+    out += [f"changed {f}" for f in sorted(a.keys() & b.keys()) if a[f] != b[f]]
+    return out
+
+
 def pack(folder: str | Path, out: str | Path | None = None) -> Path:
-    """Zip a mod folder for sharing: ``<id>-<version>.zip`` holding ``<id>/…``.
-    Hidden files and build leftovers (``dr2kit-build.json``) are left out."""
+    """Package a mod folder for sharing: ``<id>-<version>.dr2mod`` (a zip) holding
+    ``<id>/…``. Hidden files and build leftovers (``dr2kit-build.json``) are left out;
+    an ``out`` ending in ``.zip`` writes a plain zip name."""
     mod = Mod.load(folder)
-    dest = Path(out) if out else Path(f"{mod.id}-{mod.version}.zip")
+    dest = Path(out) if out else Path(f"{mod.id}-{mod.version}{PACKAGE_EXT}")
     if dest.is_dir():
-        dest = dest / f"{mod.id}-{mod.version}.zip"
+        dest = dest / f"{mod.id}-{mod.version}{PACKAGE_EXT}"
     root = mod.root.resolve()
     with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED) as z:
         for p in sorted(root.rglob("*")):

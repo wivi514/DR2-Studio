@@ -9,6 +9,7 @@ dr2kit/
   __main__.py          `python -m dr2kit` = the `dr2` command
   errors.py            the exception hierarchy
   userdirs.py          per-user folders, with or without platformdirs (Blender) (phase 6)
+  help/                the in-app help: the modding guides, found, listed, searched (phase 7)
   hashing.py           the engine's string hash
   census.py            read everything, count it, run the format gates
   profiles/            per-game settings (cz.toml, cw.toml) + finding the game data
@@ -47,7 +48,9 @@ dr2kit/
     build.py           overrides -> whole replacement files (re-pack, re-compress, verify)
     deploy.py          copy a build into a recomp's game_mods/ (and undo it)
     audio.py           sound overrides -> dr2kit_audio/ (WAVs + substitution table, phase 5)
-    library.py         the mod manager: a library folder, load order, on/off, install, pack (phase 6)
+    library.py         the mod manager: a library folder, load order, on/off, install, pack (phase 6);
+                       linked mods, new mods, mod sets, .dr2mod, update summaries (phase 7)
+    play.py            Play: deploy the switched-on mods, start the recomp, what is deployed (phase 7)
   studio/
     app.py, viewers.py DR2 Studio (PySide6): tree, search, texture viewer, mod bar
     model_view.py      the 3D view: QWebEngineView + three.js over a dr2: URL scheme
@@ -55,7 +58,12 @@ dr2kit/
     text_view.py       text editor with a diff, and the string-bank table (phase 6)
     video_view.py      the movie view: Bink pictures + sound (phase 6)
     mod_manager.py     the mod manager window (phase 6)
-    setup_dialog.py    "Game folders": choose each game's folder or unpack its package (phase 6)
+    setup_dialog.py    "Game folders": each game's folder or package, the programs Studio starts
+    help_view.py       the help window (phase 7)
+    welcome.py         the first-steps checklist (phase 7)
+    edit_tools.py      edit in the image editor (re-import on save), open in Blender (phase 7)
+    share_dialog.py    Share (details, preview, check, .dr2mod) and Install windows (phase 7)
+    icon/              dr2studio.svg, the app icon (phase 7)
     web/               its page (viewer.html, viewer.js) and vendored three.js (MIT)
   cli/main.py          the `dr2` command
 native/lzx/            the C library behind the fast LZX decoder (libmspack, LGPL)
@@ -68,7 +76,8 @@ tools/                 developer scripts: PyAV codec check, the phase 3 gates
                        xex_digests.py (the files each executable digest-checks),
                        blender_addon_gate.py (the add-on's flow inside Blender),
                        build_release.py + release/build_ffmpeg_lgpl.sh + release/make_icons.py
-                       (releases)
+                       (releases), newcomer_gate.py (phase 7: make, share, install, Play)
+setup.py               only a build hook: copies docs/modding into dr2kit/help/en/ in packages
 ```
 
 ## How a read flows
@@ -90,6 +99,23 @@ compressed (`xcompress.compress_entry()` → `lzx.encode_chunk()`, verified by d
 and `BigArchive.to_bytes()` lays the archive out again.
 
 ## Modules
+
+### `dr2kit/help/` (phase 7)
+The help *is* the modding guides. `help_root(lang)` finds them: `dr2kit/help/<lang>/` in
+a built package (copied there by `setup.py`), `docs/modding/` (English) or
+`docs/modding/<lang>/` in a checkout; a missing language or page falls back to English.
+`topics()` lists pages in the order of the guides table, then the glossary; `read`,
+`search(text)` (lines containing every word, with their section), `context(kind)` (the
+"How to mod this" entry from `context.toml`). Used by Studio's help window and
+`dr2 help`. `tests/test_help.py` also checks that every link between guides resolves.
+
+### `dr2kit/mods/play.py` (phase 7)
+`find_recomp(game)` (the user's choice `[recomps]`, else a release's program beside
+`assets/`, else the newest source build from the profile's `recomp_executables`),
+`set_recomp`, `deploy_library(game, library)` (build + deploy the switched-on mods, or
+remove the deploy when none is on), `launch(game, mods=True, extra_env)` (detached, in
+the program's folder; mods off through the profile's `no_mods_env`), `deployed(game)` /
+`undeploy_all(game)`. Used by `dr2 play`, `dr2 mod status` and Studio's Play buttons.
 
 ### `dr2kit/userdirs.py` (phase 6)
 `config_dir()`, `cache_dir()`, `data_dir()`: platformdirs' folders when it is installed,
@@ -353,6 +379,11 @@ folder (`default_db_path()`).
   switched-on mods with priorities set from the order), `plan`, `install` (folder or
   zip, refusing zip entries that escape), `remove`, `enable`, `move`; `pack(folder)`
   zips a mod; `default_library()` / `set_default_library()` (user config `[mods]`).
+  Phase 7: `link(folder)` (a mod that stays where it is: `path` in `modlist.toml`;
+  `remove` only forgets it), `create(name)` (a new mod inside the library),
+  `sets` / `save_set` / `use_set` / `delete_set` (`modsets.toml`), `last_changes` (what an
+  update changed), and `pack` writes `<id>-<version>.dr2mod`. `manifest.Mod` gained
+  `preview`, `preview_path`, `readme` and `save()` (writes `mod.toml` back).
 - `deploy`: `deploy(build, target)` copies files and records them in
   `dr2kit-deployed.json`; `undeploy(target)` removes exactly those. `recomp_folders()`
   names `game_mods` / `game_patched` / `game_kbm` / `game_bootskip` next to a game root.

@@ -10,9 +10,13 @@ put edited or new models back into the game when their bones match the game's ri
 **Status: phases 1-6 done (phase 6, 2026-10-09: string banks and `.bcs.json` mods,
 text editing with a diff, CW Bink movies, the mod manager, digest-checked files refused,
 the GPL Blender add-on that never bundles dr2kit, release packaging with an own LGPL
-ffmpeg and a licence gate, built and tried on Linux only). Next: phase 7, set by the user 2026-10-09: make modding as easy as possible,
-the documentation inside DR2 Studio, easy mod packaging and installing in game, an app
-icon (done: `dr2kit/studio/icon/dr2studio.svg`); start from `docs/phase7-kickoff.md`.** Read these before writing code:
+ffmpeg and a licence gate, built and tried on Linux only). Phase 7 (user-set 2026-10-09) mostly done the same day: the guides
+are the in-app help (`dr2kit/help`, F1, "How to mod this", Help on errors, Welcome,
+`dr2 help`), Edit in image editor / Open in Blender / drag and drop, Share (`.dr2mod`)
+and Install windows, Play (`mods/play.py`, `dr2 play`), mod sets, the app icon; the
+make→share→install→Play chain passed in game in CZ and CW (`tools/newcomer_gate.py`).
+Owed: the gate run by a person, `.dr2mod` file associations, the carried-over items in
+`docs/phase7-kickoff.md`.** Read these before writing code:
 
 | Doc | What it holds |
 |---|---|
@@ -143,6 +147,10 @@ dr2 model check <file.glb> <model vpath>  # rig validator (import: dr2 model imp
 python tools/blender_skeleton_gate.py     # skeleton round trip through Blender (~25 s)
 dr2 index build                           # the asset index (~1-2 min per game)
 dr2 studio                                # the GUI (pip install -e ".[studio]")
+dr2 help [page] / dr2 help --search <words>          # the guides (= Studio's help)
+dr2 play -g cz [--no-mods] [--deploy-only]           # deploy switched-on mods, start the recomp
+dr2 mod status | link | sets save/use NAME           # what's in the game, linked mods, mod sets
+python tools/newcomer_gate.py cz --frames ~/.cache/dr2kit-gate7/cz   # phase 7 gate (on disk!)
 dr2 strings search <words> / set <mod> <id> <text>   # string banks (phase 6)
 dr2 mod list|install|enable|move|conflicts|pack     # the mod manager (phase 6)
 dr2 extract --mp4 -g cw data/movies/dr2_logo.bik -o out   # Bink -> MP4

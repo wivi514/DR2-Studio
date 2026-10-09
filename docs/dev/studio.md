@@ -16,7 +16,11 @@ dr2kit/studio/
   text_view.py   TextEditor (edit text into the mod, diff), StringsViewer (string banks), phase 6
   video_view.py  VideoViewer: Bink movies (pictures + sound), phase 6
   mod_manager.py ModManager: the mod library window (order, on/off, conflicts, deploy), phase 6
-  setup_dialog.py GameSetup: "Game folders…" (choose a folder / unpack the package), phase 6
+  setup_dialog.py GameSetup: "Game folders…" (folders, unpack, the programs Studio starts), phases 6-7
+  help_view.py   HelpWindow: the modding guides inside the app, searchable (phase 7)
+  welcome.py     Welcome: the first steps as a live checklist (phase 7)
+  edit_tools.py  TextureEdit (image editor + re-import on save), open_in_blender (phase 7)
+  share_dialog.py ShareDialog (details, preview, check, .dr2mod), InstallDialog (phase 7)
   icon/        dr2studio.svg, the app icon (our own drawing; dev/packaging.md §The icon)
   web/         viewer.html + viewer.js, and three.js 0.186.1 (MIT) under vendor/three/
 ```
@@ -165,6 +169,55 @@ status (`game_status`: where, and found through which rule) and offers *Choose f
 (`container.stfs.unpack` in a worker, then the same setting). The main window opens it
 at start when no game is found (`DR2_STUDIO_NO_SETUP=1` skips that, for scripted runs).
 
+## Phase 7: help inside, and the shortest path from idea to game
+
+Phase 7's aim (user, 2026-10-09): modding as easy as possible, the documentation in the
+app, easy packaging and installing.
+
+- **Help** (`help_view.HelpWindow`, F1 / toolbar **Help**): the modding guides
+  (`dr2kit.help`) in reading order, a search box over every line, the page rendered by
+  `QTextBrowser` (GitHub-flavoured Markdown). Links between guides and `#section` links
+  open in the window (the heading is scrolled to the top); web links open in the
+  browser; developer docs open from the source checkout when it is there. **Back**.
+- **How to mod this**: a box above Details with the context help for the selected
+  asset's kind (`dr2kit.help.context`, `docs/modding/context.toml`) and **Open the
+  guide**. The action buttons below show only what applies to that kind.
+- **Errors** have a **Help** button: `help_for_error` picks the troubleshooting row (or
+  guide table row) sharing the most words with the message. `DR2_STUDIO_NO_DIALOGS=1`
+  sends errors to the log only (tests, scripted runs).
+- **Welcome** (`welcome.Welcome`): five steps (game folders, index, new mod, change
+  something, Play), each with its button and a ✔ computed from the real state; shown at
+  start until unticked (`[studio] welcome = "off"`), and from the toolbar.
+  `DR2_STUDIO_NO_SETUP=1` skips it.
+- **The open mod lives in the library**: *New mod…* asks for a name and creates the mod
+  inside the library (`ModLibrary.create`); *Open mod…* links an outside folder
+  (`ModLibrary.link`), so **Play** always includes the mod being made. The mod's list at
+  the bottom shows each change (kind, asset), marks problems with ⚠ from a background
+  `plan_mods`, jumps to the asset on double-click, and **Delete** removes a change.
+- **Editing in other programs** (`edit_tools`): *Edit in image editor…* writes the
+  texture (or the mod's version of it) to the per-user `edits/` folder, opens it, and a
+  `QFileSystemWatcher` (watching the file and its folder, debounced 600 ms) turns every
+  save into the mod's PNG (size checked) and refreshes the view, which shows the mod's
+  version encoded as the build will (`replace_image`). *Open in Blender* exports the
+  model (or the mod's `.glb`) and starts Blender with a generated script that imports
+  it into a collection tagged for the add-on and sets the add-on's mod folder.
+- **Drag and drop** (`drop_file`): a `.dr2mod`/`.zip`/mod folder installs; a PNG on a
+  texture, audio on a sound, a `.glb` on a model goes into the open mod; any action
+  that needs a mod offers *New mod…* first (`ensure_mod`).
+- **Share / Install** (`share_dialog`): see its docstring; *Share…* writes `mod.toml`
+  (`Mod.save`), `preview.png` (≤ 512 px) and `README.md`, checks each game in a worker,
+  then `pack`s a `.dr2mod`. `dr2 studio file.dr2mod` (or a release's
+  `DR2Studio file.dr2mod`) opens the Install window at start.
+- **Play** (toolbar **▶ Play**, **Play without mods**; bottom bar **Deploy**, **Remove
+  mods from game**): `mods.play` in a worker (build + deploy the switched-on mods), then
+  the recomp is started detached. The status bar's right end says what is in the game
+  (`play.deployed`), updated on game change and after each deploy.
+- **Game folders…** also shows and sets the programs Studio starts: each game's recomp,
+  Blender, the image editor.
+- **Closing** waits for background jobs (`wait_for_jobs`, which keeps the event loop
+  turning: a job's thread quits through a queued signal, so a plain `wait()` deadlocks).
+  `closeEvent` isn't called for a never-shown window, so tests call `wait_for_jobs()`.
+
 ## Testing
 
 `QT_QPA_PLATFORM=offscreen` runs the window without a display. A smoke test opens the
@@ -184,5 +237,6 @@ guides are made.
 ## Next (later phases)
 
 Showing the replaced model in the 3D view before building (the rig validator and
-*Replace with .glb…* came in phase 4), and playing a replacement sound next to the
-original before building (phase 5 has the original only).
+*Replace with .glb…* came in phase 4), playing a replacement sound next to the original
+before building, and registering `.dr2mod` with the OS so a double-click opens Studio
+(today: drop it on Studio, *Install mod…*, or `DR2Studio file.dr2mod`).
