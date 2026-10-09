@@ -9,13 +9,16 @@ Pick the section for what you want to do.
 | **Know how the toolkit is designed** | [`ARCHITECTURE.md`](ARCHITECTURE.md) |
 | **Know how a game file format works** | [`formats.md`](formats.md) |
 | **See what is planned and what is done** | [`roadmap.md`](roadmap.md) |
-| **Start the next phase of work** | [`phase3-kickoff.md`](phase3-kickoff.md) (earlier handoffs, for history: [`phase2-kickoff.md`](phase2-kickoff.md), [`phase1-kickoff.md`](phase1-kickoff.md)) |
+| **Start the next phase of work** | [`phase4-kickoff.md`](phase4-kickoff.md) (earlier handoffs, for history: [`phase3-kickoff.md`](phase3-kickoff.md), [`phase2-kickoff.md`](phase2-kickoff.md), [`phase1-kickoff.md`](phase1-kickoff.md)) |
 | **See what was done, when, and why** | [`devlog.md`](devlog.md) |
 | **Look up a word** (`.big`, LZX, tiling, bone palette, vpath…) | [`glossary.md`](glossary.md) |
 | **Know what tools existed before this one** | [`prior-art.md`](prior-art.md) |
 
-Phases 1-2 are done: the `dr2` command and DR2 Studio read every file of both games,
-show every texture, and build texture mods that load in both recomps. Start with
+Phases 1-3 are done: the `dr2` command and DR2 Studio read every file of both games,
+show every texture, build texture mods that load in both recomps, show every model and
+skeleton in 3D, and export them to Blender (`.glb`). Start with
 [`modding/02-game-data.md`](modding/02-game-data.md), then
-[your first mod](modding/05-first-mod-texture.md). [`modding/README.md`](modding/README.md)
+[your first mod](modding/05-first-mod-texture.md); for models,
+[`modding/04-extracting.md`](modding/04-extracting.md) and
+[`modding/07-blender-setup.md`](modding/07-blender-setup.md). [`modding/README.md`](modding/README.md)
 lists each guide with its status.

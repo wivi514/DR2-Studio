@@ -153,6 +153,9 @@ def cmd_extract(args) -> int:
         if node.kind == "dir":
             raise Dr2Error(f"{node.vpath} is a folder; give a file or entry")
         data = node.data()
+        if args.glb:
+            write(node.vpath + ".glb", _scene_glb(args, tree, node.vpath, data))
+            continue
         if args.recursive and is_big(data):
             expand(node.vpath, data)
             continue
@@ -163,6 +166,31 @@ def cmd_extract(args) -> int:
         write(node.vpath, data)
     print(f"wrote {written} file{'' if written == 1 else 's'} under {out}", file=sys.stderr)
     return 0
+
+
+def _scene_glb(args, tree, vpath: str, data: bytes) -> bytes:
+    """A scene as .glb bytes (``extract --glb``); says which textures were not found."""
+    from ..container.big import BigArchive
+    from ..convert import gltf
+    from ..convert.model import TextureFinder
+    from ..formats.scene import Scene, is_scene
+    if not is_big(data) or not is_scene(BigArchive.parse(data, vpath)):
+        raise Dr2Error(f"{vpath} is not a model or skeleton (no SceneHeader); --glb "
+                       f"needs one, e.g. data/models/npcs.big/boss_mechanic.big")
+    scene = Scene.parse(data, vpath)
+    if args.skeleton or not scene.meshes:
+        return gltf.skeleton_to_glb(scene)
+    finder = None if args.no_textures else TextureFinder(tree, vpath, args.game)
+    st = gltf.ExportStats()
+    out = gltf.model_to_glb(scene, finder, stats=st)
+    if not args.quiet:
+        print(f"    {st.meshes} meshes, {st.primitives} draws, {st.vertices:,} vertices, "
+              f"{st.triangles:,} triangles, {len(scene.skeleton)} bones, "
+              f"{st.textures} textures", file=sys.stderr)
+    for name in st.missing_textures:
+        print(f"    note: texture {name!r} not found (run `dr2 index build` to search "
+              f"the whole game)", file=sys.stderr)
+    return out
 
 
 def _texture_png(vpath: str, data: bytes, level: int = 0) -> bytes:
@@ -210,8 +238,34 @@ def cmd_info(args) -> int:
                   f"{lv.offset:>#8x} {lv.pitch:>5}  {where}")
     elif kind == "big":
         from ..container.big import BigArchive
-        print(f"archive:    {len(BigArchive.parse(data, node.vpath))} entries (dr2 ls {node.vpath})")
+        from ..formats.scene import Scene, is_scene
+        arc = BigArchive.parse(data, node.vpath)
+        print(f"archive:    {len(arc)} entries (dr2 ls {node.vpath})")
+        if is_scene(arc):
+            _scene_info(Scene.from_archive(arc, node.vpath))
     return 0
+
+
+def _scene_info(sc) -> None:
+    """The `dr2 info` lines for a model or skeleton."""
+    roots = [n.name for n in sc.skeleton.nodes if n.is_root]
+    print(f"scene:      {sc.kind}, {len(sc.skeleton)} nodes (root: {', '.join(roots) or '-'}), "
+          f"{len(sc.materials)} materials, {len(sc.meshes)} meshes")
+    for i, m in enumerate(sc.materials):
+        tex = ", ".join(s.name for s in m.slots if not s.engine)
+        print(f"  material {i}: {tex or '(no textures)'}")
+    for m in sc.meshes:
+        for d in m.draws:
+            src = "/".join(sorted({(s.buffer or "run-time").replace(m.name + " ", "")
+                                   for s in d.streams.values()}))
+            print(f"  {m.name} draw {d.number}: {d.vertex_count} vertices, "
+                  f"{d.index_count} strip indices, material {d.material}, "
+                  f"shader {sc.shaders.get(d.shader, f'{d.shader:08X}')}, "
+                  f"bones {d.palette_start}..{d.palette_start + d.palette_count - 1}, "
+                  f"from {src}")
+            print(f"      {'; '.join(e.describe() for e in d.declaration)}")
+    if sc.unknown:
+        print(f"other chunks: {', '.join(sc.unknown)}")
 
 
 # ---- index ----------------------------------------------------------------------------
@@ -355,7 +409,8 @@ def cmd_census(args) -> int:
         tree = AssetTree(locate(g).root)
         progress = None if args.quiet else (lambda vp: print(f"  {vp}", file=sys.stderr))
         rep = run_census(g, tree, python_lzx=args.python_lzx, reencode=args.reencode,
-                         textures=args.textures, workers=args.workers, progress=progress)
+                         textures=args.textures, models=args.models, workers=args.workers,
+                         progress=progress)
         print(format_report(rep))
         reports.append(rep)
     if args.json:
@@ -429,6 +484,13 @@ def build_parser() -> argparse.ArgumentParser:
                    help="write textures as PNG images (<name>.png) instead of .bct bytes")
     p.add_argument("--level", type=int, default=0,
                    help="with --png: which mip level (0 = full size)")
+    p.add_argument("--glb", action="store_true",
+                   help="write models and skeletons as glTF binary (<name>.glb) for Blender: "
+                        "meshes, skeleton, skin and textures")
+    p.add_argument("--skeleton", action="store_true",
+                   help="with --glb: only the skeleton (an armature)")
+    p.add_argument("--no-textures", action="store_true",
+                   help="with --glb: don't embed textures (smaller, faster)")
     p.add_argument("-q", "--quiet", action="store_true")
     game_opt(p)
     p.set_defaults(func=cmd_extract)
@@ -502,6 +564,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="also decode every compressed entry with the pure-Python decoder")
     p.add_argument("--textures", action="store_true",
                    help="also decode every texture and re-encode it to the same bytes (slow)")
+    p.add_argument("--models", action="store_true",
+                   help="also decode every draw of every model (vertices, triangles, skin)")
     p.add_argument("--workers", type=int, help="processes for --reencode (default: all CPUs)")
     p.add_argument("-q", "--quiet", action="store_true", help="no per-archive progress")
     p.set_defaults(func=cmd_census)

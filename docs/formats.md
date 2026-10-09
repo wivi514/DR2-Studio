@@ -10,14 +10,14 @@ Case West census before they count as rules (CLAUDE.md rule 7).
 | LZX compressed entry | inside `.big` | ✅ decode + encode | `dr2kit/container/xcompress.py`, `lzx/`. Every compressed entry of both games decodes (two independent decoders agree) and re-encodes |
 | `.bct` texture | loose, inside `.tex` | ✅ read + write | `dr2kit/formats/bct.py`, `convert/texture.py`. Every texture of both games decodes and re-encodes to its exact bytes; flags byte bits 0x04/0xE0 and header word 0x0C still unexplained (preserved) |
 | `.tex` texture pack | next to every model `.big` | ✅ | a `.big` whose entries are `.bct`, named without extension |
-| scene (model / skeleton) | `models/**/*.big`, `skeleton/*.big` | 🟡 | chunk table known; bone records ✅; vertices ❓ |
+| scene (model / skeleton) | `models/**/*.big`, `skeleton/*.big`, props, environments | ✅ read | `dr2kit/formats/scene.py`, `vertex.py`. Every scene of both games parses and every draw decodes; buffers and bone palettes checked against the running game; exports to glTF. Writing back is phase 4 |
 | `.xma` audio | `audio/*.big` | 🟡 | raw XMA, decoded on the host by the recomp through ffmpeg; header and rate source ❓ |
 | audio scene scripts `.txt` | `audio/Prologue.txt`, `datafile.big` | ✅ text | `cAudioScene` / `cAudioJukebox` tree, `Asset = "music.big/<name>"` |
 | `.bcs` string bank | `frontend/str_<lang>.bcs` | ✅ | `gen_pc_options.patch_bcs` reads and patches it |
 | `.bcf` font | `system/**` | 🟡 | 9 of 11 in CZ and 6 of 11 in CW are plain `.big` archives (read by the census); the rest start `04 03 02 01`, an unknown sibling container ❓ |
 | `.anm` / anim `.big` | `anim/**`, `skeleton/*.anm` | ❓ | |
 | ragdoll `.dat` | `skeleton/*_ragdoll.dat` | ❓ | Havok likely (`hkp*` RTTI in the XEX) |
-| shader banks `.vo/.po/.vdo/.pdo/.sdo/.scv` | `shaders/*-{vs,ps,vd,pd,sc,sd,ss}.big` | 🟡 | 98.6% of microcode located; `-vd` = vertex declarations, which the vertex decoder needs |
+| shader banks `.vo/.po/.vdo/.pdo/.sdo/.scv` | `shaders/*-{vs,ps,vd,pd,sc,sd,ss}.big` | 🟡 | `.vo`/`.po` are standard 360 D3D shader containers (`10 2A 11 01`, XenosRecomp translates them); `.sdo` = a shader name's permutations (`5cef4d20.sdo` → `ProtoSkinnedClothRGB`). Models carry their **own** vertex declarations, so the decoder doesn't need `-vd.big` (phase 0 guessed it did) |
 | mission / data `.txt`, `.csv` | `datafile.big`, CW loose `.csv` | ✅ text | engine scripting; edited for co-op in the CZ recomp |
 | `.bik` | **CW only**, `data/movies` | ✅ (Bink) | ffmpeg decodes it; replacing it needs a Bink encoder |
 
@@ -72,8 +72,9 @@ Verified over **every archive of both games, nested ones included** (`dr2 census
   `zonelist.big` ×7 (CZ) / ×19 (CW) inside `persistent_filecache.big`, and a few CW texture
   packs listing the same texture twice. The toolkit addresses entries by **position**
   (vpaths add `#1`, `#2`… to later copies). *Retraction:* this page used to give "a scene
-  holds several `Combined Vertices` entries" as the example; those are numbered
-  (`Combined Vertices 0`, `… 1`) and are not duplicates.
+  holds several `Combined Vertices` entries" as the example; those differ by a number
+  and are not duplicates. (*Correction, phase 3:* the number is the buffer's stride,
+  `Combined Vertices 12`, not a counter; see §Scene container.)
 - No entry name contains `#`, `/` or `\`, starts with `@`, or is invalid as a Windows file
   name (`<>:"|?*`, control characters, a trailing dot or space, `CON`, `NUL`, …). So
   vpaths and `dr2 extract` are safe on every OS. The census checks this.
@@ -310,48 +311,225 @@ size and mip count are plain fields; tiling is always on and implied.
 
 ## Scene container (models and skeletons)
 
-A model or skeleton is a `.big` of named chunks. All chunk payloads are big-endian.
-Chunks seen:
+Implemented by `dr2kit/formats/scene.py` (chunks, skeleton, materials, meshes, draws)
+and `dr2kit/formats/vertex.py` (vertex declarations and streams). **✅ cracked (phase 3,
+2026-10-08):** every scene of both games parses and every draw of every model decodes
+(census below), the reader's buffers, strips and bone palettes were checked against
+draws captured from the running game, and the result exports to glTF for Blender
+(`dr2kit/convert/gltf.py`, mapping in [`dev/gltf-mapping.md`](dev/gltf-mapping.md)).
 
-| Chunk | Size seen | Meaning (status) |
+A model (`npcs.big/chest_young_chuck.big`) or a skeleton (`skeleton/playerfullbody.big`)
+is a `.big` of named chunks. **Everything is big-endian.** A skeleton file has the same
+chunks with empty material arrays and no geometry, so one reader serves both. A scene is
+any archive with a `SceneHeader` entry: 1,510 in CZ (1,397 models, 113 skeletons) and
+1,639 in CW (1,495 + 144).
+
+### Chunks in the scene archive
+
+| Chunk | Size | Meaning (status) |
 |---|---|---|
-| `SceneHeader` | 20 | 5×u32, e.g. `1, 2, 2, 0x21, 2` (❓; 0x21 = 33 matches the head model's total node count) |
-| `SceneDescription` | 1188 / 3528 | node list: fixed 32-byte name + u32 type (2 seen), then `…Shape` / `COL_…Shape` shape names (Maya export) (🟡) |
-| `_BONEHIERARCHY_` | 8·n | pairs of (BE u32 node index, BE s32 parent), `-1` = root (✅ by inspection) |
-| `_BONENAMES_` | | NUL-padded names, 31-32 bytes each (🟡 confirm stride) |
-| `<root>.<bone>` or `<bone>` | **52 each** | one per node: the transform record below (✅) |
-| `Combined Vertices` | several | vertex streams (❓ layout, from the vertex declaration) |
-| `Combined Indices` | | index buffer (❓ 16-bit BE likely; strips or lists?) |
-| `MatArray` | 36·n | per material: u32 id, u32 shader hash, … floats (`0.7`, `0.5`, `1.0`), `0xFFFFFFFF` terminator (🟡) |
-| `MatTextureInfoArray` | 100·n? | per slot: u32 index, 52-byte NUL-padded texture name, u32 hash, u32s… Includes engine samplers (`gCascadedShadowMapTexture`, `gExposureTexture`, `gAttenuatedShadowMapTexture`) next to the model's own textures (🟡) |
-| `UsedShaders.txt` | text | `0xE9EA5720 : LIT_CM`, shader hash to name |
-| `_ATTRIBUTE_`, `_ANIMCHANNELINFO_`, `_COLLPRIMS_`, `NumLocatorArray` | small | ❓ |
-| `persistent.big` | nested | a nested container; in PC DR2 it holds collision (per the fandom wiki) (❓ on 360) |
+| `SceneHeader` | 20 | 5 words, e.g. `1, 2, 2, 0x67, 3`. **Word 3 = the number of `SceneDescription` records** (✅ every scene); word 4 often equals the material count (❓) |
+| `SceneDescription` | 36·n | a 32-byte NUL-padded name + u32 kind: **2 = transform node, 0 = shape** (✅) |
+| `_BONENAMES_` | 31·n | the skeleton's node names, **31 bytes each**; a name longer than 30 characters is **cut to 30** (✅, see below) |
+| `<node name>` | **52** | one per node: the node record below (✅) |
+| `_BONEHIERARCHY_` | 8·n | (u32 index, s32 parent) pairs: the **same pairs as the node records, in a parents-first order** (✅ every scene; equal to the records' order in characters, different in 158 CZ props) |
+| `MatArray` | 36·n | one per material (✅ layout, below) |
+| `MatTextureInfoArray` | 100·n | texture slots; name at +4 (52 bytes), a hash at +0x38 (below) |
+| `UsedShaders.txt` | text | `0x5CEF4D20 : ProtoSkinnedClothRGB` lines: shader hash → name |
+| `<shape> Vertices N`, `<shape> Indices N` | | a shape's own vertex streams and index buffer (characters) |
+| `Combined Vertices <stride>`, `Combined Indices 2` | | vertex streams shared by every shape, **named by their stride in bytes** (`… 12` = positions, `… 8` = UVs, `… 24` = the rest); one index buffer of 2-byte indices (props, environments) |
+| `persistent.big` | nested | **the mesh descriptions** (next section), plus collision (`COL_*Shape`, Havok chunks) and `_BOUNDINGBOX_` (6 floats: min, max) |
+| `valuesets.big` | nested | `<hash>.scv` per material: shader parameter sets (❓) |
+| `ANIM_<a>_FRAME_<f>_`, `_VERTEXANIM_<a>_`, `VA_<mesh>` | | **vertex animation** (CZ/CW `Larvae.big`): per frame 4 words (1, 1, 1, vertex count) then FLOAT3 positions; `_VERTEXANIM_0_` = frame count (191) |
+| `_ATTRIBUTE_`, `_ANIMCHANNELINFO_`, `_COLLPRIMS_`, `LocatorArray`, `EFFECT_Common<N>`, `_ANIM_`, `ModelInstanceArray*`, `_ZONEINFO_`, `LightObjects`, `OccluderArray<N>`, `_SHPROBEARRAY_`, `_REV_ANIM_` | small | not used by the reader yet ❓ (the census counts them by name) |
 
-Skeleton files (`data/skeleton/*.big`) have the **same chunks with empty material
-arrays and no geometry.** So one reader serves both.
-
-### Node transform record — 52 bytes, BE ✅
+### Node record (52 bytes) and the skeleton ✅
 
 ```
-0x00 u32  node index
-0x04 s32  parent index (-1 = root)
-0x08 u32  flag: 1 on 3,414 records, 0 on 60 (❓ meaning; preserve it)
-0x0C f32×3 scale        (1,1,1 typical)
-0x18 f32×3 translation
-0x24 f32×4 rotation quaternion (x, y, z, w)
+0x00 u32  node index           (== its position in _BONENAMES_, every scene)
+0x04 s32  parent index         -1 = root; == own index = root of a split rig (below)
+0x08 u32  flag                 1 on most records, 0 on some (❓ meaning; preserved)
+0x0C f32×3 scale               (1,1,1) on all but 18 records (8 CZ, 10 CW; props)
+0x18 f32×3 translation         relative to the parent, metres
+0x24 f32×4 rotation quaternion (x, y, z, w), relative to the parent
 ```
 
-**Verified 2026-10-08:** every record in all 76 skeleton files of CZ and CW together
-(3,474 records) has a unit-norm quaternion, and no parent index points at a missing node.
-Rig families: `player`, `female`, `large`, `child`, `longcloak`, `tiger`, `zombie`, each split
-into `fullbody` / `upperbdy` / `face` / `hand` / `root`, plus `cine*` variants, `camera`,
-`stage` and `prop`. Bone names look like `dummy01.l_thigh`, `dummy01.r_clavicle`,
-`dummy01.l_eyebrowcorner`.
+A node's rest pose in model space is parent × local, root first (standard TRS
+composition, `Skeleton.world_matrices`). *Verified:* Chuck's head comes out at
+y = 1.62 m, his feet near 0, his left hand at x = +0.56; and the bone matrices the game
+uploads, multiplied by this rest pose, keep these bone lengths (in-game gate below).
 
-**Open (phase 3):** vertex layout, the per-mesh bone palette (the old community
-blocker), how meshes reference materials, how LODs are stored, what `persistent.big`
-holds on 360.
+- **Unit quaternions** on 16,007 of 16,009 CZ records and 25,194 of 25,200 CW ones; the
+  8 others belong to prop nodes that also carry a non-unit scale (a cactus, sky domes,
+  a crate). The phase 0 check (3,474 records of the 76 skeleton files) still holds.
+- **Split rigs.** `preload4.big`'s `femaleroot.big`, `zombiehand.big`… and some files in
+  `data/skeleton/` hold one part of a rig. Their root's parent is **its own index**
+  (`dummy01.root`: index 0, parent 0) instead of -1: 37 records in CZ, 30 in CW.
+- **Truncated names.** `_BONENAMES_` keeps 30 characters; the node's entry has the whole
+  name (`geo_pitchfork.LOC_collision_end…`). Two names can share the 30 characters
+  (`…geo_carrier` and `…geo_carrier1` in `broken_ambulance.big`); the record whose
+  index matches settles it.
+- Coordinates: **Y up, characters face +Z with their left side at +X**, metres. That is
+  glTF's convention, so the exporter converts nothing.
+
+### Materials ✅
+
+`MatArray`, 36 bytes per material:
+
+```
+0x00 u32 id                 1-based; records are NOT stored in id order
+0x04 u32 hash               (❓ not the shader hash)
+0x08 u32 slot count         its texture slots ...
+0x0C u32 slot offset        ... start at this BYTE offset in MatTextureInfoArray
+0x10 f32×4                  e.g. 909.1, 0.7, 0.5, 1.0 (❓)
+0x20 u32 value set          name of its .scv in valuesets.big (hex)
+```
+
+`MatTextureInfoArray`, 100 bytes per slot: u32 (always 1), the texture name (52 bytes,
+NUL-padded), then at +0x38 a hash that equals the sampler hash the command buffer binds
+(`0x33` below) for the engine samplers (`gCascadedShadowMapTexture` = `F3AF86E0`); it
+is not the engine's name hash or CRC-32 of the name. Each material owns 3-7 slots: its
+own textures plus engine samplers (`gExposureTexture`, …). The texture's role comes from
+its suffix (`_cm` colour, `_nm` normal, `_sm` specular, `_mask` tint mask; a trailing
+digit is allowed: `mech_eye_cm1`).
+
+**A draw names its material by id: RenderStrip word 0 = id − 1** (✅). *Found the hard
+way:* phase 3 first read word 0 as a position in `MatArray`, which is right for Chuck's
+parts (stored in id order) and wrong for `boss_mechanic.big` (ids 5, 4, 10, 1, 3, 11, …):
+his apron wore the shoes texture. The user spotted it in the exported model. With the id
+rule every mesh gets its own texture (apron → `mech_apron_cm`, head → `mech_head_cm`);
+the census checks that every draw of both games finds exactly one material with that id.
+
+### Mesh descriptions (in `persistent.big`) ✅
+
+For each shape `<shape>` (a name like `geo_tshirtShape`, `moto_bodyShape`,
+`meshSkyDome`; a render shape is one with a `RenderStrip`; `COL_*Shape` are collision):
+
+| Chunk | Size | Meaning |
+|---|---|---|
+| `<shape>` | 72 | 8 words, then 7 floats: **bounding radius** (from the origin), **box min, box max** (every vertex lies inside), then 3 zero words. Word 3 = number of vertex declarations, **word 5 = number of draws** (✅ every shape), words 6-7 = the first draw's palette ❓ others |
+| `<shape> RenderStrip` | 28 per draw | `material id − 1`, flags (`0x3F`/`0x7F`/`0x103F`…), flags (`0`/`0x1001`/`0x02000000`), **palette first node, palette node count**, a word (0, or 0xA8, 0x6C… on later draws ❓), a word (`0x1D`-`0x27` ❓) |
+| `<shape> D3DVertexDesc N` | 12 per element | vertex declaration N (next section). Several draws can share one |
+| `<shape> VDHeader` | 8 per declaration | `0, 0xFFFFFFFF` each (❓ beyond the count) |
+| `<shape> CommandBuffer` | words | the recorded draw calls (below) |
+| `<shape> VBHeader`, `<shape> IBHeader` | 56 per buffer | the shape's own buffers: name (36 bytes, `"<shape> 0"`), `0xFFFFFFFF`, **count, stride**, 0, 0 |
+| `Combined_VBHeader`, `Combined_IBHeader` | 56 per buffer | the same records for the `Combined …` buffers (empty when shapes have their own) |
+
+**The command buffer** is a list of words; the low byte is an opcode, the others are
+arguments in the word, and some opcodes take extra words. Every command buffer of both
+games parses with this table (an unknown opcode is a named error):
+
+| Opcode | Extra words | Meaning |
+|---|---|---|
+| `0x0A` | 0 | starts a draw packet; **byte 1 = which `D3DVertexDesc` the draw uses** |
+| `0x0B` | 0 | bind the shape's own vertex buffer: byte 1 = stream, byte 2 = which buffer (`<shape> Vertices <byte 2>`) |
+| `0x0C` | 0 | bind the shape's own index buffer number byte 1 (`<shape> Indices <byte 1>`) |
+| `0x28` | 1 | bind a combined vertex buffer: bit 31 set, bits 16-23 = **stride** (which `Combined Vertices <stride>`), byte 1 = stream; arg = first vertex. **Without bit 31** (`00000228`, stride 0) the stream is filled at run time: the vertex-animated larvae, whose positions come from `ANIM_0_FRAME_<f>_` |
+| `0x47` | 1 | bind the combined index buffer (byte 1 = index size, 2); arg = first index |
+| `0x08` | 6 | **the draw**: base vertex, first vertex, vertex count, first index, index count, 1. The word is `0x408` (or `0x308` on 13 CZ / 5 CW draws ❓) |
+| `0x3C` | 1 | set the shader (hash from `UsedShaders.txt`); `0x3F` + hash closes the packet |
+| `0x33` | 1 | set an engine sampler (its hash); `0x3B` + hash: a texture by hash |
+| `0x16` | 2 | a hash and a float (−0.1); fence poles only ❓ |
+| `0x0D`, `0x0E`, `0x0F`, `0x41`, `0x43`, `0x71`, `0x73` | 0 | render state around the draw ❓ |
+| `0x04` | 0 | end of packet (upper bits vary: `fffff004`, `fffff604`…) |
+
+So vertex *v* of a draw is stream vertex `bind first + base + first vertex + v`, and an
+index *i* addresses `i − first vertex` (✅: every index of every draw falls inside its
+range).
+
+**Indices are one triangle strip per draw**, 16-bit big-endian, with strips joined by
+repeated indices (`… 2 2 3 3 3 4 …`, degenerate triangles). No restart markers (`0xFFFF`)
+occur. *Verified:* 4,993 of 6,954 CZ draws (7,576 of 10,548 CW) have an index count that
+is not a multiple of 3; read as a list, almost every draw is full of degenerate triangles;
+and the game's GPU state for these draws says primitive type 6 (triangle strip) in the
+captured frame. Taking even triangles as (a, b, c) and odd ones as (b, a, c) gives
+**counter-clockwise front faces**: the face normal agrees with the stored vertex normals
+on 99.4% of triangles in both games.
+
+*Retraction (2026-10-08):* the `.big` section and the phase 0 table said models hold
+`Combined Vertices 0`, `… 1` "numbered" buffers and wondered whether indices were
+"strips or lists". The number after `Combined Vertices` is the **stride**, and indices
+are strips.
+
+### Vertex declarations ✅
+
+A `D3DVertexDesc` chunk is the Xbox 360 D3D `D3DVERTEXELEMENT9` array as is: 12 bytes per
+element, `u16 stream | u16 offset | u32 type | u8 method | u8 usage | u8 usage index |
+u8 pad`, ended by stream `0xFF`, type `0xFFFFFFFF`. The type is the **360's own
+`D3DDECLTYPE`** (its low 6 bits are the Xenos vertex format). Every element of both games
+uses one of these (counts of elements, CZ / CW):
+
+| Type | Value | Use | CZ | CW | Decoding (verified by) |
+|---|---|---|---|---|---|
+| FLOAT3 | `0x2A23B9` | POSITION | 6,953 | 10,547 | 3 BE floats (positions inside each shape's box) |
+| FLOAT2 | `0x2C23A5` | TEXCOORD 0-4 | 10,046 | 20,026 | 2 BE floats (textures land right in the renders) |
+| HEND3N | `0x2A2190` | NORMAL | 6,944 | 10,492 | 10_11_11 signed normalised: x = bits 0-10, y = 11-21, z = 22-31 (unit length on every vertex but 136 / 2,117 zero normals) |
+| DEC4N | `0x1A2187` | TANGENT | 2,622 | 5,928 | 2_10_10_10: x, y, z 10 bits signed, w 2 bits (xyz unit length on every vertex; **w is 0 on half of them** ❓) |
+| SHORT2N | `0x2C2159` | TEXCOORD 1-5 | 3,033 | 6,579 | two 16-bit signed normalised, **x = low half of the BE word** |
+| UBYTE4N | `0x1A2086` | BLENDWEIGHT | 2,121 | 2,452 | 4 bytes / 255, **x = low byte of the BE word** (the four sum to 255 on every vertex) |
+| UBYTE4 | `0x1A2286` | BLENDINDICES | 2,121 | 2,452 | 4 bytes, x = low byte |
+| D3DCOLOR | `0x182886` | COLOR4 | 4 | 1 | `0xAARRGGBB` |
+
+**Byte order:** every element is read as big-endian 32-bit words and component *x* is in
+the **low** bits. This is how the CZ recomp's renderer fetches vertices (it draws both
+games correctly), and the skin weights only sum to 255 this way round.
+
+### Skinning and the bone palette ✅
+
+Read from the game's own vertex shader `ProtoSkinnedClothRGB` (`shaders/…-vs.big/13176040.vo`,
+translated to HLSL with XenosRecomp):
+
+- Each vertex has **4 influences**; weight component *k* goes with index component *k*
+  (x with x … w with w). The 3 used by the CZ crowd shader (`.yzw`) are a special case.
+- A blend index is a **palette row**: 3 × the palette slot, because each bone is a 3×4
+  matrix in three shader constants starting at `c8` (`gWorldMatrix[183]`, so at most 61
+  bones per draw; the largest palette is 56 in CZ, 60 in CW). `c4`-`c6` = model → world, `c0`-`c3` =
+  projection × view.
+- **The palette is a run of skeleton nodes: slot *k* of a draw is node
+  `palette_start + k`**, with `palette_start`, `palette_count` = RenderStrip words 3-4.
+  This was the open problem of the old community tools. *Verified* three ways:
+  1. geometrically: for 98% of skinned draws (1,732 / 1,767 CZ, 2,002 / 2,081 CW) every
+     vertex sits closest to the bones it is weighted to with this mapping rather than a
+     shifted one (distance to the bone segment); the rest are ties or within a few cm;
+  2. in game: draws of Chuck that share a bone receive the *identical* matrix for it in
+     the same frame (79 pairs of draws agree, and moving one draw's palette by ±1 or ±2
+     makes all of them disagree), see "In-game check" below;
+  3. posing the exported model in Blender bends arms, head and fingers cleanly.
+- Static props skin rigidly: palette count 1, every vertex on palette slot 0 (the bike's
+  parts each follow one node). Meshes without blend elements are in model space.
+
+### Census (2026-10-08, `dr2 census --models`)
+
+| | Case Zero | Case West |
+|---|---|---|
+| scenes parsed | 1,510 (1,397 models, 113 skeletons) | 1,639 (1,495, 144) |
+| nodes | 16,009 | 25,200 |
+| meshes / draws | 4,857 / 6,954 | 6,950 / 10,548 |
+| draws decoded | **6,954 / 6,954** | **10,548 / 10,548** |
+| vertices / triangles | 3,549,989 / 3,408,086 | 6,813,688 / 5,311,901 |
+| vertex streams: combined / own / run-time | 15,294 / 1,309 / 1 | 25,346 / 1,323 / 1 |
+| skin weights summing to 1 | 654,133 / 654,133 | 707,997 / 707,997 |
+| problems | 0 | 0 |
+
+Unused by any draw: 10 CW shapes (`construction_kart.big` and one other) carry extra
+stride-12 streams (`… Vertices 3`, `… Vertices 4`) with the shape's vertex count; deformation
+targets, probably ❓.
+
+### In-game check (2026-10-08, Case Zero)
+
+`tools/capture_gate.py` on a frame captured from the CZ recomp (procedure:
+[`dev/recomp-integration.md`](dev/recomp-integration.md) §Phase 3): of the 40 draws of the
+skinning shader in the frame, **30 match a draw of the game data byte for byte**, both
+vertex stream and indices (Chuck's chest, arms, head, eyes, mouth, hands, watch, pants and
+boots, from 5 model files, in two passes); the other 10 are other characters. Bone
+palettes agree as described above. The game's bone matrices × the reader's rest pose keep
+the records' bone lengths (median difference 0.01 mm; the few larger ones, up to 7 mm,
+are foot and face bones, which animation translates). Every vertex skinned the way the
+`.glb` is, then projected with the game's camera, lands on Chuck in the captured picture.
+
+**Not proven yet:** a Case West capture (its census and exports look the same); what
+`_ATTRIBUTE_`, `_COLLPRIMS_`, the value sets and the material floats do; LODs (no LOD
+chunks were seen: each shape has its draws only).
 
 ## Audio
 

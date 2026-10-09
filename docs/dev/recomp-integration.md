@@ -94,3 +94,41 @@ texture was found.
 
 See [`../devlog.md`](../devlog.md) (phase 2 entry) and [`testing.md`](testing.md)
 §Phase 2 results for the frames and log lines of each run.
+
+## Phase 3: capturing draws to check the model reader
+
+The CZ recomp can dump, for one captured frame, every draw made with a given vertex
+shader: the shader constants (camera, bone matrices), the raw vertex stream and the
+indices (`CZ_CAPTURE_DUMP_VS`, CZ `docs/instruments.md`). `tools/capture_gate.py` matches
+those draws with the game data and checks the reader (`formats.md` §In-game check).
+
+```
+cp -r <recomp>/assets/save /tmp/save_copy                  # the presses play the game
+cd <recomp>/runtime/build
+SEQ=START,A,A,A,A,A,NONE,NONE,NONE,NONE,NONE,NONE,NONE,NONE,NONE,NONE,NONE,NONE,NONE,NONE,F9,NONE,NONE,NONE
+# 1. a capture to find the shader: the census lists every draw with its vs= hash
+CZ_BUG_REPORTS=0 CZ_SAVE_DIR=/tmp/save_copy CZ_NO_WINDOW=1 CZ_VKDRAW=1 CZ_CAPTURE_KEY=/tmp/cap \
+  CZ_FAKE_START_MS=8000 CZ_FAKE_PRESS_SEQ=$SEQ timeout 240 ./cz_runtime > cap.log 2>&1
+grep -E "verts=(2785|447) " /tmp/cap/capture_f*.census   # Chuck's T-shirt / shirt bottom
+# 2. the same with the dump armed for that hash (2026-10-08: c3d6d30111313392, main pass)
+CZ_BUG_REPORTS=0 … CZ_CAPTURE_DUMP_VS=c3d6d30111313392 CZ_CAPTURE_KEY=/tmp/cap2 … ./cz_runtime
+python tools/capture_gate.py /tmp/cap2 --overlay overlay.png
+```
+
+Things learned running it:
+
+- **`CZ_BUG_REPORTS=0` is required.** F9 (scripted or not) also writes a bug-report
+  capture into the XenonLive launcher's folder (`~/.config/XenonLive/captures/`), which
+  is capped at 256 MB / 40 captures **by deleting the oldest one**. The first phase 3
+  run did exactly that to one of the user's existing captures before this was known.
+- `START,A,A` with a quiet sequence afterwards stops on the title menu; the extra `A`s
+  get through *Continue*. F9 at ~170 s lands in play with this save.
+- Don't add `CZ_VK_FRAME_DUMP` to a capture run: the frame dumps filled the temporary
+  folder's quota within seconds. Delete the `*_snap_*.ppm` files after a capture; only
+  the census, the `vsdump_*.bin` files and `capture_*.ppm` are needed.
+- The dumped constants are taken **before** the recomp's widescreen patch. To project
+  onto the captured picture, multiply projection row 1 by k = 9W/16H and use the whole
+  width (the recomp widens the game's field of view, then narrows it back in the
+  renderer; CZ `vk_renderer.cpp`, `WideFovFactor`).
+- A second set of the same draws appears (two passes); the shadow passes use other vertex
+  shaders (`eae0f9b607fcbe92` in that frame).

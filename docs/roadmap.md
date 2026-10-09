@@ -59,19 +59,37 @@ Handoff was `phase2-kickoff.md`; the next one is `phase3-kickoff.md`.
   `.bct` flag bits 0x04/0xE0 and header word 0x0C; why 0.4% of textures carry a larger
   payload than the layout model; texture *resizing* (v1 keeps the size).
 
-## Phase 3: skeletons and models → Blender
-- Skeleton → `.glb` armature (rest pose, names, extras). **Gate:** importing into
-  Blender, exporting, and converting back reproduces each bone record bit for bit.
-- Model reader: vertex declarations (from `-vd.big` / the shader banks), streams,
-  indices, materials, **bone palettes**. Census: every model in both games parses.
-- Model → `.glb` with skin and textures. 3D preview in Studio (three.js on the same `.glb`).
-- **Gate:** for a set of reference models, the exported mesh drawn in Blender lines up
-  with an in-game capture (the recomp can dump draws: `CZ_CAPTURE_DUMP_VS`,
-  `vsdump_skin.py`).
+## Phase 3: skeletons and models → Blender ✅ (2026-10-08)
+Handoff was `phase3-kickoff.md`; the next one is `phase4-kickoff.md`.
+- Scene reader (`formats/scene.py`, `vertex.py`): skeleton (52-byte records, truncated
+  names, split rigs), materials (by id), meshes and draws from `persistent.big`'s
+  `RenderStrip` + `CommandBuffer`, both buffer families (own / `Combined Vertices
+  <stride>`), the 360 vertex declarations, triangle strips, **bone palettes** (a run of
+  skeleton nodes). Census: every scene of both games parses, every draw decodes. ✅
+- Skeleton and model → `.glb` (`convert/gltf.py`, `model.py`): armature with the game
+  records in `extras`, skinned meshes, materials with PNG textures found by name;
+  `dr2 extract --glb`, `dr2 info` for scenes. ✅
+- DR2 Studio 3D view: three.js in `QWebEngineView` on the same `.glb`; *Export .glb…*. ✅
+- Docs: `formats.md` §Scene container, `dev/gltf-mapping.md`, `modding/04`, `07`,
+  asset catalogue (rigs, models), troubleshooting. ✅
+- **Gate (skeleton):** 3,474 / 3,474 node records of the 75 `data/skeleton` rigs of both
+  games come back bit-identical after Blender 5.2 import → export
+  (`tools/blender_skeleton_gate.py`); 41,184 / 41,209 over every rig in every scene (the
+  25 others carry a rest scale Blender bones can't hold).
+- **Gate (models):** 6,954 / 6,954 CZ and 10,548 / 10,548 CW draws decode
+  (`dr2 census --models`).
+- **Gate (in game, CZ):** 30 of Chuck's draws in a captured frame match the reader's
+  buffers byte for byte; draws sharing a bone get identical matrices under the reader's
+  palette mapping and never under a shifted one; the reader's rest pose keeps the game's
+  bone lengths; skinned, projected vertices land on Chuck in the frame
+  (`tools/capture_gate.py`). Details: `dev/testing.md`.
+- **Not proven yet:** a Case West capture; the meaning of `_ATTRIBUTE_`, `_COLLPRIMS_`,
+  value sets, the material floats, tangent w; the unbound extra streams of 10 CW shapes;
+  posing in a real *animation* (animations are not decoded yet).
 
 ## Phase 4: model replacement (Blender → game)
-- `.glb` → scene chunks: bone mapping by name, palette rebuild and splitting, vertex
-  re-encode, bounds, keep material slots.
+- `.glb` → scene chunks: bone mapping by name, palette rebuild and splitting (≤ 61 bones,
+  contiguous runs of nodes), vertex re-encode, strips, bounds, keep material slots.
 - Rig validator (CLI + Studio + later the add-on): missing bones, unweighted vertices,
   too many influences, names the game expects.
 - **Gate:** (a) a no-op round trip of the original model loads in game unchanged;

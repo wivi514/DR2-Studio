@@ -17,6 +17,71 @@ Entry template:
 
 ---
 
+## 2026-10-08 — Phase 3: models and skeletons → Blender, 3D view, in-game check
+**Done:**
+- The scene reader (`formats/scene.py`, `formats/vertex.py`): skeleton, materials,
+  meshes, draws, vertex declarations, triangle strips, bone palettes, both buffer
+  families, vertex animation. Every scene of both games parses; every draw decodes
+  (`dr2 census --models`, also run by a slow game-data test).
+- `.glb` export (`convert/gltf.py`, `convert/model.py`): armature with the game records in
+  `extras`, skinned meshes, materials with their PNG textures; `skeleton_from_glb` reads
+  records back. `dr2 extract --glb [--skeleton] [--no-textures]`; `dr2 info` explains a
+  model (materials, draws, bones per draw).
+- DR2 Studio: a 3D view (three.js 0.186.1 vendored, in `QWebEngineView`, fed over a
+  `dr2:` URL scheme), *Export .glb…*, scene details.
+- Gates as tools: `tools/blender_skeleton_gate.py`, `tools/capture_gate.py`.
+
+**Why:** phase 3 of the roadmap: get every model and rig into Blender correctly, the
+base for putting edited models back (phase 4).
+
+**Learned:**
+- **Each model carries its own vertex declarations** (`persistent.big`,
+  `<shape> D3DVertexDesc N`, the 360's `D3DVERTEXELEMENT9` as is) next to a recorded
+  **command buffer** per shape that says which buffers, ranges and declaration each draw
+  uses. The shader banks were not needed (phase 0 thought they were).
+- **The bone palette, where the old community tools stopped, is a run of consecutive
+  skeleton nodes** (first node, count in `RenderStrip`). Proven in game: in a captured
+  frame, Chuck's draws sharing a bone get identical matrices under this mapping and
+  never under a shifted one.
+- Skinning read from the game's own shader (translated with XenosRecomp): 4 influences,
+  weight k with index k, index = 3 × slot, at most 61 bones per draw.
+- `Combined Vertices 12` is named by its **stride**, not a counter (retracted in
+  formats.md). Indices are strips (the GPU state in the capture agrees: primitive 6).
+- The games' axes, units and winding are glTF's own: nothing is converted.
+- **Materials are named by id, not position.** The first export gave the mechanic boss
+  the wrong textures (his apron wore the shoes'); the user spotted it in the 3D view.
+  `RenderStrip` word 0 is the material id − 1, and `MatArray` isn't in id order. Chuck's
+  parts happen to be, which is why they looked right. The census now checks every draw
+  finds its material. Lesson: the numeric gates checked geometry, not material binding;
+  look at more than one model.
+- Blender keeps bone custom properties through import/export; its float noise grows with
+  distance from the origin (1.4e-4 at 400 m), so the snap tolerance is relative.
+- Studio's `run_job` delivered results in the worker thread (a phase 2 bug: a lambda
+  slot runs where the signal is emitted); harmless for text, fatal for Chromium. Fixed
+  with a GUI-thread relay.
+- The recomp's widescreen patch is applied after the dumped constants: projection row 1
+  × 9W/16H.
+
+**Side effects on the user's machine (reported):** the first capture run's F9 also
+triggered the CZ recomp's bug-report capture, which pruned the oldest capture in
+`~/.config/XenonLive/captures/` (`20261007-052710-93d0`, over the 256 MB cap). The
+capture that run added was removed again; later runs used `CZ_BUG_REPORTS=0` (now in
+`dev/recomp-integration.md`). A frame-dump run filled the temporary folder's quota; its
+files were deleted. The recomps' code and `game_mods/` were not touched; saves were
+copies.
+
+**Docs updated:** `formats.md` (§Scene container rewritten, retractions, status table),
+`dev/gltf-mapping.md` (new), `dev/code-tour.md`, `dev/studio.md`, `dev/testing.md`,
+`dev/recomp-integration.md`, `modding/04-extracting.md`, `modding/07-blender-setup.md`
+(new), `modding/asset-catalogue.md`, `modding/12-troubleshooting.md`, `modding/README.md`,
+`glossary.md`, `ARCHITECTURE.md`, `roadmap.md`, `README.md`, `docs/README.md`,
+`THIRD_PARTY.md`, `CLAUDE.md`, `phase3-kickoff.md` (historical), `phase4-kickoff.md` (new).
+
+**Next:** phase 4 from `phase4-kickoff.md`: a byte-identical scene writer, then
+`.glb` → draws, then the in-game gates.
+
+---
+
 ## 2026-10-08 — Phase 2: textures, index, DR2 Studio, mods, in-game gate
 **Done:**
 - `.bct` textures decoded: `formats/bct.py` (header, layout, tiling),

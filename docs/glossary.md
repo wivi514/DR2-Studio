@@ -45,6 +45,23 @@ materials, and a list of nodes (bones and objects). Skeleton files use the same 
 without meshes.
 
 **Mesh.** The 3D surface: vertices (points) and indices (which points form triangles).
+In the game files a mesh is called a *shape* (`geo_tshirtShape`, a Maya name).
+
+**Draw (draw call).** One "paint these triangles with this material" order to the GPU.
+A shape is drawn with one or more draws, one per material. The game records them in a
+shape's *command buffer*.
+
+**Vertex stream / vertex declaration.** The vertices of a draw are raw bytes in one or
+more *streams* (e.g. one for positions, one for UVs). The *declaration* says what each
+byte means: "bytes 0-11 are the position as three floats, bytes 12-19 the UV…". Every
+draw has one, stored next to the mesh (`D3DVertexDesc`).
+
+**Triangle strip.** A compact way to list triangles: each new index makes a triangle
+with the two before it. Strips are joined by repeating an index, which makes empty
+("degenerate") triangles that the GPU skips. All the games' meshes are strips.
+
+**Rest pose / bind pose.** The pose a model was built in (for characters, a T-pose with
+arms out). Bones are stored in it, and skinning moves vertices away from it.
 
 **Skeleton / rig / armature.** The hierarchy of bones that moves a character. "Armature"
 is Blender's word for it. Game rigs live in `data/skeleton/` (e.g. `playerfullbody.big`
@@ -58,12 +75,28 @@ parent, and its scale, position and rotation (a quaternion).
 **Skinning / weights.** How strongly each bone pulls each vertex. "Weight painting" in
 Blender sets these.
 
-**Bone palette.** A per-mesh list that maps the mesh's own small bone numbers to the
-skeleton's bone numbers. The Xbox shaders can only use a limited number of bones per
-draw, so big meshes get split. The old community tools never handled this fully.
+**Bone palette.** The bones one draw can use. A vertex says "bone 3 of the palette"; the
+palette says which skeleton bone that is. In these games the palette is simply a run of
+consecutive skeleton bones (first bone, how many), at most 61 per draw because that is
+what fits in the shader's constants. The old community tools never worked this out; the
+toolkit verified it against the running game.
+
+**Shader / shader constants.** A shader is the little program the GPU runs for every
+vertex (or pixel). *Constants* are the values the game hands it for a draw: the camera,
+and for a skinned draw the bone palette's matrices.
 
 **glTF / `.glb`.** An open 3D file format that Blender imports and exports natively,
-skeleton and weights included. It's the toolkit's exchange format with Blender.
+skeleton and weights included. It's the toolkit's exchange format with Blender, and what
+DR2 Studio's 3D view shows. A `.glb` is one file with everything inside, textures too.
+
+**Extras / custom properties.** Extra data a `.glb` can carry on any object. The toolkit
+stores each bone's original game record there; Blender keeps it as a *custom property*
+on the bone and writes it back on export, which is how a skeleton survives a trip through
+Blender bit for bit.
+
+**Capture (in-game).** A frame recorded from the running recomp with the F9 key: the
+picture, and on request the exact bytes and shader constants of every draw. Phase 3
+compared the toolkit's model reading with one.
 
 **XMA.** The Xbox 360's audio compression format. The toolkit decodes it for preview and
 export. No free XMA encoder exists, which is why audio replacement uses special routes

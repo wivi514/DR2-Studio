@@ -7,18 +7,19 @@ Goal: make modding easy. Browse every asset in both games, **see** what a textur
 and **hear** a sound before extracting it, export models and skeletons to Blender, and
 put edited or new models back into the game when their bones match the game's rig.
 
-**Status: phase 2 (textures + index + Studio + mods) done 2026-10-08: `.bct` decode/
-encode with every texture of both games re-encoding to identical bytes, the SQLite asset
-index, DR2 Studio v0, mod packages, and the recomps' `game_mods/` layer, with the
-in-game gate passed in both recomps. Phase 1 (container, LZX, census, CLI) done the same
-day. Next: phase 3; start from `docs/phase3-kickoff.md`.** Read these before writing
+**Status: phase 3 (models and skeletons → Blender) done 2026-10-08: the scene reader
+(every scene of both games parses, every draw decodes, bone palettes cracked), `.glb`
+export with skin and textures, DR2 Studio's 3D view; skeleton gate (Blender round trip,
+bit-exact) and in-game gate (CZ capture) passed. Phases 1-2 (container, LZX, census, CLI;
+textures, index, Studio, mods, `game_mods/`) done the same day. Next: phase 4; start
+from `docs/phase4-kickoff.md`.** Read these before writing
 code:
 
 | Doc | What it holds |
 |---|---|
 | `docs/ARCHITECTURE.md` | Components, data flow, the asset index, the mod package format, stack choices |
 | `docs/formats.md` | Everything known about every file format, with a status per format (cracked / partial / unknown) |
-| `docs/phase3-kickoff.md` | Phase 3 handoff: order of work, sources to port, facts to keep in mind |
+| `docs/phase4-kickoff.md` | Phase 4 handoff: order of work, facts to keep in mind |
 | `docs/dev/code-tour.md` | Every module of `dr2kit` and how a read flows through them |
 | `THIRD_PARTY.md` | Reused code and its licenses (libmspack is LGPL: keep it in its own library) |
 | `docs/roadmap.md` | Phases, what each phase delivers, and the gate that proves it works |
@@ -82,6 +83,7 @@ behaviour.
 | `tools/gen_pc_options.py` | `read_big` / `write_big`, a **real pure-Python LZX encoder** (`lzx_encode_stream`), `verify_fake_lzx`, a `.bcs` string-bank patcher |
 | `tools/patch_coop_ending_bike.py` | A worked example of re-packing a modified entry that the game accepted |
 | `tools/tex_decode.py` | Xenos `Tiled2DOffset` untiling + DXT1/DXT5 decode (ported in phase 2) |
+| `tools/vsdump_skin.py`, `CZ_CAPTURE_DUMP_VS` | Draw dumps (constants + stream bytes) of one shader; the toolkit's `tools/capture_gate.py` reads them (phase 3) |
 | `tools/name_hash.py` | The engine's string hash (`h = h*33 ^ c`); `.big` entries are looked up by hash |
 | `runtime/audio/xma_decoder.cpp` | How to feed raw XMA to ffmpeg's `xma2` decoder (the 34-byte XMA2 extradata) |
 | `runtime/kernel/vfs.cpp` | The overlay layers; the `game_mods/` layer was added here in phase 2 (both recomps) |
@@ -131,6 +133,9 @@ dr2 doctor                                # LZX backend in use, games found
 dr2 census                                # both games: counts + round-trip/decode gates (~30 s)
 dr2 census --reencode --python-lzx        # the slow LZX gates (~20 min, all CPUs)
 dr2 census --textures                     # the texture re-encode gate (~4 min CZ, ~6 min CW)
+dr2 census --models                       # decode every draw of every model (~40 s / ~70 s)
+dr2 extract --glb <model vpath> -o out    # model or skeleton -> .glb for Blender
+python tools/blender_skeleton_gate.py     # skeleton round trip through Blender (~25 s)
 dr2 index build                           # the asset index (~1-2 min per game)
 dr2 studio                                # the GUI (pip install -e ".[studio]")
 ```

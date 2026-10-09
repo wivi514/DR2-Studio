@@ -23,6 +23,15 @@ Phase 2 adds textures (every entry starting ``05 01 01``):
   the identical stored bytes (`dr2kit.convert.texture`). This is the phase 2
   "decode then re-encode" gate.
 
+Phase 3 adds scenes (models and skeletons, every archive with a ``SceneHeader``):
+
+* **scene parse** (always): every scene's skeleton, materials, meshes and command
+  buffers parse (`dr2kit.formats.scene`); chunk names the reader doesn't use are counted;
+* **model decode** (``models=True``): every draw of every mesh decodes: vertex types
+  known, indices inside the draw's vertex range, normals of unit length (or zero),
+  skin weights summing to 1, palettes inside the skeleton, unit quaternions. This is
+  the phase 3 "every model parses" gate.
+
 Results for both games are recorded in docs/formats.md. Run it with ``dr2 census``.
 """
 
@@ -40,6 +49,7 @@ from .container.big import BigArchive, is_big, STORED, LZX
 from .container.lzx.pydecode import _Bits
 from .container.vpath import AssetTree, entry_components, join
 from .formats import bct as bctfmt
+from .formats import scene as scenefmt
 
 # A .bct texture starts 05 01 01; the 4th byte varies (a flags byte, phase 2 work), so
 # only the first three are a magic (docs/formats.md, "Textures", retraction 2026-10-08).
@@ -108,6 +118,17 @@ class CensusReport:
     tex_size_model: Counter = field(default_factory=Counter)   # exact / larger / SMALLER
     tex_largest: tuple = (0, 0, "")
     tex_reencoded_ok: int = 0
+    scenes: Counter = field(default_factory=Counter)          # model / skeleton
+    scene_nodes: int = 0
+    scene_meshes: int = 0
+    scene_draws: int = 0
+    scene_draws_decoded: int = 0
+    scene_vertices: int = 0
+    scene_triangles: int = 0
+    scene_unused_chunks: Counter = field(default_factory=Counter)
+    scene_vertex_types: Counter = field(default_factory=Counter)
+    scene_buffers: Counter = field(default_factory=Counter)   # own / combined / animated
+    scene_checks: Counter = field(default_factory=Counter)    # named measurements
     duplicate_name_archives: int = 0
     duplicate_name_entries: int = 0
     unsafe_names: list = field(default_factory=list)
@@ -190,7 +211,7 @@ def check_texture(rep: "CensusReport", evp: str, name: str, data: bytes,
 
 
 def run_census(game: str, tree: AssetTree, *, python_lzx: bool = False,
-               reencode: bool = False, textures: bool = False,
+               reencode: bool = False, textures: bool = False, models: bool = False,
                workers: int | None = None, progress=None) -> CensusReport:
     """Census one game's data folder. See the module docstring for what is checked.
 
@@ -300,6 +321,8 @@ def run_census(game: str, tree: AssetTree, *, python_lzx: bool = False,
                     rep.problems.append((evp, f"nested archive: {ex}"))
                     continue
                 visit(sub, data, evp, depth + 1)
+        if scenefmt.is_scene(arc):
+            check_scene(rep, vp, arc, models)
 
     try:
         for vp, path in tree.files():
@@ -327,6 +350,79 @@ def run_census(game: str, tree: AssetTree, *, python_lzx: bool = False,
             pool.shutdown(cancel_futures=True)
     rep.seconds = time.time() - t0
     return rep
+
+
+_NUMBERS = re.compile(r"\d+")
+
+
+def check_scene(rep: CensusReport, vp: str, arc: BigArchive, decode: bool) -> None:
+    """Parse one scene (and, with ``decode``, every draw); count and check what it holds."""
+    import math
+    try:
+        sc = scenefmt.Scene.from_archive(arc, vp)
+    except Exception as ex:  # noqa: BLE001 - reported
+        rep.problems.append((vp, f"scene: {ex}"))
+        return
+    rep.scenes[sc.kind] += 1
+    rep.scene_nodes += len(sc.skeleton)
+    for name in sc.unknown:
+        rep.scene_unused_chunks[_NUMBERS.sub("N", name)] += 1
+    chk = rep.scene_checks
+    if sc.description and sc.header[3] != len(sc.description):
+        rep.problems.append((vp, f"SceneHeader word 3 = {sc.header[3]}, "
+                                 f"SceneDescription has {len(sc.description)} records"))
+    if sc.hierarchy and sorted(sc.hierarchy) != sorted((n.index, n.parent)
+                                                       for n in sc.skeleton.nodes):
+        rep.problems.append((vp, "_BONEHIERARCHY_ pairs differ from the node records"))
+    for n in sc.skeleton.nodes:
+        chk["node quaternion unit" if abs(scenefmt.unit_norm(n.rotation) - 1) < 1e-3
+            else "node quaternion NOT unit"] += 1
+        if n.parent == n.index:
+            chk["node is its own parent (split-rig root)"] += 1
+    for m in sc.meshes:
+        rep.scene_meshes += 1
+        if m.words[5] != len(m.draws):
+            rep.problems.append((f"{vp}/{m.name}", f"shape word 5 = {m.words[5]}, "
+                                                   f"{len(m.draws)} draws"))
+        for d in m.draws:
+            rep.scene_draws += 1
+            for e in d.declaration:
+                t = e.vtype
+                rep.scene_vertex_types[f"{t.name if t else hex(e.type)} {e.usage_name}"] += 1
+            for s in d.streams.values():
+                rep.scene_buffers["run-time (animated)" if s.buffer is None else
+                                  "combined" if s.buffer.startswith("Combined") else "own"] += 1
+            if sc.materials and d.material < 0:
+                rep.problems.append((f"{vp}/{m.name}", f"draw {d.number}: no material has "
+                                                       f"id {d.strip[0] + 1}"))
+            if len({mt.id for mt in sc.materials}) != len(sc.materials):
+                rep.problems.append((vp, "two materials share an id"))
+            if d.skinned and d.palette_start + d.palette_count > len(sc.skeleton):
+                rep.problems.append((f"{vp}/{m.name}", f"draw {d.number}: palette "
+                                                       f"{d.palette_start}+{d.palette_count} "
+                                                       f"outside {len(sc.skeleton)} nodes"))
+            if not decode:
+                continue
+            try:
+                dd = sc.draw_data(d, m.name)
+            except Exception as ex:  # noqa: BLE001 - reported
+                rep.problems.append((f"{vp}/{m.name}", f"draw {d.number}: {ex}"))
+                continue
+            rep.scene_draws_decoded += 1
+            rep.scene_vertices += len(dd.positions)
+            rep.scene_triangles += len(dd.triangles)
+            chk["draws with index count not a multiple of 3 (strips)"] += d.index_count % 3 != 0
+            for p in dd.positions:
+                if not all(math.isfinite(c) for c in p):
+                    rep.problems.append((f"{vp}/{m.name}", f"draw {d.number}: non-finite position"))
+                    break
+            for n in dd.normals or ():
+                ln = math.sqrt(sum(c * c for c in n))
+                chk["normal unit" if abs(ln - 1) < 0.02 else
+                    "normal zero" if ln < 1e-3 else "normal NOT unit"] += 1
+            for w in dd.weights or ():
+                chk["skin weights sum to 1" if abs(sum(w) - 1) < 0.005
+                    else "skin weights do NOT sum to 1"] += 1
 
 
 def _reencode_job(data: bytes) -> int:
@@ -372,6 +468,15 @@ def format_report(rep: CensusReport) -> str:
     w("    format by name suffix:")
     for suf, c in sorted(rep.tex_format_by_suffix.items(), key=lambda kv: -sum(kv[1].values()))[:12]:
         w(f"        {suf:>7}: {_fmt(c)}")
+    if rep.scenes:
+        w(f"scenes: {_fmt(rep.scenes)}; nodes: {rep.scene_nodes}; meshes: {rep.scene_meshes}; "
+          f"draws: {rep.scene_draws}; vertex streams: {_fmt(rep.scene_buffers)}")
+        w(f"    vertex elements: {_fmt(rep.scene_vertex_types)}")
+        w(f"    chunks the scene reader doesn't use: {_fmt(rep.scene_unused_chunks)}")
+        if rep.scene_draws_decoded:
+            w(f"    decoded: {rep.scene_vertices:,} vertices, {rep.scene_triangles:,} triangles")
+        if rep.scene_checks:
+            w(f"    checks: {_fmt(rep.scene_checks)}")
     w(f"duplicate names: {rep.duplicate_name_entries} entries in "
       f"{rep.duplicate_name_archives} archives")
     w(f"names unsafe in a vpath or as a Windows file name: {len(rep.unsafe_names)}")
@@ -391,6 +496,10 @@ def format_report(rep: CensusReport) -> str:
     if rep.tex_reencoded_ok:
         w(f"textures decoded + re-encoded to identical bytes: "
           f"{rep.tex_reencoded_ok}/{rep.tex_parsed}")
+    if rep.scenes:
+        w(f"scenes parsed: {sum(rep.scenes.values())} ({_fmt(rep.scenes)})")
+    if rep.scene_draws_decoded:
+        w(f"model draws decoded: {rep.scene_draws_decoded}/{rep.scene_draws}")
     w(f"PROBLEMS (unparsed or failed): {len(rep.problems)}")
     for vp, why in rep.problems[:40]:
         w(f"    {vp}: {why}")

@@ -11,6 +11,8 @@ Start it with `dr2 studio` (or `python -m dr2kit studio`). Install the GUI extra
 dr2kit/studio/
   app.py       MainWindow: toolbar, browse/search tabs, centre viewers, details, mod bar
   viewers.py   TextureViewer (zoom, channels, mip, face), PlainViewer (text / hex)
+  model_view.py  ModelViewer: the 3D view (QWebEngineView + three.js), phase 3
+  web/         viewer.html + viewer.js, and three.js 0.186.1 (MIT) under vendor/three/
 ```
 
 ## The window
@@ -60,14 +62,43 @@ Asset bytes always come from the game files (`AssetTree`), never from the index:
 index can be out of date, the files can't. If a vpath from the index no longer
 resolves, Studio says to rebuild the index.
 
+## The 3D view (phase 3)
+
+Clicking a model or skeleton exports it to `.glb` in a worker thread
+(`convert.gltf.model_to_glb`, textures through `convert.model.TextureFinder` with the
+index), then `ModelViewer.show_glb()` hands the bytes to the page. Same file as
+`dr2 extract --glb`, so the preview shows exactly what Blender will get.
+
+- **Serving the page.** A custom `dr2:` URL scheme (`register_scheme()`, called when
+  `app.py` is imported because Qt requires it before the `QApplication` exists) is
+  answered by a `QWebEngineUrlSchemeHandler`: `dr2://studio/viewer.html` and the
+  vendored three.js from `web/`, and `dr2://studio/model.glb` from memory. Not `file://`,
+  because Chromium refuses ES modules there; the scheme needs the `FetchApiAllowed` flag
+  (Qt 6.6+) for three.js's `fetch()`. One off-the-record profile is shared and parented
+  to the application so it outlives every page.
+- **Talking to it.** Python calls `window.dr2.load(url)`, `setSkeleton`, `setWireframe`,
+  `resetView` with `runJavaScript`; the page answers with console lines starting `dr2:`
+  (`ready`, then "N draws, N triangles, N bones" or an error), shown in the log.
+- **Skeleton files** have no mesh: the page always draws their bones and frames them by
+  bone positions.
+- **No WebEngine** (missing add-on, or `DR2_STUDIO_NO_3D=1`): the pane says so and
+  *Export .glb…* still works.
+- **Threads.** `run_job` now delivers `on_done` through `_Relay`, a QObject living in
+  the GUI thread. Before, `on_done` ran in the worker thread (a signal connected to a
+  lambda runs where it is emitted); text widgets put up with it, Chromium aborts.
+
 ## Testing
 
 `QT_QPA_PLATFORM=offscreen` runs the window without a display. A smoke test opens the
-window on a synthetic index (`tests/test_studio.py`, skipped when PySide6 is missing).
+window on a synthetic index (`tests/test_studio.py`, skipped when PySide6 is missing),
+shows a texture, a text file and a synthetic model (with `DR2_STUDIO_NO_3D=1`, so CI
+needs no WebEngine), and checks the `dr2:` scheme serves only `web/` files. The 3D view
+itself was checked offscreen too (WebGL works there through software rendering):
+`window.grab()` after the page reports the model.
 Grabbing the window to a PNG (`window.grab().save(...)`) is how the screenshots in the
 guides are made.
 
 ## Next (later phases)
 
-Audio playback (phase 5), the 3D model view (phase 3, `QWebEngineView` + three.js on
-the exported `.glb`), editing text assets as mod overrides.
+Audio playback (phase 5), editing text assets as mod overrides, and in phase 4 a rig
+validator and "replace this model" next to the 3D view.

@@ -20,7 +20,7 @@ Found something? `dr2 index textures-of <model>` lists a model's textures, and
 | `data/frontend/` | Menus and HUD: `fecmn.tex` / `ingame.tex` (icons), `loading.big` (loading-screen pictures), `str_<lang>.bcs` (text) |
 | `data/preload4.big` | Things loaded at boot: default textures, colour-grading tables, a copy of `fecmn.tex`. Edit with care (see the troubleshooting guide) |
 | `data/misc/textures/commoncolourcubes.tex`, `data/streamedassets.big/cc_*.bct` | Colour-grading tables (the "look" of each area), 1024×32 strips |
-| `data/skeleton/*.big` | The rigs (phase 3) |
+| `data/skeleton/*.big` | The rigs (below) |
 | `data/audio/*.big` | Sound banks (phase 5) |
 
 ## Chuck (Case Zero)
@@ -50,6 +50,37 @@ Dead Rising 2 and Case West. Case Zero ships it too, but its Chuck doesn't start
 |---|---|
 | Chuck's default IJIEK jacket | `data/models/npcs.big/chest_default.tex/cr_jacket_cm` |
 | Frank West's default jacket, shirt | `data/models/npcs.big/chest_default_frank.tex/frank_west_epi_jacket_cm`, `…/frank_west_epi_shirt_cm` |
+
+## Skeletons (rigs)
+
+`data/skeleton/` holds each rig family in several files: `<family>fullbody.big` is the
+whole rig, and `…root`, `…upperbdy`, `…hand`, `…face` are the parts animations drive
+separately. `cine<family>.big` are the cutscene versions. Bone names are shared across
+families (`dummy01.l_upperarm`, `dummy01.r_thumb1`, `dummy01.jaw` …).
+
+| Family | Full rig | Bones | For (from the name; only `player` checked so far) |
+|---|---|---|---|
+| `player` | `playerfullbody.big` | 98 | Chuck: every outfit part uses this exact rig, and so does the mechanic boss (checked) |
+| `female` | `femalefullbody.big` | 98 | women |
+| `large` | `largefullbody.big` | 98 | big men |
+| `child` | `childfullbody.big` | 98 | children |
+| `longcloak` | `longcloakfullbody.big` | 112 | characters with long coats (14 more bones) |
+| `zombie` | `zombiefullbody.big` | 30 | crowd zombies (a light rig) |
+| `tiger` | `tigerfullbody.big` | 64 | the tiger (both games ship the rig) |
+| `camera`, `stage`, `prop` | | 1 / 1 / 50 | cutscene camera, stage origin, and 50 prop slots (`prop01` …) for cutscene props |
+
+A model carries its own copy of its rig (a character `.big` lists its 98 bones too), so a
+`.glb` export is complete on its own. `dr2 info <model>` shows which bones each draw uses.
+
+## Models
+
+| Where | What |
+|---|---|
+| `data/models/npcs.big/<name>.big` | characters and outfit parts; textures in `<name>.tex` next to it. Whole NPCs: `boss_mechanic`, `cast_katey_pro_t1`, `cine_soldier` … |
+| `data/models/zombies.big/<type>.big/<type>_<n>.big` | zombie variants |
+| `data/streamedassets.big/<Item>.big/<item>.big` | weapons and props, often with a few bones (doors, wheels, blades) |
+| `data/cine_props.big/<prop>.big/<prop>.big` | cutscene props (the bike, the ambulance doors …) |
+| `data/models/environment/<area>/<zone>.big/<piece>.big/_COMP_<piece>.big` | level pieces, with shared ("combined") vertex buffers |
 
 ## Texture name endings
 

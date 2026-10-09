@@ -1,5 +1,12 @@
 # Phase 3 kickoff: skeletons and models → Blender
 
+> **Historical.** Phase 3 was completed on 2026-10-08 (devlog, "Phase 3"); the next
+> handoff is [`phase4-kickoff.md`](phase4-kickoff.md). Kept as the record of the plan.
+> Corrected since: vertex declarations sit in each model's `persistent.big`, not only in
+> the shader banks; the skinning shaders of characters use 4 influences paired x↔x … w↔w
+> (the crowd shader's `.yzw`/`.ywz` is its own case); palettes are runs of nodes named by
+> `RenderStrip`; no separate LOD chunk was seen; the 3D view is three.js, as planned.
+
 A handoff for the session that starts phase 3. Read `CLAUDE.md` first (especially the
 documentation rules), then this. Scope and gate: `roadmap.md` §Phase 3. What phase 2
 built: `dev/code-tour.md`; what it learned: `devlog.md` (2026-10-08, "Phase 2").

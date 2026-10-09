@@ -52,7 +52,8 @@ These come from `CLAUDE.md` ("Verification gates") and each phase's gate in
 5. **Cross-game census.** A format claim counts only when a census over *all* entries of
    that type in **both** games reports zero problems (or names each one).
 6. **In-game proof.** A replacement counts once it loads in a recomp. Phase 2 adds the
-   `game_mods/` folder for that.
+   `game_mods/` folder for that. A *reader* is checked against the running game too:
+   phase 3 compares decoded models with draws captured from the recomp.
 
 ### Phase 1 results (2026-10-08)
 
@@ -91,6 +92,28 @@ on the identity colour LUT `cc_00.bct` (R = x mod 32, G = y, B = slice; mean err
 
 Unit tests run with and without numpy/Pillow (CI does both); DR2 Studio has an
 off-screen smoke test that skips when PySide6 is missing.
+
+### Phase 3 results (2026-10-08)
+
+| Gate | Case Zero | Case West |
+|---|---|---|
+| Scenes parse (`dr2 census`) | 1,510 (1,397 models, 113 skeletons) | 1,639 (1,495, 144) |
+| Every draw of every model decodes, every draw finds its material (`dr2 census --models`, ~40 / ~70 s) | 6,954 / 6,954 | 10,548 / 10,548 |
+| Skin weights sum to 1 / normals unit length (or zero) | all / all | all / all |
+| **Skeleton gate**: `data/skeleton` rig → `.glb` → Blender 5.2 import → export → records (`tools/blender_skeleton_gate.py`) | 3,474 / 3,474 node records bit-identical, 75 rigs, both games together | |
+| Same, every scene with a skeleton (`--all-scenes`) | 41,184 / 41,209 (the 25 others carry a rest scale Blender bones can't hold; [`gltf-mapping.md`](gltf-mapping.md)) | |
+| **In-game gate** (`tools/capture_gate.py` on a CZ capture of Chuck) | 30 draws match the game data byte for byte (vertices + indices); 79 draw pairs sharing a bone get identical matrices, 0 with a shifted palette; bone lengths within 0.01 mm (median); skinned + projected vertices land on Chuck in the frame | not captured |
+
+Visual checks: the mechanic boss, Chuck's shirt and the bike rendered in Blender and in
+Studio's 3D view (textures, normals, shirt print not mirrored); bones posed in Blender
+deform arms, head and fingers cleanly. The mechanic check caught a bug the numbers
+couldn't: draws took their material by position instead of by id (fixed; formats.md
+§Materials). The capture procedure is in [`recomp-integration.md`](recomp-integration.md)
+§Phase 3.
+
+Game-data tests added: the scene counts in the census test, a slow "every model draw
+decodes" test, and three reference exports (Chuck's chest part and the mechanic in CZ,
+the default chest in CW) that must find every texture.
 
 ## Writing a test for new code
 

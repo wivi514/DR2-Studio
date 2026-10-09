@@ -36,6 +36,42 @@ def test_census_gates(game, game_root):
     assert rep.archive_files == expected["archive_files"]
     assert rep.archives == expected["archives"]
     assert rep.entries == expected["entries"]
+    # phase 3: every scene parses (models + skeletons)
+    assert rep.scenes["model"] == expected["models"]
+    assert rep.scenes["skeleton"] == expected["skeletons"]
+    assert rep.scene_draws == expected["model_draws"]
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("game", ["cz", "cw"])
+def test_every_model_draw_decodes(game, game_root):
+    """The phase 3 model gate: every draw of every model decodes (dr2 census --models)."""
+    rep = run_census(game, AssetTree(game_root(game)), models=True)
+    assert rep.problems == [], f"{len(rep.problems)} problems, e.g. {rep.problems[:5]}"
+    assert rep.scene_draws_decoded == rep.scene_draws == load_profile(game).census["model_draws"]
+    assert rep.scene_checks["skin weights do NOT sum to 1"] == 0
+    assert rep.scene_checks["normal NOT unit"] == 0
+
+
+@pytest.mark.parametrize("game,vpath,bones", [
+    ("cz", "data/models/npcs.big/chest_young_chuck.big", 98),
+    ("cz", "data/models/npcs.big/boss_mechanic.big", 98),
+    ("cw", "data/models/npcs.big/chest_default.big", 98),
+])
+def test_reference_model_exports_with_textures(game, vpath, bones, game_root):
+    """A whole NPC and one of Chuck's parts export to .glb with every texture found."""
+    from dr2kit.convert import gltf
+    from dr2kit.convert.model import export_glb
+    tree = AssetTree(game_root(game))
+    st = gltf.ExportStats()
+    g = gltf.Glb.parse(export_glb(tree, vpath, game=game, stats=st))
+    assert len(g.gltf["skins"][0]["joints"]) == bones
+    assert st.primitives > 0 and st.textures > 0
+    assert st.missing_textures == []
+    for mesh in g.gltf["meshes"]:
+        for prim in mesh["primitives"]:
+            w = g.accessor(prim["attributes"]["WEIGHTS_0"])
+            assert all(abs(sum(r) - 1) < 1e-6 for r in w)
 
 
 @pytest.mark.parametrize("game", ["cz", "cw"])

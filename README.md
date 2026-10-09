@@ -10,17 +10,19 @@ Browse, preview, extract and replace assets in **Dead Rising 2: Case Zero** and
 
 Runs on **Windows, Linux and macOS**.
 
-**Status:** phase 2 of 6 done. Every file of both games can be read, searched and
+**Status:** phase 3 of 6 done. Every file of both games can be read, searched and
 extracted; every texture can be viewed and exported as PNG, and replaced by a mod that
-loads in both recomps (tested in game). DR2 Studio, the window-based app, does all of
-that without typing commands. Models and skeletons for Blender come next
-([roadmap](docs/roadmap.md)).
+loads in both recomps (tested in game). Every model and skeleton can be viewed in 3D and
+exported to Blender (`.glb`) with its bones, skin weights and textures, checked against
+the running game. DR2 Studio, the window-based app, does all of that without typing
+commands. Putting edited models back in the game comes next ([roadmap](docs/roadmap.md)).
 
 ```
 dr2 studio                                  # the app: browse, search, view, make mods
 dr2 index build                             # the searchable catalogue (once, ~1 min/game)
 dr2 index search young shirt --kind texture # find assets
 dr2 extract --png data/models/npcs.big/chest_young_chuck.tex/young_cr_shirt_cm -o out
+dr2 extract --glb data/models/npcs.big/boss_mechanic.big -o out   # model -> Blender
 dr2 mod new my_mod                          # then put PNGs under my_mod/replace/<vpath>.png
 dr2 mod deploy my_mod -g cz                 # build it into the recomp's game_mods/
 ```

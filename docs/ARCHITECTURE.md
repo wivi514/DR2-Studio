@@ -36,10 +36,11 @@ dr2kit/                 core library (pure Python; numpy optional)
                         pure-Python decoder, encoder), vpath.py, stfs.py (XBLA package)
   profiles/ ✅          cz.toml, cw.toml + data discovery (env var, user config, sibling recomp)
   cli/ ✅               the `dr2` command (main.py)
-  formats/              bct.py ✅ (phase 2); later: model/ (chunks, vertex decode, bone palette),
-                        skeleton.py, anim.py, xma.py, bik.py, bcs.py, scripts.py
-  convert/              png.py ✅, dxt.py ✅, texture.py ✅ (phase 2); later: gltf.py, audio.py,
-                        strings.py
+  formats/              bct.py ✅ (phase 2); scene.py ✅, vertex.py ✅ (phase 3: chunks,
+                        skeleton, materials, draws, vertex decode, bone palettes);
+                        later: anim.py, xma.py, bik.py, bcs.py, scripts.py
+  convert/              png.py ✅, dxt.py ✅, texture.py ✅ (phase 2); gltf.py ✅, model.py ✅
+                        (phase 3); later: audio.py, strings.py
   index/ ✅             schema.sql, build.py, query.py (phase 2)
   mods/ ✅              manifest.py, build.py, deploy.py (phase 2)
   studio/ ✅            DR2 Studio v0: app.py, viewers.py (phase 2; inside the package so
@@ -101,8 +102,11 @@ recomp** to get game data.
   Windows, macOS arm64 and macOS x64 (job `pyav-codecs`); if one lacks a decoder, ship
   our own minimal ffmpeg build (the CZ recomp has `tools/build_ffmpeg_lgpl.sh`).
 - **3D preview:** `QWebEngineView` + three.js exists on all three platforms in PySide6 6.x.
-  The fallback, should WebEngine be unavailable or too heavy, is a `QOpenGLWidget`
-  renderer (macOS caps OpenGL at 4.1, so keep the shaders GLSL 3.30-compatible).
+  **Built in phase 3** (`studio/model_view.py`): three.js 0.186.1 vendored unmodified
+  (MIT), served with the model's `.glb` over a custom `dr2:` URL scheme (Chromium
+  refuses ES modules from `file://`). Without WebEngine, Studio says so and offers
+  *Export .glb…*; a `QOpenGLWidget` renderer remains the fallback plan if a platform
+  needs it (macOS caps OpenGL at 4.1, so keep shaders GLSL 3.30-compatible).
 - **Audio playback:** decode to PCM ourselves and play through `QAudioSink` (QtMultimedia).
   Don't hand XMA to the OS media backend.
 - **Packaging:** PyInstaller (or Nuitka) per OS in a GitHub Actions matrix:
@@ -197,11 +201,13 @@ byte for byte (the round-trip gate).
 1. Read the model `.big` (nested chunks: `_BONEHIERARCHY_`, `_BONENAMES_`,
    `Combined Vertices`, `Combined Indices`, `MatArray`, `MatTextureInfoArray`,
    `SceneDescription`, `persistent.big`, …).
-2. Decode vertex streams (layout from the vertex declaration; the shader banks `-vd.big`
-   hold the declarations), indices, and per-mesh **bone palettes** (local-to-skeleton
-   bone index maps; the old community tools stalled exactly here).
-3. Build a glTF scene: one armature from the model's own bone hierarchy (or the matching
-   `data/skeleton/*fullbody.big` rig), skinned meshes, materials with decoded textures.
+2. Decode vertex streams (layout from each draw's own vertex declaration,
+   `D3DVertexDesc` in the model's `persistent.big`; the shader banks were not needed),
+   triangle strips, and per-draw **bone palettes** (a run of skeleton nodes named by
+   `RenderStrip`; the old community tools stalled exactly here). ✅ phase 3.
+3. Build a glTF scene: one armature from the model's own bone hierarchy (every model
+   carries its rig), skinned meshes, materials with decoded textures. ✅ phase 3;
+   mapping in `dev/gltf-mapping.md`.
 4. Put identity data in `extras`: original node and chunk names, bone indices, material
    hashes, shader name (`UsedShaders.txt`, e.g. `LIT_CM`), source vpath.
 
@@ -214,7 +220,9 @@ Same bone names and rest pose as the game. This is the starting point for new mo
    when a mesh is weighted to a bone the target lacks; warn about bones the game uses but
    the mesh ignores.
 2. Rebuild the bone palettes (split meshes when a palette would exceed the shader's
-   bone-constant limit, which we will measure from the vertex shaders).
+   bone-constant limit: 61 bones per draw, `gWorldMatrix[183]` from `c8`, measured in
+   phase 3). A palette is a contiguous run of nodes, so a draw whose bones are far apart
+   in node order needs a long run or a split.
 3. Re-encode the vertex format exactly as the original (positions, normals/tangents,
    UVs, weights/indices in the same packed formats), rebuild `Combined Vertices/Indices`,
    update bounds and `SceneDescription`, keep material slots matching the original.

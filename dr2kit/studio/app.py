@@ -5,15 +5,18 @@ Layout (docs/dev/studio.md has the diagram):
 * **Left**, two tabs. *Browse*: the game's folders and archives as a tree, expanded on
   demand from the index (`dr2kit.index.query.children`). *Search*: words matched against
   asset names, filtered by kind; results show texture thumbnails, as a list or a grid.
-* **Centre**: a viewer for the selected asset (`viewers.TextureViewer`, or
-  `viewers.PlainViewer` for text and everything else).
+* **Centre**: a viewer for the selected asset (`viewers.TextureViewer`,
+  `model_view.ModelViewer` for models and skeletons, or `viewers.PlainViewer` for text
+  and everything else).
 * **Right**: details (sizes, compression, texture facts), relations (the models that use
   a texture, the textures a model names; double-click to jump), and the actions:
-  *Extract…*, *Export PNG…*, *Replace with PNG…* (copies the PNG into the open mod's
-  ``replace/`` folder under the asset's vpath).
+  *Extract…*, *Export PNG…*, *Export .glb…* (models and skeletons, for Blender),
+  *Replace with PNG…* (copies the PNG into the open mod's ``replace/`` folder under the
+  asset's vpath).
 * **Bottom**: the mod bar (open/new mod folder, its overrides, *Build && deploy*) and a log.
 
-Long jobs (building the index, building a mod) run in a `QThread` so the window stays
+Long jobs (building the index, building a mod, exporting a model for the 3D view) run
+in a `QThread` so the window stays
 responsive. Asset bytes come from `AssetTree` (the real files), the tree and search from
 the index; Studio holds no format knowledge of its own.
 """
@@ -25,7 +28,7 @@ import sys
 import traceback
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QSize, Qt, QThread, Signal
+from PySide6.QtCore import QObject, QSize, Qt, QThread, Signal, Slot
 from PySide6.QtGui import QAction, QIcon, QImage, QPixmap, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (QApplication, QComboBox, QFileDialog, QHBoxLayout, QLabel,
                                QLineEdit, QListView, QListWidget, QListWidgetItem,
@@ -39,7 +42,12 @@ from ..errors import Dr2Error
 from ..index import query
 from ..index.build import build_index, connect, default_db_path, format_stats
 from ..profiles import GAME_IDS, locate
+from . import model_view
 from .viewers import PlainViewer, TextureViewer
+
+# The 3D view's URL scheme must be declared before the QApplication exists (Qt's rule);
+# importing this module is early enough for `main()` and for the tests.
+model_view.register_scheme()
 
 ROLE_ID = Qt.UserRole + 1        # asset id (None for folder nodes)
 ROLE_VPATH = Qt.UserRole + 2
@@ -74,6 +82,22 @@ class Job(QObject):
             self.done.emit(None, str(e))
         except Exception:  # noqa: BLE001 - shown to the user, never swallowed
             self.done.emit(None, traceback.format_exc())
+
+
+class _Relay(QObject):
+    """Calls a job's ``on_done`` in the GUI thread.
+
+    A signal connected to a plain function or lambda runs it in the *emitting* thread
+    (the worker), and widgets must only be touched from the GUI thread: the 3D view's
+    Chromium aborts when they are. Connecting to a slot of a QObject that lives in the
+    GUI thread makes Qt queue the call there."""
+    def __init__(self, fn):
+        super().__init__()
+        self.fn = fn
+
+    @Slot(object, object)
+    def deliver(self, result, err):
+        self.fn(result, err)
 
 
 class MainWindow(QMainWindow):
@@ -140,11 +164,13 @@ class MainWindow(QMainWindow):
         # --- centre: viewers
         self.tex_view = TextureViewer()
         self.plain_view = PlainViewer()
+        self.model_view = model_view.ModelViewer()
+        self.model_view.status.connect(lambda t: self.say(f"3D view: {t}"))
         self.empty = QLabel("Select an asset on the left.\n\nNo index yet? Use “Build / refresh "
                             "index” (about a minute per game).")
         self.empty.setAlignment(Qt.AlignCenter)
         self.centre = QStackedWidget()
-        for w in (self.empty, self.tex_view, self.plain_view):
+        for w in (self.empty, self.tex_view, self.plain_view, self.model_view):
             self.centre.addWidget(w)
 
         # --- right: details, relations, actions
@@ -153,9 +179,13 @@ class MainWindow(QMainWindow):
         self.relations.itemDoubleClicked.connect(self._jump)
         self.btn_extract = QPushButton("Extract…")
         self.btn_png = QPushButton("Export PNG…")
+        self.btn_glb = QPushButton("Export .glb…")
+        self.btn_glb.setToolTip("The model (meshes, skeleton, skin, textures) or skeleton as "
+                                "glTF binary, for Blender")
         self.btn_replace = QPushButton("Replace with PNG…")
         self.btn_extract.clicked.connect(self.extract)
         self.btn_png.clicked.connect(self.export_png)
+        self.btn_glb.clicked.connect(self.export_glb)
         self.btn_replace.clicked.connect(self.replace_png)
         rw = QWidget()
         rl = QVBoxLayout(rw)
@@ -163,7 +193,7 @@ class MainWindow(QMainWindow):
         rl.addWidget(self.details, 2)
         rl.addWidget(QLabel("<b>Related</b> (double-click to open)"))
         rl.addWidget(self.relations, 1)
-        for b in (self.btn_extract, self.btn_png, self.btn_replace):
+        for b in (self.btn_extract, self.btn_png, self.btn_glb, self.btn_replace):
             rl.addWidget(b)
 
         # --- bottom: mod bar + log
@@ -223,14 +253,19 @@ class MainWindow(QMainWindow):
         return self.trees[self.game]
 
     def run_job(self, fn, on_done) -> None:
+        """Run ``fn(progress)`` in a worker thread; ``on_done(result, error)`` runs in the
+        GUI thread afterwards (through `_Relay`)."""
         th = QThread(self)
         job = Job(fn)
+        relay = _Relay(on_done)
         job.moveToThread(th)
         th.started.connect(job.run)
-        job.line.connect(self.say)
-        job.done.connect(lambda r, err: (on_done(r, err), th.quit()))
-        th.finished.connect(lambda: self._threads.remove((th, job)))
-        self._threads.append((th, job))
+        job.line.connect(self.say)                    # a MainWindow slot: queued to the GUI
+        job.done.connect(relay.deliver)
+        job.done.connect(th.quit)
+        entry = (th, job, relay)
+        th.finished.connect(lambda: self._threads.remove(entry))
+        self._threads.append(entry)
         th.start()
 
     def _update_buttons(self) -> None:
@@ -238,6 +273,7 @@ class MainWindow(QMainWindow):
         self.btn_extract.setEnabled(a is not None)
         is_tex = bool(a) and a["kind"] == "texture"
         self.btn_png.setEnabled(is_tex)
+        self.btn_glb.setEnabled(bool(a) and a["kind"] in ("model", "skeleton"))
         self.btn_replace.setEnabled(is_tex and self.mod_dir is not None)
         self.btn_replace.setToolTip("" if self.mod_dir else "Open or create a mod first")
 
@@ -382,18 +418,66 @@ class MainWindow(QMainWindow):
                                r["id"])
             for r in query.same_content(self.con, asset_id)[:50]:
                 self._relation(f"same bytes: {r['game']} {r['vpath']}", r["id"] if r["game"] == self.game else None)
-        else:
-            from ..census import content_kind
-            self.plain_view.show_bytes(data, content_kind(data) == "text")
-            self.centre.setCurrentWidget(self.plain_view)
+        elif row["kind"] in ("model", "skeleton"):
+            lines += self._show_scene(row, data)
             if row["kind"] == "model":
                 for r in query.textures_of(self.con, asset_id):
                     self._relation(f"slot {r['slot']}: {r['dst_name']}  →  {r['vpath'] or 'not found'}",
                                    r["id"])
+        else:
+            from ..census import content_kind
+            self.plain_view.show_bytes(data, content_kind(data) == "text")
+            self.centre.setCurrentWidget(self.plain_view)
         dup = query.same_content(self.con, asset_id)
         if dup:
             lines.append(f"identical copies elsewhere: {len(dup)}")
         self.details.setHtml("<br>".join(lines))
+
+    def _show_scene(self, row, data: bytes) -> list[str]:
+        """Show a model or skeleton in the 3D view; return its detail lines."""
+        from ..formats.scene import Scene
+        try:
+            sc = Scene.parse(data, row["vpath"])
+        except Dr2Error as e:
+            self.error(str(e))
+            return []
+        draws = sum(len(m.draws) for m in sc.meshes)
+        verts = sum(d.vertex_count for m in sc.meshes for d in m.draws)
+        lines = [f"scene: {len(sc.skeleton)} bones, {len(sc.meshes)} meshes, {draws} draws, "
+                 f"{verts:,} vertices, {len(sc.materials)} materials"]
+        shaders = sorted({sc.shaders.get(d.shader, f"{d.shader:08X}")
+                          for m in sc.meshes for d in m.draws})
+        if shaders:
+            lines.append("shaders: " + ", ".join(shaders))
+        self.centre.setCurrentWidget(self.model_view)
+        if not self.model_view.available:
+            self.model_view.set_title(row["name"])
+            return lines
+        self.model_view.set_title(f"{row['name']}: exporting…")
+        game, vpath, db = self.game, row["vpath"], self.db_path
+
+        def work(progress):
+            from ..convert import gltf
+            from ..convert.model import TextureFinder
+            tree = AssetTree(locate(game).root)      # the worker's own (not thread-shared)
+            if not sc.meshes:
+                return gltf.skeleton_to_glb(sc), []
+            st = gltf.ExportStats()
+            glb = gltf.model_to_glb(sc, TextureFinder(tree, vpath, game, db), stats=st)
+            return glb, st.missing_textures
+
+        def done(result, err):
+            if err:
+                self.error(err)
+                return
+            if self.current is None or self.current["vpath"] != vpath:
+                return                                  # the user moved on
+            glb, missing = result
+            self.model_view.show_glb(glb, row["name"])
+            for name in missing:
+                self.say(f"{row['name']}: texture {name!r} not found")
+        self.run_job(work, done)
+        return lines
 
     def _relation(self, text: str, asset_id) -> None:
         it = QListWidgetItem(text)
@@ -425,6 +509,29 @@ class MainWindow(QMainWindow):
         img = to_image(tex)
         png.write(path, img, png_mode(tex, img))
         self.say(f"exported {a['vpath']} -> {path} ({img.width}×{img.height})")
+
+    def export_glb(self) -> None:
+        a = self.current
+        if not a or a["kind"] not in ("model", "skeleton"):
+            return
+        stem = a["name"].rsplit(".", 1)[0]
+        path, _ = QFileDialog.getSaveFileName(self, "Export glTF binary", stem + ".glb",
+                                              "glTF binary (*.glb)")
+        if not path:
+            return
+        from ..convert import gltf
+        from ..convert.model import TextureFinder
+        from ..formats.scene import Scene
+        sc = Scene.parse(self.asset_tree().resolve(a["vpath"]).data(), a["vpath"])
+        if sc.meshes:
+            st = gltf.ExportStats()
+            data = gltf.model_to_glb(sc, TextureFinder(self.asset_tree(), a["vpath"], self.game,
+                                                       self.db_path), stats=st)
+            what = f"{st.primitives} draws, {st.textures} textures"
+        else:
+            data, what = gltf.skeleton_to_glb(sc), f"{len(sc.skeleton)} bones"
+        Path(path).write_bytes(data)
+        self.say(f"exported {a['vpath']} -> {path} ({what})")
 
     def replace_png(self) -> None:
         a = self.current

@@ -1,0 +1,21 @@
+<!doctype html>
+<!-- DR2 Studio's 3D view (dr2kit/studio/model_view.py serves this page over the dr2:
+     scheme). It shows the same .glb `dr2 extract --glb` writes, with three.js. -->
+<html>
+<head>
+<meta charset="utf-8">
+<title>DR2 Studio 3D view</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #2b2b2b; }
+  #status { position: absolute; left: 8px; bottom: 6px; color: #ccc;
+            font: 12px sans-serif; pointer-events: none; }
+</style>
+<script type="importmap">
+  { "imports": { "three": "./vendor/three/build/three.module.js" } }
+</script>
+</head>
+<body>
+<div id="status">loading…</div>
+<script type="module" src="./viewer.js"></script>
+</body>
+</html>

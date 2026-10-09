@@ -39,6 +39,18 @@ one guide. Search the page for the error text you see.
 | `warning: … the recomp's game_kbm layer also has this file` | Your mod and a recomp option layer change the same file | While the mod is installed, the mod's copy wins (keyboard prompts or the logo skip may revert for that file). |
 | The game crashes or hangs after deploying | Possibly an archive the game reads at boot (`preload4.big`) rejecting a re-compressed entry; not yet proven safe | `dr2 mod undeploy -g cz`, then report it with the mod and the recomp log. Textures in model packs (`npcs.big`) are tested and work. |
 
+## Models and Blender (phase 3)
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `… is not a model or skeleton (no SceneHeader)` | `--glb` was given a texture pack, a sound bank or a folder | Give the model's `.big` (e.g. `data/models/npcs.big/boss_mechanic.big`). |
+| `note: texture '…' not found` | The texture lives in an archive the model doesn't sit in | `dr2 index build` once; exports then search the whole game. |
+| Studio's 3D view says it needs QtWebEngine | Your PySide6 lacks the WebEngine add-on (or `DR2_STUDIO_NO_3D` is set) | `pip install PySide6-Addons`, or use **Export .glb…** and Blender. |
+| Studio's 3D view says "no WebGL here" | No GPU/OpenGL for the web view (some virtual machines, remote desktops) | Use **Export .glb…** and Blender. |
+| A mesh has the wrong texture | A bug the toolkit had before 2026-10-08 (materials picked by position, not id) | Update the toolkit and export again. If it still happens, report the model's vpath. |
+| In Blender, only bones and no mesh | A skeleton file (`data/skeleton/`), or `--skeleton` | Expected: export the model itself for meshes. |
+| A few prop bones differ after a trip through Blender | Their rest pose has a scale, which Blender bones can't hold | Known limit (25 prop bones in both games, none on characters). |
+
 ## Reporting a problem
 
 Include the output of `dr2 doctor` and the exact command and error text. Never attach

@@ -13,3 +13,6 @@ package_globs = ["../Dead_Rising_2_Case_West_Xenon_Recomp/assets/package/58410B0
 archive_files = 202   # .big files plus .tex packs and 6 .bcf fonts that are archives
 archives = 8017
 entries = 172322
+models = 1495         # scenes with meshes (dr2 census, phase 3)
+skeletons = 144        # scenes with a skeleton and no meshes
+model_draws = 10548     # draw calls over all models; every one decodes (dr2 census --models)

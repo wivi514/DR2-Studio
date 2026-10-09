@@ -1,11 +1,11 @@
-# Export assets: textures as PNG (models and sounds later)
+# Export assets: textures as PNG, models and skeletons as `.glb` (sounds later)
 
-**You will:** save textures as PNG images you can open anywhere, one at a time or whole
-archives at once.   **Time:** ~5 min.   **Games:** both.
+**You will:** save textures as PNG images you can open anywhere, and models or skeletons
+as `.glb` files that Blender opens with their bones, weights and textures.
+**Time:** ~5 min.   **Games:** both.
 **You need:** the toolkit pointed at your game ([`02-game-data.md`](02-game-data.md)).
 
-> Models and skeletons (`.glb` for Blender) arrive in phase 3, sounds (WAV) in phase 5.
-> This guide grows with them.
+> Sounds (WAV) arrive in phase 5. This guide grows with them.
 
 ## Steps
 
@@ -33,7 +33,51 @@ Files land under `out/` at their virtual path, with `.png` added:
 `out/data/models/npcs.big/chest_young_chuck.tex/young_cr_shirt_cm.png`. Keep that
 layout in mind: a mod uses the same path to know which texture a PNG replaces.
 
-## What you get
+### Models and skeletons (`.glb`)
+
+A model is a character, an outfit part, a weapon, a prop or a piece of a level; a
+skeleton is a rig on its own (`data/skeleton/`). Both export to **`.glb`** (glTF binary),
+one file holding the meshes, the skeleton, the skin weights and the textures.
+
+**In DR2 Studio:** click the model (search for `mechanic`, or browse to
+`data/models/npcs.big/boss_mechanic.big`). The centre shows it in 3D: drag to turn it,
+right-drag to move, scroll to zoom; **Skeleton** shows the bones, **Wireframe** the
+triangles. **Export .glb…** saves it. A skeleton file shows its bones.
+
+**With the `dr2` command:**
+
+```
+# a whole character, textures included
+dr2 extract --glb data/models/npcs.big/boss_mechanic.big -o out
+# one of Chuck's outfit parts (Case Zero's default shirt)
+dr2 extract --glb data/models/npcs.big/chest_young_chuck.big -o out
+# only the skeleton of a model, or a rig from data/skeleton/
+dr2 extract --glb --skeleton data/models/npcs.big/boss_mechanic.big -o out
+dr2 extract --glb data/skeleton/playerfullbody.big -o out
+# without textures (smaller, faster)
+dr2 extract --glb --no-textures data/models/npcs.big/boss_mechanic.big -o out
+```
+
+The file is `out/<vpath>.glb`, e.g. `out/data/models/npcs.big/boss_mechanic.big.glb`.
+`dr2 info data/models/npcs.big/boss_mechanic.big` lists its materials (with their
+texture names), every mesh and draw, and the bones each draw uses.
+
+What is in the `.glb`:
+
+- **Meshes**, one per game mesh (`geo_apronShape` …), with normals and every UV set.
+- **The skeleton** as a Blender armature, bones named as in the game
+  (`dummy01.l_upperarm`), in the rest pose (a T-pose for characters).
+- **Skin weights**, up to 4 bones per vertex, already mapped to the skeleton.
+- **Materials** with the colour (`_cm`) and normal (`_nm`) textures. Other textures
+  (specular `_sm`, tint `_mask`) are listed in the material's custom properties; export
+  them as PNG if you need them.
+- Each bone's original game record, so the skeleton can be put back exactly (phase 4).
+
+Chuck is assembled from parts: `chest_*`, `leg_*`, `feet_*`, `hands_*`, `head_*`,
+`headwear_*` in `npcs.big`, all on the same 98-bone player rig, so you can import several
+into one Blender scene and they line up. Next: [`07-blender-setup.md`](07-blender-setup.md).
+
+## What you get (textures)
 
 | Texture format | PNG | Notes |
 |---|---|---|
@@ -51,8 +95,13 @@ layout in mind: a mod uses the same path to know which texture a PNG replaces.
 |---|---|---|
 | `… is a folder; give a file or entry` | You gave a folder | Give a file or archive entry; `-r` for whole archives. |
 | The PNG is a strange colour | Normal map (`_nm`), specular (`_sm`) or mask (`_mask`) | Expected: they hold data, not colours. |
+| `--glb needs one` / "not a model or skeleton" | The path is a texture pack, a sound bank… | Give the model's `.big` (the one next to its `.tex`). |
+| `note: texture 'x' not found` | The texture lives in another archive | Run `dr2 index build` once; the export then searches the whole game. The model is still exported, without that texture. |
+| The 3D view says it needs QtWebEngine | Your PySide6 install lacks it | `pip install PySide6-Addons`, or use **Export .glb…** and Blender. |
 
 ## Going further
 
 - Edit one and put it back: [`05-first-mod-texture.md`](05-first-mod-texture.md).
-- How textures are stored: [`../formats.md`](../formats.md) §Textures.
+- Set up Blender for these files: [`07-blender-setup.md`](07-blender-setup.md).
+- How textures and models are stored: [`../formats.md`](../formats.md) §Textures,
+  §Scene container; what the `.glb` holds exactly: [`../dev/gltf-mapping.md`](../dev/gltf-mapping.md).

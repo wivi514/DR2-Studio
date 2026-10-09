@@ -19,10 +19,14 @@ dr2kit/
     stfs.py            the XBLA package (STFS) reader / unpacker
   formats/
     bct.py             textures: 48-byte header, mip/face layout, Xenos tiling
+    scene.py           models and skeletons: nodes, materials, meshes, draws (phase 3)
+    vertex.py          360 vertex declarations and stream decoding (phase 3)
   convert/
     png.py             pure-Python PNG reader/writer (Pillow used when present)
     dxt.py             DXT1/DXT5/DXN block decode + encode (numpy, pure-Python fallback)
     texture.py         .bct <-> RGBA image: decode, replace (reference blocks), mips
+    gltf.py            scene -> .glb (skeleton, meshes, skin, materials); .glb -> node records
+    model.py           vpath -> .glb with textures found by name (TextureFinder)
   index/
     schema.sql         the SQLite tables
     build.py           build / refresh the asset index (incremental), thumbnails, relations
@@ -33,10 +37,13 @@ dr2kit/
     deploy.py          copy a build into a recomp's game_mods/ (and undo it)
   studio/
     app.py, viewers.py DR2 Studio (PySide6): tree, search, texture viewer, mod bar
+    model_view.py      the 3D view: QWebEngineView + three.js over a dr2: URL scheme
+    web/               its page (viewer.html, viewer.js) and vendored three.js (MIT)
   cli/main.py          the `dr2` command
 native/lzx/            the C library behind the fast LZX decoder (libmspack, LGPL)
 tests/                 unit tests (synthetic data) + game-data tests (skip if absent)
-tools/                 one-off developer scripts (e.g. the PyAV codec check)
+tools/                 developer scripts: PyAV codec check, the phase 3 gates
+                       (blender_skeleton_gate.py, capture_gate.py)
 ```
 
 ## How a read flows
@@ -120,14 +127,15 @@ without a recomp (macOS) can get the data.
 
 ### `dr2kit/census.py`
 `run_census(game, tree)` reads every file, archive and entry (nested and compressed
-ones too), counts extensions, flags, compression, block types, alignments and texture
-header bytes, and runs the gates: round trip, decode, and optionally re-encode
+ones too), counts extensions, flags, compression, block types, alignments, texture
+header bytes and scenes (`check_scene`; with `models=True` every draw is decoded), and
+runs the gates: round trip, decode, and optionally re-encode
 (parallel) and a pure-Python cross-check. `format_report()` prints it; `problems` must
 be empty.
 
 ### `dr2kit/cli/main.py`
-`dr2 doctor | games | ls | find | extract [--png] | info | index … | mod … | studio |
-census [--textures] | unpack`. One `cmd_<name>`
+`dr2 doctor | games | ls | find | extract [--png | --glb] | info | index … | mod … |
+studio | census [--textures] [--models] | unpack`. One `cmd_<name>`
 function per command, no format logic. Exit code 1 on a `Dr2Error` or when a census
 finds problems.
 
@@ -153,6 +161,28 @@ available); `swap_to_little()` undoes the big-endian storage. Read its docstring
   `encode_level`, and `replace_image(bct, image)`: same size only (v1), reference
   blocks, mips kept if level 0 is unchanged, else rebuilt by `downsample`.
 
+### `dr2kit/formats/scene.py`, `vertex.py` (phase 3)
+`Scene.parse(bytes)` / `Scene.from_archive(arc)` → `header`, `description`,
+`skeleton` (a `Skeleton` of `Node` records in index order; `world_matrices()` gives the
+rest pose), `hierarchy`, `materials` (`Material` with its `TextureSlot`s), `shaders`,
+`meshes` (`Mesh` → `Draw`s) and `unknown` (chunk names it doesn't use). A `Draw` is one
+`RenderStrip` record + one command-buffer packet (`parse_command_buffer`): material
+(already resolved from its id), bone palette, vertex declaration, which buffer each stream
+reads and from where, index range. `Scene.draw_data(draw)` decodes it to a `DrawData`
+(positions, normals, UV sets, colours, joints as node indices, weights, triangles).
+`vertex.py` holds the 360 `D3DDECLTYPE` table and one decoder per packing. Read
+`formats.md` §Scene container first; both docstrings list the facts the code trusts.
+
+### `dr2kit/convert/gltf.py`, `model.py` (phase 3)
+- `gltf`: `GlbBuilder` (accessors, buffer views → `.glb` bytes) and `Glb.parse` (the
+  reverse); `skeleton_to_glb(scene)`, `model_to_glb(scene, texture_png)`,
+  `skeleton_from_glb(bytes)` (records back, bit-exact within the snap tolerance). The
+  mapping is documented in [`gltf-mapping.md`](gltf-mapping.md).
+- `model`: `TextureFinder(tree, model_vpath, game)` is the `texture_png` callback: the
+  model's own `.tex` pack first, then the archives around it, then the asset index.
+  `export_glb(tree, vpath)` / `export_skeleton_glb` tie it together for the CLI
+  (`dr2 extract --glb`) and Studio.
+
 ### `dr2kit/index/` (phase 2)
 `build.build_index(game, tree, db)` walks every file and archive (like the census) and
 fills `asset`, `texture` (with a PNG thumbnail), `material_slot` (the names in each
@@ -176,8 +206,8 @@ every SELECT: `search`, `get`, `children`, `files`, `textures_of`, `used_by`,
   `dr2kit-deployed.json`; `undeploy(target)` removes exactly those. `recomp_folders()`
   names `game_mods` / `game_patched` / `game_kbm` / `game_bootskip` next to a game root.
 
-### `dr2kit/studio/` (phase 2)
-DR2 Studio; see [`studio.md`](studio.md).
+### `dr2kit/studio/` (phases 2-3)
+DR2 Studio; see [`studio.md`](studio.md). `model_view.py` is the 3D view (phase 3).
 
 ## Tests
 
