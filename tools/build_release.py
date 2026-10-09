@@ -133,6 +133,8 @@ def build_bundle() -> Path:
     shutil.rmtree(native, ignore_errors=True)
     native.mkdir(parents=True)
     shutil.copy2(native_library(), native)
+    say("icons")
+    icons().get("png")
     say("PyInstaller (a few minutes)")
     # PyInstaller follows each library's dependencies through the system's search
     # path. ffmpeg's own libraries (libavformat → libavcodec…) carry no RUNPATH, so
@@ -316,7 +318,7 @@ def build_appimage() -> Path:
     (appdir / "AppRun").chmod(0o755)
     (appdir / "dr2studio.desktop").write_text(DESKTOP)
     icon = appdir / "dr2studio.png"
-    icon.write_bytes(make_icon())
+    icon.write_bytes(icons()["png"].read_bytes())
     (appdir / ".DirIcon").write_bytes(icon.read_bytes())
     squash = OUT / f"{NAME}.squashfs"
     squash.unlink(missing_ok=True)
@@ -332,26 +334,12 @@ def build_appimage() -> Path:
     return dest
 
 
-def make_icon(size: int = 256) -> bytes:
-    """The app icon: our own drawing (a red "2" bar shape on dark), no game art."""
-    sys.path.insert(0, str(ROOT))
-    from dr2kit.convert import png
-    px = bytearray()
-    for y in range(size):
-        for x in range(size):
-            u, v = x / size, y / size
-            r = ((u - .5) ** 2 + (v - .5) ** 2) ** .5
-            ring = .36 < r < .46
-            two = (.32 < u < .68 and .22 < v < .32) or (.58 < u < .68 and .22 < v < .52) or \
-                  (.32 < u < .68 and .46 < v < .56) or (.32 < u < .42 and .46 < v < .78) or \
-                  (.32 < u < .68 and .70 < v < .78)
-            if r > .5:
-                px += bytes((0, 0, 0, 0))
-            elif ring or two:
-                px += bytes((200, 30, 30, 255))
-            else:
-                px += bytes((24, 24, 28, 255))
-    return png.encode(png.Image(size, size, bytes(px)), "RGBA")
+def icons() -> dict:
+    """The app icon as PNG / ICO / ICNS in build/icon (tools/release/make_icons.py,
+    from dr2kit/studio/icon/dr2studio.svg: our own drawing, no game art)."""
+    sys.path.insert(0, str(ROOT / "tools" / "release"))
+    import make_icons
+    return make_icons.make(ROOT / "build" / "icon")
 
 
 def main(argv=None) -> int:

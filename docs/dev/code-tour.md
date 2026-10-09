@@ -67,7 +67,8 @@ tools/                 developer scripts: PyAV codec check, the phase 3 gates
                        blender_gate_model.py (builds the phase 4 test model in Blender),
                        xex_digests.py (the files each executable digest-checks),
                        blender_addon_gate.py (the add-on's flow inside Blender),
-                       build_release.py + release/build_ffmpeg_lgpl.sh (releases)
+                       build_release.py + release/build_ffmpeg_lgpl.sh + release/make_icons.py
+                       (releases)
 ```
 
 ## How a read flows

@@ -1,66 +1,106 @@
-# Phase 7 kickoff: first release, and proving what isn't proven yet
+# Phase 7 kickoff: the easiest possible modding, with the help inside the app
 
-**Status: proposed (2026-10-09), not yet approved by the user.** The original plan
-(`roadmap.md`) ended at phase 6; this phase gathers what phases 4-6 left open. Read
-`CLAUDE.md` first (documentation rules, and the clean-up rule: delete your temp files,
-captures and test mods when done), then this. What phase 6 built: `dev/code-tour.md`
-(formats/bcs, convert/strings, convert/video, mods/library, studio/text_view,
-video_view, mod_manager, setup_dialog, userdirs), `dev/blender-addon.md`,
-`dev/packaging.md`; what it learned: `devlog.md` (2026-10-09, "Phase 6, part 1/2").
+**Direction (user, 2026-10-09):** "make things the easiest to mod, and all include
+documentation right in the app, make it easy to package a mod and to install it in
+game, and all these kinds of stuff." So phase 7 is about the person using the toolkit,
+not about new formats: someone who has never modded should go from "I want Chuck's
+shirt red" to "it's red in my game", and share it, **without a terminal and without
+leaving DR2 Studio to read docs**.
 
-## What you start with
+Read `CLAUDE.md` first (documentation rules, and the clean-up rule), then this. What
+exists: `dev/code-tour.md`, `dev/studio.md`; what phase 6 learned: `devlog.md`.
 
-- Every asset kind the roadmap promised can be read, previewed and changed by a mod:
-  textures, models and skeletons (Blender both ways, rig validator, GPL Blender add-on),
-  sounds (PCM substitution in the recomps), strings and text files. Case West's movies
-  can be played and exported (not replaced: no Bink encoder).
-- Mods are folders (`mod.toml` + `replace/`), combined by the mod manager (load order =
-  priority), deployed to the recomps' `game_mods/`.
-- Release packaging works on Linux (`tools/build_release.py`, own LGPL ffmpeg, licence
-  gate). The GitHub release workflow (`.github/workflows/release.yml`) is written for
-  Linux, Windows and macOS but **has never run**: there is no GitHub remote yet (the user
-  creates it).
+## Where we start (what is still hard today)
 
-## Proposed scope
+- The guides are Markdown files in `docs/modding/`, outside the app; a release copies
+  them into a `docs/` folder nobody opens.
+- Making a change takes several separate steps: export, edit elsewhere, "Replace with…",
+  remember to build, deploy, start the recomp. Nothing tells you what to do next.
+- A mod is a bare folder; sharing it means `dr2 mod pack` or the mod manager's *Pack
+  .zip…*, with no name/description/preview prompts, and nothing checks it is complete.
+- Installing someone's mod: mod manager → *Install .zip…* → *Deploy*, then start the
+  recomp yourself. No "play with these mods" button; no view of what is installed in
+  the game right now.
+- Error messages are precise but written for people who know the vocabulary.
 
-1. **First release (v0.1.0).** Once the remote exists: run `ci.yml` and `release.yml`,
-   fix what breaks (the Windows ffmpeg build with MSVC from MSYS2 is the least certain
-   step; macOS app layout and ad-hoc signing next), then try each OS's build on a real
-   game (Game folders → index → a texture mod deployed) before publishing the draft.
-   Release notes in the recomps' style.
-2. **Prove in game what was only built** (each one a gate, both games where possible):
-   - Case West: a model replaced from a `.glb` (phase 4 ran on CZ only), a
-     combined-buffer prop, a model exported by the Blender add-on;
-   - a 5.1 cinematic sound and an `fx_*.big` sound effect replaced (phase 5);
-   - a text-file mod (e.g. `datafile.big/zombie_effects.txt`) changing behaviour.
-3. **Mod features modders will ask for next:**
-   - colour overrides for value-set materials (zombie clothing: today a mod can't
-     recolour it, `formats.md` §Materials: value sets);
-   - longer sound replacements than the original (needs a longer `.xma` whose packets
-     decode, or filler packets);
-   - string mods on top of the recomp's keyboard layer (`game_kbm`), so keyboard
-     prompts survive a deployed string mod (needs a design: the layer is a toggle);
-   - Studio: play a replacement next to the original before building; show a replaced
-     model in the 3D view before building.
-4. **Names and catalogue:** voice lines (`charvocals.big` etc.) linked to situations or
-   subtitles through the GASP tables in `audio/gasp.big`; finish `asset-catalogue.md`.
+## Scope
 
-## Later (the roadmap's "Stretch", phase 8 or beyond)
+1. **Help inside the app.**
+   - A **Help** pane/window in DR2 Studio that shows the modding guides, rendered
+     (Qt shows Markdown natively), searchable, with working links between them. The
+     guides ship inside the package (package data), so the CLI, Studio and releases
+     always carry the same version.
+   - **Context help:** for the selected asset, a short "How to mod this" box (texture /
+     model / sound / strings / text / movie) with the steps and buttons that do them, and
+     a link to the full guide.
+   - **First start:** a welcome screen that walks through game folders → index → "make
+     your first mod" (the texture guide as an interactive checklist).
+   - Every error the user can hit says what to do in plain words and links to the help
+     section that explains it (the troubleshooting tables become help pages).
+   - `dr2 help [topic]` prints the same guides in a terminal.
+2. **Easiest editing loop.**
+   - **Edit in…** for textures: export to a work folder, open in the user's image editor,
+     and re-import automatically when the file is saved (watch the file), with the
+     result shown in Studio; size problems explained before anything is written.
+   - **Open in Blender** for models: start Blender with the add-on and the model loaded
+     (the add-on's *Export to mod* already writes back).
+   - Drag and drop: drop a PNG / audio file / `.glb` on an asset to replace it.
+   - The open mod as a list with thumbnails, kind and status (ok / problem), revert per
+     item, and checks run as you go (no surprise at build time).
+3. **Packaging a mod to share.**
+   - A **Share mod…** wizard: name, author, version, description, games, a preview
+     picture (screenshot or a texture), a readme; checks the mod against each game it
+     claims; writes one file to share.
+   - A single-file mod package (decide: a `.zip` with a `.dr2mod` name or plain `.zip`)
+     that carries `mod.toml`, `replace/`, preview and readme, and never game data.
+4. **Installing and playing.**
+   - Open / double-click / drag a mod package onto Studio to install it (mod manager),
+     with its preview, description and what it changes.
+   - **Play**: deploy the switched-on mods and start the recomp in one click (find the
+     recomp's executable next to its game folder); **Play without mods**.
+   - Always visible: what is deployed in each game right now; **Uninstall from game**.
+   - Updating a mod keeps its place and switch (exists), with a "what changed" list.
+   - Mod sets (profiles): save and switch between lists of switched-on mods.
+5. **An icon for the app** (user, 2026-10-09): our own art, no game logo or Capcom
+   artwork; used for the window, the executables (Windows `.ico`, macOS `.icns`), the
+   AppImage and desktop file, and the Blender add-on's docs.
+6. **The docs side** (documentation rules apply as always): the guides rewritten so each
+   one is also good as in-app help (short steps first, details after), screenshots of
+   our own UI where they help (no game art), and a "Help" section in `dev/studio.md`.
 
-In-game "identify" (the recomp tells Studio what's under the crosshair), animation
-export then import, environment/zone browsing and editing, PC DR2/OTR read support.
+## Carried over (smaller, do when they fit)
+
+- First release on Windows/macOS: needs the GitHub remote; the release workflow has
+  never run (`dev/packaging.md`).
+- In-game gates still owed: a Case West model replacement, the add-on's output, a 5.1
+  cinematic and an fx-bank sound, a text-file mod.
+- Mod features: zombie-clothing colours (value-set overrides), sounds longer than the
+  original, string mods that keep the recomps' keyboard prompts, voice-line names.
+
+## Gate
+
+A person who has never used the toolkit, starting from the release (or a fresh install)
+and reading only the help inside DR2 Studio, makes a texture mod and a text mod, sees
+both in game, packages them, and installs the package on a second setup, **without a
+terminal**. Checked by following the in-app help step by step on a clean user profile,
+in both games; every step's screen matches what the help says.
+
+## Questions to settle with the user early
+
+- Starting the recomp from Studio (it is a separate program; the toolkit only needs its
+  executable path): OK?
+- Mod package file: a `.zip` (works everywhere) or a `.dr2mod` (a zip with our own
+  extension, so double-click can open Studio; needs file associations in the installers)?
+- Help language: English only, or prepare for translations?
 
 ## Facts to keep in mind
 
 - Headless recomp runs: `pgrep -x cz_runtime` first, `CZ_BUG_REPORTS=0`, a copy of the
-  save, `timeout -s KILL`; frame dumps go to `~/.cache/…`, never `/tmp` (RAM-backed);
-  `dr2 mod undeploy` and remove the empty `game_mods/` afterwards. Procedures:
-  `dev/recomp-integration.md`.
-- An installed (non-checkout) toolkit doesn't find the sibling recomps: set the game
-  folders (`dr2 games set`, or `DR2_CZ_DATA` / `DR2_CW_DATA` for scripted runs).
-- Index schema is 3 (string banks); an older index is rebuilt.
-- Licences: the Blender add-on is GPL and must never include dr2kit; releases must
-  never bundle a GPL library (the PyPI PyAV wheel links x264/x265).
+  save, `timeout -s KILL`; frame dumps go to `~/.cache/…`, never `/tmp`; undeploy and
+  remove the empty `game_mods/` afterwards (`dev/recomp-integration.md`).
+- An installed toolkit doesn't find the sibling recomps by itself (Game folders).
+- Licences: the Blender add-on is GPL and must never include dr2kit; releases must never
+  bundle a GPL library.
 - Files the games digest-check can't be modded (profiles' `digest_checked`).
 
 ## Test data policy (unchanged)

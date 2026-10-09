@@ -27,13 +27,16 @@ def analysis(script):
 
 studio = analysis("entry_studio.py")
 cli = analysis("entry_cli.py")
+ICONS = HERE.parent / "build" / "icon"          # tools/release/make_icons.py
+ICON = str(ICONS / ("dr2studio.ico" if sys.platform == "win32" else "dr2studio.icns"))
 studio_exe = EXE(PYZ(studio.pure), studio.scripts, [], exclude_binaries=True,
-                 name="DR2Studio", console=False, upx=False)
+                 name="DR2Studio", console=False, upx=False, icon=ICON)
 cli_exe = EXE(PYZ(cli.pure), cli.scripts, [], exclude_binaries=True,
-              name="dr2", console=True, upx=False)
+              name="dr2", console=True, upx=False, icon=ICON)
 coll = COLLECT(studio_exe, studio.binaries, studio.datas,
                cli_exe, cli.binaries, cli.datas,
                name="DR2Studio", upx=False)
 if sys.platform == "darwin":
     app = BUNDLE(coll, name="DR2 Studio.app", bundle_identifier="org.dr2kit.studio",
+                 icon=str(ICONS / "dr2studio.icns"),
                  info_plist={"NSHighResolutionCapable": True})

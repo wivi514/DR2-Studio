@@ -17,6 +17,23 @@ Entry template:
 
 ---
 
+## 2026-10-09 — Phase 7 set by the user; the app icon
+**Done:** the user set phase 7's direction: the easiest possible modding, the help inside
+DR2 Studio, easy packaging and installing of mods, and an app icon
+(`phase7-kickoff.md`, `roadmap.md` rewritten; earlier proposals kept as "carried over").
+Made the icon: `dr2kit/studio/icon/dr2studio.svg` (a combination wrench on a blood-red
+tile with drips, our own drawing), set as Studio's window icon, rendered for releases by
+`tools/release/make_icons.py` (PNG, `.ico`, `.icns`) and used by the executables, the
+macOS app and the AppImage. The first wrench was a rough shape the user found weird; the
+second is drawn from exact geometry (open jaw, hexagonal ring, tapered handle, shadow)
+and checked at 16-256 px.
+
+**Docs updated:** `phase7-kickoff.md`, `roadmap.md`, `dev/packaging.md` (§The icon),
+`dev/studio.md`, `dev/code-tour.md`, `CLAUDE.md`.
+
+**Next:** settle phase 7's open questions (starting the recomp from Studio, `.zip` or
+`.dr2mod` packages, help language), then the in-app help.
+
 ## 2026-10-09 — Clean-up, phase 6 closed, phase 7 proposed
 **Done:** deleted 17 finished sessions' scratch folders from `/tmp/claude-1000` (25 GB
 → 4.9 GB used; what is left belongs to running sessions), this phase's test captures,

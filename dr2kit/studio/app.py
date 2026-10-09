@@ -993,9 +993,16 @@ class MainWindow(QMainWindow):
         self.run_job(work, done)
 
 
+def app_icon() -> QIcon:
+    """DR2 Studio's icon (our own drawing, `icon/dr2studio.svg`; bitmaps for releases
+    come from tools/release/make_icons.py)."""
+    return QIcon(str(Path(__file__).with_name("icon") / "dr2studio.svg"))
+
+
 def main(argv: list[str] | None = None) -> int:
     app = QApplication.instance() or QApplication(sys.argv[:1] + list(argv or []))
     app.setApplicationName("DR2 Studio")
+    app.setWindowIcon(app_icon())
     win = MainWindow()
     win.show()
     return app.exec()

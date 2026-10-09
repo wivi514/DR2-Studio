@@ -31,7 +31,7 @@ include = ["dr2kit*"]
 "dr2kit.profiles" = ["*.toml"]
 "dr2kit.index" = ["*.sql"]
 # DR2 Studio's 3D view page and the three.js files it loads (MIT, vendored unmodified).
-"dr2kit.studio" = ["web/*.html", "web/*.js", "web/vendor/three/LICENSE", "web/vendor/three/**/*.js"]
+"dr2kit.studio" = ["icon/*.svg", "web/*.html", "web/*.js", "web/vendor/three/LICENSE", "web/vendor/three/**/*.js"]
 # Prebuilt native LZX decoders, when a release build drops them in (see docs/dev/setup.md).
 "dr2kit.container.lzx" = ["_native/*"]
 

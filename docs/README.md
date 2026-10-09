@@ -9,7 +9,7 @@ Pick the section for what you want to do.
 | **Know how the toolkit is designed** | [`ARCHITECTURE.md`](ARCHITECTURE.md) |
 | **Know how a game file format works** | [`formats.md`](formats.md) |
 | **See what is planned and what is done** | [`roadmap.md`](roadmap.md) |
-| **Start the next phase of work** | [`phase7-kickoff.md`](phase7-kickoff.md) (proposed; earlier handoffs, for history: [`phase6-kickoff.md`](phase6-kickoff.md), [`phase5-kickoff.md`](phase5-kickoff.md), [`phase4-kickoff.md`](phase4-kickoff.md), [`phase3-kickoff.md`](phase3-kickoff.md), [`phase2-kickoff.md`](phase2-kickoff.md), [`phase1-kickoff.md`](phase1-kickoff.md)) |
+| **Start the next phase of work** | [`phase7-kickoff.md`](phase7-kickoff.md) (easiest modding, help in the app; earlier handoffs, for history: [`phase6-kickoff.md`](phase6-kickoff.md), [`phase5-kickoff.md`](phase5-kickoff.md), [`phase4-kickoff.md`](phase4-kickoff.md), [`phase3-kickoff.md`](phase3-kickoff.md), [`phase2-kickoff.md`](phase2-kickoff.md), [`phase1-kickoff.md`](phase1-kickoff.md)) |
 | **See what was done, when, and why** | [`devlog.md`](devlog.md) |
 | **Look up a word** (`.big`, LZX, tiling, bone palette, vpath…) | [`glossary.md`](glossary.md) |
 | **Know what tools existed before this one** | [`prior-art.md`](prior-art.md) |

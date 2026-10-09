@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- DR2 Studio icon: our own drawing (no game art). A combination wrench across a
+       blood-red tile, with drips from the top edge. Rendered to PNG/ICO/ICNS by
+       tools/release/make_icons.py. The wrench is drawn pointing up (open jaw at the
+       top, ring at the bottom) and turned 45 degrees. -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c8202c"/>
+      <stop offset="1" stop-color="#4a070c"/>
+    </linearGradient>
+    <linearGradient id="steel" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#f4f6f8"/>
+      <stop offset="0.55" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#b9c0c8"/>
+    </linearGradient>
+    <path id="wrench" fill-rule="evenodd"
+          d="M 232 187.3 A 64 64 0 0 1 228 70.45 L 228 112 Q 228 118 234 118
+             L 278 118 Q 284 118 284 112 L 284 70.45 A 64 64 0 0 1 280 187.3
+             L 278 351.6 A 46 46 0 1 1 234 351.6 Z
+             M 278 392 L 267 411.05 L 245 411.05 L 234 392 L 245 372.95 L 267 372.95 Z"/>
+  </defs>
+  <rect x="16" y="16" width="480" height="480" rx="96" fill="url(#tile)"/>
+  <!-- drips -->
+  <path d="M96 16 h80 v70 a14 14 0 0 1 -28 0 v-20 a12 12 0 0 0 -24 0 v58 a14 14 0 0 1 -28 0 z"
+        fill="#7d0b15"/>
+  <path d="M220 16 h30 v44 a15 15 0 0 1 -30 0 z" fill="#7d0b15"/>
+  <path d="M300 16 h70 v40 a12 12 0 0 1 -24 0 v-6 a11 11 0 0 0 -22 0 v34 a12 12 0 0 1 -24 0 z"
+        fill="#7d0b15"/>
+  <!-- shadow, then the wrench -->
+  <g transform="translate(266 270) scale(1.12) rotate(45) translate(-256 -251)">
+    <use href="#wrench" fill="#000000" fill-opacity="0.35"/>
+  </g>
+  <g transform="translate(256 258) scale(1.12) rotate(45) translate(-256 -251)">
+    <use href="#wrench" fill="url(#steel)" stroke="#1d1d22" stroke-width="9"
+         stroke-linejoin="round"/>
+    <rect x="248" y="205" width="16" height="125" rx="8" fill="#c3c9d0"/>
+  </g>
+</svg>

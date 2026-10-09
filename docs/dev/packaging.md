@@ -27,6 +27,16 @@ macOS: `DR2 Studio.app` (the GUI, with `dr2` inside `Contents/MacOS/`), next to 
 other folders in the zip; signed ad hoc only (no Apple developer account yet), so the
 first start needs right-click → Open.
 
+## The icon
+
+`dr2kit/studio/icon/dr2studio.svg` is the only source: our own drawing (a combination
+wrench on a blood-red tile with drips; no game logo or artwork), made in phase 7 at the
+user's request. Studio loads the SVG for its windows (`studio.app.app_icon`). For
+releases, `tools/release/make_icons.py` renders it with Qt's SVG renderer into
+`build/icon/`: PNGs from 16 to 1024 px (the AppImage and `.desktop` icon), an `.ico`
+(Windows executables) and an `.icns` (the macOS app), written by Pillow;
+`build_release.py bundle` runs it before PyInstaller, and the spec passes them on.
+
 ## Why an own ffmpeg (the licence gate)
 
 PyAV's wheels on PyPI link `libavcodec` against **x264 and x265, which are GPL**
@@ -77,7 +87,7 @@ build/release-venv/bin/python tools/build_release.py appimage  # Linux
 ```
 
 `appimage` wraps the bundle the way the recomps do: an AppDir (`AppRun`, a `.desktop`
-file, our own icon drawn by `make_icon`, no game art), `mksquashfs -comp zstd`, and the
+file, the app icon), `mksquashfs -comp zstd`, and the
 type-2 AppImage runtime (downloaded once to `build/appimage/`, or `DR2_APPIMAGE_RUNTIME`;
 checked for the `AI\x02` magic). `DR2Studio-linux-x86_64.AppImage` starts the GUI;
 `… .AppImage dr2 <args>` runs the CLI.

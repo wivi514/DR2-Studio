@@ -176,20 +176,24 @@ Handoff was `phase4-kickoff.md`; the next one is `phase5-kickoff.md`.
 - **Gate (census):** all 16 string banks re-write byte-identically; all 10 Bink movies
   decode (frames and sound). **Passed.**
 
-## Phase 7: first release, and proving what isn't proven (proposed 2026-10-09)
-Not part of the original plan, which ended at phase 6, and **not yet approved by the
-user**. It gathers what phases 4-6 left open. Handoff: `phase7-kickoff.md`.
-- First release v0.1.0: run CI and the release workflow on Windows, Linux and macOS once
-  the GitHub remote exists, fix them, try each build on a real game, publish.
-- In-game gates for what was only built: a Case West model replacement, a
-  combined-buffer prop, the Blender add-on's output, a 5.1 cinematic and an fx-bank
-  sound, a text-file mod.
-- Mod features: colour overrides for value-set materials (zombie clothing), sound
-  replacements longer than the original, string mods that keep the recomps' keyboard
-  prompts, Studio previews of a replacement before building.
-- Voice-line names from the GASP tables; finish `asset-catalogue.md`.
-- **Gate:** a published release whose builds were each tried on a real game, and every
-  item above checked in game in both games where it applies.
+## Phase 7: the easiest possible modding, help inside the app (user, 2026-10-09)
+The user's direction: make modding as easy as possible, put the documentation inside
+the app, make packaging a mod and installing it in game easy. Handoff and full scope:
+`phase7-kickoff.md`.
+- Help inside DR2 Studio: the guides rendered and searchable, "how to mod this" for the
+  selected asset, a first-start walkthrough, errors that link to their explanation;
+  `dr2 help`.
+- Easiest editing loop: *Edit in…* with automatic re-import, *Open in Blender*, drag and
+  drop, the open mod's items with status and revert.
+- Packaging: a *Share mod…* wizard (metadata, preview, checks) writing one file.
+- Installing and playing: open a mod package to install it, *Play* (deploy + start the
+  recomp), what is deployed now, uninstall from the game, mod sets.
+- An icon for the app (our own art). ✅ (see devlog)
+- Carried over: the first release on all OSes (needs the GitHub remote), the in-game
+  gates still owed, value-set colours, longer sounds, keyboard prompts with string mods.
+- **Gate:** a newcomer, with only the in-app help and no terminal, makes a texture mod
+  and a text mod, sees them in game, packages them and installs the package on a second
+  setup (both games).
 
 ## Stretch (phase 8 or later)
 - In-game "identify": the recomp sends the textures/models under the crosshair to Studio.

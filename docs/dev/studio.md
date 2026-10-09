@@ -17,6 +17,7 @@ dr2kit/studio/
   video_view.py  VideoViewer: Bink movies (pictures + sound), phase 6
   mod_manager.py ModManager: the mod library window (order, on/off, conflicts, deploy), phase 6
   setup_dialog.py GameSetup: "Game folders…" (choose a folder / unpack the package), phase 6
+  icon/        dr2studio.svg, the app icon (our own drawing; dev/packaging.md §The icon)
   web/         viewer.html + viewer.js, and three.js 0.186.1 (MIT) under vendor/three/
 ```
 

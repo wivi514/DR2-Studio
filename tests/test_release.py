@@ -39,5 +39,8 @@ def test_licence_gate_names_and_platform_tag():
     assert osname in ("linux", "windows", "macos") and arch
 
 
-def test_icon_is_a_png():
-    assert load().make_icon(32)[:8] == b"\x89PNG\r\n\x1a\n"
+def test_icon_svg_is_shipped_and_ours():
+    svg = ROOT / "dr2kit" / "studio" / "icon" / "dr2studio.svg"
+    text = svg.read_text()
+    assert text.startswith("<svg") and "no game art" in text
+    assert 'icon/*.svg' in (ROOT / "pyproject.toml").read_text()

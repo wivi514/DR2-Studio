@@ -10,16 +10,15 @@ put edited or new models back into the game when their bones match the game's ri
 **Status: phases 1-6 done (phase 6, 2026-10-09: string banks and `.bcs.json` mods,
 text editing with a diff, CW Bink movies, the mod manager, digest-checked files refused,
 the GPL Blender add-on that never bundles dr2kit, release packaging with an own LGPL
-ffmpeg and a licence gate, built and tried on Linux only). Next: phase 7, **proposed,
-not yet approved by the user**: first release on all three OSes (the release workflow
-has never run: no GitHub remote yet), in-game checks of what is only built, the open
-mod features; start from `docs/phase7-kickoff.md`.** Read these before writing code:
+ffmpeg and a licence gate, built and tried on Linux only). Next: phase 7, set by the user 2026-10-09: make modding as easy as possible,
+the documentation inside DR2 Studio, easy mod packaging and installing in game, an app
+icon (done: `dr2kit/studio/icon/dr2studio.svg`); start from `docs/phase7-kickoff.md`.** Read these before writing code:
 
 | Doc | What it holds |
 |---|---|
 | `docs/ARCHITECTURE.md` | Components, data flow, the asset index, the mod package format, stack choices |
 | `docs/formats.md` | Everything known about every file format, with a status per format (cracked / partial / unknown) |
-| `docs/phase7-kickoff.md` | Phase 7 handoff (proposed): first release, in-game gates still owed, open mod features, facts to keep in mind |
+| `docs/phase7-kickoff.md` | Phase 7 handoff: easiest modding, help inside the app, packaging/installing mods, open questions, facts to keep in mind |
 | `docs/dev/packaging.md` | Release builds: the bundle, the LGPL ffmpeg and licence gate, AppImage, CI |
 | `docs/dev/blender-addon.md` | The GPL Blender add-on and why it doesn't contain dr2kit |
 | `docs/dev/code-tour.md` | Every module of `dr2kit` and how a read flows through them |
