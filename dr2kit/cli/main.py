@@ -189,11 +189,14 @@ def _scene_glb(args, tree, vpath: str, data: bytes) -> bytes:
         return gltf.skeleton_to_glb(scene)
     finder = None if args.no_textures else TextureFinder(tree, vpath, args.game)
     st = gltf.ExportStats()
-    out = gltf.model_to_glb(scene, finder, stats=st)
+    out = gltf.model_to_glb(scene, finder, stats=st,
+                            base_colour=finder.baker(scene) if finder else None)
     if not args.quiet:
         print(f"    {st.meshes} meshes, {st.primitives} draws, {st.vertices:,} vertices, "
               f"{st.triangles:,} triangles, {len(scene.skeleton)} bones, "
-              f"{st.textures} textures", file=sys.stderr)
+              f"{st.textures} textures"
+              + (f" ({st.baked} colours baked from shader constants)" if st.baked else ""),
+              file=sys.stderr)
     for name in st.missing_textures:
         print(f"    note: texture {name!r} not found (run `dr2 index build` to search "
               f"the whole game)", file=sys.stderr)

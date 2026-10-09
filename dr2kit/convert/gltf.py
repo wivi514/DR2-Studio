@@ -298,16 +298,20 @@ class ExportStats:
     vertices: int = 0
     triangles: int = 0
     textures: int = 0
+    baked: int = 0                 # materials whose colour was baked (convert.material)
     missing_textures: list = None
     zero_normals: int = 0
 
 
 def model_to_glb(scene: Scene, texture_png: Callable[[str], bytes | None] | None = None,
-                 *, stats: ExportStats | None = None) -> bytes:
+                 *, stats: ExportStats | None = None, base_colour=None) -> bytes:
     """A ``.glb`` with the scene's skeleton, meshes, skin and materials.
 
     ``texture_png(name)`` returns a texture's PNG bytes (or None if it can't be found);
-    without it, materials carry texture names only (in ``extras``).
+    without it, materials carry texture names only (in ``extras``). ``base_colour(m)``
+    may return ``(name, png bytes, family)`` for a material whose colour comes from
+    shader constants (`convert.material`; `model.TextureFinder.baker`): that PNG is used
+    as the base colour, and ``extras.dr2.baked`` says so.
     """
     st = stats if stats is not None else ExportStats()
     st.missing_textures = st.missing_textures or []
@@ -340,7 +344,17 @@ def model_to_glb(scene: Scene, texture_png: Callable[[str], bytes | None] | None
                                   "valueset": f"{m.valueset:08x}",
                                   "params": list(m.params),
                                   "textures": [s.name for s in m.slots if not s.engine]}}}
-        t = texture(colour)
+        baked = base_colour(m) if base_colour is not None and texture_png is not None else None
+        if baked is not None:
+            bname, png_bytes, family = baked
+            img = b.add("images", {"name": bname, "mimeType": "image/png",
+                                   "bufferView": b.view(png_bytes)})
+            t = b.add("textures", {"source": img})
+            st.textures += 1
+            st.baked += 1
+            mat["extras"]["dr2"]["baked"] = family
+        else:
+            t = texture(colour)
         if t is not None:
             mat["pbrMetallicRoughness"]["baseColorTexture"] = {"index": t}
         t = texture(normal)

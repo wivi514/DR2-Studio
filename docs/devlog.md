@@ -17,6 +17,36 @@ Entry template:
 
 ---
 
+## 2026-10-09 — Zombie clothing colours: value sets and baked colours
+**Done:** the user saw zombies with red/green/purple clothes in DR2 Studio (skin was
+right). Their `_cm1` texture is a weight map; the colours are pixel-shader constants in
+each material's value set (`valuesets.big/<hash>.scv`). Added `formats/shader.py`
+(shader constant tables, value sets) and `convert/material.py` (bakes the pattern,
+body-part and channel families with the shaders' own formulas, read from the shaders
+translated with XenosRecomp); the `.glb` export (CLI, Studio) uses the baked texture.
+All 674 / 819 value sets parse; all 297 / 212 affected materials bake; checked visually
+on seven models.
+
+**Why:** previews and Blender exports must show what the game shows; the phase 3 export
+had used the `_cm1` weight map as the colour.
+
+**Learned:**
+- A texture suffix doesn't say it's a colour: `_cm1` on zombie clothing is a weight
+  map. Even Chuck's DR2 t-shirt under the jacket (`chest_default_mtl_tshirt`) uses one.
+- Value-set records hold the pixel-shader **register**; the shader's D3DX constant table
+  names it. The 32-bit "name hash" next to it isn't any hash we know.
+- XenosRecomp (sibling repo, built) turns a game `.po` into readable HLSL: the fastest
+  way to learn what a material does.
+- Cutscene zombies tile their pattern (scale 10 × 20) and some use scale 0 (one flat
+  colour): the bake follows the shader's UV transform.
+
+**Docs updated:** `formats.md` (§Materials: value sets, with the correction; status
+rows), `dev/gltf-mapping.md`, `dev/code-tour.md`, `glossary.md`,
+`modding/12-troubleshooting.md`.
+
+**Next:** compare with an in-game capture; let mods change these colours (value-set
+overrides).
+
 ## 2026-10-09 — Phase 5: audio (listen, export, replace through the recomps)
 **Done:**
 - Sound formats (`formats/xma.py`): `.xma` comes in two shapes, RIFF XMA2 files in the

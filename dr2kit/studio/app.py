@@ -503,7 +503,8 @@ class MainWindow(QMainWindow):
             if not sc.meshes:
                 return gltf.skeleton_to_glb(sc), []
             st = gltf.ExportStats()
-            glb = gltf.model_to_glb(sc, TextureFinder(tree, vpath, game, db), stats=st)
+            finder = TextureFinder(tree, vpath, game, db)
+            glb = gltf.model_to_glb(sc, finder, stats=st, base_colour=finder.baker(sc))
             return glb, st.missing_textures
 
         def done(result, err):
@@ -605,8 +606,8 @@ class MainWindow(QMainWindow):
         sc = Scene.parse(self.asset_tree().resolve(a["vpath"]).data(), a["vpath"])
         if sc.meshes:
             st = gltf.ExportStats()
-            data = gltf.model_to_glb(sc, TextureFinder(self.asset_tree(), a["vpath"], self.game,
-                                                       self.db_path), stats=st)
+            finder = TextureFinder(self.asset_tree(), a["vpath"], self.game, self.db_path)
+            data = gltf.model_to_glb(sc, finder, stats=st, base_colour=finder.baker(sc))
             what = f"{st.primitives} draws, {st.textures} textures"
         else:
             data, what = gltf.skeleton_to_glb(sc), f"{len(sc.skeleton)} bones"

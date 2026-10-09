@@ -24,6 +24,7 @@ dr2kit/
     vertex.py          360 vertex declarations, stream decoding and encoding (phases 3-4)
     xma.py             sounds: RIFF XMA2, cache.big stream tables, packet headers (phase 5)
     audioscript.py     .sfx and audio scene scripts: the block text format (phase 5)
+    shader.py          shader constant tables (.po) and material value sets (.scv)
   convert/
     png.py             pure-Python PNG reader/writer (Pillow used when present)
     dxt.py             DXT1/DXT5/DXN block decode + encode (numpy, pure-Python fallback)
@@ -32,6 +33,7 @@ dr2kit/
     model.py           vpath -> .glb with textures found by name (TextureFinder)
     model_import.py    .glb (Blender) -> model: matching, rig validator, import (phase 4)
     audio.py           .xma -> PCM / WAV through PyAV; fitting audio to a sound (phase 5)
+    material.py        bake colours that come from shader constants (zombie clothing)
   index/
     schema.sql         the SQLite tables
     build.py           build / refresh the asset index (incremental), thumbnails, relations
@@ -230,6 +232,16 @@ Read `formats.md` §Audio first: it has the measured rules these modules trust.
   errors name the line); `sfx_tracks` (the bank entries a `.sfx` plays) and
   `script_refs` (every `Asset` / `BigFile` of a scene script, with the block path and
   trigger events as `context`).
+
+### `dr2kit/formats/shader.py`, `dr2kit/convert/material.py`
+Some materials take their colour from shader constants, not from their `_cm` texture
+(`formats.md` §Materials: value sets). `shader.constant_table(po)` reads a shader's
+name → register table; `ValueSet.parse(scv)` a material's constants by register, and
+`.named(table)` by name. `material.ShaderLibrary(tree)` finds pixel shaders by hash;
+`recipe(scene, material, shaders)` says whether (and how) a material must be baked;
+`bake(recipe, image)` computes the colour texture with numpy. `model.TextureFinder.baker(scene)`
+is the `base_colour` hook `gltf.model_to_glb` uses (CLI `--glb`, Studio's 3D view and
+*Export .glb…*).
 
 ### `dr2kit/convert/audio.py` (phase 5)
 `AudioLookup(tree).info(vpath, data)` finds a sound's format (its RIFF header, or its

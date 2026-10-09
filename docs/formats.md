@@ -10,6 +10,8 @@ Case West census before they count as rules (CLAUDE.md rule 7).
 | LZX compressed entry | inside `.big` | ✅ decode + encode | `dr2kit/container/xcompress.py`, `lzx/`. Every compressed entry of both games decodes (two independent decoders agree) and re-encodes |
 | `.bct` texture | loose, inside `.tex` | ✅ read + write | `dr2kit/formats/bct.py`, `convert/texture.py`. Every texture of both games decodes and re-encodes to its exact bytes; flags byte bits 0x04/0xE0 and header word 0x0C still unexplained (preserved) |
 | `.tex` texture pack | next to every model `.big` | ✅ | a `.big` whose entries are `.bct`, named without extension |
+| `.scv` value set | `<model>.big/valuesets.big` | ✅ read | `dr2kit/formats/shader.py`: a material's pixel-shader constants (colours of zombie clothing…), by register; names from the shader's constant table. All 674 (CZ) / 819 (CW) parse |
+| shader constant table | `.po` / `.vo` in `shaders/*.big` | ✅ read | `formats/shader.constant_table`: name → register (D3DX constant table, as XenosRecomp reads it) |
 | scene (model / skeleton) | `models/**/*.big`, `skeleton/*.big`, props, environments | ✅ read + write | `dr2kit/formats/scene.py`, `vertex.py`. Every scene of both games parses and every draw decodes; buffers and bone palettes checked against the running game; exports to glTF. **Written back** (phase 4): every chunk rewrites identically, `.glb` → model, new meshes and rigs; checked in game |
 | `.xma` audio | `audio/*.big` (streamed), `streamedassets.big/fx_*.big` | ✅ read; replaced by PCM substitution | `dr2kit/formats/xma.py`, `convert/audio.py`. Two shapes: RIFF XMA2 files (fx banks) and raw packets whose format is in `audio/cache.big`. Every sound of both games decodes to its stored length (phase 5 census, below). No XMA encoder: mods replace sounds through the recomps (§Replacing sounds) |
 | `cache.big` stream tables `$GIB` | `audio/cache.big/<bank>.$$$` | ✅ | `xma.StreamTable`: rate, channels, loop of every raw stream, keyed by the case-kept name hash |
@@ -402,6 +404,47 @@ his apron wore the shoes texture. The user spotted it in a DR2 Studio screenshot
 that had already been reviewed and passed as correct. With the id
 rule every mesh gets its own texture (apron → `mech_apron_cm`, head → `mech_head_cm`);
 the census checks that every draw of both games finds exactly one material with that id.
+
+### Materials: value sets and colours from shader constants ✅
+
+> **Correction (2026-10-09, found by the user in DR2 Studio):** not every material's
+> `_cm*` texture is a colour map. Zombie clothing showed red, green and purple: its
+> `_cm1` is a **weight map**, and the colours are shader constants. The phase 3
+> exporter (and the slot-role rule above, "`_mask` tint mask") assumed otherwise.
+
+A material's 9th `MatArray` word names its **value set**, `<model>.big/valuesets.big/
+<hash>.scv` (`0xFFFFFFFF`: none). Big-endian:
+
+```
+u32 n, name (n bytes incl. NUL, then padded to 4)   "pro_zombie_cop_mtl_shirt.pdv"
+u32 own hash   u32 0xFFFFFFFF   u32 pixel shader (the .po entry name, hex)   u32 count
+count × { u32 2, u32 0, u32 k, u32 1, u32 register, u32 name hash, k × f32 }
+```
+
+The register is a float4 constant register of that pixel shader; the shader's own
+constant table (D3DX `CONSTANTTABLE` at container word 4, the layout XenosRecomp reads)
+names it. Checked: every register of the cop shirt's value set names a constant of its
+shader `21b5af40.po` (`gBaseTextureColour` = c141 = (0.67, 0.62, 0.53), `gBloodColour`
+= c137…). The name hash is not the engine string hash, CRC-32 or FNV of the name
+(tried over every string of the shader banks). All 674 (CZ) / 819 (CW) value sets parse.
+
+Families that replace the colour map (formulas read from the pixel shaders translated
+with XenosRecomp; implemented in `dr2kit/convert/material.py`, which bakes them for
+previews and `.glb`):
+
+| Family (constants) | CZ / CW materials | Colour (`d` = the `_cm*` texture, squared = linear) |
+|---|---|---|
+| **pattern**: `gBaseTextureColour`, `gPattern1-3Colour` (+ `gBloodColour` on zombies) | 275 / 194 (zombie clothes, cutscene zombies, some NPC clothing such as `chest_default_mtl_tshirt`) | Σ colourᵢ × weightᵢ × dᵢ² over channels R G B A; weight = the colour's 4th value or `gBaseTextureScale`/`gPatternNScale`. `d` is sampled at `((u + so.z)·so.x, (v + so.w)·so.y)` (`gUVScaleOffset`; or `gUVOffset`/`gUVScale`): 35 / 31 materials tile it (10 × 20 stripes) or flatten it (scale 0). Blood: `a = mask.A²·mask.B²·gPackedBumpAmbBloodvis.z`, colour += `a·blood.w·(a·blood.rgb·colour − colour)` |
+| **body part**: `gBodyPart1-4Colour` | 18 / 18 (LOD zombies) | `d.A` picks the part: > 0.875 none, (0.75, 0.875] 1, (0.625, 0.75] 2, (0.5, 0.625] 3, ≤ 0.5 4; colour = `d.rgb²` × part colour |
+| **channel**: `gRed/Green/BlueChannelColour`, `…Saturation`, `gDiffuseTint` | 4 / 0 (Sharon's dress, Royce) | colours desaturated (`lum + (c − lum)·sat`, lum weights 0.2125/0.7154/0.0721); start `d.A²·tint`, blend to `d.G²·green` by `d.G²·green.w`, then blue, then red the same way |
+
+Other value-set constants (`gSelfIlluminationColour`, `gLensColour`,
+`gDiffuseColourControl`, UV and specular parameters) don't replace the colour map.
+Checked: every material of these families bakes in both games (297 / 212); visually
+on the cop (khaki shirt, olive trousers, black boots), skinny zombie, waitress, trucker,
+a cutscene zombie (striped sleeves), a LOD fat zombie and Sharon's dress. Not checked
+against an in-game capture; lighting, specular and the game's per-spawn colour choice
+(if any) are not modelled.
 
 ### Mesh descriptions (in `persistent.big`) ✅
 

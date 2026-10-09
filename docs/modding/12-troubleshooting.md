@@ -78,6 +78,12 @@ for `.glb` files in a mod) names each problem. Errors stop the build; warnings d
 Include the output of `dr2 doctor` and the exact command and error text. Never attach
 game files.
 
+## Model colours
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Zombie clothes look red, green or purple in DR2 Studio or Blender (toolkit before 2026-10-09) | Their `_cm1` texture is a weight map; the colours are shader settings | Update the toolkit and export again: these colours are now baked (`_baked` textures). To recolour such clothing, the colours are in the material's value set, not the texture (not editable by mods yet). |
+
 ## Sounds (phase 5)
 
 | Symptom | Cause | Fix |

@@ -110,7 +110,8 @@ class TextureFinder:
                 continue
         return None
 
-    def __call__(self, name: str) -> bytes | None:
+    def bct(self, name: str) -> tuple[str, bytes] | None:
+        """``(vpath, .bct bytes)`` of the texture called ``name``, or None."""
         key = name.lower()
         for table in self._scan():
             hit = table.get(key)
@@ -119,12 +120,42 @@ class TextureFinder:
                 data = entry.data()
                 if is_bct(data):
                     self.found[name] = vp
-                    return texture_png(data, vp)
+                    return vp, data
         hit = self._from_index(name)
         if hit is not None and is_bct(hit[1]):
             self.found[name] = hit[0]
-            return texture_png(hit[1], hit[0])
+            return hit
         return None
+
+    def image(self, name: str):
+        """The texture called ``name`` decoded to a `png.Image` (level 0), or None."""
+        hit = self.bct(name)
+        if hit is None:
+            return None
+        from ..formats.bct import Bct
+        from .texture import to_image
+        return to_image(Bct.parse(hit[1], hit[0]), 0)
+
+    def __call__(self, name: str) -> bytes | None:
+        hit = self.bct(name)
+        return None if hit is None else texture_png(hit[1], hit[0])
+
+    def baker(self, scene: Scene):
+        """The ``base_colour`` hook for `gltf.model_to_glb`: bakes materials whose colour
+        is in shader constants (`convert.material`), None for the others."""
+        from . import material as cmat
+        from . import png
+        shaders = cmat.ShaderLibrary(self.tree)
+
+        def base_colour(m):
+            rec = cmat.recipe(scene, m, shaders)
+            if rec is None:
+                return None
+            img = cmat.bake(rec, self.image)
+            if img is None:
+                return None
+            return f"{rec.diffuse}_baked", png.encode(img, "RGB"), rec.family
+        return base_colour
 
 
 def read_scene(tree: AssetTree, vpath: str) -> Scene:
@@ -140,7 +171,8 @@ def export_glb(tree: AssetTree, vpath: str, *, game: str | None = None, textures
     """The model at ``vpath`` as ``.glb`` bytes (skeleton, meshes, skin, textures)."""
     scene = read_scene(tree, vpath)
     finder = TextureFinder(tree, scene.source, game, db_path) if textures else None
-    return gltf.model_to_glb(scene, finder, stats=stats)
+    return gltf.model_to_glb(scene, finder, stats=stats,
+                             base_colour=finder.baker(scene) if finder else None)
 
 
 def export_skeleton_glb(tree: AssetTree, vpath: str) -> bytes:

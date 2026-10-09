@@ -240,3 +240,11 @@ bit-for-bit identical.
 
 **Deploy / undeploy.** Copy a built mod into the place the game reads it from (a recomp's
 `assets/game_mods/`), or remove exactly those files again.
+
+**Value set (`.scv`).** A material's list of shader settings (colours, scales), stored in
+`valuesets.big` inside the model. Zombie clothing gets its colours from it.
+
+**Weight map.** A texture whose channels aren't colours but amounts: "how much of colour
+1, 2, 3, 4 goes here". Zombie clothing's `_cm1` is one; the toolkit turns it into a
+normal colour picture ("bakes" it) for previews and Blender.
+
