@@ -10,10 +10,11 @@ For people who want to **understand or change the toolkit's code**. Read
 | [`code-tour.md`](code-tour.md) | Every package and module: what it does, which modules it calls, where to start reading | ✅ written (phase 1), kept current |
 | [`setup.md`](setup.md) | Dev environment on Windows/Linux/macOS, running tests, building the native LZX library | ✅ written (phase 1) |
 | [`adding-a-format.md`](adding-a-format.md) | Step by step: reader → census → `formats.md` section → writer → round-trip test → converter → GUI viewer | ✅ written (phase 1, from `.big`); refine with `.bct` in phase 2 |
-| [`testing.md`](testing.md) | Unit tests on synthetic data vs census tests on real game data; the verification gates; phase results | ✅ written (phase 1) |
-| `studio.md` | DR2 Studio's structure: viewers, the index, background jobs | phase 2 |
+| [`testing.md`](testing.md) | Unit tests on synthetic data vs census tests on real game data; the verification gates; phase results | ✅ written (phase 1), results for phases 1-3 |
+| [`studio.md`](studio.md) | DR2 Studio's structure: viewers, the index, background jobs, the 3D view | ✅ written (phase 2), 3D view added in phase 3 |
+| [`gltf-mapping.md`](gltf-mapping.md) | How game scenes map to `.glb` and back; the skeleton round-trip gate | ✅ written (phase 3) |
 | `blender-addon.md` | The `io_dr2` add-on and how it reuses `dr2kit` | phase 6 |
-| `recomp-integration.md` | The `game_mods/` layer and PCM substitution in the recomps, and how to test them | phase 2 / 5 |
+| [`recomp-integration.md`](recomp-integration.md) | The `game_mods/` layer and PCM substitution in the recomps, how to test them, and capturing draws to check readers | ✅ written (phase 2), captures added in phase 3; PCM in phase 5 |
 | `releasing.md` | Building and packaging for each OS | phase 6 |
 
 ## How code is documented

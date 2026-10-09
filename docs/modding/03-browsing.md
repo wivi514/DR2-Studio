@@ -36,6 +36,10 @@ files change.
      elsewhere (*same bytes*). The same texture is often shipped in several archives.
    - for a model (`.big` with geometry): every texture its materials name, slot by slot.
    Double-click a line to go there.
+7. A **model or skeleton** appears in 3D in the middle: drag to turn it, right-drag to
+   move, scroll to zoom; **Skeleton** and **Wireframe** show the bones and triangles.
+   Details on the right list its bones, meshes, draws and shaders. Saving it for Blender:
+   [`04-extracting.md`](04-extracting.md).
 
 ### With the `dr2` command
 

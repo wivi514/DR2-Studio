@@ -154,9 +154,9 @@ This answers the "which texture is what" questions:
   - Texture: zoom, alpha/RGB/single channel, mip selector, cube faces, tiled/untiled
     toggle (for debugging), format and size info.
   - Audio: waveform, play/pause/seek, loop points if the scene script names them.
-  - Model: three.js orbit view with textures applied, skeleton overlay, per-mesh
-    visibility, bone-name hover.
-  - Skeleton: bone tree with the 3D view.
+  - Model: three.js orbit view with textures applied, skeleton overlay (✅ phase 3, with
+    wireframe and *Export .glb…*); per-mesh visibility, bone-name hover (later).
+  - Skeleton: the 3D view shows the bones (✅ phase 3); a bone tree (later).
   - Text/scripts/strings: syntax-highlighted, editable as a mod override.
   - Bink (CW): play through ffmpeg.
 - **Right:** metadata and relations, plus **Extract** (in native or converted format),

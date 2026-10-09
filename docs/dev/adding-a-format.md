@@ -115,3 +115,22 @@ written in phase 2.
   together on every file.
 - **Look at pictures.** Decode a sample of each format to PNG and look at it before
   trusting the census: a consistent wrong decode can still round-trip.
+
+## Lessons from scenes (phase 3)
+
+- **Look for the engine's own description before reverse-engineering the data.** The
+  vertex layouts were not hidden: each model ships the D3D declaration its draws use,
+  and the per-shape command buffer records every draw's buffers and ranges.
+- **Read the consumer when the producer is ambiguous.** How weights pair with bone
+  indices can't be seen in a rest pose; the game's vertex shader (translated with
+  XenosRecomp) says it in three lines.
+- **Test a mapping against alternatives.** A hypothesis like "palette slot k is node
+  start + k" is only evidence when it beats shifted versions; and a control has to be
+  able to fail (shifting *both* sides of a comparison by the same amount proves nothing).
+- **Check against the running game.** Recomp captures give the exact bytes and
+  constants of a draw: byte equality and "shared bones get identical matrices" settle
+  questions a census can't.
+- **Gates check what they measure, nothing else.** Every numeric gate passed while one
+  model wore the wrong textures (materials are named by id, not by position). Look at
+  several different real assets, not only the reference one, and turn whatever the eye
+  catches into a census check.

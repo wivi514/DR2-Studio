@@ -79,6 +79,12 @@ copies.
 
 **Next:** phase 4 from `phase4-kickoff.md`: a byte-identical scene writer, then
 `.glb` → draws, then the in-game gates.
+**Follow-up (same evening):** a sweep for docs still describing phase 3 as future work:
+`prior-art.md` (bone palette solved; 360 has both buffer families), `ARCHITECTURE.md`
+(Studio's model/skeleton views marked built), `dev/README.md` (index rows for
+`studio.md`, `gltf-mapping.md`, `recomp-integration.md`), `dev/setup.md` (every gate
+command), `modding/03-browsing.md` (the 3D view), `dev/adding-a-format.md` (lessons
+from scenes).
 
 ---
 

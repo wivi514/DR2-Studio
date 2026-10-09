@@ -96,11 +96,18 @@ python -m pytest -q -m "not gamedata"    # unit tests only (what CI runs)
 python -m pytest -q -m "not slow"        # skip the full-game census tests (~30 s)
 ```
 
-The phase gates that take minutes are not tests; run them by hand:
+The phase gates that take minutes, or need Blender or a recomp, are not tests; run them
+by hand:
 
 ```
-dr2 census --reencode --python-lzx
+dr2 census --reencode --python-lzx          # phase 1: LZX (~20 min)
+dr2 census --textures                       # phase 2: every texture re-encodes (~10 min)
+dr2 census --models                         # phase 3: every model draw decodes (~2 min)
+python tools/blender_skeleton_gate.py       # phase 3: rigs through Blender (needs Blender)
+python tools/capture_gate.py <capture dir>  # phase 3: reader vs a recomp capture
 ```
+
+The capture recipe is in [`recomp-integration.md`](recomp-integration.md) §Phase 3.
 
 What each kind of test proves: [`testing.md`](testing.md).
 
