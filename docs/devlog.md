@@ -63,6 +63,9 @@ voices and effects, although no XMA encoder can be shipped.
 - Both recomps' playback drifts about 1% slow against the source in the disk recordings,
   modded or not (runtime pacing, not substitution). One CW run ignored SIGTERM at exit
   (substitution off): use `timeout -s KILL`.
+- The first schema bump (index version 2) failed on a real index: dropping the old
+  tables with foreign keys on gives "no such table: main.source_file". Fixed (keys off
+  while dropping) with a test; found when building the index to launch Studio.
 - Qt Multimedia aborts at exit if a widget using it outlives the test's QApplication
   ("shared QObject was deleted directly"): delete it first.
 

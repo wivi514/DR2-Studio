@@ -128,3 +128,18 @@ def test_sounds_and_their_links(tmp_path):
         ("cursorError43a_01a.xma", True), ("FrogSUB1.sfx", False)]
     assert st_.unresolved_sounds == 1
     con.close()
+
+
+def test_old_schema_is_dropped_and_rebuilt(game, tmp_path):
+    """An index from an older toolkit is replaced, even with foreign keys between its
+    tables (the first schema bump failed here: 'no such table: main.source_file')."""
+    db = tmp_path / "i.sqlite"
+    build_index("cz", AssetTree(game), db, thumbs=False)
+    con = connect(db)
+    con.execute("UPDATE meta SET value='0' WHERE key='schema'")
+    con.commit()
+    con.close()
+    con = connect(db)
+    assert con.execute("SELECT count(*) FROM asset").fetchone()[0] == 0
+    con.close()
+    assert build_index("cz", AssetTree(game), db, thumbs=False).assets > 0

@@ -96,9 +96,14 @@ def connect(db_path: str | Path | None = None) -> sqlite3.Connection:
     except sqlite3.OperationalError:
         pass
     if ver not in (None, SCHEMA_VERSION):
-        # An index from an older toolkit: drop it, it is only a cache.
+        # An index from an older toolkit: drop it, it is only a cache. Foreign keys off
+        # while dropping: with them on, dropping a table whose parent is already gone
+        # fails ("no such table: main.source_file"), seen on the first schema bump.
+        con.execute("PRAGMA foreign_keys = OFF")
         for (name,) in con.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall():
             con.execute(f"DROP TABLE IF EXISTS {name}")
+        con.commit()
+        con.execute("PRAGMA foreign_keys = ON")
     con.executescript(resources.files(__package__).joinpath("schema.sql").read_text("utf-8"))
     con.execute("INSERT OR REPLACE INTO meta VALUES ('schema', ?)", (SCHEMA_VERSION,))
     con.commit()
