@@ -139,7 +139,7 @@ relation(src_id, dst_id, kind)   -- model→texture (material slot), .sfx→xma 
 
 This answers the "which texture is what" questions:
 
-- Texture → which models use it, in which material slot (`_cm` colour, `_nm` normal, …),
+- Texture → which models use it, in which material slot (`_cm`/`_dm` colour, `_nm` normal, …),
   found by reading each model's `MatTextureInfoArray`.
 - Model → its textures (thumbnails in the side panel) and the skeleton it binds to,
   matched by bone-name set against `data/skeleton/*.big`.
@@ -215,7 +215,10 @@ byte for byte (the round-trip gate).
    `RenderStrip`; the old community tools stalled exactly here). ✅ phase 3.
 3. Build a glTF scene: one armature from the model's own bone hierarchy (every model
    carries its rig), skinned meshes, materials with decoded textures. ✅ phase 3;
-   mapping in `dev/gltf-mapping.md`.
+   mapping in `dev/gltf-mapping.md`. Materials whose colour is in shader constants
+   (value sets: zombie clothing and others) get a texture **baked** with the game's
+   formula (`convert/material.py`, 2026-10-09); texture packs are searched in the
+   model's archives, its folder on disk, then the index.
 4. Put identity data in `extras`: original node and chunk names, bone indices, material
    hashes, shader name (`UsedShaders.txt`, e.g. `LIT_CM`), source vpath.
 

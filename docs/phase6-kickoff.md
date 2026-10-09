@@ -49,6 +49,19 @@ studio/audio_view); what it learned: `devlog.md` (2026-10-09, "Phase 5") and
 - From phase 4: a CW in-game run of a replaced model, a combined-buffer prop in game,
   tangents on normal maps, adding shapes/materials/bones.
 
+## Fixed after phase 5 (2026-10-09, from the user's look through DR2 Studio)
+
+- Upgrading an old index crashed (foreign keys while dropping tables): fixed, tested.
+- Zombie clothing showed red/green/purple: its `_cm1` is a weight map; colours come
+  from value sets. Baked now for previews and `.glb` (`formats/shader.py`,
+  `convert/material.py`). **Open:** compare with an in-game capture; let mods change
+  value-set colours (a value-set override kind); a mod's `.glb` of such clothing
+  carries the baked picture, which the importer ignores (it only takes geometry).
+- White models (Case West's final boss `_dm`, hex-tagged environment colour maps, packs
+  next to loose models): fixed. Textures in shared packs elsewhere need the index.
+- Method that worked: scan both games for the reported failure's cause, not just the
+  named model (memory and devlog).
+
 ## Facts to keep in mind
 
 - Headless recomp runs: check `pgrep -x cz_runtime` first; `CZ_BUG_REPORTS=0`; a **copy**

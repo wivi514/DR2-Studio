@@ -13,6 +13,9 @@ packets + `cache.big` stream tables), decode to WAV through PyAV, Studio playbac
 recomps (every packet recognised by fingerprint + output position); decode gate (every
 sound of both games decodes to its stored length) and in-game gate (title music swap,
 CZ and CW) passed. Script-level remap ruled out: CZ digest-checks `Prologue.txt`.
+After phase 5, fixes from the user's Studio review: value-set colours baked for zombie
+clothing (`formats/shader.py`, `convert/material.py`), `_dm` / `_cm<hex>` colour maps,
+packs next to loose models.
 Phases 1-4 (container, LZX, census, CLI; textures, index, Studio, mods, `game_mods/`;
 models → Blender and back) done 2026-10-08. Next: phase 6 (polish and distribution);
 start from `docs/phase6-kickoff.md`.** Read these before writing code:
@@ -21,7 +24,7 @@ start from `docs/phase6-kickoff.md`.** Read these before writing code:
 |---|---|
 | `docs/ARCHITECTURE.md` | Components, data flow, the asset index, the mod package format, stack choices |
 | `docs/formats.md` | Everything known about every file format, with a status per format (cracked / partial / unknown) |
-| `docs/phase6-kickoff.md` | Phase 6 handoff: scope, what phase 5 left open, facts to keep in mind |
+| `docs/phase6-kickoff.md` | Phase 6 handoff: scope, what phase 5 left open, post-phase-5 fixes, facts to keep in mind |
 | `docs/dev/code-tour.md` | Every module of `dr2kit` and how a read flows through them |
 | `THIRD_PARTY.md` | Reused code and its licenses (libmspack is LGPL: keep it in its own library) |
 | `docs/roadmap.md` | Phases, what each phase delivers, and the gate that proves it works |

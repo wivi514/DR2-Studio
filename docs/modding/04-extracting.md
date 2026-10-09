@@ -75,9 +75,14 @@ What is in the `.glb`:
 - **The skeleton** as a Blender armature, bones named as in the game
   (`dummy01.l_upperarm`), in the rest pose (a T-pose for characters).
 - **Skin weights**, up to 4 bones per vertex, already mapped to the skeleton.
-- **Materials** with the colour (`_cm`) and normal (`_nm`) textures. Other textures
-  (specular `_sm`, tint `_mask`) are listed in the material's custom properties; export
-  them as PNG if you need them.
+- **Materials** with the colour (`_cm`, also `_dm` and names like `glass_cmda77`) and
+  normal (`_nm`) textures. Other textures (specular `_sm`, `_mask`) are listed in the
+  material's custom properties; export them as PNG if you need them.
+- **Clothing whose colours are shader settings** (zombie clothes, cutscene zombies, some
+  NPC clothing): its `_cm1` texture is a weight map, not a picture, so the export
+  computes the real colours into a `<name>_baked` texture (the material's custom
+  properties say `baked`). To repaint such clothing, edit that baked picture in your
+  own work; the game itself still uses the weight map and the material's colours.
 - Each bone's original game record, so the skeleton can be put back exactly. Edited models go back into the game with
   [`08-edit-a-model.md`](08-edit-a-model.md).
 

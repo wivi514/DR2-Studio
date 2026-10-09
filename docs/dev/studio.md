@@ -70,7 +70,8 @@ resolves, Studio says to rebuild the index.
 
 Clicking a model or skeleton exports it to `.glb` in a worker thread
 (`convert.gltf.model_to_glb`, textures through `convert.model.TextureFinder` with the
-index), then `ModelViewer.show_glb()` hands the bytes to the page. Same file as
+index, colours from shader constants baked by `TextureFinder.baker` /
+`convert.material`), then `ModelViewer.show_glb()` hands the bytes to the page. Same file as
 `dr2 extract --glb`, so the preview shows exactly what Blender will get.
 
 - **Serving the page.** A custom `dr2:` URL scheme (`register_scheme()`, called when
