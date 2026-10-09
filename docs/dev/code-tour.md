@@ -22,6 +22,8 @@ dr2kit/
     scene.py           models and skeletons: nodes, materials, meshes, draws (phase 3)
     scene_write.py     writing scenes: chunk serialisers, strips, new geometry (phase 4)
     vertex.py          360 vertex declarations, stream decoding and encoding (phases 3-4)
+    xma.py             sounds: RIFF XMA2, cache.big stream tables, packet headers (phase 5)
+    audioscript.py     .sfx and audio scene scripts: the block text format (phase 5)
   convert/
     png.py             pure-Python PNG reader/writer (Pillow used when present)
     dxt.py             DXT1/DXT5/DXN block decode + encode (numpy, pure-Python fallback)
@@ -29,6 +31,7 @@ dr2kit/
     gltf.py            scene -> .glb (skeleton, meshes, skin, materials); .glb -> node records
     model.py           vpath -> .glb with textures found by name (TextureFinder)
     model_import.py    .glb (Blender) -> model: matching, rig validator, import (phase 4)
+    audio.py           .xma -> PCM / WAV through PyAV; fitting audio to a sound (phase 5)
   index/
     schema.sql         the SQLite tables
     build.py           build / refresh the asset index (incremental), thumbnails, relations
@@ -37,9 +40,11 @@ dr2kit/
     manifest.py        mod.toml, the list of overrides
     build.py           overrides -> whole replacement files (re-pack, re-compress, verify)
     deploy.py          copy a build into a recomp's game_mods/ (and undo it)
+    audio.py           sound overrides -> dr2kit_audio/ (WAVs + substitution table, phase 5)
   studio/
     app.py, viewers.py DR2 Studio (PySide6): tree, search, texture viewer, mod bar
     model_view.py      the 3D view: QWebEngineView + three.js over a dr2: URL scheme
+    audio_view.py      the audio view: waveform, playback (QAudioSink), loop (phase 5)
     web/               its page (viewer.html, viewer.js) and vendored three.js (MIT)
   cli/main.py          the `dr2` command
 native/lzx/            the C library behind the fast LZX decoder (libmspack, LGPL)
@@ -134,13 +139,14 @@ ones too), counts extensions, flags, compression, block types, alignments, textu
 header bytes and scenes (`check_scene`: every scene's chunks rewrite identically;
 with `models=True` every draw is decoded and its vertices re-encoded; with
 `reimport=True`, `check_reimport` exports each model to `.glb`, imports it back and
-rebuilds every shape), and runs the gates: round trip, decode, and optionally re-encode
+rebuilds every shape; with `audio=True` every `.xma` is decoded in a process pool and
+its length checked, and every `.sfx` track resolved), and runs the gates: round trip, decode, and optionally re-encode
 (parallel) and a pure-Python cross-check. `format_report()` prints it; `problems` must
 be empty.
 
 ### `dr2kit/cli/main.py`
-`dr2 doctor | games | ls | find | extract [--png | --glb] | model check|import | info |
-index … | mod … | studio | census [--textures] [--models] [--reimport] | unpack`. One `cmd_<name>`
+`dr2 doctor | games | ls | find | extract [--png | --glb | --wav] | model check|import | info |
+index … | mod … | studio | census [--textures] [--models] [--reimport] [--audio] | unpack`. One `cmd_<name>`
 function per command, no format logic. Exit code 1 on a `Dr2Error` or when a census
 finds problems.
 
@@ -209,6 +215,33 @@ rules (shape and bone names, materials, skinning back to the rest pose, "unchang
 detection): [`gltf-mapping.md`](gltf-mapping.md) §Coming back: models. Mods use it for a
 `replace/<model vpath>.glb` (`mods/build.py`, kind `model-glb`).
 
+### `dr2kit/formats/xma.py`, `audioscript.py` (phase 5)
+Read `formats.md` §Audio first: it has the measured rules these modules trust.
+
+- `xma`: `Xma2Format` (the 52-byte `fmt` chunk; `extradata()` is what ffmpeg takes),
+  `XmaRiff.parse` (fmt / seek / data, unknown chunks are errors), `riff_wrap(packets,
+  channels, rate)` (a RIFF header around raw packets, so ffmpeg opens both shapes the
+  same way), `PacketHeader` / `packet_headers` / `frame_count` / `stream_starts`
+  (multi-stream sounds), `fingerprint` (FNV-1a 64 of a packet, the recomps' key),
+  `StreamTable` (`cache.big`'s `$GIB` tables; `find(name)` hashes the case-kept name),
+  and `AudioInfo` (channels, rate, shape, where the packets are, the expected length,
+  the loop in decoded samples) built by `info_from_riff` / `info_from_record`.
+- `audioscript`: `parse(text)` → `Block` trees (class, name, properties, children;
+  errors name the line); `sfx_tracks` (the bank entries a `.sfx` plays) and
+  `script_refs` (every `Asset` / `BigFile` of a scene script, with the block path and
+  trigger events as `context`).
+
+### `dr2kit/convert/audio.py` (phase 5)
+`AudioLookup(tree).info(vpath, data)` finds a sound's format (its RIFF header, or its
+stream-table record; tables are read once). `decode(data, info)` → `Pcm` (16-bit
+interleaved, plus the peak) through PyAV; `length_check` is the census rule;
+`stream_packets` decodes stream by stream, one packet per call like the recomps, and
+says where each packet's output lands (what the substitution table records).
+`load_audio` reads a modder's WAV/OGG/FLAC/MP3, `conform` fits it to a sound (channels,
+rate, exact length; returns notes), `split_streams` cuts 5.1 into stereo streams.
+`have_decoder()` says whether PyAV with `xma2` is there; without it, `decode` raises
+`AudioBackendMissing` with the install command.
+
 ### `dr2kit/convert/gltf.py`, `model.py` (phase 3)
 - `gltf`: `GlbBuilder` (accessors, buffer views → `.glb` bytes) and `Glb.parse` (the
   reverse); `skeleton_to_glb(scene)`, `model_to_glb(scene, texture_png)`,
@@ -226,8 +259,12 @@ model's `MatTextureInfoArray`), then `link_relations()` joins slot names to text
 Unchanged files (same size and mtime) are skipped on a rebuild. `connect()` creates the
 schema, drops an index from an older schema version, and uses WAL mode. `query` holds
 every SELECT: `search`, `get`, `children`, `files`, `textures_of`, `used_by`,
-`same_content`, `thumbnail`. The default database is in the user cache folder
-(`default_db_path()`).
+`same_content`, `thumbnail`, and for sounds (phase 5) `audio_info`, `sound_targets`
+(what a `.sfx` or script names) and `sound_users` (who plays a sound, with events).
+Phase 5 added the `audio` table (format and length of every sound, read without
+decoding) and `sound_ref` (what each `.sfx` and audio scene script names), resolved
+into `relation` rows by `link_sounds()`. The default database is in the user cache
+folder (`default_db_path()`).
 
 ### `dr2kit/mods/` (phase 2)
 - `manifest`: `Mod.load(folder)` reads `mod.toml`; `Mod.files()` lists `replace/`;
@@ -238,12 +275,20 @@ every SELECT: `search`, `get`, `children`, `files`, `textures_of`, `used_by`,
   (re-encoding compressed entries via `BigEntry.set_data`), writes whole files, then
   `verify()` reads every override back through a fresh `AssetTree`. `base_dirs` makes
   it patch a recomp's `game_patched` copy instead of the shipped file.
+- `audio` (phase 5): `build_audio()` turns `replace/<sound>.xma.<wav|ogg|flac|mp3>`
+  overrides (kind `audio`) into `dr2kit_audio/`: one fitted WAV per XMA stream and
+  `substitutions.txt` listing every packet's fingerprint and output position;
+  `shared_packets()` scans every sound of the game so packets that occur elsewhere are
+  marked continue-only; `verify_audio()` reads it all back. No game file changes.
+  Design: [`recomp-integration.md`](recomp-integration.md#audio-substitution).
 - `deploy`: `deploy(build, target)` copies files and records them in
   `dr2kit-deployed.json`; `undeploy(target)` removes exactly those. `recomp_folders()`
   names `game_mods` / `game_patched` / `game_kbm` / `game_bootskip` next to a game root.
 
 ### `dr2kit/studio/` (phases 2-3)
-DR2 Studio; see [`studio.md`](studio.md). `model_view.py` is the 3D view (phase 3).
+DR2 Studio; see [`studio.md`](studio.md). `model_view.py` is the 3D view (phase 3),
+`audio_view.py` the audio view (phase 5: `Waveform`, `AudioViewer`, `playback_bytes`
+mixes 5.1 to stereo for listening).
 
 ## Tests
 

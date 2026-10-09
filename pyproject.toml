@@ -16,8 +16,10 @@ dependencies = ["platformdirs>=3"]
 # numpy speeds up texture work (untiling, DXT) ~50x; everything also runs without it.
 fast = ["numpy"]
 dev = ["pytest>=7"]
-# DR2 Studio, the GUI (LGPL PySide6; see THIRD_PARTY.md).
-studio = ["PySide6>=6.5", "numpy"]
+# Sounds (phase 5): PyAV bundles ffmpeg's XMA decoder (BSD + LGPL ffmpeg; THIRD_PARTY.md).
+audio = ["av>=12", "numpy"]
+# DR2 Studio, the GUI (LGPL PySide6; see THIRD_PARTY.md). PyAV so it can play sounds.
+studio = ["PySide6>=6.5", "numpy", "av>=12"]
 
 [project.scripts]
 dr2 = "dr2kit.cli.main:main"

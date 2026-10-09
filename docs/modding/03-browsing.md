@@ -3,7 +3,10 @@
 **You will:** build the asset index, find any texture by name, see it, and find out
 which models use it (and which textures a model uses).   **Time:** ~10 min.
 **Games:** both.   **You need:** the toolkit pointed at your game
-([`02-game-data.md`](02-game-data.md)). Playing sounds comes in a later version.
+([`02-game-data.md`](02-game-data.md)). To hear sounds: PyAV (`pip install av`).
+
+> Sounds: click any `.xma` to see its waveform and **Play** it; the Related list shows
+> the `.sfx` and game events that play it. Details in [`10-audio.md`](10-audio.md).
 
 The games hold about 125,000 (Case Zero) and 172,000 (Case West) files, most of them
 inside archives inside archives. The **index** is the toolkit's catalogue of all of them,

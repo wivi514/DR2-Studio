@@ -31,4 +31,5 @@ and how it is used. Checked 2026-10-08 (docs/phase1-kickoff.md, "Licensing of re
 | `PySide6` (optional, `[studio]`) | LGPL-3.0 | DR2 Studio, the GUI; used as an unmodified, dynamically loaded library |
 | `Pillow` (optional) | HPND (MIT-like) | faster PNG reading, and interlaced PNGs; the toolkit's own pure-Python PNG reader is used without it |
 | `pytest` (dev) | MIT | tests |
-| `av` / PyAV (later phases) | BSD; its bundled ffmpeg is LGPL | XMA and Bink decoding |
+| `av` / PyAV (optional, `[audio]`, `[studio]`) | BSD; the ffmpeg its wheels bundle is LGPL-2.1+ | XMA decoding (phase 5: preview, WAV export, the census, fitting sound mods); Bink later. Used unmodified, as a dynamically loaded library |
+| Qt Multimedia (part of PySide6) | LGPL-3.0 | DR2 Studio's audio playback (`QAudioSink`) |

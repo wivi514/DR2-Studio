@@ -7,20 +7,21 @@ Goal: make modding easy. Browse every asset in both games, **see** what a textur
 and **hear** a sound before extracting it, export models and skeletons to Blender, and
 put edited or new models back into the game when their bones match the game's rig.
 
-**Status: phase 4 (model replacement, Blender → game) done 2026-10-08: the scene writer
-(every chunk of every scene rewrites identically, exact vertex encoders), `.glb` →
-model with bones by name, palette splitting and the rig validator (`dr2 model check`,
-Studio, mods); no-op gate (every model re-imports byte-identical) and in-game gate (CZ:
-edited and new rigged meshes, fingers and face) passed. Phases 1-3 (container, LZX,
-census, CLI; textures, index, Studio, mods, `game_mods/`; models → Blender) done the
-same day. Next: phase 5 (audio); start from `docs/phase5-kickoff.md`.** Read these before writing
-code:
+**Status: phase 5 (audio) done 2026-10-09: both `.xma` shapes read (RIFF XMA2; raw
+packets + `cache.big` stream tables), decode to WAV through PyAV, Studio playback,
+`.sfx`/scene-script names in the index, and sound mods through PCM substitution in both
+recomps (every packet recognised by fingerprint + output position); decode gate (every
+sound of both games decodes to its stored length) and in-game gate (title music swap,
+CZ and CW) passed. Script-level remap ruled out: CZ digest-checks `Prologue.txt`.
+Phases 1-4 (container, LZX, census, CLI; textures, index, Studio, mods, `game_mods/`;
+models → Blender and back) done 2026-10-08. Next: phase 6 (polish and distribution);
+start from `docs/phase6-kickoff.md`.** Read these before writing code:
 
 | Doc | What it holds |
 |---|---|
 | `docs/ARCHITECTURE.md` | Components, data flow, the asset index, the mod package format, stack choices |
 | `docs/formats.md` | Everything known about every file format, with a status per format (cracked / partial / unknown) |
-| `docs/phase5-kickoff.md` | Phase 5 handoff: order of work, facts to keep in mind |
+| `docs/phase6-kickoff.md` | Phase 6 handoff: scope, what phase 5 left open, facts to keep in mind |
 | `docs/dev/code-tour.md` | Every module of `dr2kit` and how a read flows through them |
 | `THIRD_PARTY.md` | Reused code and its licenses (libmspack is LGPL: keep it in its own library) |
 | `docs/roadmap.md` | Phases, what each phase delivers, and the gate that proves it works |
@@ -86,7 +87,7 @@ behaviour.
 | `tools/tex_decode.py` | Xenos `Tiled2DOffset` untiling + DXT1/DXT5 decode (ported in phase 2) |
 | `tools/vsdump_skin.py`, `CZ_CAPTURE_DUMP_VS` | Draw dumps (constants + stream bytes) of one shader; the toolkit's `tools/capture_gate.py` reads them (phase 3) |
 | `tools/name_hash.py` | The engine's string hash (`h = h*33 ^ c`); `.big` entries are looked up by hash |
-| `runtime/audio/xma_decoder.cpp` | How to feed raw XMA to ffmpeg's `xma2` decoder (the 34-byte XMA2 extradata) |
+| `runtime/audio/xma_decoder.cpp` | How to feed raw XMA to ffmpeg's `xma2` decoder (the 34-byte XMA2 extradata); `runtime/kernel/audio.cpp` holds the audio substitution added in phase 5 |
 | `runtime/kernel/vfs.cpp` | The overlay layers; the `game_mods/` layer was added here in phase 2 (both recomps) |
 
 ## Hard-won rules (inherited from the recomp work, all measured)
@@ -137,6 +138,8 @@ dr2 census --textures                     # the texture re-encode gate (~4 min C
 dr2 census --models                       # decode every draw of every model (~40 s / ~70 s)
 dr2 census --reimport                     # + .glb re-import and shape rebuild gates (~4 / ~8 min)
 dr2 extract --glb <model vpath> -o out    # model or skeleton -> .glb for Blender
+dr2 census --audio                        # decode every sound, check lengths (~30 / ~42 s; PyAV)
+dr2 extract --wav <sound vpath> -o out    # .xma -> WAV (pip install av)
 dr2 model check <file.glb> <model vpath>  # rig validator (import: dr2 model import … -o)
 python tools/blender_skeleton_gate.py     # skeleton round trip through Blender (~25 s)
 dr2 index build                           # the asset index (~1-2 min per game)

@@ -87,3 +87,44 @@ def test_cli_index(game, tmp_path, capsys):
     assert "hero.tex/hero_cm" in capsys.readouterr().out
     assert main(["index", "used-by", "data/models/npcs.big/hero.tex/hero_cm", "--db", db]) == 0
     assert "hero.big" in capsys.readouterr().out
+
+
+def test_sounds_and_their_links(tmp_path):
+    """Sounds get an `audio` row; a .sfx links to the recording of its bank; a scene
+    script's Asset line links to the sound, with its trigger events as context."""
+    import struct as st
+    from dr2kit.formats import xma
+    from test_audio import SCENE, SFX, packet
+    sound = xma.riff_wrap(packet(5) + packet(4), 1, 48000, play_length=3000)
+    fx = make_archive(("cursorError43a_01a.xma", sound), ("FEError.sfx", SFX.encode()))
+    root = tmp_path / "game"
+    (root / "data" / "audio").mkdir(parents=True)
+    (root / "data" / "streamedassets.big").write_bytes(
+        make_archive(("fx_main.big", fx.to_bytes())).to_bytes())
+    music = make_archive(("HB_Indemnify.xma", packet(9) * 2))
+    (root / "data" / "audio" / "music.big").write_bytes(music.to_bytes())
+    from dr2kit.hashing import name_hash
+    table = b"$GIB" + st.pack(">III", 2, 3, 1) + st.pack(
+        ">6I", name_hash("HB_Indemnify.xma"), 0x800, 4096, 48000 << 5 | 2 << 2 | 1, 384, 4000)
+    (root / "data" / "audio" / "cache.big").write_bytes(
+        make_archive(("music.$$$", table)).to_bytes())
+    (root / "data" / "audio" / "Prologue.txt").write_text(SCENE)
+    db = tmp_path / "i.sqlite"
+    st_ = build_index("cz", AssetTree(root), db, thumbs=False)
+    assert st_.problems == [] and st_.sounds == 2
+    con = connect(db)
+    rec = query.get(con, "cz", "data/streamedassets.big/fx_main.big/cursorError43a_01a.xma")
+    a = query.audio_info(con, rec["id"])
+    assert (a["channels"], a["samples"], a["exact"], a["shape"]) == (1, 3000, 1, "riff")
+    users = query.sound_users(con, rec["id"])
+    assert [u["name"] for u in users] == ["FEError.sfx"]
+    mus = query.get(con, "cz", "data/audio/music.big/HB_Indemnify.xma")
+    assert dict(query.audio_info(con, mus["id"]))["loop_end"] == 4000
+    users = query.sound_users(con, mus["id"])
+    assert len(users) == 1 and "TriggerPlay=MechanicBattleStart" in users[0]["context"]
+    sfx = query.get(con, "cz", "data/streamedassets.big/fx_main.big/FEError.sfx")
+    targets = query.sound_targets(con, sfx["id"])
+    assert [(t["dst_name"], t["vpath"] is not None) for t in targets] == [
+        ("cursorError43a_01a.xma", True), ("FrogSUB1.sfx", False)]
+    assert st_.unresolved_sounds == 1
+    con.close()

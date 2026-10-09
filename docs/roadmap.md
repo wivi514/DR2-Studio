@@ -120,12 +120,34 @@ Handoff was `phase4-kickoff.md`; the next one is `phase5-kickoff.md`.
   the look of new tangents on normal maps; adding parts, bones or materials (v1 is
   replacement only).
 
-## Phase 5: audio
-- XMA metadata (channels/rate), → WAV, playback in Studio, event names from scene scripts.
-- Replacement: script-level remap (easy path); recomp PCM substitution in both recomps
-  (approved); optional user-supplied XMA encoder.
-- **Gate:** every `.xma` in both games decodes to the duration the scripts or runtime
-  log report; one music swap is audible in the recomp.
+## Phase 5: audio ✅ (2026-10-09)
+- XMA metadata: two shapes of `.xma` (RIFF XMA2 files in the fx banks; raw packets in
+  the streamed banks, described by `cache.big`'s `$GIB` stream tables, cracked this
+  phase) (`formats/xma.py`). ✅
+- → WAV through PyAV (`convert/audio.py`, `dr2 extract --wav`, `dr2 info`), playback in
+  Studio (`studio/audio_view.py`: waveform, play, seek, loop). ✅
+- Names: `.sfx` tracks and scene-script `Asset` lines parsed (`formats/audioscript.py`)
+  and linked in the index with their trigger events (`audio`, `sound_ref` tables). Voice
+  lines stay numbered (the GASP tables give no names). ✅
+- Replacement: **PCM substitution in both recomps** (`mods/audio.py`; CZ/CW
+  `runtime/kernel/audio.cpp`, `CZ_NO_AUDIO_MODS` / `CW_NO_AUDIO_MODS`): `replace/<sound>.xma.wav`
+  (or `.ogg`/`.flac`/`.mp3`), fitted to the sound's channels, rate and length. Every packet
+  is recognised by its hash and output position, instead of the planned VFS read tracking. ✅
+- Script-level remap (planned as the easy path): **ruled out** for Case Zero, which
+  digest-checks `Prologue.txt` and crashes on an edited copy (checked in game). The
+  guide shows the substitution way to point an event at another sound. User-supplied XMA
+  encoder: not built.
+- Docs: `formats.md` §Audio (with the "no RIFF header" retraction), `modding/10-audio.md`,
+  `dev/recomp-integration.md` §Audio substitution, troubleshooting, glossary. ✅
+- **Gate (decode):** every `.xma` of both games decodes to the length its metadata says
+  (8,916 CZ + 11,735 CW, `dr2 census --audio`; exact where a length is stored, the packet
+  headers' frame total otherwise); every `.sfx` parses (4,745 + 5,194). **Passed.**
+- **Gate (in game, both games):** the title-screen music replaced by another track of the
+  game plays in its place (recorded through SDL's disk driver: the recording follows the
+  replacement at the right positions); the off switch on the same binary plays the
+  original. **Passed** in CZ and CW. Details: `formats.md` §In-game check (phase 5).
+- **Not proven yet:** a 5.1 cinematic and an fx-bank sound replaced in game; longer
+  replacements than the original (the game sets a sound's length; v1 cuts or pads).
 
 ## Phase 6: polish and distribution
 - Blender add-on `io_dr2` (index browser in Blender, validator panel, export to mod).

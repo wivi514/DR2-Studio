@@ -69,7 +69,7 @@ than in a top-level `cli/`, so `pip install` ships it with the `dr2` entry point
 | **Blender add-on (later)** | Nicer UX on top of the same glTF path: one-click import from the index, a rig check panel ("this mesh uses bones the target skeleton lacks"), export straight to a mod folder. |
 | **PySide6 (Qt) desktop GUI** | Native file dialogs, a fast thumbnail grid, `QMediaPlayer`/`QAudioSink` for audio, and `QWebEngineView` + three.js for the 3D preview of the same `.glb` the exporter writes (one renderer path to maintain, not two). Runs on Linux and Windows, like the recomps. |
 | **SQLite index** | One file, zero setup, fast search across ~25k entries for both games. Rebuilt incrementally from archive mtimes and sizes. |
-| **ffmpeg (CLI or PyAV)** for XMA→PCM and Bink preview | It already decodes `xma1`/`xma2` and Bink on this machine. The recomp runtime uses the same decoder, so we know the extradata it needs. |
+| **ffmpeg through PyAV** for XMA→PCM (and Bink preview later) | It decodes `xma2`; the recomp runtimes use the same decoder, so packet-by-packet output positions computed by the toolkit match theirs. PyAV wheels bundle an LGPL ffmpeg; it is an optional dependency (`pip install av`), like Pillow. |
 
 ## Platforms: Windows, Linux and macOS
 
@@ -128,11 +128,13 @@ per entry, at every nesting level:
 asset(id, game, vpath, archive_file, parent_id, name, name_hash, ext, kind,
       stored_size, size, compressed, data_offset, sha1)
 texture(asset_id, width, height, format, mips, tiled, is_cube, thumb_png)
-audio(asset_id, channels, sample_rate, duration_s, bank, event_names)
+audio(asset_id, channels, rate, shape, samples, exact, loop_start, loop_end)   -- phase 5
+sound_ref(src_id, kind, slot, bank, name, context)   -- what a .sfx / scene script names
 model(asset_id, mesh_count, vert_count, bone_count, skeleton_guess)
 skeleton(asset_id, bone_count, root_name)
-relation(src_id, dst_id, kind)   -- model→texture (material slot), model→skeleton,
-                                  -- audio event→xma, cinematic→anim, texture→models (reverse)
+relation(src_id, dst_id, kind)   -- model→texture (material slot), .sfx→xma ('sfx-track'),
+                                  -- scene script→sound ('script-asset'); later model→skeleton,
+                                  -- cinematic→anim
 ```
 
 This answers the "which texture is what" questions:
@@ -141,9 +143,11 @@ This answers the "which texture is what" questions:
   found by reading each model's `MatTextureInfoArray`.
 - Model → its textures (thumbnails in the side panel) and the skeleton it binds to,
   matched by bone-name set against `data/skeleton/*.big`.
-- Sound → its event names and owning scene, from `data/audio/*.txt` (`cAudioScene` /
-  `cAudioJukebox` / `Asset = "music.big/…"`), so you can search for "MechanicBattle" and
-  find the track.
+- Sound → the `.sfx` that play it and the scene-script events that trigger it, from the
+  `.sfx` tracks and `data/audio/*.txt` / `scenegraph.txt` (`cAudioScene` /
+  `cAudioJukebox` / `Asset = "music.big/…"`) (✅ phase 5). Voice lines (the numbered
+  `charvocals.big` sounds) have no names yet: the GASP dialogue tables in `gasp.big` link
+  them by number only.
 - Later, if the recomp runtime gains an "identify" hook: the textures bound in the frame
   the player is looking at (the CZ recomp's F9 census already produces this), shown
   highlighted in the browser.
@@ -155,7 +159,8 @@ This answers the "which texture is what" questions:
 - **Centre:** a viewer per kind.
   - Texture: zoom, alpha/RGB/single channel, mip selector, cube faces, tiled/untiled
     toggle (for debugging), format and size info.
-  - Audio: waveform, play/pause/seek, loop points if the scene script names them.
+  - Audio: waveform per channel, play/stop, click to seek, loop region shaded and
+    *Loop* to hear it repeat (✅ phase 5, `studio/audio_view.py`).
   - Model: three.js orbit view with textures applied, skeleton overlay (✅ phase 3, with
     wireframe and *Export .glb…*); per-mesh visibility, bone-name hover (later).
   - Skeleton: the 3D view shows the bones (✅ phase 3); a bone tree (later).
@@ -177,7 +182,7 @@ my_mod/
   replace/
     data/models/npcs.big/chest_default.tex/chest_default_cm.png
     data/models/npcs.big/chest_default.big.glb
-    data/audio/music.big/HB_Indemnify.wav
+    data/audio/music.big/HB_Indemnify.xma.wav  # or .ogg/.flac/.mp3; played by the recomp
     data/frontend/str_en.bcs.json            # string overrides, by id
   add/                        # new entries (later phase; needs loader/manifest support)
 ```
@@ -187,9 +192,10 @@ generate mips, re-encode LZX when the original was compressed, rebuild the model
 re-packs every touched archive (nested `.big` included), and writes an output tree that
 mirrors `data/`. Two deploy targets:
 
-1. **Recomp overlay (preferred):** copy the tree to `assets/game_mods/` in a recomp.
-   **Approved for both recomps (2026-10-08), not implemented yet.** See "Recomp
-   integration" below.
+1. **Recomp overlay (preferred):** copy the tree to `assets/game_mods/` in a recomp
+   (✅ both recomps since phase 2). Audio replacements only work here: they are not
+   game files but `dr2kit_audio/` (WAVs and a substitution table) that the recomps read.
+   See "Recomp integration" below.
 2. **Patched archives:** whole replacement `.big` files that work anywhere (Xenia, a real
    console, or dropped into `game_patched` today).
 
@@ -245,14 +251,28 @@ preserved.
 
 ## Audio pipeline
 
-- **Preview/extract:** raw `.xma` entry → find channels/rate (entry header bytes and/or
-  the `cAudioScene` scripts) → XMA2 extradata → ffmpeg → PCM → WAV or in-GUI playback.
-- **Replace:** no free XMA encoder exists. Two routes, both kept open:
-  1. **Recomp-side PCM substitution (preferred for recomp users, approved):** the
-     recomp already decodes XMA on the host (`runtime/audio/xma_decoder.cpp`), so it can
-     serve PCM for an asset that has a `.wav`/`.ogg` override. See "Recomp integration".
+Built in phase 5 (`formats/xma.py`, `formats/audioscript.py`, `convert/audio.py`,
+`mods/audio.py`, `studio/audio_view.py`; facts in `formats.md` §Audio).
+
+- **Preview/extract:** `.xma` entry → its format: its own RIFF `fmt` chunk (sound-effect
+  banks) or its record in `data/audio/cache.big/<bank>.$$$` (streamed banks: music,
+  voices, cinematics) → raw packets wrapped in a RIFF header so both shapes take one
+  path → ffmpeg's `xma2` decoder through **PyAV** (optional dependency) → 16-bit PCM →
+  WAV (`dr2 extract --wav`) or Studio playback (`QAudioSink`).
+- **Names:** the `.sfx` that play a recording and the scene-script events that trigger
+  it, through the index (`sound_ref` → `relation`).
+- **Replace:** no redistributable XMA encoder exists. Two routes:
+  1. **Recomp-side PCM substitution (✅ phase 5, both recomps):** the recomps decode XMA
+     on the host one packet at a time, so they overwrite the decoded samples of a
+     replaced sound with the mod's. The build fits the modder's audio (WAV/OGG/FLAC/MP3)
+     to the sound's channels, rate and decoded length and lists every packet's
+     fingerprint and output position. See "Recomp integration".
   2. **Native XMA:** run a user-supplied XMA encoder (`xma2encode` from the Xbox 360 SDK;
-     we cannot redistribute it) for builds that must run on Xenia or hardware.
+     we cannot redistribute it) for builds that must run on Xenia or hardware. Not built.
+  3. ~~Script-level remap~~ (point an event at another sound in the scene script, as the
+     PC community did): **ruled out on Case Zero**, which checks `Prologue.txt` against a
+     SHA-1 digest in the executable and crashes on an edited copy (checked in game,
+     2026-10-09). Use route 1 with the other sound's audio.
 
 ## Textures
 
@@ -290,14 +310,19 @@ Two runtime changes, made in each recomp repo following that repo's own conventi
    the recomp's patch. So `dr2 mod deploy` builds the mod archive **on top of the
    `game_patched` copy when one exists**, and the runtime only serves whole files.
    Merging stays in the toolkit; the runtime stays simple.
-2. **PCM audio substitution.** When the guest submits XMA for an asset that has a
-   `game_mods/…/<name>.wav` (or `.ogg`), the host feeds that PCM instead of decoding XMA
-   (`runtime/audio/xma_decoder.cpp`). The hard part is mapping the guest's XMA buffer back
-   to a `.big` entry, through the `NtReadFile` handle→file→offset tracking the VFS can
-   do. Design this in phase 5, together with the audio metadata work.
+2. **PCM audio substitution** (✅ phase 5, both recomps, `runtime/kernel/audio.cpp`).
+   After each XMA packet is decoded, if the packet belongs to a replaced sound, the
+   samples it produced are overwritten with the mod's (`game_mods/dr2kit_audio/`).
+   Off switch `CZ_NO_AUDIO_MODS=1` / `CW_NO_AUDIO_MODS=1` (and `*_NO_MODS`).
+   **Design change from the plan above:** the plan was to map a guest XMA buffer back to
+   its `.big` entry by tracking `NtReadFile` handles and offsets in the VFS. Instead
+   every packet of a replaced sound is listed by a 64-bit hash with the position its
+   output starts at, so each packet identifies itself: no VFS bookkeeping, and loops,
+   streaming through re-armed buffers and reused contexts need no special cases. Packets
+   that also occur in another sound only continue a substitution, never start one.
+   Details and the test procedure: `dev/recomp-integration.md` §Audio substitution.
 
-Timing: (1) lands with phase 2, so the first texture mod is tested through it. (2) lands
-with phase 5.
+Timing: (1) landed with phase 2, (2) with phase 5.
 
 ## Non-goals (for now)
 

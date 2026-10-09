@@ -21,7 +21,8 @@ Found something? `dr2 index textures-of <model>` lists a model's textures, and
 | `data/preload4.big` | Things loaded at boot: default textures, colour-grading tables, a copy of `fecmn.tex`. Edit with care (see the troubleshooting guide) |
 | `data/misc/textures/commoncolourcubes.tex`, `data/streamedassets.big/cc_*.bct` | Colour-grading tables (the "look" of each area), 1024×32 strips |
 | `data/skeleton/*.big` | The rigs (below) |
-| `data/audio/*.big` | Sound banks (phase 5) |
+| `data/audio/*.big` | Streamed sounds: music, voices, cutscene audio, long ambiences ([below](#sounds)) |
+| `data/streamedassets.big/fx_*.big` | Sound-effect banks: recordings (`.xma`) and the effects that play them (`.sfx`) |
 
 ## Chuck (Case Zero)
 
@@ -92,3 +93,21 @@ A model carries its own copy of its rig (a character `.big` lists its 98 bones t
 | `_mask` | tint mask (clothing) | which parts get tinted |
 | `_ne`, `_si`, `_rm`, `_no`, `_det`, `_om`, `_ig` | lighting / detail maps, meanings still being worked out | — |
 | `AO_…`, `LM_…` | ambient occlusion / light maps of the map | baked shadows |
+
+## Sounds
+
+Every sound is an `.xma` (search Studio with the kind box on **audio**). Click one to
+play it; the Related list says which `.sfx` and game events use it.
+
+| Where | What | Notes |
+|---|---|---|
+| `data/audio/music.big` | Music: 16 tracks in CZ (title `PressStartPrologue`, `HB_Indemnify`, the Celldweller boss track `Celldweller_TheBestItsGonnaGet` and its `_Vox` version, `KillTheSound_EndCredits1`…), 35 in CW (title `PressStartDR2`, `CommanderBattle`, `Sting*` cues…) | stereo |
+| `data/audio/cinematics.big` | Cutscene audio, numbered (`39694.xma` is Case Zero's 5-minute prologue) | 5.1 (6 channels) |
+| `data/audio/charvocals.big`, `chuck.big`, `bossvocals.big` | Voice lines, numbered (the dialogue tables use numbers only) | mono |
+| `data/audio/ambience.big`, `streamfx.big` | Long ambiences and streamed effects (pay phone message, crowd chants, the PA broadcast) | mono / stereo |
+| `data/streamedassets.big/fx_main.big` | Common effects: UI beeps (`FEError.sfx` → `cursorError43a_01a.xma`), hits, splats, Chuck's grunts | mono |
+| `data/streamedassets.big/fx_ftsp*.big` | Footsteps by shoe type (`fx_ftspsneaker`, `fx_ftsphighheel`, `fx_ftspboots`…) | mono |
+| `data/streamedassets.big/fx_zombie*.big` | Zombie voices, one bank per zombie voice set | mono |
+| `data/streamedassets.big/fx_<weapon or vehicle>.big` | Each weapon's and vehicle's sounds (`fx_superbike`, `fx_chefknife`, `fx_propanetanknails`…) | mono |
+| `data/audio/Prologue.txt` (CZ), `data/audio/*.txt` (CW) | The audio scene scripts: which events play which sounds. **Don't edit** (checked by the game) | text |
+

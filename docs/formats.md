@@ -11,8 +11,10 @@ Case West census before they count as rules (CLAUDE.md rule 7).
 | `.bct` texture | loose, inside `.tex` | ✅ read + write | `dr2kit/formats/bct.py`, `convert/texture.py`. Every texture of both games decodes and re-encodes to its exact bytes; flags byte bits 0x04/0xE0 and header word 0x0C still unexplained (preserved) |
 | `.tex` texture pack | next to every model `.big` | ✅ | a `.big` whose entries are `.bct`, named without extension |
 | scene (model / skeleton) | `models/**/*.big`, `skeleton/*.big`, props, environments | ✅ read + write | `dr2kit/formats/scene.py`, `vertex.py`. Every scene of both games parses and every draw decodes; buffers and bone palettes checked against the running game; exports to glTF. **Written back** (phase 4): every chunk rewrites identically, `.glb` → model, new meshes and rigs; checked in game |
-| `.xma` audio | `audio/*.big` | 🟡 | raw XMA, decoded on the host by the recomp through ffmpeg; header and rate source ❓ |
-| audio scene scripts `.txt` | `audio/Prologue.txt`, `datafile.big` | ✅ text | `cAudioScene` / `cAudioJukebox` tree, `Asset = "music.big/<name>"` |
+| `.xma` audio | `audio/*.big` (streamed), `streamedassets.big/fx_*.big` | ✅ read; replaced by PCM substitution | `dr2kit/formats/xma.py`, `convert/audio.py`. Two shapes: RIFF XMA2 files (fx banks) and raw packets whose format is in `audio/cache.big`. Every sound of both games decodes to its stored length (phase 5 census, below). No XMA encoder: mods replace sounds through the recomps (§Replacing sounds) |
+| `cache.big` stream tables `$GIB` | `audio/cache.big/<bank>.$$$` | ✅ | `xma.StreamTable`: rate, channels, loop of every raw stream, keyed by the case-kept name hash |
+| `.sfx` sound effect | next to the sounds in `fx_*.big` | ✅ text | `dr2kit/formats/audioscript.py`: `cSoundEffect` with one `cSfxTrack` per layer; `Sample` = the bank's `.xma` (or a sub-`.sfx`) |
+| audio scene scripts `.txt` | `audio/Prologue.txt` (CZ), `audio/*.txt` + `scenegraph.txt` | ✅ text | `cAudioScene` / `cAudioJukebox` tree, `Asset = "music.big/<name>"`. **CZ's `Prologue.txt` is digest-checked by the executable: an edited copy crashes the game** |
 | `.bcs` string bank | `frontend/str_<lang>.bcs` | ✅ | `gen_pc_options.patch_bcs` reads and patches it |
 | `.bcf` font | `system/**` | 🟡 | 9 of 11 in CZ and 6 of 11 in CW are plain `.big` archives (read by the census); the rest start `04 03 02 01`, an unknown sibling container ❓ |
 | `.anm` / anim `.big` | `anim/**`, `skeleton/*.anm` | ❓ | |
@@ -655,17 +657,192 @@ of new tangents.
 
 ## Audio
 
-- `.xma` entries hold raw XMA (8,916 entries in CZ, 11,735 in CW; in banks such as `charvocals.big` with 985 entries,
-  `music.big` with 16 licensed tracks, and `cinematics.big` at 110 MB). The payload is
-  0x800-aligned. The first bytes (`40 00 01 00 …`, `48 00 01 00 …`) look like XMA packet
-  headers rather than a RIFF container. **There is no `RIFF`/`XMA2` header, so channels and
-  sample rate must come from elsewhere:** the audio scene scripts, a bank table such as
-  `cache.big`, or the recomp's runtime log of the XMA contexts it decodes.
-- `runtime/audio/xma_decoder.cpp` (CZ recomp) shows the ffmpeg `xma2` setup:
-  34-byte XMA2 extradata, block size 0x10000.
-- Audio scene scripts (`audio/Prologue.txt`) map events to banks and assets, e.g.
-  `BigFile = "fx_mechanic.big"`, `Asset = "music.big/Celldweller_TheBestItsGonnaGet_…"`.
-  That gives the index human-readable names for sounds.
+Every sound of both games is **XMA2**, the Xbox 360's hardware audio codec: a cut-down
+WMA Pro, cut into 2 KB *packets* that carry 512-sample *frames*
+([glossary](glossary.md#xma)). The toolkit decodes it with ffmpeg's `xma2` decoder through
+PyAV (`dr2kit/convert/audio.py`), the same decoder the recomps use
+(`runtime/audio/xma_decoder.cpp`).
+
+> **Retraction (phase 5, 2026-10-09).** Phase 0 wrote "`.xma` entries hold raw XMA …
+> There is no `RIFF`/`XMA2` header, so channels and sample rate must come from
+> elsewhere". That holds only for the 1,269 (CZ) / 2,545 (CW) sounds of the streamed
+> banks in `data/audio/`, the ones phase 0 looked at. The other 7,647 / 9,190, in the
+> `fx_*.big` banks inside `streamedassets.big`, are complete RIFF files. Found by
+> counting the first four bytes of every `.xma` of both games.
+
+### Two shapes ✅
+
+| Shape | Where | Count CZ / CW | Format from |
+|---|---|---|---|
+| **RIFF XMA2 file** | every `.xma` in `streamedassets.big/fx_*.big` (sound-effect banks) | 7,647 / 9,190 | its own `fmt ` chunk |
+| **raw packets** | every `.xma` in `data/audio/*.big` (music, voices, cinematics, ambience) | 1,269 / 2,545 | `data/audio/cache.big/<bank>.$$$` |
+
+**RIFF XMA2** (`xma.XmaRiff`): `RIFF`/`WAVE`, then exactly three chunks in this order:
+
+- `fmt ` (52 bytes, **little-endian**): `XMA2WAVEFORMATEX`, format tag `0x166`, `cbSize`
+  34. The 34-byte tail is `wNumStreams, dwChannelMask, dwSamplesEncoded,
+  dwBytesPerBlock (0x10000), dwPlayBegin, dwPlayLength, dwLoopBegin, dwLoopLength,
+  bLoopCount, bEncoderVersion (4), wBlockCount`: what ffmpeg takes as extradata.
+- `seek`: one **big-endian** dword per 64 KB block, the samples decoded by the end of
+  that block (so the chunk flips byte order inside a little-endian file, rule 1).
+- `data`: the packets.
+
+The entry size is `88 + 4 × blocks + data`, which is why fx entries are 2 KB multiples
+plus 92, 96, 100… bytes.
+
+**Raw packets**: the entry is the packets alone, 0x800-aligned in its bank. Their format
+is in a **stream table** (`xma.StreamTable`), one per streamed bank, in
+`data/audio/cache.big`: `ambience.$$$`, `music.$$$`, `cinematics.$$$`, `charvocals.$$$`,
+`chuck.$$$`, `streamfx.$$$`, `bossvocals.$$$` (CW adds the same set for its banks).
+
+```
+0x00  "$GIB"   magic ("BIG$" backwards)
+0x04  u32 BE   2        (version?)
+0x08  u32 BE   3        (unknown, same in every table)
+0x0C  u32 BE   record count
+0x10  records, 24 bytes each, sorted by hash as signed ints:
+      u32 hash         engine hash of the entry name WITH ITS CASE KEPT ("HB_Indemnify.xma")
+      u32 offset       where the entry sits in its bank file
+      u32 size         the entry's size
+      u32 format       rate << 5 | channels << 2 | 1
+      u32 loop_begin   as RIFF dwLoopBegin (0 = no loop)
+      u32 loop_length  as RIFF dwLoopLength
+```
+
+Verified: every record of both games matches an entry of its bank by hash, offset and
+size (and vice versa), and every decode agrees with the rate, channels and loop. The
+hash is the *case-kept* name, unlike the `.big` index, which hashes the lower-cased
+name. The low two bits of `format` are 1 in every record (meaning unknown, preserved).
+
+### Channels, rates, streams ✅
+
+- Channels: 1 (8,846 / 11,644), 2 (42 / 73), **6** (28 / 18: the 5.1 cinematics).
+- Rates: 48,000 Hz (8,750 / 11,567), the rest a few hertz off (47,866 to 48,530 Hz in CZ,
+  47,060 to 48,294 in CW): the encoder stored each recording's measured rate.
+- More than two channels are stored as **several streams** of one or two channels, their
+  packets interleaved. The 32-bit packet header (big-endian) is `frame count:6 |
+  first-frame bit offset:15 | metadata:3 | packet skip:8`; *skip* is how many packets of
+  other streams follow before this stream's next one. A 5.1 sound is three stereo
+  streams (L R, C LFE, Ls Rs) starting at packets 0, 1 and 2 (`xma.stream_starts`). The
+  hardware decodes one stream per context, and so do the recomps (CZ `audio.cpp`,
+  "ADVANCE ALONG THIS STREAM'S OWN PACKET CHAIN").
+
+### Lengths ✅
+
+A decode is always **384 samples shorter than the frames encoded** (`xma.DECODER_DELAY`;
+the decoder drops that lead-in). Loop points count those 384 samples, and nearly every
+loop begins at exactly 384, the first decoded sample. Measured rules, each checked on
+every sound of both games:
+
+| Sound | Decodes to |
+|---|---|
+| one-shot RIFF (7,479 / 9,028) | exactly `dwPlayLength` |
+| looping raw stream (5 / 17) | exactly `loop_begin + loop_length − 384` |
+| looping RIFF (168 / 162) | no exact stored length: most end at the loop end (±1 sample: 12 CZ wind and waterfall loops decode one sample past it); 4 (CZ) / 2 (CW) carry a tail after it (`SlotWinBig1`, `SlotWinSmall1`, `SlotWinJackpot1`, `sysEscapeTimer`; CW `sysEscapeTimer`, `SurgicalSawIdleLoop`) |
+| any sound | `frames × 512 − 384`, less under one frame per stream (`frames` = sum of the packet headers' frame counts / streams; the encoder marks the padding of the last frame) |
+
+The 6-channel prologue cinematic (`cinematics.big/39694.xma`) decodes to 316.45 s,
+which agrees with the CZ recomp's own measurement (316.5 s from the packet headers, ~5 min
+10 s by stopwatch).
+
+**Silent placeholders**: 15 (CZ) / 20 (CW) sounds in the voice banks are one packet
+of 0.1 s silence, all identical (`charvocals.big/4857.xma`, `chuck.big/28390.xma`…).
+
+### Decoding packet by packet ✅
+
+The recomps feed ffmpeg one packet per call, one decoder per stream. Decoded that way
+(`convert.audio.stream_packets`), each packet returns a varying number of samples (960,
+5,120, 4,608… for the title music; the decoder holds about 3,900 back until it is
+flushed), and the outputs joined are **the same samples** as decoding the whole file
+(largest difference one 16-bit step), for mono, stereo, and each stereo stream of a 5.1
+sound decoded on its own. So where a packet's output lands is fixed by the packets before
+it, which is what audio substitution relies on (§Replacing sounds).
+
+### `.sfx` sound effects ✅
+
+Text in the engine's block format (`audioscript.parse`): `cSoundEffect NA { MixerCategory,
+PlaybackMode, Volume, cSfxTrack 1 { Path, Sample, Loop, Table, cModifierMap … } … }`.
+`Sample = "cursorError43a_01a.wav"` names the recording; the bank's `.xma` of the same
+stem is it. A `Sample` ending in `.sfx` is another effect of the bank (a sub-effect,
+2,509 / 2,717 tracks). Every `.sfx` of both games parses (4,745 / 5,194); every track
+resolves inside its own bank except **22 (CZ) / 1 (CW) recordings the shipped data
+lacks** (`fx_main.big/ChuckLaugh.sfx` → `DR2_Chuck_S2_Laugh_01`…, CW
+`TruthVanished.sfx` → `sysGameover46a_01a`). The game plays an effect by its file name, so
+the `.sfx` stem is the sound's event name.
+
+### Audio scene scripts ✅ (text), ⚠ digest-checked
+
+Same block format. `cAudioScene` → `cAudioScenario` (with `ActivationEvent`) →
+`cAudioActionLoad { BankId, BigFile = "fx_mechanic.big", TriggerEvent }`,
+`cAudioJukebox { TriggerPlay, TriggerStop, … cAudioJukeboxTrack { Asset =
+"music.big/HB_Indemnify" } }`, `cAudioActionPlay { Asset = "fx_main.big/FEError.sfx" }`,
+emitters with positions, timers, mixer keys. CZ: `data/audio/Prologue.txt` (324 `Asset`,
+98 `BigFile`) and `datafile.big/scenegraph.txt` (DR2's, naming banks CZ doesn't ship:
+268 of its references resolve nowhere). CW: `data/audio/{LivingResearch, Safehouse,
+SecureLab, StoragePens, scenegraph}.txt`; `audiomixer.txt` and `curves.txt` are other
+formats. The index links every `Asset` to its sound with the enclosing block path and
+trigger events as context (`audioscript.script_refs`).
+
+**Case Zero verifies `Prologue.txt` against a SHA-1 in the executable** (its `Digest`
+resource has exactly that one entry; CZ recomp `docs/phase3-notes.md` finding 50). Checked
+in game, 2026-10-09: a copy with one `Asset` changed was served from `game_mods/`, the
+digest check ran on it (`CZ_DIGEST_PROBE=1`), and the game crashed on the spot (the
+check's failure path is an assert that stores to address 0). So remapping sounds by
+editing the scene script, the PC community's music swap, **does not work on Case
+Zero**. Case West has the same digest manager (its gotcha about "Bad file digest"); which
+of its files are listed was not measured, so treat its scripts the same way.
+
+### Replacing sounds: PCM substitution ✅ (in game, both games)
+
+There is no redistributable XMA encoder, so mods don't write `.xma`. The recomps decode
+XMA on the host anyway, so they **substitute PCM**: `dr2 mod build` lists every packet of
+a replaced stream by its FNV-1a 64 hash (`xma.fingerprint`) with the decoded-sample
+position where its output begins, and writes the new audio as 16-bit WAV per stream,
+fitted to the sound's channels, rate and exact decoded length. The runtime hashes each
+packet it decodes and, on a hit, writes the replacement samples over the decoded ones.
+The game's files and everything it sees stay as shipped. Design and table format:
+[`dev/recomp-integration.md`](dev/recomp-integration.md#audio-substitution); code:
+`dr2kit/mods/audio.py`.
+
+Packets are unique enough for this: over every sound of CZ, 8,961 of 8,972 stream-first
+packets occur nowhere else; the rest are the silent placeholders and one twin
+(`BomberBy2`, shipped in two banks with a different second half). A packet that also
+occurs in another sound is marked *continue only* in the table, so it never starts a
+substitution.
+
+### Census (phase 5, 2026-10-09, `dr2 census --audio`)
+
+| | Case Zero | Case West |
+|---|---|---|
+| `.xma` sounds | 8,916 (riff 7,479, raw 1,264, riff looped 168, raw looped 5) | 11,735 (9,028 / 2,528 / 162 / 17) |
+| decoded to the stored length | **8,916 / 8,916** | **11,735 / 11,735** |
+| total audio | 3.17 h | 3.82 h |
+| silent sounds | 15 | 20 |
+| stream-first packets shared by different sounds | 1 group | 1 group |
+| `.sfx` parsed / tracks (xma, sfx, missing) | 4,745 / 8,892, 2,509, 22 | 5,194 / 10,269, 2,717, 1 |
+| time (with the other gates) | 30 s | 42 s |
+
+### In-game check (phase 5, 2026-10-09, both games)
+
+The gate: one music swap is audible in the recomp. A mod replaced each game's title-screen
+music (`music.big/PressStartPrologue.xma` in CZ, `PressStartDR2.xma` in CW) with another
+track of the same game (`HB_Indemnify`, `MercenariesBattleUnderground`). Each recomp was
+booted headless to the title screen for 90 s with SDL's `disk` audio driver recording what
+the game sent to the speakers, once with the mod and once with `CZ_NO_AUDIO_MODS=1` /
+`CW_NO_AUDIO_MODS=1` on the same binary (procedure: `dev/recomp-integration.md`).
+
+- With the mod, the log says `audio mods: ctx0 plays <file> from sample 0 (start #1)` and
+  never restarts; the recording follows the replacement track second by second (CZ:
+  1 s windows match it at up to 0.94 normalised correlation, 0.4-0.8 typical, each at
+  the right position in the track; CW: 0.50-0.57 at the right positions) and no longer
+  the original.
+- Off switch: no `audio mods` line; the recording follows the original title track
+  (CZ 0.31 at the right position, the replacement ≤ 0.06).
+- Both recordings drift from their reference by about 0.01 s per second, the replacement
+  and the original alike: the runtime's playback pace, not the substitution.
+
+Not proven yet: a 5.1 cinematic replaced in game (built, and positions checked against
+PyAV per stream, but not heard); a sound effect from an fx bank in game.
 
 ## Case West differences (phase 1 census)
 

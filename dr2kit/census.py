@@ -43,6 +43,17 @@ Phase 4 adds the writer gates:
   rebuilt from its own decoded geometry (new strips, buffers, packets, bounds), decodes
   to the same triangles with the same vertex values.
 
+Phase 5 adds audio (``audio=True``, needs PyAV):
+
+* **audio decode**: every `.xma` finds its metadata (its own RIFF header, or its
+  ``cache.big`` stream-table record) and decodes to the length that metadata says
+  (`dr2kit.convert.audio.length_check`: exact where a length is stored, the packet
+  headers' frame total otherwise). Shapes, channels, rates and silent sounds are counted;
+* **sfx tracks**: every `.sfx` parses (`dr2kit.formats.audioscript`) and every track's
+  sample resolves to an entry of its bank; the ones the game data lacks are named;
+* **first packets**: how many sounds share their first packet with a *different* sound
+  (the recomp's audio substitution recognises a sound by that packet).
+
 Results for both games are recorded in docs/formats.md. Run it with ``dr2 census``.
 """
 
@@ -142,6 +153,16 @@ class CensusReport:
     scene_vertex_types: Counter = field(default_factory=Counter)
     scene_buffers: Counter = field(default_factory=Counter)   # own / combined / animated
     scene_checks: Counter = field(default_factory=Counter)    # named measurements
+    audio_shapes: Counter = field(default_factory=Counter)    # riff / raw (+ loop)
+    audio_channels: Counter = field(default_factory=Counter)
+    audio_rates: Counter = field(default_factory=Counter)
+    audio_decoded_ok: int = 0
+    audio_seconds: float = 0.0
+    audio_silent: list = field(default_factory=list)
+    audio_shared_first: int = 0
+    sfx_parsed: int = 0
+    sfx_tracks: Counter = field(default_factory=Counter)      # xma / sfx / missing
+    sfx_missing: list = field(default_factory=list)
     duplicate_name_archives: int = 0
     duplicate_name_entries: int = 0
     unsafe_names: list = field(default_factory=list)
@@ -225,7 +246,7 @@ def check_texture(rep: "CensusReport", evp: str, name: str, data: bytes,
 
 def run_census(game: str, tree: AssetTree, *, python_lzx: bool = False,
                reencode: bool = False, textures: bool = False, models: bool = False,
-               reimport: bool = False, workers: int | None = None,
+               reimport: bool = False, audio: bool = False, workers: int | None = None,
                progress=None) -> CensusReport:
     """Census one game's data folder. See the module docstring for what is checked.
 
@@ -237,6 +258,70 @@ def run_census(game: str, tree: AssetTree, *, python_lzx: bool = False,
     rep = CensusReport(game, str(tree.root), lzx_backend=lzx.backend_detail())
     pool = ProcessPoolExecutor(max_workers=workers or os.cpu_count()) if reencode else None
     pending: set = set()
+    audio_pool = None
+    audio_pending: set = set()
+    first_packets: dict = {}            # sha1 of a stream's first packet -> sound sha1s
+    if audio:
+        from .convert.audio import AudioLookup, have_decoder
+        if not have_decoder():
+            from .convert.audio import AudioBackendMissing
+            raise AudioBackendMissing("census --audio needs PyAV with the xma2 decoder "
+                                      "(pip install av)")
+        lookup = AudioLookup(tree)
+        audio_pool = ProcessPoolExecutor(max_workers=workers or os.cpu_count())
+
+    def drain_audio(limit: int) -> None:
+        nonlocal audio_pending
+        while len(audio_pending) > limit:
+            done, audio_pending = wait(audio_pending, return_when=FIRST_COMPLETED)
+            for f in done:
+                try:
+                    err, frames, peak = f.result()
+                except Exception as e:  # noqa: BLE001 - reported
+                    err, frames, peak = f"decode: {e}", 0, 0.0
+                if err:
+                    rep.problems.append((f.vp, f"audio: {err}"))
+                    continue
+                rep.audio_decoded_ok += 1
+                rep.audio_seconds += frames / f.rate
+                if peak == 0.0:
+                    rep.audio_silent.append(f.vp)
+
+    def check_audio(evp: str, data: bytes) -> None:
+        import hashlib
+        from .formats import xma as xmafmt
+        try:
+            info = lookup.info(evp, data)
+        except Exception as ex:  # noqa: BLE001 - reported
+            rep.problems.append((evp, f"audio metadata: {ex}"))
+            return
+        rep.audio_shapes[info.shape + (" looped" if info.loop_length else "")] += 1
+        rep.audio_channels[info.channels] += 1
+        rep.audio_rates[info.rate] += 1
+        pk = data[info.packets_offset:info.packets_offset + info.packets_size]
+        sound = hashlib.sha1(pk).digest()
+        for i in xmafmt.stream_starts(pk, info.streams):
+            key = hashlib.sha1(pk[i * xmafmt.PACKET:(i + 1) * xmafmt.PACKET]).digest()
+            first_packets.setdefault(key, set()).add(sound)
+        fut = audio_pool.submit(_audio_job, data, info)
+        fut.vp, fut.rate = evp, info.rate
+        audio_pending.add(fut)
+        drain_audio(256)
+
+    def check_sfx(evp: str, data: bytes, arc_names: set) -> None:
+        from .formats import audioscript
+        try:
+            tracks = audioscript.sfx_tracks(data.decode("latin-1"), evp)
+        except Exception as ex:  # noqa: BLE001 - reported
+            rep.problems.append((evp, f"sfx: {ex}"))
+            return
+        rep.sfx_parsed += 1
+        for t in tracks:
+            if t.lower() in arc_names:
+                rep.sfx_tracks[t.rsplit(".", 1)[1]] += 1
+            else:
+                rep.sfx_tracks["missing"] += 1
+                rep.sfx_missing.append(f"{evp} -> {t}")
 
     def drain(limit: int) -> None:
         nonlocal pending
@@ -261,6 +346,7 @@ def run_census(game: str, tree: AssetTree, *, python_lzx: bool = False,
             rep.problems.append((vp, "round trip: re-written archive differs"))
         comps = entry_components(arc)
         names = Counter(e.name.lower() for e in arc.entries)
+        name_set = set(names)
         dups = sum(n - 1 for n in names.values() if n > 1)
         if dups:
             rep.duplicate_name_archives += 1
@@ -325,6 +411,10 @@ def run_census(game: str, tree: AssetTree, *, python_lzx: bool = False,
                 continue
             kind = content_kind(data)
             rep.kind_by_ext[ext][kind] += 1
+            if audio and ext == "xma":
+                check_audio(evp, data)
+            elif audio and ext == "sfx":
+                check_sfx(evp, data, name_set)
             if kind == "bct":
                 rep.bct_byte3[f"{data[3]:02X}"] += 1
                 check_texture(rep, evp, e.name, data, textures)
@@ -359,9 +449,14 @@ def run_census(game: str, tree: AssetTree, *, python_lzx: bool = False,
                 continue
             visit(arc, raw, vp, 0)
         drain(0)
+        if audio_pool is not None:
+            drain_audio(0)
+            rep.audio_shared_first = sum(1 for v in first_packets.values() if len(v) > 1)
     finally:
         if pool is not None:
             pool.shutdown(cancel_futures=True)
+        if audio_pool is not None:
+            audio_pool.shutdown(cancel_futures=True)
     rep.seconds = time.time() - t0
     return rep
 
@@ -551,6 +646,14 @@ def check_reimport(rep: CensusReport, vp: str, data: bytes) -> None:
                                                        f"differs"))
 
 
+def _audio_job(data: bytes, info) -> tuple[str | None, int, float]:
+    """Worker: decode one `.xma` and check its length. Returns (problem, frames, peak)."""
+    from .convert.audio import decode, length_check
+    pcm = decode(data, info)
+    err = length_check(pcm, info, data[info.packets_offset:info.packets_offset + info.packets_size])
+    return err, pcm.frames, pcm.peak
+
+
 def _reencode_job(data: bytes) -> int:
     """Worker: compress + verify (compress_entry decodes its own output). Returns size."""
     return len(xcompress.compress_entry(data, verify=True))
@@ -603,6 +706,21 @@ def format_report(rep: CensusReport) -> str:
             w(f"    decoded: {rep.scene_vertices:,} vertices, {rep.scene_triangles:,} triangles")
         if rep.scene_checks:
             w(f"    checks: {_fmt(rep.scene_checks)}")
+    if rep.audio_shapes:
+        w(f"audio (.xma): {_fmt(rep.audio_shapes)}; channels: "
+          f"{_fmt(rep.audio_channels, sort_keys=True)}")
+        rates = rep.audio_rates
+        w(f"    rates: 48000 Hz: {rates.get(48000, 0)}, others: "
+          f"{sum(rates.values()) - rates.get(48000, 0)} ({min(rates)}..{max(rates)} Hz)")
+        w(f"    decoded: {rep.audio_seconds / 3600:.2f} h; silent: {len(rep.audio_silent)} "
+          f"({', '.join(v.rsplit('/', 1)[-1] for v in rep.audio_silent[:6])}"
+          f"{'…' if len(rep.audio_silent) > 6 else ''})")
+        w(f"    first packets shared by different sounds: {rep.audio_shared_first}")
+        w(f"sfx: {rep.sfx_parsed} parsed; tracks: {_fmt(rep.sfx_tracks)}")
+        for m in rep.sfx_missing[:5]:
+            w(f"    missing from the game data: {m}")
+        if len(rep.sfx_missing) > 5:
+            w(f"    ... and {len(rep.sfx_missing) - 5} more")
     w(f"duplicate names: {rep.duplicate_name_entries} entries in "
       f"{rep.duplicate_name_archives} archives")
     w(f"names unsafe in a vpath or as a Windows file name: {len(rep.unsafe_names)}")
@@ -626,6 +744,9 @@ def format_report(rep: CensusReport) -> str:
         w(f"scenes parsed: {sum(rep.scenes.values())} ({_fmt(rep.scenes)})")
     if rep.scene_draws_decoded:
         w(f"model draws decoded: {rep.scene_draws_decoded}/{rep.scene_draws}")
+    if rep.audio_shapes:
+        w(f"audio decoded to the stored length: {rep.audio_decoded_ok}/"
+          f"{sum(rep.audio_shapes.values())}")
     w(f"PROBLEMS (unparsed or failed): {len(rep.problems)}")
     for vp, why in rep.problems[:40]:
         w(f"    {vp}: {why}")

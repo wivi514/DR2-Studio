@@ -6,15 +6,18 @@ Layout (docs/dev/studio.md has the diagram):
   demand from the index (`dr2kit.index.query.children`). *Search*: words matched against
   asset names, filtered by kind; results show texture thumbnails, as a list or a grid.
 * **Centre**: a viewer for the selected asset (`viewers.TextureViewer`,
-  `model_view.ModelViewer` for models and skeletons, or `viewers.PlainViewer` for text
-  and everything else).
+  `model_view.ModelViewer` for models and skeletons, `audio_view.AudioViewer` for sounds,
+  or `viewers.PlainViewer` for text, `.sfx` and everything else).
 * **Right**: details (sizes, compression, texture facts), relations (the models that use
   a texture, the textures a model names; double-click to jump), and the actions:
   *Extract…*, *Export PNG…*, *Export .glb…* (models and skeletons, for Blender),
   *Replace with PNG…* (copies the PNG into the open mod's ``replace/`` folder under the
   asset's vpath), *Replace with .glb…* (models: runs the rig validator on a ``.glb``
   from Blender, `dr2kit.convert.model_import.plan_import`, shows its report, and copies
-  the file into the open mod when it passes; with no mod open it only checks).
+  the file into the open mod when it passes; with no mod open it only checks),
+  *Export WAV…* and *Replace with audio…* (sounds: copies a WAV/OGG/FLAC/MP3 into the
+  open mod as ``<vpath>.<ext>``; the build fits it to the sound, `dr2kit.mods.build`).
+  For sounds the relations list the ``.sfx`` and the scene-script events that play them.
 * **Bottom**: the mod bar (open/new mod folder, its overrides, *Build && deploy*) and a log.
 
 Long jobs (building the index, building a mod, exporting a model for the 3D view) run
@@ -45,6 +48,7 @@ from ..index import query
 from ..index.build import build_index, connect, default_db_path, format_stats
 from ..profiles import GAME_IDS, locate
 from . import model_view
+from .audio_view import AudioViewer
 from .viewers import PlainViewer, TextureViewer
 
 # The 3D view's URL scheme must be declared before the QApplication exists (Qt's rule);
@@ -56,7 +60,7 @@ ROLE_VPATH = Qt.UserRole + 2
 ROLE_LOADED = Qt.UserRole + 3
 CONTAINER_KINDS = {"archive", "texture-pack", "model", "skeleton", "scene"}
 KINDS = ["all kinds", "texture", "model", "skeleton", "texture-pack", "archive", "audio",
-         "anim", "text", "shader", "binary", "video", "empty"]
+         "sfx", "anim", "text", "shader", "binary", "video", "empty"]
 
 
 def _human(n: int) -> str:
@@ -166,13 +170,14 @@ class MainWindow(QMainWindow):
         # --- centre: viewers
         self.tex_view = TextureViewer()
         self.plain_view = PlainViewer()
+        self.audio_view = AudioViewer()
         self.model_view = model_view.ModelViewer()
         self.model_view.status.connect(lambda t: self.say(f"3D view: {t}"))
         self.empty = QLabel("Select an asset on the left.\n\nNo index yet? Use “Build / refresh "
                             "index” (about a minute per game).")
         self.empty.setAlignment(Qt.AlignCenter)
         self.centre = QStackedWidget()
-        for w in (self.empty, self.tex_view, self.plain_view, self.model_view):
+        for w in (self.empty, self.tex_view, self.plain_view, self.model_view, self.audio_view):
             self.centre.addWidget(w)
 
         # --- right: details, relations, actions
@@ -189,6 +194,12 @@ class MainWindow(QMainWindow):
         self.btn_glb_in.setToolTip("Check a .glb edited in Blender against this model (bones, "
                                    "weights, materials) and add it to the open mod")
         self.btn_glb_in.clicked.connect(self.replace_glb)
+        self.btn_wav = QPushButton("Export WAV…")
+        self.btn_wav.clicked.connect(self.export_wav)
+        self.btn_audio_in = QPushButton("Replace with audio…")
+        self.btn_audio_in.setToolTip("Put a WAV/OGG/FLAC/MP3 in the open mod in place of this "
+                                     "sound (the recomp plays it instead)")
+        self.btn_audio_in.clicked.connect(self.replace_audio)
         self.btn_extract.clicked.connect(self.extract)
         self.btn_png.clicked.connect(self.export_png)
         self.btn_glb.clicked.connect(self.export_glb)
@@ -200,7 +211,7 @@ class MainWindow(QMainWindow):
         rl.addWidget(QLabel("<b>Related</b> (double-click to open)"))
         rl.addWidget(self.relations, 1)
         for b in (self.btn_extract, self.btn_png, self.btn_glb, self.btn_replace,
-                  self.btn_glb_in):
+                  self.btn_glb_in, self.btn_wav, self.btn_audio_in):
             rl.addWidget(b)
 
         # --- bottom: mod bar + log
@@ -284,6 +295,10 @@ class MainWindow(QMainWindow):
         self.btn_replace.setEnabled(is_tex and self.mod_dir is not None)
         self.btn_replace.setToolTip("" if self.mod_dir else "Open or create a mod first")
         self.btn_glb_in.setEnabled(bool(a) and a["kind"] == "model")
+        is_audio = bool(a) and a["kind"] == "audio"
+        self.btn_wav.setEnabled(is_audio)
+        self.btn_audio_in.setEnabled(is_audio and self.mod_dir is not None)
+        self.btn_audio_in.setToolTip("" if self.mod_dir else "Open or create a mod first")
 
     # ---- game, tree ----------------------------------------------------------------------
 
@@ -408,7 +423,24 @@ class MainWindow(QMainWindow):
                          + (" (LZX-compressed)" if row["compressed"] else ""))
             lines.append(f"index flags: {row['flags']:#x}")
         self.relations.clear()
-        if row["kind"] == "texture":
+        if self.centre.currentWidget() is self.audio_view:
+            self.audio_view.stop()
+        if row["kind"] == "audio":
+            lines += self._show_sound(row, data)
+        elif row["kind"] == "sfx" or (row["kind"] == "text" and query.sound_targets(self.con, asset_id)):
+            from ..census import content_kind
+            self.plain_view.show_bytes(data, content_kind(data) == "text")
+            self.centre.setCurrentWidget(self.plain_view)
+            for r in query.sound_targets(self.con, asset_id)[:500]:
+                where = r["vpath"] or "not in the game data"
+                ctx = f"  [{r['context']}]" if r["rel_kind"] == "script-asset" else ""
+                self._relation(f"plays {r['dst_name']}  →  {where}{ctx}", r["id"])
+            if row["kind"] == "sfx":
+                for r in query.sound_users(self.con, asset_id):
+                    label = (f"event: {r['context']}" if r["rel_kind"] == "script-asset"
+                             else f"part of {r['name']} ({r['context']})")
+                    self._relation(f"{label}  ({r['vpath']})", r["id"])
+        elif row["kind"] == "texture":
             from ..formats.bct import Bct
             try:
                 tex = Bct.parse(data, row["vpath"])
@@ -487,6 +519,46 @@ class MainWindow(QMainWindow):
         self.run_job(work, done)
         return lines
 
+    def _show_sound(self, row, data: bytes) -> list[str]:
+        """Decode a sound in the background for the audio view; return its detail lines."""
+        from ..convert.audio import AudioLookup, have_decoder
+        try:
+            info = AudioLookup(self.asset_tree()).info(row["vpath"], data)
+        except Dr2Error as e:
+            self.error(str(e))
+            return []
+        layout = {1: "mono", 2: "stereo", 6: "5.1"}.get(info.channels, f"{info.channels} ch")
+        lines = [f"sound: XMA2 {layout}, {info.rate} Hz",
+                 f"stored as: {'RIFF file' if info.shape == 'riff' else 'raw packets'} "
+                 f"({info.source})"]
+        if info.loop:
+            lines.append(f"loops: samples {info.loop[0]:,}–{info.loop[1]:,}")
+        for r in query.sound_users(self.con, row["id"]):
+            label = (f"event: {r['context']}" if r["rel_kind"] == "script-asset"
+                     else f"played by {r['name']}")
+            self._relation(f"{label}  ({r['vpath']})", r["id"])
+        self.centre.setCurrentWidget(self.audio_view)
+        self.audio_view.clear()
+        if not have_decoder():
+            self.audio_view.title.setText("Install PyAV to hear sounds: pip install av")
+            return lines
+        self.audio_view.title.setText(f"{row['name']}: decoding…")
+        vpath = row["vpath"]
+
+        def work(progress):
+            from ..convert.audio import decode
+            return decode(data, info)
+
+        def done(pcm, err):
+            if err:
+                self.error(err)
+                return
+            if self.current is None or self.current["vpath"] != vpath:
+                return
+            self.audio_view.show_sound(pcm, info.loop, row["name"])
+        self.run_job(work, done)
+        return lines
+
     def _relation(self, text: str, asset_id) -> None:
         it = QListWidgetItem(text)
         it.setData(ROLE_ID, asset_id)
@@ -561,6 +633,45 @@ class MainWindow(QMainWindow):
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(src, dest)
         self.say(f"{self.mod_dir.name}: {a['vpath']} will be replaced by {Path(src).name}")
+        self._refresh_mod()
+
+    def export_wav(self) -> None:
+        a = self.current
+        if not a or a["kind"] != "audio":
+            return
+        path, _ = QFileDialog.getSaveFileName(self, "Export WAV", a["name"] + ".wav",
+                                              "WAV (*.wav)")
+        if not path:
+            return
+        from ..convert.audio import decode_vpath, write_wav
+        pcm, _ = decode_vpath(self.asset_tree(), a["vpath"])
+        write_wav(pcm, path)
+        self.say(f"exported {a['vpath']} -> {path} ({pcm.seconds:.2f} s)")
+
+    def replace_audio(self, src: str | None = None) -> None:
+        a = self.current
+        if not a or a["kind"] != "audio" or not self.mod_dir:
+            return
+        if not src:
+            src, _ = QFileDialog.getOpenFileName(self, f"Audio to play instead of {a['name']}",
+                                                 "", "Audio (*.wav *.ogg *.flac *.mp3)")
+        if not src:
+            return
+        from ..mods.manifest import AUDIO_EXTS
+        ext = Path(src).suffix.lower()
+        if ext not in AUDIO_EXTS:
+            self.error(f"{Path(src).name}: use one of {', '.join(AUDIO_EXTS)}")
+            return
+        dest = self.mod_dir / "replace" / (a["vpath"] + ext)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        for other in AUDIO_EXTS:                 # one replacement per sound
+            old = dest.with_suffix(other)
+            if other != ext and old.is_file():
+                old.unlink()
+        if Path(src).resolve() != dest.resolve():
+            shutil.copyfile(src, dest)
+        self.say(f"{self.mod_dir.name}: {a['vpath']} will play {Path(src).name} "
+                 f"(the build fits it to the sound's channels, rate and length)")
         self._refresh_mod()
 
     def check_glb(self, glb_path: str):
@@ -660,6 +771,8 @@ class MainWindow(QMainWindow):
                 res = mbuild.build([Mod.load(folder)], game, AssetTree(loc.root), tmp, base,
                                    progress=lambda vp: progress(f"built {vp}"))
                 written = mdeploy.deploy(res, dirs["mods"])
+            for w in res.warnings:
+                progress("note: " + w)
             for w in mdeploy.shadowed_layers(loc.root, written):
                 progress("warning: " + w)
             return written, dirs["mods"]

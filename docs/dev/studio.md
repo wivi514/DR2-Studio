@@ -12,6 +12,7 @@ dr2kit/studio/
   app.py       MainWindow: toolbar, browse/search tabs, centre viewers, details, mod bar
   viewers.py   TextureViewer (zoom, channels, mip, face), PlainViewer (text / hex)
   model_view.py  ModelViewer: the 3D view (QWebEngineView + three.js), phase 3
+  audio_view.py  AudioViewer: waveform, play / stop / seek / loop (QAudioSink), phase 5
   web/         viewer.html + viewer.js, and three.js 0.186.1 (MIT) under vendor/three/
 ```
 
@@ -90,12 +91,39 @@ index), then `ModelViewer.show_glb()` hands the bytes to the page. Same file as
   the GUI thread. Before, `on_done` ran in the worker thread (a signal connected to a
   lambda runs where it is emitted); text widgets put up with it, Chromium aborts.
 
+## The audio view (phase 5)
+
+Clicking a sound (`kind` audio) reads its format (`convert.audio.AudioLookup`: RIFF
+header or `cache.big` stream table), lists the details (channels, rate, shape, loop) and
+the Related rows (`query.sound_users`: the `.sfx` that use it, the scene-script events
+with their trigger names), then decodes it in a worker thread
+(`convert.audio.decode`, the same call as `dr2 extract --wav`) and hands the `Pcm` to
+`AudioViewer.show_sound()`.
+
+- **Waveform**: min/max per pixel column per channel (`envelope`, numpy), one lane per
+  channel labelled L/R or L R C LFE Ls Rs, the loop region shaded, a play head. Clicking
+  seeks and plays from there.
+- **Playback**: `QAudioSink` reading 16-bit PCM from a `QBuffer`; the head follows
+  `processedUSecs()` on a 30 ms timer. 5.1 is mixed to stereo for listening
+  (`playback_bytes`: front + 0.7 × centre and surround). *Loop* restarts at the loop
+  start when the end (or the loop end) is reached. No output device or no Qt Multimedia:
+  the waveform still shows and the view says so.
+- **Actions**: *Export WAV…*; *Replace with audio…* copies a WAV/OGG/FLAC/MP3 into
+  `<mod>/replace/<vpath>.<ext>` (one per sound: another extension is removed). The build
+  fits it (`mods/audio.py`).
+- A `.sfx`, and a scene script, show as text with Related rows for what they play
+  (`query.sound_targets`) and, for a `.sfx`, which events or parent effects use it.
+- Without PyAV the view says how to install it; everything else works.
+
 ## Testing
 
 `QT_QPA_PLATFORM=offscreen` runs the window without a display. A smoke test opens the
 window on a synthetic index (`tests/test_studio.py`, skipped when PySide6 is missing),
 shows a texture, a text file and a synthetic model (with `DR2_STUDIO_NO_3D=1`, so CI
-needs no WebEngine), and checks the `dr2:` scheme serves only `web/` files. The 3D view
+needs no WebEngine), and checks the `dr2:` scheme serves only `web/` files. The audio
+view is tested on a synthetic 5.1 `Pcm` (the stereo mix, the waveform envelope); delete
+the widget (`deleteLater` + `processEvents`) before the test ends, or Qt Multimedia
+aborts at interpreter exit ("shared QObject was deleted directly"). The 3D view
 itself was checked offscreen too (WebGL works there through software rendering):
 `window.grab()` after the page reports the model.
 Grabbing the window to a PNG (`window.grab().save(...)`) is how the screenshots in the
@@ -103,6 +131,6 @@ guides are made.
 
 ## Next (later phases)
 
-Audio playback (phase 5), editing text assets as mod overrides, and showing the
-replaced model in the 3D view before building (the rig validator and *Replace with
-.glb…* came in phase 4).
+Editing text assets as mod overrides, showing the replaced model in the 3D view before
+building (the rig validator and *Replace with .glb…* came in phase 4), and playing a
+replacement sound next to the original before building (phase 5 has the original only).

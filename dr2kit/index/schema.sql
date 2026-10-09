@@ -59,6 +59,34 @@ CREATE TABLE IF NOT EXISTS texture (
 CREATE INDEX IF NOT EXISTS texture_format ON texture (format);
 CREATE INDEX IF NOT EXISTS texture_name ON texture (tex_name);
 
+-- One row per sound (.xma): what dr2kit.formats.xma reads from its RIFF header or its
+-- cache.big stream-table record. No decoding happens while indexing (PyAV is optional):
+-- `samples` is the stored length, or the packet headers' estimate (exact = 0).
+CREATE TABLE IF NOT EXISTS audio (
+    asset_id INTEGER PRIMARY KEY REFERENCES asset(id) ON DELETE CASCADE,
+    channels INTEGER NOT NULL,
+    rate INTEGER NOT NULL,
+    shape TEXT NOT NULL,             -- 'riff' (fx banks) or 'raw' (streamed banks)
+    samples INTEGER NOT NULL,        -- per channel
+    exact INTEGER NOT NULL,          -- 1 if `samples` is a stored length
+    loop_start INTEGER,              -- decoded samples; NULL for a one-shot
+    loop_end INTEGER
+);
+
+-- What .sfx files and audio scene scripts name (dr2kit.formats.audioscript), resolved
+-- into `relation` rows by link_relations: 'sfx-track' (a .sfx -> the .xma or sub-.sfx
+-- of its bank it plays) and 'script-asset' (a scene script -> the sound an `Asset =`
+-- line names). `context` is where: the script's block path and its trigger events.
+CREATE TABLE IF NOT EXISTS sound_ref (
+    src_id INTEGER NOT NULL REFERENCES asset(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,              -- 'sfx-track' or 'script-asset'
+    slot INTEGER NOT NULL,           -- track number / reference number in the file
+    bank TEXT NOT NULL,              -- 'music.big'; '' = the .sfx's own bank
+    name TEXT NOT NULL,              -- 'HB_Indemnify', 'cursorError43a_01a.xma'
+    context TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS sound_ref_src ON sound_ref (src_id);
+
 -- What a model's MatTextureInfoArray names, slot by slot (100-byte records, name at +4;
 -- docs/formats.md "Scene container"). Engine samplers (gExposureTexture, ...) included.
 CREATE TABLE IF NOT EXISTS material_slot (
@@ -70,7 +98,8 @@ CREATE TABLE IF NOT EXISTS material_slot (
 CREATE INDEX IF NOT EXISTS material_slot_model ON material_slot (model_id);
 CREATE INDEX IF NOT EXISTS material_slot_name ON material_slot (lower(name));
 
--- Links between assets, recomputed from material_slot after every build.
+-- Links between assets, recomputed from material_slot and sound_ref after every build.
+-- kinds: 'material-texture' (below), 'sfx-track' and 'script-asset' (see sound_ref).
 -- kind 'material-texture': a model's slot names a texture; every texture with that name
 -- in the same game is linked. rank 0 = the texture sits next to the model (same parent
 -- archive, or in a pack in it), 1 = elsewhere.

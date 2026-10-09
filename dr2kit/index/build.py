@@ -13,6 +13,9 @@ What goes in (schema: ``schema.sql``, design: docs/ARCHITECTURE.md §The asset i
 * ``texture``: header facts and a PNG thumbnail (``THUMB_SIZE`` px) per texture;
 * ``material_slot`` + ``relation``: what each model's ``MatTextureInfoArray`` names,
   linked to the textures of that name.
+* ``audio``: channels, rate and length of every sound (phase 5, no decoding needed);
+* ``sound_ref`` + ``relation``: the recordings each `.sfx` plays, and the sounds each
+  audio scene script names, with the events that trigger them (the "event names").
 
 **Incremental.** Each file on disk is recorded with its size and modification time; a
 rebuild re-reads only files that changed (and drops files that are gone). Relations are
@@ -35,16 +38,18 @@ from pathlib import Path
 from ..census import content_kind, texture_suffix
 from ..container.big import BigArchive, is_big
 from ..container.vpath import AssetTree, entry_components, join
+from ..convert.audio import AudioLookup
+from ..formats import audioscript, xma
 from ..formats.bct import Bct, is_bct
 
-SCHEMA_VERSION = "1"
+SCHEMA_VERSION = "2"
 THUMB_SIZE = 128
 SCENE_HEADER = "sceneheader"
 MAT_TEXTURE_INFO = "mattextureinfoarray"
 MAT_RECORD = 100          # bytes per MatTextureInfoArray record (formats.md)
 MAT_NAME = slice(4, 56)   # NUL-padded texture name inside a record
 
-_EXT_KIND = {"xma": "audio", "anm": "anim", "po": "shader", "vo": "shader", "pdo": "shader",
+_EXT_KIND = {"xma": "audio", "sfx": "sfx", "anm": "anim", "po": "shader", "vo": "shader", "pdo": "shader",
              "vdo": "shader", "sdo": "shader", "scv": "shader", "bik": "video"}
 
 
@@ -67,6 +72,9 @@ class IndexStats:
     models: int = 0
     material_slots: int = 0
     relations: int = 0
+    sounds: int = 0
+    sound_links: int = 0
+    unresolved_sounds: int = 0
     unresolved_slots: int = 0
     problems: list = field(default_factory=list)
     seconds: float = 0.0
@@ -146,8 +154,52 @@ def _material_slots(data: bytes) -> list[tuple[int, str, bool]] | None:
 
 
 class _Builder:
-    def __init__(self, con: sqlite3.Connection, game: str, stats: IndexStats, thumbs: bool):
+    def __init__(self, con: sqlite3.Connection, game: str, stats: IndexStats, thumbs: bool,
+                 tree: AssetTree | None = None):
         self.con, self.game, self.stats, self.thumbs = con, game, stats, thumbs
+        self.lookup = AudioLookup(tree) if tree is not None else None
+
+    def sound(self, asset_id: int, vpath: str, data: bytes) -> None:
+        if self.lookup is None:
+            return
+        try:
+            info = self.lookup.info(vpath, data)
+        except Exception as ex:  # noqa: BLE001 - reported
+            self.stats.problems.append((vpath, f"audio: {ex}"))
+            return
+        if info.expected_samples:
+            samples, exact = info.expected_samples, 1
+        else:
+            pk = data[info.packets_offset:info.packets_offset + info.packets_size]
+            samples = xma.frame_count(pk, info.streams) * xma.FRAME_SAMPLES - xma.DECODER_DELAY
+            exact = 0
+        loop = info.loop or (None, None)
+        self.con.execute("INSERT INTO audio VALUES (?,?,?,?,?,?,?,?)",
+                         (asset_id, info.channels, info.rate, info.shape, max(0, samples),
+                          exact, loop[0], loop[1]))
+        self.stats.sounds += 1
+
+    def sound_refs(self, asset_id: int, vpath: str, ext: str, data: bytes) -> None:
+        """Record what a .sfx or an audio scene script names (resolved later)."""
+        if ext == "sfx":
+            try:
+                tracks = audioscript.sfx_tracks(data.decode("latin-1"), vpath)
+            except Exception as ex:  # noqa: BLE001 - reported
+                self.stats.problems.append((vpath, f"sfx: {ex}"))
+                return
+            rows = [(asset_id, "sfx-track", i, "", t, f"track {i + 1}")
+                    for i, t in enumerate(tracks)]
+        elif ext == "txt" and b"cAudioScene" in data[:4096]:
+            try:
+                refs = audioscript.script_refs(data.decode("latin-1"), vpath)
+            except Exception as ex:  # noqa: BLE001 - reported
+                self.stats.problems.append((vpath, f"audio script: {ex}"))
+                return
+            rows = [(asset_id, "script-asset", i, r.bank, r.entry or "", r.context)
+                    for i, r in enumerate(refs) if r.key == "Asset" and r.entry]
+        else:
+            return
+        self.con.executemany("INSERT INTO sound_ref VALUES (?,?,?,?,?,?)", rows)
 
     def insert(self, source_id, parent_id, depth, position, vpath, name, name_hash, ext,
                kind, stored, size, compressed, flags, data) -> int:
@@ -197,6 +249,10 @@ class _Builder:
                               kind, e.size, e.size2, e.compressed, e.flags, data)
             if kind == "texture":
                 self.texture(aid, evp, e.name, data)
+            elif kind == "audio":
+                self.sound(aid, evp, data)
+            elif kind in ("sfx", "text"):
+                self.sound_refs(aid, evp, e.ext, data)
             elif kind == "model":
                 self.stats.models += 1
             if sub is not None:
@@ -228,7 +284,7 @@ def build_index(game: str, tree: AssetTree, db_path: str | Path | None = None, *
     t0 = time.time()
     stats = IndexStats(game)
     con = connect(db_path)
-    b = _Builder(con, game, stats, thumbs)
+    b = _Builder(con, game, stats, thumbs, tree)
     if full:
         con.execute("DELETE FROM source_file WHERE game=?", (game,))
     known = {r["vpath"]: r for r in con.execute(
@@ -262,6 +318,8 @@ def build_index(game: str, tree: AssetTree, db_path: str | Path | None = None, *
                        False, None, raw)
         if kind == "texture":
             b.texture(aid, vp, name, raw)
+        elif kind == "text":
+            b.sound_refs(aid, vp, ext, raw)
         if arc is not None:
             if kind == "model":
                 stats.models += 1
@@ -312,12 +370,50 @@ def link_relations(con: sqlite3.Connection, game: str, stats: IndexStats) -> Non
           AND NOT EXISTS (SELECT 1 FROM texture t CROSS JOIN asset ta ON ta.id = t.asset_id
                           WHERE t.tex_name = lower(s.name) AND ta.game = ?)
     """, (game, game))
+    link_sounds(con, game, stats)
     stats.relations = con.execute(
         "SELECT count(*) FROM relation r JOIN asset a ON a.id = r.src_id "
         "WHERE a.game=? AND r.dst_id IS NOT NULL", (game,)).fetchone()[0]
     stats.unresolved_slots = con.execute(
         "SELECT count(*) FROM relation r JOIN asset a ON a.id = r.src_id "
-        "WHERE a.game=? AND r.dst_id IS NULL", (game,)).fetchone()[0]
+        "WHERE a.game=? AND r.dst_id IS NULL AND r.kind='material-texture'",
+        (game,)).fetchone()[0]
+
+
+def link_sounds(con: sqlite3.Connection, game: str, stats: IndexStats) -> None:
+    """Resolve ``sound_ref`` rows into ``relation`` rows (called by `link_relations`).
+
+    A ``.sfx`` track is an entry of the ``.sfx``'s own bank. A script's ``Asset =
+    "music.big/HB_Indemnify"`` is the entry ``HB_Indemnify`` (or ``.xma`` / ``.sfx``) of
+    any archive called ``music.big``: banks sit in different places (``data/audio/``,
+    inside ``streamedassets.big``), and a bank can be shipped twice.
+    """
+    con.execute("""
+        INSERT INTO relation (src_id, dst_id, kind, slot, dst_name, rank)
+        SELECT r.src_id, d.id, r.kind, r.slot, r.name, 0
+        FROM sound_ref r CROSS JOIN asset s ON s.id = r.src_id
+        LEFT JOIN asset d ON d.parent_id = s.parent_id AND lower(d.name) = lower(r.name)
+        WHERE r.kind = 'sfx-track' AND s.game = ?
+    """, (game,))
+    con.execute("""
+        INSERT INTO relation (src_id, dst_id, kind, slot, dst_name, rank)
+        SELECT r.src_id, d.id, r.kind, r.slot, r.bank || '/' || r.name, 0
+        FROM sound_ref r CROSS JOIN asset s ON s.id = r.src_id
+        LEFT JOIN asset b ON b.game = s.game AND lower(b.name) = lower(r.bank)
+        LEFT JOIN asset d ON d.parent_id = b.id AND lower(d.name) IN
+             (lower(r.name), lower(r.name) || '.xma', lower(r.name) || '.sfx')
+        WHERE r.kind = 'script-asset' AND s.game = ?
+    """, (game,))
+    # A reference that matched in one copy of a bank but not another isn't unresolved.
+    con.execute("""
+        DELETE FROM relation WHERE dst_id IS NULL AND kind IN ('sfx-track', 'script-asset')
+          AND EXISTS (SELECT 1 FROM relation o WHERE o.src_id = relation.src_id
+                      AND o.slot = relation.slot AND o.kind = relation.kind
+                      AND o.dst_id IS NOT NULL)""")
+    q = ("SELECT count(*) FROM relation r JOIN asset a ON a.id = r.src_id WHERE a.game=? "
+         "AND r.kind IN ('sfx-track', 'script-asset') AND r.dst_id IS {} NULL")
+    stats.sound_links = con.execute(q.format("NOT"), (game,)).fetchone()[0]
+    stats.unresolved_sounds = con.execute(q.format(""), (game,)).fetchone()[0]
 
 
 def format_stats(s: IndexStats) -> str:
@@ -329,6 +425,8 @@ def format_stats(s: IndexStats) -> str:
         f"({s.material_slots} material slots)",
         f"model->texture links: {s.relations}; slots naming a texture found nowhere: "
         f"{s.unresolved_slots}",
+        f"sounds: {s.sounds}; .sfx/script->sound links: {s.sound_links}; names found "
+        f"nowhere: {s.unresolved_sounds}",
         f"PROBLEMS (unparsed): {len(s.problems)}",
     ]
     lines += [f"    {vp}: {why}" for vp, why in s.problems[:40]]

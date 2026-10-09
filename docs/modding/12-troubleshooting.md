@@ -77,3 +77,18 @@ for `.glb` files in a mod) names each problem. Errors stop the build; warnings d
 
 Include the output of `dr2 doctor` and the exact command and error text. Never attach
 game files.
+
+## Sounds (phase 5)
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `decoding XMA needs PyAV` / `replacing sounds needs PyAV` / Studio: "Install PyAV to hear sounds" | PyAV (the XMA decoder) isn't installed | `pip install av` in the toolkit's environment. |
+| "No audio output device" under the waveform | Qt Multimedia can't open a sound device | **Export WAV…** and listen in another player. |
+| A voice line is silent | 15 (CZ) / 20 (CW) voice entries are 0.1 s silent placeholders in the game | Expected. |
+| `raw XMA packets with no stream-table record` | A sound in `data/audio/` without its `cache.big` entry (a modified game, or a new bank) | Use the shipped `data/audio/cache.big`; report it with the sound's path. |
+| A sound mod does nothing; no `[xma] audio mods:` line in the recomp log | The recomp predates audio mods, `CZ_NO_AUDIO_MODS` / `CW_NO_AUDIO_MODS` / `*_NO_MODS` is set, or nothing deployed | Update the recomp, unset the variable, `dr2 mod deploy` again. Sound mods don't work on Xenia or a console. |
+| The table loads but `… plays …` never appears | The game didn't play that sound in your session | Go where it plays (Studio shows its events under Related). |
+| `ctxN decodes 2 channel(s) but … has 1` in the recomp log | The table and the game disagree about a sound (an old build) | Build and deploy the mod again. |
+| Your song is cut short | The game plays a sound for the original's length; the build cuts yours to fit | Expected for now; pick a sound at least as long as your audio, or edit your audio to fit. |
+| The game crashes when gameplay starts after editing `data/audio/Prologue.txt` | Case Zero checks that file against a fingerprint in the game | Remove the edited script from the mod; use a sound replacement ([`10-audio.md`](10-audio.md#why-not-edit-the-audio-scripts)). |
+

@@ -125,11 +125,17 @@ def cmd_extract(args) -> int:
     tree = _tree(args)
     out = Path(args.out)
     written = 0
+    lookup = None
 
     def write(vpath: str, data: bytes) -> None:
-        nonlocal written
+        nonlocal written, lookup
         if args.png and data[:3] == b"\x05\x01\x01":
             vpath, data = vpath + ".png", _texture_png(vpath, data, args.level)
+        elif args.wav and vpath.lower().endswith(".xma"):
+            from ..convert.audio import AudioLookup, decode
+            lookup = lookup or AudioLookup(tree)
+            pcm = decode(data, lookup.info(vpath, data))
+            vpath, data = vpath + ".wav", pcm.wav_bytes()
         dest = out.joinpath(*vpath.split("/"))
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_bytes(data)
@@ -262,6 +268,13 @@ def cmd_info(args) -> int:
             where = f"({lv.tile_x},{lv.tile_y})" if lv.packed else ""
             print(f"{lv.level:>5} {lv.face:>4} {f'{lv.width}x{lv.height}':>11} "
                   f"{lv.offset:>#8x} {lv.pitch:>5}  {where}")
+    elif node.vpath.lower().endswith(".xma"):
+        _audio_info(tree, node.vpath, data)
+    elif node.vpath.lower().endswith(".sfx"):
+        from ..formats.audioscript import sfx_tracks
+        names = {e.name.lower() for e in node.archive.entries} if node.kind == "entry" else set()
+        for t in sfx_tracks(data.decode("latin-1"), node.vpath):
+            print(f"track:      {t}{'' if t.lower() in names else '  (not in this bank)'}")
     elif kind == "big":
         from ..container.big import BigArchive
         from ..formats.scene import Scene, is_scene
@@ -270,6 +283,33 @@ def cmd_info(args) -> int:
         if is_scene(arc):
             _scene_info(Scene.from_archive(arc, node.vpath))
     return 0
+
+
+def _audio_info(tree, vpath: str, data: bytes) -> None:
+    """The `dr2 info` lines for a sound."""
+    from ..convert.audio import AudioLookup, decode, have_decoder, length_check
+    from ..formats import xma
+    info = AudioLookup(tree).info(vpath, data)
+    layout = {1: "mono", 2: "stereo", 6: "5.1"}.get(info.channels, f"{info.channels} ch")
+    print(f"audio:      XMA2, {layout}, {info.rate} Hz, {info.streams} stream(s), "
+          f"{'RIFF file' if info.shape == 'riff' else 'raw packets'}; metadata from "
+          f"{info.source}")
+    pk = data[info.packets_offset:info.packets_offset + info.packets_size]
+    frames = xma.frame_count(pk, info.streams)
+    print(f"packets:    {len(pk) // xma.PACKET} x 2 KB, {frames} frames per stream")
+    if info.expected_samples:
+        print(f"length:     {info.expected_samples:,} samples "
+              f"({info.expected_samples / info.rate:.2f} s, stored)")
+    if info.loop:
+        a, b = info.loop
+        print(f"loop:       samples {a:,}..{b:,} ({a / info.rate:.2f} s..{b / info.rate:.2f} s)")
+    if have_decoder():
+        pcm = decode(data, info)
+        problem = length_check(pcm, info, pk)
+        print(f"decoded:    {pcm.frames:,} samples ({pcm.seconds:.2f} s), peak "
+              f"{pcm.peak:.3f}{'' if problem is None else '  PROBLEM: ' + problem}")
+    else:
+        print("decoded:    (install PyAV to decode: pip install av)")
 
 
 def _scene_info(sc) -> None:
@@ -387,6 +427,8 @@ def cmd_mod(args) -> int:
               f"in {args.out}")
         for vp, b in res.base_used.items():
             print(f"    {vp}: built on top of {b}")
+        for w in res.warnings:
+            print(f"note: {w}", file=sys.stderr)
         return 0
     # deploy
     import tempfile
@@ -404,6 +446,8 @@ def cmd_mod(args) -> int:
         print(f"deployed {vp}")
     for vp, b in res.base_used.items():
         print(f"    {vp}: built on top of {b}")
+    for w in res.warnings:
+        print(f"note: {w}", file=sys.stderr)
     if recomp and not args.to:
         for w in mdeploy.shadowed_layers(loc.root, written):
             print(f"warning: {w}", file=sys.stderr)
@@ -436,7 +480,7 @@ def cmd_census(args) -> int:
         progress = None if args.quiet else (lambda vp: print(f"  {vp}", file=sys.stderr))
         rep = run_census(g, tree, python_lzx=args.python_lzx, reencode=args.reencode,
                          textures=args.textures, models=args.models,
-                         reimport=args.reimport, workers=args.workers,
+                         reimport=args.reimport, audio=args.audio, workers=args.workers,
                          progress=progress)
         print(format_report(rep))
         reports.append(rep)
@@ -511,6 +555,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="write textures as PNG images (<name>.png) instead of .bct bytes")
     p.add_argument("--level", type=int, default=0,
                    help="with --png: which mip level (0 = full size)")
+    p.add_argument("--wav", action="store_true",
+                   help="write sounds (.xma) as 16-bit WAV files (<name>.xma.wav); needs PyAV")
     p.add_argument("--glb", action="store_true",
                    help="write models and skeletons as glTF binary (<name>.glb) for Blender: "
                         "meshes, skeleton, skin and textures")
@@ -612,7 +658,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--reimport", action="store_true",
                    help="also export every model to .glb and import it back (must give the "
                         "same bytes), and rebuild every shape from its own geometry (slow)")
-    p.add_argument("--workers", type=int, help="processes for --reencode (default: all CPUs)")
+    p.add_argument("--audio", action="store_true",
+                   help="also decode every sound (.xma) and check its length, and resolve "
+                        "every .sfx track (needs PyAV)")
+    p.add_argument("--workers", type=int,
+                   help="processes for --reencode / --audio (default: all CPUs)")
     p.add_argument("-q", "--quiet", action="store_true", help="no per-archive progress")
     p.set_defaults(func=cmd_census)
 

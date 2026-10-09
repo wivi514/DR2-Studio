@@ -70,3 +70,22 @@ def test_3d_view_serves_only_its_own_files():
     assert resource(MODEL_PATH, None) is None
     assert resource("/../model_view.py", None) is None          # nothing outside web/
     assert resource("/nope.js", None) is None
+
+
+def test_audio_view_shows_a_sound():
+    np = pytest.importorskip("numpy")
+    from PySide6.QtWidgets import QApplication
+    from dr2kit.convert.audio import Pcm
+    from dr2kit.studio.audio_view import AudioViewer, envelope, playback_bytes
+    app = QApplication.instance() or QApplication([])
+    six = Pcm(6, 48000, (np.ones((480, 6)) * [1000, 2000, 100, 0, 10, 20]).astype("<i2").tobytes())
+    data, ch = playback_bytes(six)                       # 5.1 is mixed to stereo to listen
+    assert ch == 2 and np.frombuffer(data, "<i2")[:2].tolist() == [1077, 2084]
+    env = envelope(Pcm(1, 48000, np.array([0, 16384, -16384, 0], "<i2").tobytes()), 2)
+    assert env == [[(0.0, 0.5), (-0.5, 0.0)]]
+    v = AudioViewer()
+    v.show_sound(six, (0, 240), "test.xma")
+    assert "5.1" in v.title.text() and v.loop_box.isChecked()
+    v.clear()
+    v.deleteLater()
+    app.processEvents()

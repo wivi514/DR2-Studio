@@ -118,3 +118,64 @@ def test_stfs_matches_unpacked_data(game, game_root):
         # Byte-compare a sample (all of them takes a while; `dr2 unpack` + diff does that).
         for name in random.Random(0).sample(data_files, 12) + ["data/datafile.big"]:
             assert pkg.read(name) == (root / name).read_bytes(), name
+
+
+# --- phase 5: audio ---------------------------------------------------------------------
+
+def _need_pyav():
+    from dr2kit.convert.audio import have_decoder
+    if not have_decoder():
+        pytest.skip("PyAV with the xma2 decoder is not installed (pip install av)")
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("game", ["cz", "cw"])
+def test_every_sound_decodes_to_its_length(game, game_root):
+    """The phase 5 gate: every .xma decodes to its stored length (dr2 census --audio)."""
+    _need_pyav()
+    rep = run_census(game, AssetTree(game_root(game)), audio=True)
+    assert rep.problems == [], f"{len(rep.problems)} problems, e.g. {rep.problems[:5]}"
+    expected = load_profile(game).census
+    assert rep.audio_decoded_ok == expected["sounds"] == sum(rep.audio_shapes.values())
+    assert rep.sfx_parsed == expected["sfx"]
+    assert rep.sfx_tracks["missing"] == expected["sfx_missing"]
+
+
+def test_music_metadata_and_decode(game_root):
+    """A raw stream (music) gets its rate and channels from cache.big, and decodes to
+    exactly its loop end; a RIFF sound decodes to exactly its dwPlayLength."""
+    _need_pyav()
+    from dr2kit.convert.audio import decode_vpath, length_check
+    tree = AssetTree(game_root("cz"))
+    pcm, info = decode_vpath(tree, "data/audio/music.big/HB_Indemnify.xma")
+    assert (info.shape, info.channels, info.rate) == ("raw", 2, 47999)
+    assert pcm.frames == info.expected_samples == 5728896 and pcm.peak > 0.5
+    pcm, info = decode_vpath(tree, "data/streamedassets.big/fx_main.big/FabricLeatherShort3.xma")
+    assert info.shape == "riff" and pcm.frames == info.expected_samples == 39746
+
+
+def test_audio_mod_build(game_root, tmp_path):
+    """A replaced sound builds into a substitution table: every packet of the stream
+    listed with its output position, the WAV fitted to the original's length."""
+    _need_pyav()
+    np = pytest.importorskip("numpy")
+    from dr2kit.convert.audio import Pcm, stream_packets
+    from dr2kit.mods.build import build
+    from dr2kit.mods.manifest import Mod, create
+    tree = AssetTree(game_root("cz"))
+    vp = "data/streamedassets.big/fx_main.big/FabricLeatherShort3.xma"
+    mod = create(tmp_path / "mod", "tone")
+    dest = mod / "replace" / (vp + ".wav")
+    dest.parent.mkdir(parents=True)
+    tone = (np.sin(np.arange(48000) / 8) * 8000).astype("<i2").tobytes()
+    dest.write_bytes(Pcm(1, 48000, tone).wav_bytes())
+    res = build([Mod.load(mod)], "cz", tree, tmp_path / "out")
+    table = (tmp_path / "out" / "dr2kit_audio" / "substitutions.txt").read_text()
+    lines = [ln.split("#")[0].split() for ln in table.splitlines() if not ln.startswith("#")]
+    assert lines[0][:4] == ["sound", "0", "1", "39746"]
+    data = tree.resolve(vp).data()
+    from dr2kit.convert.audio import AudioLookup
+    sp = stream_packets(data, AudioLookup(tree).info(vp, data))[0]
+    assert [int(ln[2]) for ln in lines[1:]] == sp.starts
+    assert all(ln[3] == "u" for ln in lines[1:])
+    assert any("cut" in w for w in res.warnings)

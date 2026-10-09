@@ -12,17 +12,17 @@ New to the vocabulary? Keep the [glossary](../glossary.md) open.
 |---|---|---|
 | `01-install.md` | Install DR2 Studio on Windows, Linux or macOS | planned (phase 6, early builds from phase 2) |
 | [`02-game-data.md`](02-game-data.md) | Point the toolkit at your game: a recomp folder, an unpacked `data/` folder, or the XBLA package; look around and copy files out | ✅ written (phase 1, CLI) |
-| [`03-browsing.md`](03-browsing.md) | Find assets, search, see which textures a model uses (playing sounds: phase 5) | ✅ written (phase 2: Studio + CLI) |
-| [`04-extracting.md`](04-extracting.md) | Export textures (PNG), models and skeletons (`.glb`), sounds (WAV) | ✅ textures (phase 2), models and skeletons (phase 3); sounds in phase 5 |
+| [`03-browsing.md`](03-browsing.md) | Find assets, search, see which textures a model uses, listen to sounds | ✅ written (phase 2: Studio + CLI; sounds phase 5) |
+| [`04-extracting.md`](04-extracting.md) | Export textures (PNG), models and skeletons (`.glb`), sounds (WAV) | ✅ textures (phase 2), models and skeletons (phase 3), sounds (phase 5) |
 | [`05-first-mod-texture.md`](05-first-mod-texture.md) | **Your first mod:** recolour a texture and see it in game | ✅ written (phase 2), checked in both recomps |
 | [`06-mod-packages.md`](06-mod-packages.md) | What's in a mod folder, `mod.toml`, building, sharing | ✅ written (phase 2) |
 | [`07-blender-setup.md`](07-blender-setup.md) | Set up Blender to work with DR2 models and skeletons | ✅ written (phase 3), followed with Blender 5.2 |
 | [`08-edit-a-model.md`](08-edit-a-model.md) | Edit an existing model in Blender and put it back | ✅ written (phase 4); its edit checked in game on CZ (scripted Blender run, `tools/blender_gate_model.py`) |
 | [`09-new-model.md`](09-new-model.md) | Rig a brand-new mesh to a game skeleton and replace a part of a character | ✅ written (phase 4); a new rigged mesh checked in game on CZ, fingers and face (scripted Blender run) |
-| `10-audio.md` | Replace music, voices and sound effects | planned (phase 5) |
+| [`10-audio.md`](10-audio.md) | Listen to sounds, export WAV, replace music, voices and sound effects | ✅ written (phase 5); a music swap checked in game in both recomps |
 | `11-text.md` | Change in-game text and translations | planned (phase 6) |
-| [`12-troubleshooting.md`](12-troubleshooting.md) | Fix common problems: the mod doesn't show, the game crashes, rig errors | started (phases 1-4: game data, textures, mods, model export and import); grows with each phase |
-| [`asset-catalogue.md`](asset-catalogue.md) | Where things are: Chuck's outfits, zombies, weapons, rigs, music, maps… | started (phase 2, rigs and models in phase 3); grows |
+| [`12-troubleshooting.md`](12-troubleshooting.md) | Fix common problems: the mod doesn't show, the game crashes, rig errors | started (phases 1-5: game data, textures, mods, models, sounds); grows with each phase |
+| [`asset-catalogue.md`](asset-catalogue.md) | Where things are: Chuck's outfits, zombies, weapons, rigs, music, maps… | started (phase 2, rigs and models in phase 3, sounds in phase 5); grows |
 
 ## Rules for mods made with this toolkit
 

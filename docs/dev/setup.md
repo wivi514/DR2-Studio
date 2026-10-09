@@ -42,12 +42,17 @@ your PATH.
 Optional extras (phase 2):
 
 ```
-python -m pip install -e ".[dev,studio]"   # + PySide6 and numpy: DR2 Studio (`dr2 studio`)
+python -m pip install -e ".[dev,studio]"   # + PySide6, numpy and PyAV: DR2 Studio (`dr2 studio`)
+python -m pip install -e ".[audio]"        # + PyAV and numpy: sounds (phase 5)
 python -m pip install numpy pillow         # just the fast paths (texture work ~50x faster)
 ```
 
 Everything works without numpy and Pillow (pure-Python fallbacks, tested in CI), just
-slower: the texture census and the index build want numpy.
+slower: the texture census and the index build want numpy. **Sounds need PyAV** (`av`,
+which bundles ffmpeg with its `xma2` decoder): listening, `dr2 extract --wav`,
+`dr2 census --audio` and building sound mods. Without it everything else works and the
+audio commands say what to install. `python tools/check_pyav_codecs.py` checks the
+decoders are there.
 
 ## Build the native LZX library (recommended)
 

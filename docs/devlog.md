@@ -17,6 +17,70 @@ Entry template:
 
 ---
 
+## 2026-10-09 — Phase 5: audio (listen, export, replace through the recomps)
+**Done:**
+- Sound formats (`formats/xma.py`): `.xma` comes in two shapes, RIFF XMA2 files in the
+  sound-effect banks and raw packets in the streamed banks; the raw ones are described by
+  `data/audio/cache.big`'s `$GIB` stream tables (rate, channels, loop), cracked this
+  session. Packet headers, multi-stream (5.1) layout, the FNV-1a packet fingerprint.
+- Decoding (`convert/audio.py`) through PyAV (ffmpeg's `xma2`, the recomps' decoder):
+  `dr2 extract --wav`, `dr2 info` on sounds, `dr2 census --audio` (every sound of both
+  games decodes to its stored length: 8,916 + 11,735).
+- `.sfx` and audio scene scripts (`formats/audioscript.py`); the index links sounds to
+  the `.sfx` that play them and to scene-script events (`audio`, `sound_ref` tables;
+  schema version 2).
+- DR2 Studio's audio view (`studio/audio_view.py`): waveform per channel, play, seek,
+  loop, *Export WAV…*, *Replace with audio…*.
+- Sound mods: `replace/<sound>.xma.wav|ogg|flac|mp3` (`mods/audio.py`) build into
+  `dr2kit_audio/` (fitted WAV per stream + a table of every packet's fingerprint and
+  output position); **PCM substitution in both recomps** (`runtime/kernel/audio.cpp`,
+  `CZ_NO_AUDIO_MODS` / `CW_NO_AUDIO_MODS`, CZ gotcha 635, CW gotcha 331; commits CZ
+  `54b5283` on master, CW `dea8734` on xlive-integration).
+- In-game gate in both games: the title music replaced by another track, recorded
+  through SDL's disk driver, follows the replacement; the off switch plays the original.
+
+**Why:** phase 5 of the roadmap: hear a sound before extracting it, and replace music,
+voices and effects, although no XMA encoder can be shipped.
+
+**Learned:**
+- **Phase 0's "no RIFF header" was wrong for most sounds**: it held for the streamed
+  banks it looked at. 7,647 / 9,190 sounds are complete RIFF files. Retraction in
+  `formats.md`.
+- The stream tables hash the entry name **with its case**, unlike the `.big` index.
+- A decode is always 384 samples shorter than the frames encoded; loop points count
+  those samples. With that, every length rule holds over both games (`formats.md`
+  §Lengths); a few looping effects carry a tail past the loop end.
+- Decoding packet by packet (as the recomps do) gives the same samples as a whole-file
+  decode, so a packet's output position is fixed. That replaced the planned design
+  (map guest buffers to `.big` entries through VFS read tracking) with one where every
+  packet identifies itself: no VFS state, and loops, streaming and reused contexts need
+  no special cases.
+- **Case Zero digest-checks `data/audio/Prologue.txt`**: an edited copy crashes the game
+  (checked in game). The planned "easy path" (script remap, as on PC) is ruled out; the
+  guide shows the substitution way to make an event play another track.
+- The 5.1 prologue cinematic decodes to 316.45 s, as the CZ recomp measured from its
+  packet headers (316.5 s): two independent readings agree.
+- Both recomps' playback drifts about 1% slow against the source in the disk recordings,
+  modded or not (runtime pacing, not substitution). One CW run ignored SIGTERM at exit
+  (substitution off): use `timeout -s KILL`.
+- Qt Multimedia aborts at exit if a widget using it outlives the test's QApplication
+  ("shared QObject was deleted directly"): delete it first.
+
+**Docs updated:** `formats.md` (§Audio rewritten: shapes, stream tables, lengths,
+packet-by-packet decoding, `.sfx`, scene scripts and the digest, substitution, census,
+in-game check; status rows), `dev/recomp-integration.md` (§Audio substitution, test
+procedure, the remap result), `dev/code-tour.md`, `dev/studio.md`, `dev/testing.md`,
+`dev/setup.md`, `ARCHITECTURE.md` (index, Studio, audio pipeline, recomp integration
+design change), `roadmap.md`, `modding/10-audio.md` (new), `modding/03`, `04`, `06`, `12`,
+`asset-catalogue.md`, `modding/README.md`, `glossary.md`, `THIRD_PARTY.md`,
+`prior-art.md`, `phase6-kickoff.md` (new), `docs/README.md`, `README.md`, `CLAUDE.md`;
+in the recomps: CZ `docs/gotchas.md` #635 and `docs/instruments.md`, CW
+`docs/gotchas.md` #331.
+
+**Next:** phase 6, polish and distribution (`phase6-kickoff.md`). Open from phase 5: a
+5.1 cinematic and an fx sound replaced in game, longer replacements, voice-line names
+(GASP tables), Case West's digest list.
+
 ## 2026-10-09 — Docs: phase 4 sweep
 **Done:** pages written before phase 4 stopped calling model import future work:
 `modding/04-extracting.md` and `07-blender-setup.md` link the new guides 08 and 09,

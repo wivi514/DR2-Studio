@@ -53,7 +53,8 @@ These come from `CLAUDE.md` ("Verification gates") and each phase's gate in
    that type in **both** games reports zero problems (or names each one).
 6. **In-game proof.** A replacement counts once it loads in a recomp. Phase 2 adds the
    `game_mods/` folder for that. A *reader* is checked against the running game too:
-   phase 3 compares decoded models with draws captured from the recomp.
+   phase 3 compares decoded models with draws captured from the recomp. Sounds are
+   checked by recording what the recomp sends to the speakers (phase 5).
 
 ### Phase 1 results (2026-10-08)
 
@@ -132,6 +133,27 @@ strips with winding, weights, palette splitting, replacing own and combined shap
 errors, influence merge, material fallback, a mod with a `.glb` override), and the
 Studio test now runs *Replace with .glb…*. The procedure for the capture is in
 [`recomp-integration.md`](recomp-integration.md) §Phase 4.
+
+### Phase 5 results (2026-10-09)
+
+| Gate | Case Zero | Case West |
+|---|---|---|
+| Every `.xma` decodes to the length its metadata says (`dr2 census --audio`, needs PyAV; ~30 / ~42 s) | 8,916 / 8,916 (3.17 h) | 11,735 / 11,735 (3.82 h) |
+| Every `.sfx` parses; tracks resolve in their bank | 4,745; all but 22 recordings the data lacks | 5,194; all but 1 |
+| Packet-by-packet decode = whole-file decode (mono, stereo, each stream of 5.1) | checked on 3 sounds, max difference one 16-bit step | |
+| **In-game gate**: title music replaced by another track, recorded with SDL's disk driver, vs `CZ_NO_AUDIO_MODS=1` / `CW_NO_AUDIO_MODS=1` | with the mod the recording follows the replacement at the right positions (1 s windows up to 0.94 normalised correlation) and not the original; without, the original | same (0.50-0.57 at the right positions) |
+| Editing `Prologue.txt` (the planned easy remap) | the game crashes on the digest check: ruled out | not tested (same digest manager) |
+
+Unit tests added: `test_audio.py` (XMA2 `fmt` round trip, RIFF wrap/parse and its
+errors, loop info with the 384-sample delay, packet headers, stream starts, the FNV-1a
+test vectors, stream tables with the case-kept hash, `.sfx` tracks, scene-script
+references with their trigger context, parse errors with line numbers, WAV round trip,
+`conform`, `split_streams`, the length rules). `test_index.py` checks sounds and their
+links on a synthetic game; `test_studio.py` the audio view. Game-data tests:
+`test_every_sound_decodes_to_its_length` (both games), `test_music_metadata_and_decode`,
+`test_audio_mod_build` (every packet's position in the table equals PyAV's). The
+procedure for the in-game check is in
+[`recomp-integration.md`](recomp-integration.md#testing-it-the-phase-5-in-game-gate).
 
 ## Writing a test for new code
 

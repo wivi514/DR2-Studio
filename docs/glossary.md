@@ -112,9 +112,48 @@ Blender bit for bit.
 picture, and on request the exact bytes and shader constants of every draw. Phase 3
 compared the toolkit's model reading with one.
 
-**XMA.** The Xbox 360's audio compression format. The toolkit decodes it for preview and
-export. No free XMA encoder exists, which is why audio replacement uses special routes
-(see the audio guide).
+<a id="xma"></a>**XMA (XMA2).** The Xbox 360's audio compression format (a cousin of WMA Pro);
+every sound of both games is XMA (`.xma`). The toolkit decodes it with ffmpeg (through
+PyAV) for listening and WAV export. Nobody can redistribute an XMA *encoder*, so sound
+mods don't make XMA: the recomp plays your audio instead (see *PCM substitution*).
+
+**XMA packet / frame / stream.** XMA is cut into 2 KB **packets**; each holds pieces of
+**frames** of 512 samples. Sounds with more than two channels (the 5.1 cutscene audio)
+are several **streams** of one or two channels whose packets take turns.
+
+**Sample / sample rate / channels.** A sample is one number of a sound wave; the rate is
+how many per second (48000 for these games); channels are mono (1), stereo (2) or 5.1
+(6: front left/right, centre, LFE (the subwoofer), surround left/right). A sound's
+length is counted in samples per channel.
+
+**PCM / WAV.** Uncompressed audio: plain samples. A `.wav` file is PCM with a small
+header; what `dr2 extract --wav` writes and what audio editors read.
+
+**Stream table (`$GIB`, `cache.big`).** The table in `data/audio/cache.big` that says,
+for every streamed sound (music, voices, cutscenes), its rate, channels and loop, because
+those sounds are stored without a header of their own.
+
+**`.sfx` (sound effect).** A small text file next to the recordings in a sound bank:
+which recordings (`.xma`) make up one game sound, and how (volume, layers, pitch). The
+game plays sounds by the `.sfx` name, so `FEError.sfx` *is* the "error" beep.
+
+**Audio scene script.** A text file (`data/audio/Prologue.txt` in Case Zero) that wires
+game events to sounds: "when `MechanicBattleStart` fires, play `music.big/HB_Indemnify`".
+The index uses it to name sounds. The game checks it against a digest, so it can't be
+edited.
+
+**Digest.** A fingerprint (here SHA-1) of a file, stored in the game's executable. The
+game recomputes it when it loads the file and refuses to run (crashes) if they differ.
+
+**PCM substitution (audio mods).** How sound mods work: the recomp decodes the game's
+XMA itself, and for a replaced sound outputs your audio's samples instead of the decoded
+ones. The game's files don't change.
+
+**Fingerprint (packet hash).** A 64-bit number computed from the bytes of one XMA packet
+(FNV-1a). The recomp recognises the packets of a replaced sound by it.
+
+**Loop / loop region.** The part of a sound the game repeats (engine hums, alarms,
+some music). Studio shades it on the waveform.
 
 **Bink (`.bik`).** A video format, used by Case West's movies.
 

@@ -113,3 +113,31 @@ def counts(con: sqlite3.Connection) -> list[sqlite3.Row]:
 
 def games_indexed(con: sqlite3.Connection) -> list[str]:
     return [r[0] for r in con.execute("SELECT DISTINCT game FROM asset ORDER BY game")]
+
+
+def audio_info(con: sqlite3.Connection, asset_id: int) -> sqlite3.Row | None:
+    """Channels, rate, length and loop of a sound (the ``audio`` table)."""
+    return con.execute("SELECT * FROM audio WHERE asset_id=?", (asset_id,)).fetchone()
+
+
+def sound_targets(con: sqlite3.Connection, src_id: int) -> list[sqlite3.Row]:
+    """What a ``.sfx`` plays, or what an audio scene script names (in file order)."""
+    return con.execute(f"""
+        SELECT r.kind AS rel_kind, r.slot, r.dst_name, s.context, {ASSET_COLUMNS}
+        FROM relation r LEFT JOIN asset a ON a.id = r.dst_id
+        LEFT JOIN sound_ref s ON s.src_id = r.src_id AND s.slot = r.slot AND s.kind = r.kind
+        WHERE r.src_id = ? AND r.kind IN ('sfx-track', 'script-asset')
+        ORDER BY r.slot""", (src_id,)).fetchall()
+
+
+def sound_users(con: sqlite3.Connection, asset_id: int) -> list[sqlite3.Row]:
+    """Who plays this sound: the ``.sfx`` whose tracks name it, the scripts whose
+    ``Asset`` lines name it or such a ``.sfx`` (with the events that trigger them)."""
+    return con.execute(f"""
+        SELECT DISTINCT r.kind AS rel_kind, s.context, {ASSET_COLUMNS}
+        FROM relation r JOIN asset a ON a.id = r.src_id
+        LEFT JOIN sound_ref s ON s.src_id = r.src_id AND s.slot = r.slot AND s.kind = r.kind
+        WHERE r.kind IN ('sfx-track', 'script-asset')
+          AND (r.dst_id = ? OR r.dst_id IN
+               (SELECT x.src_id FROM relation x WHERE x.dst_id = ? AND x.kind = 'sfx-track'))
+        ORDER BY r.kind, a.vpath_lower""", (asset_id, asset_id)).fetchall()

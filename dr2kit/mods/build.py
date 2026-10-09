@@ -7,7 +7,10 @@ it. The build does that and nothing else:
 1. **Classify** every file under each mod's ``replace/`` (`classify`): a ``.png`` next to
    a texture's vpath replaces that texture; a ``.glb`` next to a model's vpath replaces
    that model's meshes (`dr2kit.convert.model_import`, checked by the rig validator
-   first); any other file replaces the asset with the same vpath, byte for byte. Unknown paths, wrong sizes and conflicts between mods are
+   first); a ``.wav``/``.ogg``/``.flac``/``.mp3`` next to a sound's vpath is played by
+   the recomp instead of that sound (`dr2kit.mods.audio`: no game file changes, the
+   build writes ``dr2kit_audio/``); any other file replaces the asset with the same
+   vpath, byte for byte. Unknown paths, wrong sizes and conflicts between mods are
    errors, reported all at once.
 2. **Patch** each file on disk that holds an override (`patch_archive`): parse it, walk
    down the vpath, replace the leaf, and re-serialise every archive on the way back up.
@@ -33,7 +36,7 @@ from ..container.big import BigArchive, is_big
 from ..container.vpath import AssetTree, entry_component, find_entry, join, split
 from ..errors import Dr2Error
 from ..formats.bct import Bct, is_bct
-from .manifest import Mod, ModError, Override
+from .manifest import AUDIO_EXTS, Mod, ModError, Override
 
 BUILD_INFO = "dr2kit-build.json"
 
@@ -93,6 +96,10 @@ def classify(mods: list[Mod], game: str, tree: AssetTree) -> list[Planned]:
             elif rel.lower().endswith(".glb"):
                 target = rel[:-4]
                 kind = "model-glb"
+            elif rel.lower().endswith(AUDIO_EXTS) and \
+                    rel.rsplit(".", 1)[0].lower().endswith(".xma"):
+                target = rel.rsplit(".", 1)[0]
+                kind = "audio"
             try:
                 node = tree.resolve(target)
             except Dr2Error:
@@ -204,7 +211,13 @@ def build(mods: list[Mod], game: str, tree: AssetTree, out_dir: str | Path,
     plan = classify(mods, game, tree)
     res = BuildResult(game, out, overrides=plan)
     by_file: dict[str, list[Planned]] = {}
+    sounds = [p for p in plan if p.override.kind == "audio"]
+    if sounds:
+        from .audio import build_audio
+        build_audio(sounds, tree, out, res, progress)
     for p in plan:
+        if p.override.kind == "audio":
+            continue
         file_vp = join(*split(p.vpath)[:p.disk_parts])
         by_file.setdefault(file_vp, []).append(p)
     for file_vp, items in sorted(by_file.items()):
@@ -256,6 +269,8 @@ def verify(res: BuildResult, tree: AssetTree, base_dirs=()) -> None:
     """
     built = AssetTree(res.out_dir)
     for p in res.overrides:
+        if p.override.kind == "audio":           # checked by mods.audio.build_audio
+            continue
         got = built.resolve(p.vpath).data()
         if p.override.kind == "raw":
             want = p.override.source.read_bytes()

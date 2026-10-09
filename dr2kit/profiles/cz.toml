@@ -21,3 +21,6 @@ entries = 124932
 models = 1397         # scenes with meshes (dr2 census, phase 3)
 skeletons = 113        # scenes with a skeleton and no meshes
 model_draws = 6954     # draw calls over all models; every one decodes (dr2 census --models)
+sounds = 8916          # .xma entries; every one decodes to its stored length (census --audio)
+sfx = 4745             # .sfx sound definitions; all parse
+sfx_missing = 22       # .sfx tracks whose recording the shipped data lacks

@@ -1,11 +1,12 @@
-# Export assets: textures as PNG, models and skeletons as `.glb` (sounds later)
+# Export assets: textures as PNG, models and skeletons as `.glb`, sounds as WAV
 
-**You will:** save textures as PNG images you can open anywhere, and models or skeletons
-as `.glb` files that Blender opens with their bones, weights and textures.
+**You will:** save textures as PNG images you can open anywhere, models or skeletons
+as `.glb` files that Blender opens with their bones, weights and textures, and sounds as
+WAV files any player opens.
 **Time:** ~5 min.   **Games:** both.
 **You need:** the toolkit pointed at your game ([`02-game-data.md`](02-game-data.md)).
 
-> Sounds (WAV) arrive in phase 5. This guide grows with them.
+> Sounds need PyAV (`pip install av`): it holds the XMA decoder.
 
 ## Steps
 
@@ -27,7 +28,13 @@ dr2 extract --png data/models/npcs.big/chest_young_chuck.tex/young_cr_shirt_cm -
 dr2 extract --png --level 2 data/models/npcs.big/chest_young_chuck.tex/young_cr_shirt_cm -o out
 # every texture of a pack (or of a whole archive, nested ones included) as PNG
 dr2 extract --png -r data/models/npcs.big/chest_young_chuck.tex -o out
+# one sound as WAV (writes out/data/audio/music.big/HB_Indemnify.xma.wav)
+dr2 extract --wav data/audio/music.big/HB_Indemnify.xma -o out
+# every sound of a bank
+dr2 extract --wav -r data/audio/music.big -o out
 ```
+
+In DR2 Studio, a sound has **Export WAV…** (and **Play**, [`10-audio.md`](10-audio.md)).
 
 Files land under `out/` at their virtual path, with `.png` added:
 `out/data/models/npcs.big/chest_young_chuck.tex/young_cr_shirt_cm.png`. Keep that
@@ -90,6 +97,14 @@ into one Blender scene and they line up. Next: [`07-blender-setup.md`](07-blende
 
 `dr2 info <vpath>` shows a texture's format, size, mip levels and how it is stored.
 
+## What you get (sounds)
+
+16-bit WAV with the sound's own channels and rate: mono for effects and voices, stereo
+for music, **6 channels (5.1)** for cutscene audio (`data/audio/cinematics.big`), at
+48000 Hz (some effects a few hertz off, as the game stores them). `dr2 info` on a sound
+shows its channels, rate, length and loop. A few voice entries are 0.1 s of silence on
+purpose (placeholders).
+
 ## If something went wrong
 
 | Symptom | Cause | Fix |
@@ -97,6 +112,7 @@ into one Blender scene and they line up. Next: [`07-blender-setup.md`](07-blende
 | `… is a folder; give a file or entry` | You gave a folder | Give a file or archive entry; `-r` for whole archives. |
 | The PNG is a strange colour | Normal map (`_nm`), specular (`_sm`) or mask (`_mask`) | Expected: they hold data, not colours. |
 | `--glb needs one` / "not a model or skeleton" | The path is a texture pack, a sound bank… | Give the model's `.big` (the one next to its `.tex`). |
+| `decoding XMA needs PyAV` | `--wav` without PyAV | `pip install av`. |
 | `note: texture 'x' not found` | The texture lives in another archive | Run `dr2 index build` once; the export then searches the whole game. The model is still exported, without that texture. |
 | The 3D view says it needs QtWebEngine | Your PySide6 install lacks it | `pip install PySide6-Addons`, or use **Export .glb…** and Blender. |
 

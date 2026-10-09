@@ -23,6 +23,7 @@ asset inside the archives, see the [glossary](../glossary.md)):
 |---|---|
 | `<texture's vpath>.png` | Replaces that texture. Same size as the original (the error tells you the size). |
 | `<model's vpath>.glb` | Puts the meshes of a `.glb` you edited in Blender into that model (`…/npcs.big/chest_young_chuck.big.glb`). Each object replaces the part with the same name; the rest of the model stays as it was. The model check runs first ([`08-edit-a-model.md`](08-edit-a-model.md)). |
+| `<sound's vpath>.wav` (or `.ogg`, `.flac`, `.mp3`) | The recomp plays your audio instead of that sound (`…/music.big/PressStartPrologue.xma.ogg`). Fitted to the sound's length, channels and rate; recomps only ([`10-audio.md`](10-audio.md)). |
 | `<any asset's vpath>` (no `.png` / `.glb` added) | Replaces that asset with your file's bytes, as they are. For text files (`.txt`, `.csv`) and anything you edited with another tool. |
 
 Letter case doesn't matter (`DATA/Models/…` works). A mod only ever holds **your** files:
