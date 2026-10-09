@@ -447,6 +447,16 @@ def cmd_mod(args) -> int:
     game = args.game
     loc = locate(game)
     tree = AssetTree(loc.root)
+    if args.action == "import-textures":
+        from ..mods import texture_import as ti
+        mod = manifest.Mod.load(args.mod)
+        tp = ti.plan(tree, args.model, args.sources, game)
+        print(tp.report())
+        if args.dry_run or not tp.items:
+            return 0 if tp.items else 1
+        for f in ti.apply(tp, mod.root):
+            print(f"wrote {f}")
+        return 0
     if args.action == "undeploy":
         target = Path(args.to) if args.to else mdeploy.recomp_folders(loc.root)["mods"]
         removed = mdeploy.undeploy(target)
@@ -900,6 +910,14 @@ def build_parser() -> argparse.ArgumentParser:
                                  "(default: the recomp's game_patched)")
             pm.add_argument("--no-patched-base", action="store_true",
                             help="always start from the shipped files")
+    pm = msub.add_parser("import-textures",
+                         help="put textures exported from Substance Painter, Blender… into a mod")
+    pm.add_argument("mod", help="the mod folder")
+    pm.add_argument("model", help="the model they were painted on, e.g. "
+                                  "data/models/npcs.big/chest_young_chuck.big")
+    pm.add_argument("sources", nargs="+", help="exported pictures, folders, or a .glb")
+    pm.add_argument("-n", "--dry-run", action="store_true", help="show what would go where")
+    game_opt(pm)
     pm = msub.add_parser("undeploy", help="remove what the last deploy wrote")
     game_opt(pm)
     pm.add_argument("--to", help="the folder deployed to with --to")

@@ -191,6 +191,15 @@ gate's names, the icon). Game-data tests: `test_string_banks`, `test_digest_chec
 | The built wheel carries the help (`uv build`) | 16 pages + `context.toml` + the icon | |
 | Studio screenshots on real data (main window with the mod's texture, Welcome, Help, Share, Install, mod manager, Game folders) | looked at; fixed a clipped help box and help scrolling | |
 
+**Texturing and limits** (2026-10-09): Painter-style exports of `chest_young_chuck`
+(2048 px, a DirectX-style normal map, a Roughness file) imported into a mod: matched,
+resized, green flipped (the result's green correlates 0.997 with the game's own normal
+map), Roughness skipped; `dr2 mod check` accepts the mod. Not yet done in Substance
+Painter itself. The limits and conventions in `formats.md` were measured over every
+model and texture of both games. Unit tests: `test_texture_import.py` (names, the
+`$mesh_` prefix, sizes, skips, metal/roughness, a `.glb` source, the green test on a
+synthetic bump).
+
 **Still owed** (the gate as written is a person, not a script): someone new follows only
 the in-app help on a clean profile, without a terminal, in both games.
 

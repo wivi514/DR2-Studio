@@ -901,6 +901,61 @@ the game sent to the speakers, once with the mod and once with `CZ_NO_AUDIO_MODS
 Not proven yet: a 5.1 cinematic replaced in game (built, and positions checked against
 PyAV per stream, but not heard); a sound effect from an fx bank in game.
 
+## Texture conventions (what each map holds) ✅
+
+Measured 2026-10-09 over the textures of both games (the index: CZ 12,237, CW 23,139),
+for texturing programs (docs/modding/14-texturing-tools.md, `mods/texture_import.py`).
+Roles come from the name (`texture_role`).
+
+| Role | Formats (CZ / CW) | What it holds |
+|---|---|---|
+| colour `_cm` | DXT1 2,636 / 1,593 · DXT5 535 / 388 · A8R8G8B8 2 / 1 | RGB colour. **Alpha only in DXT5** ones: on characters every DXT5 colour map uses it (CZ 214, CW 149: hair, eyelashes, mouths, smooth transparency); DXT1 ones have none, or on/off alpha (6 / 4 character maps) |
+| normal `_nm` | DXN 594 / 783 · DXT1 475 / 350 | tangent-space normal, X in red, Y in green (DXN stores only those two). **OpenGL-style: green = up** (below) |
+| specular `_sm` | DXT1 371 / 543 · DXT5 2 / 2 | **coloured** specular (RGB; only 2 of 22 CZ and 40 of 128 CW character maps are grey) |
+| mask `_mask` | DXT1 337 / 327 · DXT5 134 / 114 | separate channels (RGB, and alpha in the DXT5 ones); what each channel tints is not decoded ❓ |
+| self-illum `_si`, reflection `_rm`, opacity `_om` | DXT1 | ❓ meaning per channel |
+
+- **Normal-map green direction.** Measured with an integrability ("curl") test: a normal
+  map made from a height field has consistent slopes, the change of the x-slope down the
+  rows matches the change of the y-slope across the columns, with a + sign for
+  DirectX-style (green down) and a − sign for OpenGL-style (green up). Over 400
+  character normal maps per game: **OpenGL-style 323 / 300, DirectX-style 31 / 56,
+  unclear 46 / 44** (CZ / CW). This agrees with the tangent analysis (§Tangent w: the
+  shader's bitangent points against the UV v direction for most vertices). So DR2's
+  normal maps are OpenGL-style, the same as Blender and glTF; a mod's normal map should
+  be too (`texture_import` measures a submitted map and flips green when it disagrees
+  with the original).
+- **Sizes.** Largest 2048×2048; 351 (CZ) / 518 (CW) textures are not powers of two.
+  Characters' colour maps are mostly 256-512 px, up to 1024. A replacement keeps the
+  size and format of the texture it replaces (v1 rule).
+- **No PBR maps.** DR2 is a diffuse + specular engine: no roughness, metallic or height
+  maps exist. A metal/roughness export converts to diffuse = BaseColor × (1 − metallic),
+  specular = mix(0.04, BaseColor, metallic).
+
+## Engine limits (what the game's files can hold) ✅
+
+Measured over every model of both games, 2026-10-09 (CZ 1,397, CW 1,495 models; every
+draw decoded), plus the shader limit found in phase 3:
+
+| Limit | Value | How we know |
+|---|---|---|
+| Vertices one draw can address | **65,536** (16-bit indices); for a character part, its whole shape: the parts of a shape share its own vertex buffer, so the importer refuses a shape over 65,536 (`model_import`), the writer a draw past index 0xFFFF (`scene_write.MAX_INDEX`) | every index buffer is 16-bit (`Combined Indices 2`, `>H`) |
+| Bones per draw (palette) | **61** consecutive skeleton nodes | `gWorldMatrix[183]` = 61 × 3 rows in the skinning shader (phase 3); largest shipped palette 56 (CZ) / 60 (CW). The importer splits a mesh into several draws when needed |
+| Bone influences per vertex | **4** (weights `UBYTE4N`, one byte each, summing to 255) | every skinned declaration; the importer keeps the 4 strongest |
+| UV sets per draw | up to 6 (shipped); set 0 is always `FLOAT2` (any range), sets 1+ are `FLOAT2` or `SHORT2N` (**−1…1 only**) | declarations of every draw |
+| UV range of set 0 on characters | 0…1 (CZ 2,075 / 2,075 draws; CW 2,382 / 2,384, the exceptions are two hats at −1.29…2.29); environments tile freely (up to ±10⁷) | decoded |
+| Largest shipped draw | 40,618 vertices / 85,573 strip indices (CZ), 48,822 / 72,545 (CW): environment pieces | decoded |
+| Largest shipped model | 62,817 vertices (CW environment piece); characters up to 18,593 (CZ `boss_mechanic`) / 12,646 (CW) | decoded |
+| Skeleton nodes in a model | up to 119 (characters 98) | node tables |
+| Materials per model / texture slots per material | up to 33 (CZ) / 49 (CW); 10 slots | `MatArray`, `MatTextureInfoArray` |
+| Shapes per model / draws per shape | up to 124 / 38 (characters: one draw per shape) | mesh descriptions |
+| Textures | up to 2048×2048; DXT1, DXT5, DXN, A8R8G8B8, L8 | §Textures, index |
+
+What the game *does* with more than its own content (a 50,000-vertex character, many
+2048 textures) is not measured: memory and frame time are the unknowns. The toolkit's
+own v1 rules add: models are changed by replacing existing shapes (no new shapes,
+materials or bones), a texture keeps its size and format, a sound keeps its length.
+
 ## Strings (`.bcs`) ✅
 
 Implemented by `dr2kit/formats/bcs.py`. Every text the games show (menus, subtitles,

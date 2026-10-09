@@ -245,6 +245,11 @@ class MainWindow(QMainWindow):
         self.btn_blender.setToolTip("Starts Blender with this model, ready for the DR2 tab's "
                                     "Check rig and Export to mod")
         self.btn_blender.clicked.connect(self.open_blender)
+        self.btn_tex_in = QPushButton("Import textures…")
+        self.btn_tex_in.setToolTip("Textures exported from Substance Painter, Blender or any "
+                                   "program: matched to this model's textures, resized, "
+                                   "and put in the open mod")
+        self.btn_tex_in.clicked.connect(self.import_textures)
         self.btn_mp4 = QPushButton("Export MP4…")
         self.btn_mp4.setToolTip("The movie as .mp4 (MPEG-4 video, AAC stereo sound)")
         self.btn_mp4.clicked.connect(self.export_mp4)
@@ -269,7 +274,8 @@ class MainWindow(QMainWindow):
         rl.addWidget(self.details, 2)
         rl.addWidget(QLabel("<b>Related</b> (double-click to open)"))
         rl.addWidget(self.relations, 1)
-        for b in (self.btn_edit_tex, self.btn_blender, self.btn_extract, self.btn_png,
+        for b in (self.btn_edit_tex, self.btn_blender, self.btn_tex_in, self.btn_extract,
+                  self.btn_png,
                   self.btn_glb, self.btn_replace, self.btn_glb_in, self.btn_wav,
                   self.btn_audio_in, self.btn_mp4):
             rl.addWidget(b)
@@ -407,6 +413,7 @@ class MainWindow(QMainWindow):
             self.btn_edit_tex: kind == "texture", self.btn_replace: kind == "texture",
             self.btn_png: kind == "texture",
             self.btn_blender: kind in ("model", "skeleton"),
+            self.btn_tex_in: kind == "model",
             self.btn_glb_in: kind == "model", self.btn_glb: kind in ("model", "skeleton"),
             self.btn_audio_in: kind == "audio", self.btn_wav: kind == "audio",
             self.btn_mp4: kind == "video",
@@ -1252,6 +1259,51 @@ class MainWindow(QMainWindow):
                                                          "folder there)") + ".")
         self.run_job(work, done)
 
+    def import_textures(self, sources: list[str] | None = None) -> None:
+        """Textures from Substance Painter / Blender / any program → this model's
+        textures in the open mod (`dr2kit.mods.texture_import`)."""
+        a = self.current
+        if not a or a["kind"] != "model" or not self.ensure_mod():
+            return
+        if not sources:
+            d = QFileDialog.getExistingDirectory(self, "Folder with the exported textures "
+                                                       "(or cancel to pick files)")
+            if d:
+                sources = [d]
+            else:
+                files, _ = QFileDialog.getOpenFileNames(
+                    self, "Exported textures, or a .glb", "",
+                    "Pictures or .glb (*.png *.jpg *.jpeg *.tga *.tif *.tiff *.glb)")
+                sources = files
+        if not sources:
+            return
+        from ..mods import texture_import as ti
+        game, vpath, mod_dir = self.game, a["vpath"], self.mod_dir
+        self.say(f"matching {len(sources)} source(s) to {a['name']}'s textures…")
+
+        def work(progress):
+            return ti.plan(self.asset_tree(), vpath, sources, game)
+
+        def done(tp, err):
+            if err:
+                self.error(err)
+                return
+            report = tp.report()
+            self.say(report)
+            if not tp.items:
+                self.error("No exported picture matched this model's textures. Name them "
+                           "<texture set>_BaseColor / _Normal / _Specular, or like the game "
+                           "texture (help: Texturing tools).")
+                return
+            if not os.environ.get("DR2_STUDIO_NO_DIALOGS") and QMessageBox.question(
+                    self, "Import textures", report + "\n\nPut these into the mod?") \
+                    != QMessageBox.Yes:
+                return
+            written = ti.apply(tp, mod_dir)
+            self.say(f"{mod_dir.name}: {len(written)} texture(s) imported")
+            self._refresh_mod()
+        self.run_job(work, done)
+
     # ---- drag and drop -------------------------------------------------------------------
 
     def dragEnterEvent(self, ev):
@@ -1283,6 +1335,9 @@ class MainWindow(QMainWindow):
             self.replace_audio(str(path))
         elif ext == ".glb" and a["kind"] == "model":
             self.replace_glb(str(path))
+        elif (ext in (".png", ".jpg", ".jpeg", ".tga", ".tif", ".tiff") or path.is_dir()) \
+                and a["kind"] == "model":
+            self.import_textures([str(path)])           # Painter / Blender exports
         else:
             self.error(f"{path.name} can't replace {a['name']} (a {a['kind']}). Drop a PNG "
                        f"on a texture, a WAV/OGG/FLAC/MP3 on a sound, a .glb on a model, "

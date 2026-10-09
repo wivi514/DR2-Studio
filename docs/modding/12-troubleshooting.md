@@ -118,3 +118,8 @@ AppImage, unsigned programs, game folders) and
 [`13-blender-addon.md`](13-blender-addon.md#if-something-went-wrong) ("Toolkit not
 found", no index, rig check failures).
 
+## Texturing programs and limits (phase 7)
+
+See the tables in [`14-texturing-tools.md`](14-texturing-tools.md#if-something-went-wrong)
+(texture sets not found, wrong shape, normal maps lit the wrong way, transparency) and
+the limits in [`15-limits.md`](15-limits.md) (vertices, bones, weights, UVs, sizes).

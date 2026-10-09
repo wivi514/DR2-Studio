@@ -190,6 +190,10 @@ the app, make packaging a mod and installing it in game easy. Handoff and full s
   recomp), what is deployed now, remove from the game, mod sets. ✅ (`mods/play.py`)
   Not done: registering `.dr2mod` with the operating system (double-click).
 - An icon for the app (our own art). ✅ (see devlog)
+- Texturing programs (user request): *Import textures…* for Substance Painter / Blender /
+  any program's exports (`mods/texture_import.py`), guide `14-texturing-tools.md`, and
+  the game's limits measured and written down (`15-limits.md`, `formats.md` §Engine
+  limits, §Texture conventions). ✅ (not yet followed in Painter itself)
 - Carried over: the first release on all OSes (needs the GitHub remote), the in-game
   gates still owed, value-set colours, longer sounds, keyboard prompts with string mods.
 - **Gate:** a newcomer, with only the in-app help and no terminal, makes a texture mod

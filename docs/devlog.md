@@ -17,6 +17,36 @@ Entry template:
 
 ---
 
+## 2026-10-09 — Texturing programs (Substance Painter…) and the game's limits
+**Done:** at the user's request, a guide for texturing in Substance Painter and other
+programs and exporting back (`14-texturing-tools.md`), a limits page (`15-limits.md`),
+and the tool that makes the export step work: `mods/texture_import.py`
+(`dr2 mod import-textures`, Studio's *Import textures…*, dropping a folder on a model):
+exported pictures are matched to the model's textures by texture set + channel or by
+name, resized to the game's size, normal maps' green direction measured and fixed, and
+metal/roughness converted to DR2's colour + specular.
+
+**Why:** "how to export from Substance Painter so it works" needs the game's
+conventions, which nobody had measured, and an import that applies them; the user also
+asked for the engine's limits ("the 65k vertex limit and stuff like that").
+
+**Learned (measured over both games):** DR2 normal maps are OpenGL-style (green up):
+an integrability test votes 323 vs 31 (CZ) and 300 vs 56 (CW), matching the earlier
+tangent analysis. Colour maps carry alpha only when DXT5 (hair, lashes). Specular maps
+are coloured. Indices are always 16-bit: 65,536 vertices per character part (the
+importer checks per shape, since the parts of a shape share its buffer). UV set 0 is
+always float; character UVs stay in 0-1 except two CW hats. Largest shipped character
+18,593 vertices (CZ mechanic boss). Painter's default export names put the mesh name
+first; the matcher accepts that.
+
+**Docs updated:** `modding/14-texturing-tools.md`, `15-limits.md` (new),
+`context.toml`, `modding/README.md`, `asset-catalogue.md`, `formats.md` (§Texture
+conventions, §Engine limits), `glossary.md`, `dev/code-tour.md`, `dev/studio.md`,
+`dev/testing.md`, `roadmap.md`, `CLAUDE.md`.
+
+**Next:** follow the Painter guide in Painter itself; masks and the other lighting maps
+(what each channel means) are still unknown.
+
 ## 2026-10-09 — Phase 7: help inside the app, Play, Share and Install
 **Done:** the user's three choices first (Play starts the recomp; mods are shared as
 `.dr2mod`; help in English, laid out for translations). Then:

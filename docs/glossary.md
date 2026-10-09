@@ -298,3 +298,19 @@ making), instead of a copy inside the library folder.
 **Play.** DR2 Studio's button (and `dr2 play`) that puts the switched-on mods into the
 game (deploys them) and starts the recomp.
 
+**Texture set.** A texturing program's name for the textures of one material.
+Exporting a model to `.glb` names each material (and so each texture set) like
+`00_young_cr_shirt_cm`; keeping that name is how exported textures find their game
+texture.
+
+**Normal map, OpenGL / DirectX style.** A normal map's green channel says which way a
+bump faces up or down; programs disagree on the direction. DR2's normal maps are
+**OpenGL-style** (green up), like Blender's.
+
+**PBR (metal/roughness).** The way most modern games and Substance Painter describe
+materials (base colour, metallic, roughness). DR2 is older: colour, specular and normal
+only. The toolkit converts a metal/roughness export for you.
+
+**UDIM.** Several UV tiles for one model. DR2 uses one tile (0 to 1): turn UDIM off in
+texturing programs.
+

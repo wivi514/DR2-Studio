@@ -30,6 +30,8 @@ New to the vocabulary? Keep the [glossary](../glossary.md) open.
 | [`10-audio.md`](10-audio.md) | Listen to sounds, export WAV, replace music, voices and sound effects | ✅ written (phase 5); a music swap checked in game in both recomps |
 | [`11-text.md`](11-text.md) | Change in-game text and translations; edit the game's text data files with a diff | ✅ written (phase 6); a changed string checked in game in both recomps |
 | [`13-blender-addon.md`](13-blender-addon.md) | Find, import, check and export models from inside Blender with the DR2 add-on | ✅ written (phase 6); the whole flow scripted in Blender 5.2 |
+| [`14-texturing-tools.md`](14-texturing-tools.md) | Texture a model in Substance Painter, Blender, ArmorPaint or a 2D editor, export it the way the game needs, and import it into a mod in one step | ✅ written (phase 7); the import tested on Painter-style exports of a game model, not yet followed in Painter itself |
+| [`15-limits.md`](15-limits.md) | The limits of the game and the toolkit: vertices, bones, weights, UVs, texture sizes and formats, sounds, text | ✅ written (phase 7), every number measured on both games |
 | [`12-troubleshooting.md`](12-troubleshooting.md) | Fix common problems: the mod doesn't show, the game crashes, rig errors | started (phases 1-6: game data, textures, mods, models, sounds, text); grows with each phase |
 | [`asset-catalogue.md`](asset-catalogue.md) | Where things are: Chuck's outfits, zombies, weapons, rigs, music, text, movies… | started (phase 2, rigs and models in phase 3, sounds in phase 5, text and movies in phase 6); grows |
 

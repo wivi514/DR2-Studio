@@ -16,7 +16,8 @@ are the in-app help (`dr2kit/help`, F1, "How to mod this", Help on errors, Welco
 and Install windows, Play (`mods/play.py`, `dr2 play`), mod sets, the app icon; the
 make→share→install→Play chain passed in game in CZ and CW (`tools/newcomer_gate.py`).
 Owed: the gate run by a person, `.dr2mod` file associations, the carried-over items in
-`docs/phase7-kickoff.md`.** Read these before writing code:
+`docs/phase7-kickoff.md`. Also added: texturing-program imports (`mods/texture_import.py`,
+guide 14) and the measured engine limits (guide 15, `formats.md` §Engine limits).** Read these before writing code:
 
 | Doc | What it holds |
 |---|---|
@@ -149,6 +150,7 @@ dr2 index build                           # the asset index (~1-2 min per game)
 dr2 studio                                # the GUI (pip install -e ".[studio]")
 dr2 help [page] / dr2 help --search <words>          # the guides (= Studio's help)
 dr2 play -g cz [--no-mods] [--deploy-only]           # deploy switched-on mods, start the recomp
+dr2 mod import-textures <mod> <model vpath> <export folder> [-n]   # Painter/Blender exports -> mod
 dr2 mod status | link | sets save/use NAME           # what's in the game, linked mods, mod sets
 python tools/newcomer_gate.py cz --frames ~/.cache/dr2kit-gate7/cz   # phase 7 gate (on disk!)
 dr2 strings search <words> / set <mod> <id> <text>   # string banks (phase 6)

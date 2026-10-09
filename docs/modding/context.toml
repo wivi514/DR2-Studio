@@ -17,11 +17,11 @@ guide = "05-first-mod-texture.md"
 title = "Change this model"
 steps = [
   "Open or create a mod (bottom bar).",
-  "Click Open in Blender: Blender starts with this model loaded.",
-  "Edit it, then in Blender's DR2 tab click Check rig and Export to mod (or export a .glb and drop it here).",
-  "Click Play to see it in game.",
+  "Shape: click Open in Blender, edit, then in Blender's DR2 tab Check rig and Export to mod.",
+  "Textures: Export .glb… to Substance Painter (or any texturing program), export PNGs, then Import textures… (or drop the folder here).",
+  "Click Play to see it in game. Limits: Help → Limits.",
 ]
-guide = "08-edit-a-model.md"
+guide = "14-texturing-tools.md"
 
 [skeleton]
 title = "Use this skeleton"

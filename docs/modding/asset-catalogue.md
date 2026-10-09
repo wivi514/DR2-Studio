@@ -88,8 +88,8 @@ A model carries its own copy of its rig (a character `.big` lists its 98 bones t
 | Ending | Meaning | Edit it for… |
 |---|---|---|
 | `_cm` | colour map | colours, prints, logos |
-| `_nm` | normal map (DXN or DXT1) | bumps and folds; edit with care |
-| `_sm` | specular map | shininess |
+| `_nm` | normal map (DXN or DXT1), OpenGL-style (green up) | bumps and folds; edit with care |
+| `_sm` | specular map: the colour of the shine | shininess |
 | `_mask` | tint mask (clothing) | which parts get tinted |
 | `_ne`, `_si`, `_rm`, `_no`, `_det`, `_om`, `_ig` | lighting / detail maps, meanings still being worked out | — |
 | `AO_…`, `LM_…` | ambient occlusion / light maps of the map | baked shadows |

@@ -201,8 +201,12 @@ app, easy packaging and installing.
   version encoded as the build will (`replace_image`). *Open in Blender* exports the
   model (or the mod's `.glb`) and starts Blender with a generated script that imports
   it into a collection tagged for the add-on and sets the add-on's mod folder.
+- **Import textures…** (models): pictures exported by a texturing program (a folder,
+  files, or a `.glb`) → `mods.texture_import.plan` in a worker, the plan in the log and
+  a confirmation, then `apply` into the open mod.
 - **Drag and drop** (`drop_file`): a `.dr2mod`/`.zip`/mod folder installs; a PNG on a
-  texture, audio on a sound, a `.glb` on a model goes into the open mod; any action
+  texture, audio on a sound, a `.glb` on a model goes into the open mod; a folder or
+  pictures dropped on a model go through *Import textures…*; any action
   that needs a mod offers *New mod…* first (`ensure_mod`).
 - **Share / Install** (`share_dialog`): see its docstring; *Share…* writes `mod.toml`
   (`Mod.save`), `preview.png` (≤ 512 px) and `README.md`, checks each game in a worker,

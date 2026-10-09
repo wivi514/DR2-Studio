@@ -51,6 +51,7 @@ dr2kit/
     library.py         the mod manager: a library folder, load order, on/off, install, pack (phase 6);
                        linked mods, new mods, mod sets, .dr2mod, update summaries (phase 7)
     play.py            Play: deploy the switched-on mods, start the recomp, what is deployed (phase 7)
+    texture_import.py  exports from Substance Painter / Blender / any program → the model's textures (phase 7)
   studio/
     app.py, viewers.py DR2 Studio (PySide6): tree, search, texture viewer, mod bar
     model_view.py      the 3D view: QWebEngineView + three.js over a dr2: URL scheme
@@ -116,6 +117,19 @@ a built package (copied there by `setup.py`), `docs/modding/` (English) or
 remove the deploy when none is on), `launch(game, mods=True, extra_env)` (detached, in
 the program's folder; mods off through the profile's `no_mods_env`), `deployed(game)` /
 `undeploy_all(game)`. Used by `dr2 play`, `dr2 mod status` and Studio's Play buttons.
+
+### `dr2kit/mods/texture_import.py` (phase 7)
+`plan(tree, model_vpath, sources, game)` → `TexturePlan`: each exported picture matched
+to a game texture of the model, by exact texture name or by `<texture set>_<channel>`
+(the texture set is a material as our `.glb` names it, `00_<colour texture>`, possibly
+after Painter's `$mesh_` prefix; the channel word picks the role: BaseColor/Diffuse →
+colour, Normal → normal, Specular → specular; Roughness/AO… are named and skipped),
+with notes (resize, green flipped, alpha lost on DXT1). A `.glb` source gives its
+materials' base colour and normal images. `green_convention(img)` is the integrability
+test of `formats.md` §Texture conventions; `_metal_rough` turns BaseColor + Metallic
+into diffuse + specular; `resize` uses Pillow's Lanczos, else numpy area/bilinear.
+`apply(plan, mod)` writes `replace/<vpath>.png` at the game's size. Used by
+`dr2 mod import-textures` and Studio's *Import textures…* (and drops on a model).
 
 ### `dr2kit/userdirs.py` (phase 6)
 `config_dir()`, `cache_dir()`, `data_dir()`: platformdirs' folders when it is installed,
