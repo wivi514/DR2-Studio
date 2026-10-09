@@ -49,7 +49,7 @@ base for putting edited models back (phase 4).
   formats.md). Indices are strips (the GPU state in the capture agrees: primitive 6).
 - The games' axes, units and winding are glTF's own: nothing is converted.
 - **Materials are named by id, not position.** The first export gave the mechanic boss
-  the wrong textures (his apron wore the shoes'); the user spotted it in the 3D view.
+  the wrong textures (his apron wore the shoes'); the user spotted it.
   `RenderStrip` word 0 is the material id − 1, and `MatArray` isn't in id order. Chuck's
   parts happen to be, which is why they looked right. The census now checks every draw
   finds its material. Lesson: the numeric gates checked geometry, not material binding;

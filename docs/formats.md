@@ -396,7 +396,7 @@ digit is allowed: `mech_eye_cm1`).
 **A draw names its material by id: RenderStrip word 0 = id − 1** (✅). *Found the hard
 way:* phase 3 first read word 0 as a position in `MatArray`, which is right for Chuck's
 parts (stored in id order) and wrong for `boss_mechanic.big` (ids 5, 4, 10, 1, 3, 11, …):
-his apron wore the shoes texture. The user spotted it in the exported model. With the id
+his apron wore the shoes texture. The user spotted it. With the id
 rule every mesh gets its own texture (apron → `mech_apron_cm`, head → `mech_head_cm`);
 the census checks that every draw of both games finds exactly one material with that id.
 
