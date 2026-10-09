@@ -141,3 +141,25 @@ def test_world_matrix_inverse():
     i = mat_mul(m, mat_inverse_affine(m))
     for r in range(4):
         assert i[r] == pytest.approx([1.0 if c == r else 0.0 for c in range(4)], abs=1e-12)
+
+
+@pytest.mark.parametrize("name, role", [
+    ("zc_head_cm", "colour"), ("mech_eye_cm1", "colour"), ("glass_cmda77", "colour"),
+    ("Metal_oldred_02_CM4c73", "colour"), ("boss_commander_epi_upper_dm", "colour"),
+    ("common_nm", "normal"), ("z_eye_mask", "mask"), ("decal_letters_large_om1202", "opacity"),
+    ("reflection_sharp", "other"), ("swatch_black", "other"), ("s400_BM-28", "other")])
+def test_texture_roles(name, role):
+    """Names measured over every material slot of both games (formats.md §Materials)."""
+    from dr2kit.formats.scene import texture_role
+    assert texture_role(name) == role
+
+
+def test_colour_falls_back_to_a_plain_texture():
+    from dr2kit.formats.scene import Material, TextureSlot
+    slot = lambda n: TextureSlot(1, n, bytes(100))
+    m = Material(1, 0, 3, 0, (0, 0, 0, 0), 0xFFFFFFFF,
+                 [slot("LM_z01_wall"), slot("reflection_basic"), slot("Raw_flesh"),
+                  slot("armcap_nm")])
+    assert m.texture("colour") == "Raw_flesh"          # lightmaps / reflections skipped
+    m.slots.insert(0, slot("x_dm"))
+    assert m.texture("colour") == "x_dm"

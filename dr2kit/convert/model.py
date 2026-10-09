@@ -83,7 +83,40 @@ class TextureFinder:
             if own:
                 self._scanned.append(own)
             self._scanned.append(other)
+        self._scanned += self._scan_folder(stem)
         return self._scanned
+
+    def _scan_folder(self, stem: str) -> list[dict[str, tuple[str, object]]]:
+        """Texture packs (``.tex`` files) next to the model's file on disk.
+
+        Loose models (``data/dynamicprops/special/missingprop.big``) keep their pack as a
+        separate file in the same folder; the model's own ``<stem>.tex`` first. Nested
+        models get the folder of the file on disk that holds them, after their archives.
+        """
+        parts = split(self.vpath)
+        here = self.tree.root
+        folder_parts = []
+        for p in parts:
+            nxt = next((c for c in here.iterdir() if c.name.lower() == p.lower()), None) \
+                if here.is_dir() else None
+            if nxt is None or not nxt.is_dir():
+                break
+            here = nxt
+            folder_parts.append(nxt.name)
+        own: dict = {}
+        other: dict = {}
+        for f in sorted(here.glob("*")) if here.is_dir() else []:
+            if f.suffix.lower() != ".tex" or not f.is_file():
+                continue
+            vp = join(*folder_parts, f.name)
+            try:
+                pack = self.tree.open_archive(vp)
+            except Dr2Error:
+                continue
+            target = own if f.stem.lower() == stem else other
+            for t in pack.entries:
+                target.setdefault(t.name.lower().removesuffix(".bct"), (join(vp, t.name), t))
+        return [d for d in (own, other) if d]
 
     def _from_index(self, name: str) -> tuple[str, bytes] | None:
         if self.game is None:

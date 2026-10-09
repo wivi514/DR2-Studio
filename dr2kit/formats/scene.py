@@ -215,14 +215,32 @@ class TextureSlot:
         return texture_role(self.name)
 
 
-ROLE_SUFFIXES = {"cm": "colour", "nm": "normal", "sm": "specular", "mask": "mask",
-                 "det": "detail", "ne": "normal", "rm": "reflection", "si": "self-illum",
-                 "om": "opacity", "ig": "glow", "no": "normal"}
+ROLE_SUFFIXES = {"cm": "colour", "dm": "colour", "nm": "normal", "sm": "specular",
+                 "mask": "mask", "det": "detail", "ne": "normal", "rm": "reflection",
+                 "si": "self-illum", "om": "opacity", "ig": "glow", "no": "normal"}
+_HEX_TAG = re.compile(r"^(cm|dm|nm|sm|rm|si|om)[0-9a-f]{2,6}$")
+# Textures that are never a material's colour, even when nothing else is: lightmaps and
+# ambient occlusion (LM_*, AO_*) and the shared reflection maps (reflection_*).
+_NOT_COLOUR = re.compile(r"^(lm_|ao_|reflection_)", re.IGNORECASE)
 
 
 def texture_role(name: str) -> str:
-    m = re.search(r"_([a-z]+)\d*$", name.lower())      # mech_eye_cm1 is a colour map too
-    return ROLE_SUFFIXES.get(m.group(1), "other") if m else "other"
+    """A texture's role from its name: ``_cm`` colour (also ``_cm1``, ``_dm`` "diffuse
+    map", and a hex tag: ``glass_cmda77``, ``Metal_oldred_02_CM4c73``), ``_nm`` normal, …
+
+    Measured over every material slot of both games (docs/formats.md §Materials).
+    """
+    m = re.search(r"_([a-z0-9]+)$", name.lower())
+    if not m:
+        return "other"
+    tail = m.group(1)
+    hexed = _HEX_TAG.match(tail)
+    if hexed:
+        return ROLE_SUFFIXES[hexed.group(1)]
+    letters = re.match(r"[a-z]+", tail)                  # mech_eye_cm1 is a colour map too
+    if letters and tail[letters.end():].isdigit() or letters and letters.end() == len(tail):
+        return ROLE_SUFFIXES.get(letters.group(0), "other")
+    return "other"
 
 
 @dataclass
@@ -237,8 +255,17 @@ class Material:
     slots: list[TextureSlot] = field(default_factory=list)
 
     def texture(self, role: str) -> str | None:
-        """The first non-engine texture with this role (``colour``, ``normal``, …)."""
-        return next((s.name for s in self.slots if not s.engine and s.role == role), None)
+        """The first non-engine texture with this role (``colour``, ``normal``, …).
+
+        For ``colour``, a material with no texture named like a colour map falls back to
+        its first texture whose name says nothing (``Raw_flesh``, ``swatch_black``),
+        skipping lightmaps and reflection maps.
+        """
+        hit = next((s.name for s in self.slots if not s.engine and s.role == role), None)
+        if hit is None and role == "colour":
+            hit = next((s.name for s in self.slots if not s.engine and s.name
+                        and s.role == "other" and not _NOT_COLOUR.match(s.name)), None)
+        return hit
 
 
 # --- meshes -----------------------------------------------------------------------------

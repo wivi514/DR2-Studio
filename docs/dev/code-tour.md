@@ -260,7 +260,9 @@ rate, exact length; returns notes), `split_streams` cuts 5.1 into stereo streams
   `skeleton_from_glb(bytes)` (records back, bit-exact within the snap tolerance). The
   mapping is documented in [`gltf-mapping.md`](gltf-mapping.md).
 - `model`: `TextureFinder(tree, model_vpath, game)` is the `texture_png` callback: the
-  model's own `.tex` pack first, then the archives around it, then the asset index.
+  model's own `.tex` pack first, then the archives around it, then the `.tex` files in
+  the model's folder on disk (loose models such as `data/dynamicprops/special/*.big`),
+  then the asset index (shared packs elsewhere, e.g. `models/special/weapon_common.tex`).
   `export_glb(tree, vpath)` / `export_skeleton_glb` tie it together for the CLI
   (`dr2 extract --glb`) and Studio.
 

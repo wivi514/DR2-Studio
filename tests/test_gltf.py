@@ -100,3 +100,18 @@ def _rebuild(g: gltf.Glb) -> bytes:
 def _tiny_png() -> bytes:
     from dr2kit.convert import png
     return png.encode(png.Image(1, 1, b"\xff\x00\x00\xff"), "RGBA")
+
+
+def test_texture_finder_reads_packs_next_to_a_loose_model(tmp_path):
+    """Loose models (data/dynamicprops/special/x.big) keep their .tex pack as a file in
+    the same folder; the finder looks there (the Case West commander/prop report)."""
+    from conftest import make_archive, make_bct, make_scene
+    from dr2kit.container.vpath import AssetTree
+    from dr2kit.convert.model import TextureFinder
+    folder = tmp_path / "data" / "dynamicprops"
+    folder.mkdir(parents=True)
+    (folder / "box.big").write_bytes(make_scene())
+    (folder / "box.tex").write_bytes(make_archive(("box_cm", make_bct("DXT1", 8, 8))).to_bytes())
+    f = TextureFinder(AssetTree(tmp_path), "data/dynamicprops/box.big")
+    assert f("box_cm") is not None
+    assert f.found["box_cm"] == "data/dynamicprops/box.tex/box_cm"

@@ -394,8 +394,18 @@ NUL-padded), then at +0x38 a hash that equals the sampler hash the command buffe
 (`0x33` below) for the engine samplers (`gCascadedShadowMapTexture` = `F3AF86E0`); it
 is not the engine's name hash or CRC-32 of the name. Each material owns 3-7 slots: its
 own textures plus engine samplers (`gExposureTexture`, …). The texture's role comes from
-its suffix (`_cm` colour, `_nm` normal, `_sm` specular, `_mask` tint mask; a trailing
-digit is allowed: `mech_eye_cm1`).
+its suffix (`_cm` colour, `_nm` normal, `_sm` specular, `_mask` mask; a trailing digit
+is allowed: `mech_eye_cm1`). Added 2026-10-09 after the user found Case West's final
+boss white in DR2 Studio: **`_dm`** ("diffuse map") is a colour map too
+(`boss_commander_epi_upper_dm`, the only model using it), and environment textures
+carry a **hex tag** after the role (`glass_cmda77`, `Metal_oldred_02_CM4c73`,
+`showcase_glass_gray_ome00d`): 1,000+ slots in CZ, more in CW. A material with no texture
+named like a colour map uses its first plain-named texture (`Raw_flesh`,
+`swatch_black`), never a lightmap (`LM_`, `AO_`) or a shared reflection map
+(`reflection_*`). After that, 25 (CZ) / 30 (CW) materials have no colour texture:
+lights with only a self-illumination map, glass with only opacity and reflection. The
++0x38 word differs per texture name, so it can't identify the diffuse sampler. Note
+also that a `_cm1` can be a weight map rather than a colour (§Materials: value sets).
 
 **A draw names its material by id: RenderStrip word 0 = id − 1** (✅). *Found the hard
 way:* phase 3 first read word 0 as a position in `MatArray`, which is right for Chuck's

@@ -82,6 +82,7 @@ game files.
 
 | Symptom | Cause | Fix |
 |---|---|---|
+| A model is white or partly white in DR2 Studio or Blender (toolkit before 2026-10-09: Case West's final boss, loose props in `data/dynamicprops/`) | Its colour textures are named `_dm` or `_cm<hex>`, or its texture pack is a separate file next to it | Update the toolkit. Still white: run **Build / refresh index** (textures shared from another folder are found through the index), or the texture isn't in the game data (the log says "texture '…' not found"). |
 | Zombie clothes look red, green or purple in DR2 Studio or Blender (toolkit before 2026-10-09) | Their `_cm1` texture is a weight map; the colours are shader settings | Update the toolkit and export again: these colours are now baked (`_baked` textures). To recolour such clothing, the colours are in the material's value set, not the texture (not editable by mods yet). |
 
 ## Sounds (phase 5)

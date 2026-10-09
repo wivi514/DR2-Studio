@@ -17,6 +17,24 @@ Entry template:
 
 ---
 
+## 2026-10-09 — White models: colour textures named `_dm` or `_cm<hex>`, packs on disk
+**Done:** the user found Case West's final boss (`boss_commander_epi`) white in DR2
+Studio. His colour maps are `_dm` ("diffuse map"); the role rule only knew `_cm`. A
+check of every material of both games found two more gaps: environment colour maps with
+a hex tag (`glass_cmda77`, 1,000+ slots) and loose models whose `.tex` pack is a
+separate file in the same folder. `formats/scene.texture_role` now knows `_dm` and hex
+tags, `Material.texture("colour")` falls back to the first plain-named texture (never a
+lightmap or reflection map), and `TextureFinder` searches the model's folder on disk.
+Left without a colour texture: 25 / 30 materials that really have none (lights, glass).
+
+**Why:** a white model in a preview looks like a broken model.
+
+**Learned:** count over every asset instead of fixing the one reported: the reported
+case (`_dm`) was 6 slots; the hex-tag case it led to was over a thousand.
+
+**Docs updated:** `formats.md` (§Materials, role rule), `dev/code-tour.md`,
+`modding/12-troubleshooting.md`.
+
 ## 2026-10-09 — Zombie clothing colours: value sets and baked colours
 **Done:** the user saw zombies with red/green/purple clothes in DR2 Studio (skin was
 right). Their `_cm1` texture is a weight map; the colours are pixel-shader constants in
