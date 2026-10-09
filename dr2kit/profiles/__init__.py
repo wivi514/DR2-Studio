@@ -59,9 +59,9 @@ def load_profile(game: str) -> Profile:
 
 
 def config_path() -> Path:
-    """The user config file (per-OS location from platformdirs)."""
-    from platformdirs import user_config_dir
-    return Path(user_config_dir("dr2kit", appauthor=False)) / "config.toml"
+    """The user config file (per-OS location, `dr2kit.userdirs`)."""
+    from ..userdirs import config_dir
+    return config_dir() / "config.toml"
 
 
 def _read_config() -> dict:

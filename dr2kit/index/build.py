@@ -58,9 +58,9 @@ _EXT_KIND = {"xma": "audio", "sfx": "sfx", "anm": "anim", "po": "shader", "vo": 
 
 
 def default_db_path() -> Path:
-    """Where the index lives: the per-user cache folder (platformdirs)."""
-    from platformdirs import user_cache_dir
-    return Path(user_cache_dir("dr2kit", appauthor=False)) / "index.sqlite"
+    """Where the index lives: the per-user cache folder (`dr2kit.userdirs`)."""
+    from ..userdirs import cache_dir
+    return cache_dir() / "index.sqlite"
 
 
 @dataclass

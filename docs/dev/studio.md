@@ -16,6 +16,7 @@ dr2kit/studio/
   text_view.py   TextEditor (edit text into the mod, diff), StringsViewer (string banks), phase 6
   video_view.py  VideoViewer: Bink movies (pictures + sound), phase 6
   mod_manager.py ModManager: the mod library window (order, on/off, conflicts, deploy), phase 6
+  setup_dialog.py GameSetup: "Game folders…" (choose a folder / unpack the package), phase 6
   web/         viewer.html + viewer.js, and three.js 0.186.1 (MIT) under vendor/three/
 ```
 
@@ -153,6 +154,15 @@ check box per mod (`enable`), *Up* / *Down* (`move`), *Install folder…* / *Ins
 and *Deploy* (`MainWindow.deploy_mods` with the switched-on mods, the same job as
 *Build && deploy* in the mod bar). *Library folder…* changes the folder
 (`set_default_library`, saved in the user config).
+
+## Game folders (phase 6)
+
+A release (or a pip install) has no recomp next to it, so `profiles.locate` finds
+nothing until told. **Game folders…** (`setup_dialog.GameSetup`) shows each game's
+status (`game_status`: where, and found through which rule) and offers *Choose folder…*
+(`profiles.set_game_root`, the `dr2 games set` setting) and *Unpack package…*
+(`container.stfs.unpack` in a worker, then the same setting). The main window opens it
+at start when no game is found (`DR2_STUDIO_NO_SETUP=1` skips that, for scripted runs).
 
 ## Testing
 

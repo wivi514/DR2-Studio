@@ -275,3 +275,14 @@ switched on or off.
 **Bink / `.bik`.** A video format (by RAD Game Tools) used for Case West's movies. The
 toolkit can play and export them, not make new ones.
 
+**AppImage.** A Linux program packed into one file you make executable and run; DR2
+Studio's Linux release is one.
+
+**Blender extension.** Blender 4.2+'s name for an add-on installed from a zip with a
+`blender_manifest.toml`; the DR2 add-on (`io_dr2`) is one.
+
+**LGPL / GPL.** Two open-source licences. LGPL libraries (Qt, ffmpeg as the toolkit
+builds it) can ship inside a program under another licence; GPL ones can't ship inside
+the toolkit's releases, which is why releases use an own ffmpeg build. The Blender
+add-on itself is GPL, as Blender requires.
+

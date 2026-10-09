@@ -8,6 +8,7 @@ dr2kit/
   __init__.py          version; the package map
   __main__.py          `python -m dr2kit` = the `dr2` command
   errors.py            the exception hierarchy
+  userdirs.py          per-user folders, with or without platformdirs (Blender) (phase 6)
   hashing.py           the engine's string hash
   census.py            read everything, count it, run the format gates
   profiles/            per-game settings (cz.toml, cw.toml) + finding the game data
@@ -54,14 +55,19 @@ dr2kit/
     text_view.py       text editor with a diff, and the string-bank table (phase 6)
     video_view.py      the movie view: Bink pictures + sound (phase 6)
     mod_manager.py     the mod manager window (phase 6)
+    setup_dialog.py    "Game folders": choose each game's folder or unpack its package (phase 6)
     web/               its page (viewer.html, viewer.js) and vendored three.js (MIT)
   cli/main.py          the `dr2` command
 native/lzx/            the C library behind the fast LZX decoder (libmspack, LGPL)
+blender/io_dr2/        the Blender add-on (GPL; toolkit.py, core.py, __init__.py): dev/blender-addon.md
+packaging/             PyInstaller spec + entry scripts + the release README: dev/packaging.md
 tests/                 unit tests (synthetic data) + game-data tests (skip if absent)
 tools/                 developer scripts: PyAV codec check, the phase 3 gates
                        (blender_skeleton_gate.py, capture_gate.py; --root for phase 4),
                        blender_gate_model.py (builds the phase 4 test model in Blender),
-                       xex_digests.py (the files each executable digest-checks)
+                       xex_digests.py (the files each executable digest-checks),
+                       blender_addon_gate.py (the add-on's flow inside Blender),
+                       build_release.py + release/build_ffmpeg_lgpl.sh (releases)
 ```
 
 ## How a read flows
@@ -83,6 +89,11 @@ compressed (`xcompress.compress_entry()` → `lzx.encode_chunk()`, verified by d
 and `BigArchive.to_bytes()` lays the archive out again.
 
 ## Modules
+
+### `dr2kit/userdirs.py` (phase 6)
+`config_dir()`, `cache_dir()`, `data_dir()`: platformdirs' folders when it is installed,
+the same folders computed by hand when not (Blender's Python). Used by
+`profiles.config_path`, `index.build.default_db_path`, `mods.library.default_library`.
 
 ### `dr2kit/errors.py`
 `Dr2Error` is the base of every error raised on purpose; the CLI turns it into a one-line

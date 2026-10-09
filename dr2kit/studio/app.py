@@ -23,7 +23,9 @@ Layout (docs/dev/studio.md has the diagram):
   *Export MP4…* for movies.
 * **Bottom**: the mod bar (open/new mod folder, its overrides, *Build && deploy*) and a log.
 * **Toolbar**: game switcher, *Build / refresh index*, *Mod manager…*
-  (`mod_manager.ModManager`: the mod library, load order, conflicts, deploy).
+  (`mod_manager.ModManager`: the mod library, load order, conflicts, deploy), *Game
+  folders…* (`setup_dialog.GameSetup`: where each game's data is; opened at start when
+  no game is found, e.g. the first start of a release).
 
 Long jobs (building the index, building a mod, exporting a model for the 3D view) run
 in a `QThread` so the window stays
@@ -33,12 +35,13 @@ the index; Studio holds no format knowledge of its own.
 
 from __future__ import annotations
 
+import os
 import shutil
 import sys
 import traceback
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QSize, Qt, QThread, Signal, Slot
+from PySide6.QtCore import QObject, QSize, Qt, QThread, QTimer, Signal, Slot
 from PySide6.QtGui import QAction, QIcon, QImage, QPixmap, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (QApplication, QComboBox, QFileDialog, QHBoxLayout, QLabel,
                                QLineEdit, QListView, QListWidget, QListWidgetItem,
@@ -140,6 +143,9 @@ class MainWindow(QMainWindow):
         tb.addAction(act)
         act = QAction("Mod manager…", self)
         act.triggered.connect(self.open_mod_manager)
+        tb.addAction(act)
+        act = QAction("Game folders…", self)
+        act.triggered.connect(self.open_game_setup)
         tb.addAction(act)
 
         # --- left: browse + search
@@ -273,6 +279,12 @@ class MainWindow(QMainWindow):
         self.game_box.currentIndexChanged.connect(lambda _i: self.set_game(self.game_box.currentData()))
         self._update_buttons()
         self.set_game(self.game)
+        from .setup_dialog import game_status
+        if not any(game_status(g)[0] for g in GAME_IDS) and \
+                not os.environ.get("DR2_STUDIO_NO_SETUP"):
+            self.empty.setText("No game data found yet.\n\nUse “Game folders…” in the "
+                               "toolbar to point DR2 Studio at Case Zero and Case West.")
+            QTimer.singleShot(0, self.open_game_setup)
 
     # ---- helpers -----------------------------------------------------------------------
 
@@ -945,6 +957,10 @@ class MainWindow(QMainWindow):
             say(f"deployed {len(written)} file(s) to {target}. Start the recomp; "
                 f"{env}=1 turns mods off.")
         self.run_job(work, done)
+
+    def open_game_setup(self) -> None:
+        from .setup_dialog import GameSetup
+        GameSetup(self).show()
 
     def open_mod_manager(self) -> None:
         from .mod_manager import ModManager

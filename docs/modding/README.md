@@ -10,7 +10,7 @@ New to the vocabulary? Keep the [glossary](../glossary.md) open.
 
 | Guide | You will learn to… | Status |
 |---|---|---|
-| `01-install.md` | Install DR2 Studio on Windows, Linux or macOS | planned (phase 6, early builds from phase 2) |
+| [`01-install.md`](01-install.md) | Install DR2 Studio on Windows, Linux or macOS; point it at your games | ✅ written (phase 6); the Linux build tried on Fedora 44, Windows/macOS builds not run yet |
 | [`02-game-data.md`](02-game-data.md) | Point the toolkit at your game: a recomp folder, an unpacked `data/` folder, or the XBLA package; look around and copy files out | ✅ written (phase 1, CLI) |
 | [`03-browsing.md`](03-browsing.md) | Find assets, search, see which textures a model uses, listen to sounds | ✅ written (phase 2: Studio + CLI; sounds phase 5) |
 | [`04-extracting.md`](04-extracting.md) | Export textures (PNG), models and skeletons (`.glb`), sounds (WAV), Case West's movies (MP4) | ✅ textures (phase 2), models and skeletons (phase 3), sounds (phase 5), movies (phase 6) |
@@ -21,6 +21,7 @@ New to the vocabulary? Keep the [glossary](../glossary.md) open.
 | [`09-new-model.md`](09-new-model.md) | Rig a brand-new mesh to a game skeleton and replace a part of a character | ✅ written (phase 4); a new rigged mesh checked in game on CZ, fingers and face (scripted Blender run) |
 | [`10-audio.md`](10-audio.md) | Listen to sounds, export WAV, replace music, voices and sound effects | ✅ written (phase 5); a music swap checked in game in both recomps |
 | [`11-text.md`](11-text.md) | Change in-game text and translations; edit the game's text data files with a diff | ✅ written (phase 6); a changed string checked in game in both recomps |
+| [`13-blender-addon.md`](13-blender-addon.md) | Find, import, check and export models from inside Blender with the DR2 add-on | ✅ written (phase 6); the whole flow scripted in Blender 5.2 |
 | [`12-troubleshooting.md`](12-troubleshooting.md) | Fix common problems: the mod doesn't show, the game crashes, rig errors | started (phases 1-6: game data, textures, mods, models, sounds, text); grows with each phase |
 | [`asset-catalogue.md`](asset-catalogue.md) | Where things are: Chuck's outfits, zombies, weapons, rigs, music, text, movies… | started (phase 2, rigs and models in phase 3, sounds in phase 5, text and movies in phase 6); grows |
 

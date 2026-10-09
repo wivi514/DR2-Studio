@@ -16,6 +16,31 @@ and how it is used. Checked 2026-10-08 (docs/phase1-kickoff.md, "Licensing of re
 | **three.js** 0.186.1 (`build/three.module.js`, `three.core.js`, `examples/jsm/loaders/GLTFLoader.js`, `controls/OrbitControls.js`, `utils/BufferGeometryUtils.js`, `utils/SkeletonUtils.js`), © 2010-2026 three.js authors | `dr2kit/studio/web/vendor/three/` (unmodified files from the npm package `three-0.186.1.tgz`, sha1 `6d50f70c2c437f844179bbb56d6f5b774e1ca38a`, with its `LICENSE`) | MIT | Loaded by DR2 Studio's 3D view page; shipped so Studio works offline. |
 | XenosRecomp (hedge-dev) | used once, outside the repo, to translate the game's `ProtoSkinnedClothRGB` vertex shader to HLSL | MIT | Read to learn how weights pair with bone indices (`formats.md` §Skinning); nothing copied. |
 
+| GPL-3.0 licence text | `blender/io_dr2/LICENSE` | GPL-3.0 (verbatim FSF text) | The Blender add-on's own licence (below). |
+| AppImage type-2 runtime | not in the repo; fetched by `tools/build_release.py appimage` into `build/appimage/` | MIT | The first part of the Linux AppImage file (the program that mounts the image). |
+| PyInstaller bootloader | inside the release executables | GPL-2.0 **with the bootloader exception** (allows distributing it with programs under any licence) | Starts the bundled Python in a release. |
+
+## The Blender add-on is GPL (decision, 2026-10-09)
+
+Blender treats add-ons that use its Python API (`bpy`) as GPL works. So `blender/io_dr2/`
+is **GPL-3.0-or-later** (its own `LICENSE`, SPDX headers, the manifest's `license`), and
+it **does not include dr2kit**: it imports the toolkit at run time from a folder the user
+chooses (`docs/dev/blender-addon.md`). dr2kit stays under the toolkit's licence. Don't
+copy dr2kit code into the add-on, or add-on code into dr2kit.
+
+## What a release bundles (docs/dev/packaging.md)
+
+A DR2 Studio release carries, unmodified: CPython (PSF licence), PySide6 / Qt 6
+(LGPL-3.0, dynamically loaded; Qt Multimedia brings its own LGPL ffmpeg), numpy (BSD),
+Pillow (HPND), platformdirs (MIT), PyAV (BSD) **built from source against an LGPL-2.1+
+ffmpeg 8.1.2** made by `tools/release/build_ffmpeg_lgpl.sh` (shared libraries you may
+replace; source and build line in the bundle's `licenses/ffmpeg-SOURCE.txt`), the
+`dr2lzx` library (libmspack, LGPL-2.1, separate library), three.js (MIT), and the
+Blender add-on zip (GPL-3.0). Their licence texts are copied into the bundle's
+`licenses/` folder. **No GPL library may be in a release**: `tools/build_release.py`
+refuses a bundle containing x264, x265, xvid, postproc or vvenc, which is why PyPI's
+PyAV wheel (it links x264 and x265) is not used for releases.
+
 ## Not copied, on purpose
 
 - **The pure-Python LZX decoder** (`dr2kit/container/lzx/pydecode.py`) was written from

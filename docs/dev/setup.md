@@ -1,5 +1,8 @@
 # Developer setup
 
+(Players and modders: install a release instead, [`../modding/01-install.md`](../modding/01-install.md).
+Building releases: [`packaging.md`](packaging.md).)
+
 How to get a working copy of the toolkit on **Windows, Linux or macOS**, run the tests,
 and build the native LZX library. If you only want to *use* the toolkit to mod, read
 [`../modding/02-game-data.md`](../modding/02-game-data.md) instead.

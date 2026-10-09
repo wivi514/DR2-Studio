@@ -5,7 +5,8 @@ it, and save it so its skeleton stays exactly the game's.
 **Time:** ~10 min.   **Games:** both.
 **You need:** Blender 4.2 or newer (tested with 5.2), and a `.glb` exported from the
 game ([`04-extracting.md`](04-extracting.md)). No add-on: Blender's built-in glTF
-importer is enough.
+importer is enough. (The optional DR2 add-on does the import, the check and the export
+to a mod from a sidebar tab: [`13-blender-addon.md`](13-blender-addon.md).)
 
 ## Steps
 

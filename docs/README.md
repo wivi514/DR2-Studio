@@ -14,6 +14,11 @@ Pick the section for what you want to do.
 | **Look up a word** (`.big`, LZX, tiling, bone palette, vpath…) | [`glossary.md`](glossary.md) |
 | **Know what tools existed before this one** | [`prior-art.md`](prior-art.md) |
 
+Phase 6 (in progress) added text and translations
+([`modding/11-text.md`](modding/11-text.md)), the mod manager
+([`modding/06-mod-packages.md`](modding/06-mod-packages.md)), the Blender add-on
+([`modding/13-blender-addon.md`](modding/13-blender-addon.md)) and release builds
+([`modding/01-install.md`](modding/01-install.md), [`dev/packaging.md`](dev/packaging.md)).
 Phases 1-5 are done: the `dr2` command and DR2 Studio read every file of both games,
 show every texture, build texture mods that load in both recomps, show every model and
 skeleton in 3D, export them to Blender (`.glb`), put edited or new rigged meshes back

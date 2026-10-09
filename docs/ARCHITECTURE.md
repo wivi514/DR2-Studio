@@ -51,7 +51,9 @@ dr2kit/                 core library (pure Python; numpy optional)
   studio/ ✅            DR2 Studio v0: app.py, viewers.py (phase 2; inside the package so
                         `dr2 studio` works after pip install)
 native/lzx/ ✅          dr2lzx: libmspack's lzxd.c (LGPL, separate library) + a small wrapper, CMake
-blender/io_dr2/         Blender add-on (vendors dr2kit at build time)
+blender/io_dr2/ ✅       Blender add-on (phase 6), GPL-3.0; imports dr2kit from the user's
+                        toolkit folder at run time, never bundles it (decision 2026-10-09)
+packaging/ ✅           PyInstaller spec, entry scripts, the release README (phase 6)
 tests/ ✅               unit tests on synthetic data; game-data tests (skip if absent)
 tools/ ✅               developer scripts (PyAV codec check, the phase 3-4 gates)
 docs/                   this file, formats.md, roadmap.md, guides
@@ -114,11 +116,18 @@ recomp** to get game data.
   needs it (macOS caps OpenGL at 4.1, so keep shaders GLSL 3.30-compatible).
 - **Audio playback:** decode to PCM ourselves and play through `QAudioSink` (QtMultimedia).
   Don't hand XMA to the OS media backend.
-- **Packaging:** PyInstaller (or Nuitka) per OS in a GitHub Actions matrix:
-  `windows-latest`, `ubuntu-22.04` (AppImage, with an old glibc baseline like the recomps'
-  "oldbase" builds), `macos-14` (arm64) + `macos-13` (x64) or one universal2 build.
-  macOS builds need ad-hoc signing at least; notarization once an Apple developer
-  account exists. The Blender add-on is plain Python and works the same on all three.
+- **Packaging** (✅ phase 6, `dev/packaging.md`): PyInstaller, one folder with two
+  executables (`DR2Studio` windowed, `dr2` console), per OS in a GitHub Actions matrix
+  (`.github/workflows/release.yml`): `ubuntu-22.04` (AppImage + tar.zst, glibc 2.35
+  floor like the recomps' "oldbase" builds), `windows-latest` (zip), `macos-14` (arm64,
+  zip of an ad-hoc-signed app; notarisation once an Apple developer account exists).
+  *Decision:* releases bundle PyAV **built against an own LGPL ffmpeg**
+  (`tools/release/build_ffmpeg_lgpl.sh`), because PyPI's PyAV wheels link GPL x264/x265;
+  the release builder refuses any bundle with a GPL library. The Blender add-on is
+  plain Python and works the same on all three.
+- **User folders without platformdirs** (`dr2kit/userdirs.py`): Blender's Python lacks
+  platformdirs, so dr2kit computes the same default folders itself when it is missing
+  (a test compares both on every CI OS).
 - **CI:** unit tests (synthetic data) run on all three OSes on every push. Census tests
   need game data and run locally only.
 

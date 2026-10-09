@@ -152,5 +152,10 @@ def test_text_strings_and_mod_manager(tmp_path, monkeypatch):
     mm.list.item(0).setCheckState(Qt.Unchecked)
     assert not ModLibrary(tmp_path / "lib").entries()[0].enabled
     mm.close()
+    # game folders: cz found through the environment, cw not
+    from dr2kit.studio.setup_dialog import GameSetup
+    gs = GameSetup(win)
+    assert gs.status["cz"].text().startswith("✔") and "environment" in gs.status["cz"].text()
+    gs.close()
     win.close()
     del app

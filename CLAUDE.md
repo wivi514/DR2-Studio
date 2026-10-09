@@ -7,24 +7,24 @@ Goal: make modding easy. Browse every asset in both games, **see** what a textur
 and **hear** a sound before extracting it, export models and skeletons to Blender, and
 put edited or new models back into the game when their bones match the game's rig.
 
-**Status: phase 5 (audio) done 2026-10-09: both `.xma` shapes read (RIFF XMA2; raw
-packets + `cache.big` stream tables), decode to WAV through PyAV, Studio playback,
-`.sfx`/scene-script names in the index, and sound mods through PCM substitution in both
-recomps (every packet recognised by fingerprint + output position); decode gate (every
-sound of both games decodes to its stored length) and in-game gate (title music swap,
-CZ and CW) passed. Script-level remap ruled out: CZ digest-checks `Prologue.txt`.
-After phase 5, fixes from the user's Studio review: value-set colours baked for zombie
-clothing (`formats/shader.py`, `convert/material.py`), `_dm` / `_cm<hex>` colour maps,
-packs next to loose models.
-Phases 1-4 (container, LZX, census, CLI; textures, index, Studio, mods, `game_mods/`;
-models → Blender and back) done 2026-10-08. Next: phase 6 (polish and distribution);
-start from `docs/phase6-kickoff.md`.** Read these before writing code:
+**Status: phase 6 (polish and distribution) mostly done 2026-10-09: string banks
+(`formats/bcs.py`, `dr2 strings`, `.bcs.json` mods merged per id; in-game gate passed in
+CZ and CW), text editing with a diff and a strings table in Studio, CW Bink movies
+(`convert/video.py`, `--mp4`), the mod manager (`mods/library.py`, load order =
+priority), digest-checked files from both XEXs (CZ 1, CW 6) refused by builds, the
+Blender add-on (`blender/io_dr2`, **GPL, never bundles dr2kit**: user decision), and
+release packaging (`tools/build_release.py`: PyInstaller, AppImage, own LGPL ffmpeg +
+licence gate; built and tried on Linux only, the release workflow has not run).
+Open: a first CI run on Windows/macOS (needs the GitHub remote), the rest of
+`docs/phase6-kickoff.md` §Left open.** Read these before writing code:
 
 | Doc | What it holds |
 |---|---|
 | `docs/ARCHITECTURE.md` | Components, data flow, the asset index, the mod package format, stack choices |
 | `docs/formats.md` | Everything known about every file format, with a status per format (cracked / partial / unknown) |
 | `docs/phase6-kickoff.md` | Phase 6 handoff: scope, what phase 5 left open, post-phase-5 fixes, facts to keep in mind |
+| `docs/dev/packaging.md` | Release builds: the bundle, the LGPL ffmpeg and licence gate, AppImage, CI |
+| `docs/dev/blender-addon.md` | The GPL Blender add-on and why it doesn't contain dr2kit |
 | `docs/dev/code-tour.md` | Every module of `dr2kit` and how a read flows through them |
 | `THIRD_PARTY.md` | Reused code and its licenses (libmspack is LGPL: keep it in its own library) |
 | `docs/roadmap.md` | Phases, what each phase delivers, and the gate that proves it works |
@@ -147,6 +147,12 @@ dr2 model check <file.glb> <model vpath>  # rig validator (import: dr2 model imp
 python tools/blender_skeleton_gate.py     # skeleton round trip through Blender (~25 s)
 dr2 index build                           # the asset index (~1-2 min per game)
 dr2 studio                                # the GUI (pip install -e ".[studio]")
+dr2 strings search <words> / set <mod> <id> <text>   # string banks (phase 6)
+dr2 mod list|install|enable|move|conflicts|pack     # the mod manager (phase 6)
+dr2 extract --mp4 -g cw data/movies/dr2_logo.bik -o out   # Bink -> MP4
+blender --command extension build --source-dir blender/io_dr2 --output-dir build/addon
+BLENDER_USER_RESOURCES=<tmp> blender -b --factory-startup --python tools/blender_addon_gate.py -- build/addon/io_dr2-0.1.0.zip . <mod>
+tools/release/build_ffmpeg_lgpl.sh && python tools/build_release.py bundle|archive|appimage  # release (dev/packaging.md)
 ```
 
 ## Conventions
@@ -179,5 +185,8 @@ Fedora 44, Python 3.14 (system), Blender 5.2.1 LTS at `/usr/bin/blender`, ffmpeg
 `.venv/` (`uv venv .venv --python 3.14 && uv pip install -e ".[dev,studio]"`; PyAV, numpy,
 PySide6 6.12 and Pillow installed there too). DR2 Studio runs headless with
 `QT_QPA_PLATFORM=offscreen` (screenshots via `window.grab()`). CMake + Ninja + gcc/clang present; the native LZX library is built in
-`native/lzx/build/`. Python 3.14 uses the *forkserver* start method, so any script that
+`native/lzx/build/`. `/tmp` is RAM-backed (32 GB, shared with old session scratchpads):
+put recomp frame dumps on disk (`~/.cache/...`). No `nasm` (the LGPL ffmpeg builds
+without x86 assembly). Release venv: `build/release-venv` (PyAV built from source).
+Python 3.14 uses the *forkserver* start method, so any script that
 runs `dr2 census --reencode` (a process pool) needs an `if __name__ == "__main__"` guard.

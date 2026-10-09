@@ -10,7 +10,8 @@ Browse, preview, extract and replace assets in **Dead Rising 2: Case Zero** and
 
 Runs on **Windows, Linux and macOS**.
 
-**Status:** phase 5 of 6 done. Every file of both games can be read, searched and
+**Status:** phase 6 of 6 in progress (strings, text, movies, mod manager, Blender add-on
+and Linux packaging done). Every file of both games can be read, searched and
 extracted; every texture can be viewed and exported as PNG, and replaced by a mod that
 loads in both recomps (tested in game). Every model and skeleton can be viewed in 3D and
 exported to Blender (`.glb`) with its bones, skin weights and textures, and an edited or
@@ -18,7 +19,9 @@ brand-new mesh rigged to the game's skeleton goes back into the game as a mod (c
 in game: fingers and face follow). Every sound can be played and saved as WAV, and a
 mod can replace music, voices or effects with your own audio, played by the recomps
 (checked in game in both). DR2 Studio, the window-based app, does all of that without
-typing commands. Next: the Blender add-on, a mod manager and installers
+typing commands. Phase 6 added in-game text and translations (string banks), editing
+the game's text files with a diff, Case West's movies (play, export MP4), a mod manager
+(several mods, load order, conflicts), a Blender add-on, and release builds
 ([roadmap](docs/roadmap.md)).
 
 ```
@@ -31,9 +34,12 @@ dr2 model check edited.glb data/models/npcs.big/chest_young_chuck.big   # Blende
 dr2 extract --wav data/audio/music.big/HB_Indemnify.xma -o out    # sound -> WAV (needs PyAV)
 dr2 mod new my_mod                          # then put PNGs / .glbs / audio under my_mod/replace/<vpath>.png|.glb|.wav
 dr2 mod deploy my_mod -g cz                 # build it into the recomp's game_mods/
+dr2 strings set my_mod IDS_PRESS_START "PRESS START TO SURVIVE"   # change in-game text
+dr2 mod install my_mod && dr2 mod deploy -g cz   # the mod manager: every switched-on mod
 ```
 
 Start at [`docs/README.md`](docs/README.md): modding guides (begin with
+[installing](docs/modding/01-install.md) and
 [getting your game data in](docs/modding/02-game-data.md)), developer guides, glossary,
 and what's planned. Contributors: [`CONTRIBUTING.md`](CONTRIBUTING.md). Third-party code
 and its licenses: [`THIRD_PARTY.md`](THIRD_PARTY.md).

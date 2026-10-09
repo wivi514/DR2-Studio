@@ -16,4 +16,5 @@ Modules:
     text_view    text editor with diff, string-bank table
     video_view   Bink movie player
     mod_manager  the mod library window
+    setup_dialog where each game's data is (choose a folder, unpack the XBLA package)
 """

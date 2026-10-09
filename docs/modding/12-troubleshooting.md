@@ -111,3 +111,10 @@ game files.
 | A movie has no sound in Studio | No audio output device, or the monitor loops (they have none) | Export MP4 and play it elsewhere. |
 | `Bink movies need PyAV` | PyAV not installed | `pip install av`. |
 
+## Installing and the Blender add-on (phase 6)
+
+See the tables in [`01-install.md`](01-install.md#if-something-went-wrong) (downloads,
+AppImage, unsigned programs, game folders) and
+[`13-blender-addon.md`](13-blender-addon.md#if-something-went-wrong) ("Toolkit not
+found", no index, rig check failures).
+

@@ -17,6 +17,42 @@ Entry template:
 
 ---
 
+## 2026-10-09 — Phase 6, part 2: Blender add-on, release builds, game folders
+**Done:** the Blender add-on `blender/io_dr2` (a Blender 4.2+ extension: search the
+index, import a model or skeleton in one click into its own collection, **Check rig**
+with the report in the Text editor, **Export to mod**), scripted end to end in Blender
+5.2 (`tools/blender_addon_gate.py`). Release packaging: `tools/build_release.py`
+(PyInstaller bundle with DR2Studio + dr2, add-on zip, toolkit sources for Blender,
+licences; tar.zst, zip, AppImage, `.sha256`), `tools/release/build_ffmpeg_lgpl.sh`,
+`.github/workflows/release.yml`. DR2 Studio's **Game folders…** window (choose a folder,
+unpack the package), opened when no game is found. `dr2kit/userdirs.py` (works without
+platformdirs), `dr2 doctor` reports PyAV's ffmpeg and its licence.
+
+**Why:** phase 6 scope: the add-on and installers are what let people mod without a
+terminal or a Python setup.
+
+**Learned:** Blender treats add-ons as GPL, so the user chose a GPL add-on that imports
+dr2kit from a folder instead of bundling it. PyPI's PyAV links GPL x264/x265 into
+libavcodec: releases need an own LGPL ffmpeg (as the CZ recomp found), and PyAV builds
+from source against it in under 2 minutes. The licence gate caught PyInstaller
+collecting Fedora's GPL codec libraries through the system `libavcodec` (ffmpeg's
+libraries have no RUNPATH); fixed with `LD_LIBRARY_PATH`. ffmpeg's configure calls the
+Bink video decoder `bink` (the codec is `binkvideo`); buffer filters are always built.
+An installed (non-checkout) toolkit doesn't see sibling recomps, hence the Game folders
+window. Blender's manifest validator limits `tagline` and permission texts to 64
+characters.
+
+**Docs updated:** `modding/01-install.md` and `13-blender-addon.md` (new),
+`dev/packaging.md` and `dev/blender-addon.md` (new), `02-game-data.md`,
+`07-blender-setup.md`, `12-troubleshooting.md`, `modding/README.md`, `dev/code-tour.md`,
+`dev/studio.md`, `dev/setup.md`, `dev/testing.md`, `ARCHITECTURE.md`, `roadmap.md`,
+`THIRD_PARTY.md` (add-on GPL, what a release bundles), `glossary.md`, `README.md`,
+`docs/README.md`, `CLAUDE.md`.
+
+**Next:** push to a GitHub remote and let the release workflow run on Windows and macOS
+(the Windows ffmpeg step is the least certain); try a release build on a real game on
+each OS; the items in `phase6-kickoff.md` §Left open.
+
 ## 2026-10-09 — Phase 6, part 1: strings, text editing, movies, the mod manager
 **Done:** string banks (`formats/bcs.py`: read, write byte-identically, JSON, apply
 changes with notes) and `dr2 strings search/show/export/set/unset`; mods change strings

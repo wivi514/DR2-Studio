@@ -150,7 +150,8 @@ Handoff was `phase4-kickoff.md`; the next one is `phase5-kickoff.md`.
   replacements than the original (the game sets a sound's length; v1 cuts or pads).
 
 ## Phase 6: polish and distribution (in progress, 2026-10-09)
-- Blender add-on `io_dr2` (index browser in Blender, validator panel, export to mod).
+- Blender add-on `io_dr2` (index browser in Blender, validator panel, export to mod) ✅
+  (`blender/io_dr2`, guide `13-blender-addon.md`; scripted through in Blender 5.2).
   *Decision (user, 2026-10-09):* the add-on's own code is **GPL-3.0-or-later** (Blender
   treats add-ons using `bpy` as GPL) and does **not bundle dr2kit**: it imports the
   toolkit from a folder set in its preferences (or from Blender's Python), so dr2kit
@@ -164,8 +165,12 @@ Handoff was `phase4-kickoff.md`; the next one is `phase5-kickoff.md`.
   (Studio), CW Bink preview and `.mp4` export (`convert/video.py`). ✅
 - Files the executables digest-check, read from the XEX for both games (CZ 1, CW 6):
   mods refuse them (answers phase 5's open question about Case West). ✅
-- Packaging: AppImage / Windows zip (match the recomps' release style).
-- Guides `01-install.md`, `11-text.md` ✅, `asset-catalogue.md` (text, movies ✅).
+- Packaging: PyInstaller bundle (GUI + CLI), AppImage + tar.zst (Linux), zip (Windows,
+  macOS), the add-on zip, `.sha256` files, as the recomps ship; an own LGPL ffmpeg and a
+  licence gate (`tools/build_release.py`, `dev/packaging.md`). ✅ on Linux (built and
+  tried on Fedora 44); the release workflow for all three OSes is written but has not
+  run (no GitHub remote yet). Studio's **Game folders…** for installs without a recomp. ✅
+- Guides `01-install.md` ✅, `11-text.md` ✅, `asset-catalogue.md` (text, movies ✅).
 - **Gate (strings, in game, both games):** a `.bcs.json` changing `IDS_PRESS_START`
   shows on the title screen. **Passed** in CZ and CW (`formats.md` §Strings).
 - **Gate (census):** all 16 string banks re-write byte-identically; all 10 Bink movies

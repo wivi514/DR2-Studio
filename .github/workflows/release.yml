@@ -1,0 +1,168 @@
+# DR2 Studio release builds: Linux (AppImage + tar.zst), Windows (zip), macOS (zip of
+# the .app), and the Blender add-on zip. docs/dev/packaging.md explains every step.
+#
+# Runs on a version tag (v0.1.0) or by hand. A tag run also drafts a GitHub release
+# with every artifact and its .sha256; a person publishes it after trying the builds.
+#
+# Each build compiles a small LGPL ffmpeg and PyAV against it, because PyPI's PyAV
+# wheels link GPL x264/x265; tools/build_release.py refuses a bundle with a GPL library
+# (the licence gate). No game data exists here, so the bundles are checked with
+# `dr2 doctor` only; try a build on a real game before publishing.
+#
+# STATUS (2026-10-09): written and run locally on Linux (Fedora 44) only: the steps of
+# the linux job, the licence gate and the AppImage all work there. The workflow itself
+# has never run (the repo has no GitHub remote yet). The Windows ffmpeg build (MSVC from
+# MSYS2) is the step most likely to need fixing on its first run.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  addon:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python tools/build_release.py addon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: io_dr2-addon
+          path: build/release/io_dr2-*.zip
+
+  linux:
+    # 22.04 on purpose: the bundle runs on systems with this glibc or newer (the
+    # recomps' "old base" rule).
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Tools
+        run: sudo apt-get update && sudo apt-get install -y nasm pkg-config squashfs-tools zstd libegl1 libxkbcommon0
+      - name: Native LZX library
+        run: |
+          cmake -S native/lzx -B native/lzx/build -DCMAKE_BUILD_TYPE=Release
+          cmake --build native/lzx/build
+      - name: LGPL ffmpeg
+        run: tools/release/build_ffmpeg_lgpl.sh
+      - name: Release venv (PyAV built against the LGPL ffmpeg)
+        run: |
+          python -m venv build/release-venv
+          . build/release-venv/bin/activate
+          export PKG_CONFIG_PATH=$PWD/build/ffmpeg-lgpl/lib/pkgconfig
+          export LDFLAGS="-Wl,-rpath,$PWD/build/ffmpeg-lgpl/lib"
+          pip install --no-binary av "av==19.0.1"
+          pip install ".[studio]" pyinstaller pillow
+      - name: Bundle, licence gate, archives, AppImage
+        run: |
+          . build/release-venv/bin/activate
+          python tools/build_release.py all
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DR2Studio-linux
+          path: |
+            build/release/DR2Studio-linux-*.AppImage*
+            build/release/DR2Studio-linux-*.tar.zst*
+
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: brew install nasm pkg-config
+      - name: Native LZX library
+        run: |
+          cmake -S native/lzx -B native/lzx/build -DCMAKE_BUILD_TYPE=Release
+          cmake --build native/lzx/build
+      - name: LGPL ffmpeg
+        run: tools/release/build_ffmpeg_lgpl.sh
+      - name: Release venv
+        run: |
+          python -m venv build/release-venv
+          . build/release-venv/bin/activate
+          export PKG_CONFIG_PATH=$PWD/build/ffmpeg-lgpl/lib/pkgconfig
+          export LDFLAGS="-Wl,-rpath,$PWD/build/ffmpeg-lgpl/lib"
+          pip install --no-binary av "av==19.0.1"
+          pip install ".[studio]" pyinstaller pillow
+      - name: Bundle, licence gate, archive
+        run: |
+          . build/release-venv/bin/activate
+          python tools/build_release.py bundle
+          codesign --force --deep --sign - "build/release/DR2 Studio.app"   # ad-hoc
+          python tools/build_release.py archive
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DR2Studio-macos
+          path: build/release/DR2Studio-macos-*.zip*
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: ilammy/msvc-dev-cmd@v1
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MSYS
+          path-type: inherit          # keep MSVC's cl.exe / link.exe on PATH
+          install: make nasm pkgconf diffutils
+      - name: Native LZX library
+        shell: bash
+        run: |
+          cmake -S native/lzx -B native/lzx/build -DCMAKE_BUILD_TYPE=Release
+          cmake --build native/lzx/build --config Release
+      - name: LGPL ffmpeg (MSVC toolchain)
+        shell: msys2 {0}
+        env:
+          DR2_FFMPEG_EXTRA: --toolchain=msvc
+        run: tools/release/build_ffmpeg_lgpl.sh
+      - name: Release venv
+        shell: bash
+        run: |
+          python -m venv build/release-venv
+          . build/release-venv/Scripts/activate
+          export PKG_CONFIG_PATH="$(cygpath -m "$PWD/build/ffmpeg-lgpl/lib/pkgconfig")"
+          export PATH="$PWD/build/ffmpeg-lgpl/bin:$PATH"
+          pip install --no-binary av "av==19.0.1"
+          pip install ".[studio]" pyinstaller pillow
+      - name: Bundle, licence gate, archive
+        shell: bash
+        run: |
+          . build/release-venv/Scripts/activate
+          export PATH="$PWD/build/ffmpeg-lgpl/bin:$PATH"
+          python tools/build_release.py bundle
+          python tools/build_release.py archive
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DR2Studio-windows
+          path: build/release/DR2Studio-windows-*.zip*
+
+  draft:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [addon, linux, macos, windows]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Draft the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --draft --repo "$GITHUB_REPOSITORY" \
+            --title "DR2 Studio $GITHUB_REF_NAME" \
+            --notes "Draft. Try each build on a real game before publishing (docs/dev/packaging.md)." \
+            artifacts/*

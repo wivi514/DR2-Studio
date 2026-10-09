@@ -43,8 +43,28 @@ def cmd_doctor(args) -> int:
     print(f"dr2kit {__version__} on Python {platform.python_version()} "
           f"({platform.system()} {platform.machine()})")
     print(f"LZX decoder: {lzx.backend_detail()}")
+    print(f"audio/movies: {_av_detail()}")
     print(f"config file: {config_path()}")
     return cmd_games(args)
+
+
+def _av_detail() -> str:
+    """PyAV and its ffmpeg: version, licence, and the decoders the toolkit needs."""
+    try:
+        import av
+        import av._core as core
+    except ImportError:
+        return "PyAV not installed (pip install av): no sounds or movies"
+    meta = core.library_meta.get("libavcodec", {})
+    missing = []
+    for name in ("xma2", "binkvideo"):
+        try:
+            av.codec.Codec(name, "r")
+        except Exception:  # noqa: BLE001 - any failure means "missing"
+            missing.append(name)
+    return (f"PyAV {av.__version__}, libavcodec {'.'.join(map(str, meta.get('version', ())))} "
+            f"({meta.get('license', 'licence unknown')})"
+            + (f"; MISSING decoders: {', '.join(missing)}" if missing else ""))
 
 
 def cmd_games(args) -> int:

@@ -2,14 +2,13 @@
 
 **You will:** tell the toolkit where Case Zero and/or Case West are, then look around
 inside the game's files and copy some out.   **Time:** ~10 min.   **Games:** both.
-**You need:** the toolkit installed (for now, follow the developer setup in
-[`../dev/setup.md`](../dev/setup.md); an installer comes later), and your own copy of
-the game in one of the three forms below.
+**You need:** the toolkit installed ([`01-install.md`](01-install.md)), and your own
+copy of the game in one of the three forms below.
 
-> **DR2 Studio** (the window-based app) arrives in phase 2. Until then, everything here
-> uses the `dr2` command in a terminal: PowerShell on Windows, Terminal on macOS and
-> Linux. You type one line, press Enter, and read the answer. That's all the
-> "programming" involved.
+> In DR2 Studio, **Game folders…** in the toolbar does A, B and C below with buttons
+> ([`01-install.md`](01-install.md#3-point-it-at-your-games)). This guide uses the
+> `dr2` command in a terminal: PowerShell on Windows, Terminal on macOS and Linux. You
+> type one line, press Enter, and read the answer.
 
 ## Which form is your game in?
 

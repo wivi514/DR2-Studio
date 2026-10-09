@@ -1,0 +1,20 @@
+schema_version = "1.0.0"
+
+id = "io_dr2"
+version = "0.1.0"
+name = "DR2 Modding Toolkit"
+tagline = "Dead Rising 2 CZ/CW models in and out of Blender, rig checks"
+maintainer = "wivi514"
+type = "add-on"
+tags = ["Import-Export"]
+
+blender_version_min = "4.2.0"
+
+# This add-on's own code is GPL (Blender's terms for add-ons). It does not include the
+# toolkit (dr2kit), which has its own license: you point the add-on at your toolkit
+# folder in its preferences (docs/modding/13-blender-addon.md).
+license = ["SPDX:GPL-3.0-or-later"]
+copyright = ["2026 wivi514 and contributors"]
+
+[permissions]
+files = "Read game data and the index, write .glb files into mods"

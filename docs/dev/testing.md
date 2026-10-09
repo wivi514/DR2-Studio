@@ -164,6 +164,11 @@ procedure for the in-game check is in
 | Every Bink movie decodes: all frames, and the sound as long as the pictures (`census --audio`) | (no movies) | 10 / 10 (7.7 min) |
 | **In-game gate**: `IDS_PRESS_START` changed through a `.bcs.json`, deployed with `dr2 mod deploy`, title screen captured headless | shows the new text; VFS logs `str_en.bcs served from the MODS overlay` | same |
 
+| Blender add-on, whole flow in Blender 5.2 (`tools/blender_addon_gate.py`: install, search, import `chest_young_chuck`, check, edit, check, export to mod) | passes in ~6 s; `dr2 mod check` accepts the mod | |
+| Release bundle (Linux, `tools/build_release.py`): licence gate (no GPL library, LGPL ffmpeg with XMA and Bink, native LZX) | passes (after the fix in `packaging.md`: it first caught 4 GPL libraries) | |
+| The LGPL PyAV build decodes every sound and movie (`dr2 census --audio` in the release venv) | 8,916 / 8,916 | 11,735 / 11,735, 10 / 10 movies |
+| Bundled `dr2` and the AppImage: WAV, MP4, `.glb`, PNG, strings, mod check; Studio starts | ✅ | ✅ |
+
 Unit tests added: `test_bcs.py` (banks laid out by hand: padded and unpadded round trips,
 reader errors, padding kept when the text fits, `apply` notes and the last-id rule, JSON
 and labels, the strings helpers, string mods merging by id with priorities, whole bank
@@ -171,7 +176,10 @@ vs strings conflicts, digest-checked files refused, the `dr2 strings` commands);
 `test_library.py` (install, order, switches, the plan's winners, priorities on install,
 hand-copied folders, pack and install a zip, zip-slip refused, the `dr2 mod` library
 commands); `test_studio.py` (text editor with CRLF and diff, the strings table, the mod
-manager). Game-data tests: `test_string_banks`, `test_digest_checked_files_exist`,
+manager, the game folders window); `test_blender_addon.py` (the add-on's
+`toolkit`/`core` without Blender, licence markers); `test_userdirs.py` (the fallback
+folders equal platformdirs'); `test_release.py` (deterministic add-on zip, the licence
+gate's names, the icon). Game-data tests: `test_string_banks`, `test_digest_checked_files_exist`,
 `test_movies_probe`.
 
 ## Writing a test for new code

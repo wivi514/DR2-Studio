@@ -52,12 +52,12 @@ LIST_FILE = "modlist.toml"
 def default_library() -> Path:
     """The library folder: the user config's ``[mods] library``, else the per-user
     data folder's ``mods``."""
-    from platformdirs import user_data_dir
     from ..profiles import get_config
+    from ..userdirs import data_dir
     configured = get_config("mods", "library")
     if configured:
         return Path(configured).expanduser()
-    return Path(user_data_dir("dr2kit", appauthor=False)) / "mods"
+    return data_dir() / "mods"
 
 
 def set_default_library(folder: str | Path | None) -> None:
