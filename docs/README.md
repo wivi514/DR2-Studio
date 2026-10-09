@@ -16,9 +16,12 @@ Pick the section for what you want to do.
 
 Phases 1-3 are done: the `dr2` command and DR2 Studio read every file of both games,
 show every texture, build texture mods that load in both recomps, show every model and
-skeleton in 3D, and export them to Blender (`.glb`). Start with
+skeleton in 3D, export them to Blender (`.glb`), and put edited or new rigged meshes back
+into the game. Start with
 [`modding/02-game-data.md`](modding/02-game-data.md), then
 [your first mod](modding/05-first-mod-texture.md); for models,
 [`modding/04-extracting.md`](modding/04-extracting.md) and
-[`modding/07-blender-setup.md`](modding/07-blender-setup.md). [`modding/README.md`](modding/README.md)
+[`modding/07-blender-setup.md`](modding/07-blender-setup.md), then
+[`modding/08-edit-a-model.md`](modding/08-edit-a-model.md) and
+[`modding/09-new-model.md`](modding/09-new-model.md). [`modding/README.md`](modding/README.md)
 lists each guide with its status.

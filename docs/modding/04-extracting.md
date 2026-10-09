@@ -71,7 +71,8 @@ What is in the `.glb`:
 - **Materials** with the colour (`_cm`) and normal (`_nm`) textures. Other textures
   (specular `_sm`, tint `_mask`) are listed in the material's custom properties; export
   them as PNG if you need them.
-- Each bone's original game record, so the skeleton can be put back exactly (phase 4).
+- Each bone's original game record, so the skeleton can be put back exactly. Edited models go back into the game with
+  [`08-edit-a-model.md`](08-edit-a-model.md).
 
 Chuck is assembled from parts: `chest_*`, `leg_*`, `feet_*`, `hands_*`, `head_*`,
 `headwear_*` in `npcs.big`, all on the same 98-bone player rig, so you can import several

@@ -36,7 +36,7 @@ point the Armature modifier at it.
 ### Saving your work
 
 Keep a `.blend` as your working file. When you export back to `.glb` (for checking, and
-for phase 4's "put it back in the game"):
+to put it back in the game, [`08-edit-a-model.md`](08-edit-a-model.md)):
 
 1. **File → Export → glTF 2.0**, format **glTF Binary (.glb)**.
 2. Under **Include**, tick **Custom Properties**. Each bone carries its original game
@@ -64,6 +64,7 @@ for phase 4's "put it back in the game"):
 
 ## Going further
 
-- Edit a model and put it back in the game: `08-edit-a-model.md` (phase 4).
+- Edit a model and put it back in the game: [`08-edit-a-model.md`](08-edit-a-model.md);
+  a brand-new rigged mesh: [`09-new-model.md`](09-new-model.md).
 - What the `.glb` holds and how it maps to the game: [`../dev/gltf-mapping.md`](../dev/gltf-mapping.md).
 - Which rig a character uses: [`asset-catalogue.md`](asset-catalogue.md) §Skeletons.

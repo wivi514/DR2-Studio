@@ -17,6 +17,16 @@ Entry template:
 
 ---
 
+## 2026-10-09 — Docs: phase 4 sweep
+**Done:** pages written before phase 4 stopped calling model import future work:
+`modding/04-extracting.md` and `07-blender-setup.md` link the new guides 08 and 09,
+`docs/README.md` lists them in the reading path, and `prior-art.md` records which limits
+of the old MaxScript and the community import workflow phase 4 now covers.
+**Why:** the user asked for memory and documentation to be brought up to date after
+phase 4.
+**Docs updated:** the four files above, this devlog.
+**Next:** phase 5 (`phase5-kickoff.md`).
+
 ## 2026-10-08 — Phase 4: model replacement (Blender → game), rig validator, in-game check
 **Done:**
 - The scene writer (`formats/scene_write.py`): serialisers for every chunk the reader
