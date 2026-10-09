@@ -87,14 +87,38 @@ Handoff was `phase3-kickoff.md`; the next one is `phase4-kickoff.md`.
   value sets, the material floats, tangent w; the unbound extra streams of 10 CW shapes;
   posing in a real *animation* (animations are not decoded yet).
 
-## Phase 4: model replacement (Blender → game)
-- `.glb` → scene chunks: bone mapping by name, palette rebuild and splitting (≤ 61 bones,
-  contiguous runs of nodes), vertex re-encode, strips, bounds, keep material slots.
-- Rig validator (CLI + Studio + later the add-on): missing bones, unweighted vertices,
-  too many influences, names the game expects.
-- **Gate:** (a) a no-op round trip of the original model loads in game unchanged;
-  (b) an edited mesh (moved vertices) loads; (c) a new mesh rigged to the exported
-  skeleton loads and animates, fingers and face included (the old MaxScript's failure case).
+## Phase 4: model replacement (Blender → game) ✅ (2026-10-08)
+Handoff was `phase4-kickoff.md`; the next one is `phase5-kickoff.md`.
+- Scene writer (`formats/scene_write.py`): serialisers for every chunk the reader
+  interprets (each scene of both games rewrites identically), exact vertex encoders
+  (`vertex.py`), triangles → strips, and `SceneEditor.replace_mesh`: new vertex and index
+  buffers (own buffers rewritten, combined ones appended to), packets cloned from a
+  template draw of the same material, `RenderStrip` words (packet offsets found:
+  word 5), shape words, bounds, `_BOUNDINGBOX_`. ✅
+- `.glb` → model (`convert/model_import.py`): parts matched by object name, bones by
+  name, materials by exported name, vertices skinned back to the rest pose, 4 weights
+  quantised to 255, palettes of ≤ 61 nodes with automatic splitting; unchanged shapes
+  kept byte for byte. ✅
+- Rig validator (`plan_import`): `dr2 model check`, `dr2 model import`, Studio's
+  *Replace with .glb…*, and `dr2 mod check` for `replace/<model>.glb` overrides. The
+  Blender add-on is still later. ✅
+- Docs: `formats.md` §Writing scenes (+ the unclamped snorm retraction, tangent w),
+  `dev/gltf-mapping.md` §Coming back: models, `modding/08`, `09`, troubleshooting,
+  glossary. ✅
+- **Gate (no-op):** every model of both games exported to `.glb` and imported back is
+  byte-identical (1,397 CZ, 1,495 CW; `dr2 census --reimport`); every shape rebuilt from
+  its own geometry decodes to the same triangles and vertex values (6,953 + 10,547 draws;
+  the vertex-animated larva is skipped).
+- **Gate (in game, CZ):** a `.glb` that went through Blender with the shirt untouched,
+  the arms inflated and the watch replaced by a new mesh weighted to every face and
+  finger bone (split into 2 draws) loads; all 32 dumped skinning draws match the mod
+  build byte for byte; the new mesh's palettes get the same bone matrices as Chuck's own
+  head and hand draws (face bones moving, fingers bent up to 45°); the picture shows the
+  thicker arms and the spheres on the fingers and face (`tools/blender_gate_model.py`,
+  `tools/capture_gate.py --root`). Details: `dev/testing.md`.
+- **Not proven yet:** a Case West run in game; a combined-buffer prop replaced in game;
+  the look of new tangents on normal maps; adding parts, bones or materials (v1 is
+  replacement only).
 
 ## Phase 5: audio
 - XMA metadata (channels/rate), → WAV, playback in Studio, event names from scene scripts.

@@ -7,19 +7,20 @@ Goal: make modding easy. Browse every asset in both games, **see** what a textur
 and **hear** a sound before extracting it, export models and skeletons to Blender, and
 put edited or new models back into the game when their bones match the game's rig.
 
-**Status: phase 3 (models and skeletons → Blender) done 2026-10-08: the scene reader
-(every scene of both games parses, every draw decodes, bone palettes cracked), `.glb`
-export with skin and textures, DR2 Studio's 3D view; skeleton gate (Blender round trip,
-bit-exact) and in-game gate (CZ capture) passed. Phases 1-2 (container, LZX, census, CLI;
-textures, index, Studio, mods, `game_mods/`) done the same day. Next: phase 4; start
-from `docs/phase4-kickoff.md`.** Read these before writing
+**Status: phase 4 (model replacement, Blender → game) done 2026-10-08: the scene writer
+(every chunk of every scene rewrites identically, exact vertex encoders), `.glb` →
+model with bones by name, palette splitting and the rig validator (`dr2 model check`,
+Studio, mods); no-op gate (every model re-imports byte-identical) and in-game gate (CZ:
+edited and new rigged meshes, fingers and face) passed. Phases 1-3 (container, LZX,
+census, CLI; textures, index, Studio, mods, `game_mods/`; models → Blender) done the
+same day. Next: phase 5 (audio); start from `docs/phase5-kickoff.md`.** Read these before writing
 code:
 
 | Doc | What it holds |
 |---|---|
 | `docs/ARCHITECTURE.md` | Components, data flow, the asset index, the mod package format, stack choices |
 | `docs/formats.md` | Everything known about every file format, with a status per format (cracked / partial / unknown) |
-| `docs/phase4-kickoff.md` | Phase 4 handoff: order of work, facts to keep in mind |
+| `docs/phase5-kickoff.md` | Phase 5 handoff: order of work, facts to keep in mind |
 | `docs/dev/code-tour.md` | Every module of `dr2kit` and how a read flows through them |
 | `THIRD_PARTY.md` | Reused code and its licenses (libmspack is LGPL: keep it in its own library) |
 | `docs/roadmap.md` | Phases, what each phase delivers, and the gate that proves it works |
@@ -134,7 +135,9 @@ dr2 census                                # both games: counts + round-trip/deco
 dr2 census --reencode --python-lzx        # the slow LZX gates (~20 min, all CPUs)
 dr2 census --textures                     # the texture re-encode gate (~4 min CZ, ~6 min CW)
 dr2 census --models                       # decode every draw of every model (~40 s / ~70 s)
+dr2 census --reimport                     # + .glb re-import and shape rebuild gates (~4 / ~8 min)
 dr2 extract --glb <model vpath> -o out    # model or skeleton -> .glb for Blender
+dr2 model check <file.glb> <model vpath>  # rig validator (import: dr2 model import … -o)
 python tools/blender_skeleton_gate.py     # skeleton round trip through Blender (~25 s)
 dr2 index build                           # the asset index (~1-2 min per game)
 dr2 studio                                # the GUI (pip install -e ".[studio]")

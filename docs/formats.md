@@ -10,7 +10,7 @@ Case West census before they count as rules (CLAUDE.md rule 7).
 | LZX compressed entry | inside `.big` | ✅ decode + encode | `dr2kit/container/xcompress.py`, `lzx/`. Every compressed entry of both games decodes (two independent decoders agree) and re-encodes |
 | `.bct` texture | loose, inside `.tex` | ✅ read + write | `dr2kit/formats/bct.py`, `convert/texture.py`. Every texture of both games decodes and re-encodes to its exact bytes; flags byte bits 0x04/0xE0 and header word 0x0C still unexplained (preserved) |
 | `.tex` texture pack | next to every model `.big` | ✅ | a `.big` whose entries are `.bct`, named without extension |
-| scene (model / skeleton) | `models/**/*.big`, `skeleton/*.big`, props, environments | ✅ read | `dr2kit/formats/scene.py`, `vertex.py`. Every scene of both games parses and every draw decodes; buffers and bone palettes checked against the running game; exports to glTF. Writing back is phase 4 |
+| scene (model / skeleton) | `models/**/*.big`, `skeleton/*.big`, props, environments | ✅ read + write | `dr2kit/formats/scene.py`, `vertex.py`. Every scene of both games parses and every draw decodes; buffers and bone palettes checked against the running game; exports to glTF. **Written back** (phase 4): every chunk rewrites identically, `.glb` → model, new meshes and rigs; checked in game |
 | `.xma` audio | `audio/*.big` | 🟡 | raw XMA, decoded on the host by the recomp through ffmpeg; header and rate source ❓ |
 | audio scene scripts `.txt` | `audio/Prologue.txt`, `datafile.big` | ✅ text | `cAudioScene` / `cAudioJukebox` tree, `Asset = "music.big/<name>"` |
 | `.bcs` string bank | `frontend/str_<lang>.bcs` | ✅ | `gen_pc_options.patch_bcs` reads and patches it |
@@ -408,8 +408,8 @@ For each shape `<shape>` (a name like `geo_tshirtShape`, `moto_bodyShape`,
 
 | Chunk | Size | Meaning |
 |---|---|---|
-| `<shape>` | 72 | 8 words, then 7 floats: **bounding radius** (from the origin), **box min, box max** (every vertex lies inside), then 3 zero words. Word 3 = number of vertex declarations, **word 5 = number of draws** (✅ every shape), words 6-7 = the first draw's palette ❓ others |
-| `<shape> RenderStrip` | 28 per draw | `material id − 1`, flags (`0x3F`/`0x7F`/`0x103F`…), flags (`0`/`0x1001`/`0x02000000`), **palette first node, palette node count**, a word (0, or 0xA8, 0x6C… on later draws ❓), a word (`0x1D`-`0x27` ❓) |
+| `<shape>` | 72 | 8 words, then 7 floats: **bounding radius** (from the origin), **box min, box max** (exact min/max of the positions), then 3 words (zero on most shapes, kept). Word 2 = own vertex buffers, word 3 = vertex declarations, word 4 = own index buffers, **word 5 = number of draws**, words 6-7 = the first draw's palette (✅ every shape, phase 4); words 0-1 ❓ |
+| `<shape> RenderStrip` | 28 per draw | `material id − 1`, flags (`0x3F`/`0x7F`/`0x103F`…), flags (`0`/`0x1001`/`0x02000000`), **palette first node, palette node count**, **the byte offset of the draw's packet in the command buffer** (word 5), **the packet's word count up to the end of its draw command** (word 6; one less on the 106 packets without an `0x04` end ❓). Words 5-6 found in phase 4, see §Writing scenes |
 | `<shape> D3DVertexDesc N` | 12 per element | vertex declaration N (next section). Several draws can share one |
 | `<shape> VDHeader` | 8 per declaration | `0, 0xFFFFFFFF` each (❓ beyond the count) |
 | `<shape> CommandBuffer` | words | the recorded draw calls (below) |
@@ -465,7 +465,7 @@ uses one of these (counts of elements, CZ / CW):
 | FLOAT3 | `0x2A23B9` | POSITION | 6,953 | 10,547 | 3 BE floats (positions inside each shape's box) |
 | FLOAT2 | `0x2C23A5` | TEXCOORD 0-4 | 10,046 | 20,026 | 2 BE floats (textures land right in the renders) |
 | HEND3N | `0x2A2190` | NORMAL | 6,944 | 10,492 | 10_11_11 signed normalised: x = bits 0-10, y = 11-21, z = 22-31 (unit length on every vertex but 136 / 2,117 zero normals) |
-| DEC4N | `0x1A2187` | TANGENT | 2,622 | 5,928 | 2_10_10_10: x, y, z 10 bits signed, w 2 bits (xyz unit length on every vertex; **w is 0 on half of them** ❓) |
+| DEC4N | `0x1A2187` | TANGENT | 2,622 | 5,928 | 2_10_10_10: x, y, z 10 bits signed, w 2 bits (xyz unit length on every vertex; **w is 0 on half of them**, see §Tangent w) |
 | SHORT2N | `0x2C2159` | TEXCOORD 1-5 | 3,033 | 6,579 | two 16-bit signed normalised, **x = low half of the BE word** |
 | UBYTE4N | `0x1A2086` | BLENDWEIGHT | 2,121 | 2,452 | 4 bytes / 255, **x = low byte of the BE word** (the four sum to 255 on every vertex) |
 | UBYTE4 | `0x1A2286` | BLENDINDICES | 2,121 | 2,452 | 4 bytes, x = low byte |
@@ -474,6 +474,16 @@ uses one of these (counts of elements, CZ / CW):
 **Byte order:** every element is read as big-endian 32-bit words and component *x* is in
 the **low** bits. This is how the CZ recomp's renderer fetches vertices (it draws both
 games correctly), and the skin weights only sum to 255 this way round.
+
+**Signed normalised values are not clamped** (phase 4). A *b*-bit field holds *q* and
+decodes to *q* / (2^(b−1) − 1). The lowest code, −2^(b−1), gives slightly less than −1
+(−1.002 for 10 bits); the GPU clamps it to −1. The games store −1.0 **that way** on most
+fields (DEC4N x/y/z never use −511), while HEND3N also has −(2^(b−1) − 1) in places, and
+the 2-bit tangent w uses `11` (−1), never `10`. Phase 3's decoder clamped to −1, which
+made two codes decode alike, so the encoder could not give the stored bits back
+(60,537 CZ and 701,150 CW tangents, 129,755 / 1,139,556 normals). *Retraction
+(2026-10-08):* "clamped to −1" is gone; with the unclamped rule, every element of
+every vertex of both games re-encodes to its stored bytes (census below).
 
 ### Skinning and the bone palette ✅
 
@@ -531,6 +541,117 @@ are foot and face bones, which animation translates). Every vertex skinned the w
 **Not proven yet:** a Case West capture (its census and exports look the same); what
 `_ATTRIBUTE_`, `_COLLPRIMS_`, the value sets and the material floats do; LODs (no LOD
 chunks were seen: each shape has its draws only).
+
+### Writing scenes (phase 4) ✅
+
+Implemented by `dr2kit/formats/scene_write.py` (chunks, strips, new geometry for a
+shape) and `dr2kit/convert/model_import.py` (`.glb` → shapes). Everything below was
+measured over every scene of both games before the writer relied on it.
+
+**Command packets.** A shape's command buffer is one packet per draw, in draw order.
+`RenderStrip` word 5 is the **byte offset where the draw's packet starts**, and word 6
+the number of words from there up to the end of the draw command (`0x08` + its 6
+arguments). Checked on 6,941 / 6,954 CZ and 10,455 / 10,548 CW draws; on the others
+word 6 is one less ❓. Those are exactly the packets that don't end with an `0x04`
+word (13 CZ in 9 shapes, 93 CW in 72 shapes: crowd seats, sky domes, glowing lights;
+they chain into the next packet), so **word 5 is the authority for where a packet
+starts.** A writer
+that clones a packet keeps its word 6 and sets word 5.
+
+**Shape words** (72-byte chunk): word 2 = number of the shape's own vertex buffers
+(`<shape> Vertices k`), word 3 = number of `D3DVertexDesc` chunks, word 4 = own index
+buffers, word 5 = draws, words 6-7 = the first draw's palette (start, count). Equal on
+every shape of both games, except word 2 on 10 CW shapes that carry extra unused
+stride-12 buffers (deformation targets?) ❓. **Bounds:** the radius is the largest
+distance of a vertex from the origin (as float32) and the box is the exact min/max of
+the positions, on every shape checked (964 of a 300-model sample). `_BOUNDINGBOX_` (the
+whole model) is the union of the shapes' boxes in 80 % of models and larger in the rest
+(other things count, ❓); the writer recomputes the union when it was one, and only grows
+the box otherwise.
+
+**Layouts.** Every skinned shape of both games has **one draw**. Own-buffer shapes
+(characters) put their draws back to back in `<shape> Vertices k` / `Indices k`
+(first vertex and first index in the draw arguments; 1,139 CZ and 1,207 CW shapes);
+one shape, the CZ gunship, uses 9 vertex and 3 index buffers, each draw binding its own
+set. Combined-buffer draws (props) bind every stream at a first vertex (`0x28`) and the
+index buffer at a first index (`0x47`); the draw arguments are zeros on 4,139 of 5,804
+CZ and 7,034 of 9,338 CW such draws. New combined draws use the bind arguments and
+zeros.
+
+**What the writer produces** for a shape it replaces, per part (glTF primitive):
+
+- a **template**: an original draw with the same material (this shape first, then any
+  shape with the same buffer family). Its vertex declaration, command packet (shader,
+  textures, render state), flag words 1-2 and word 6 are copied;
+- vertices encoded with that declaration (every packing has an exact encoder);
+- one triangle strip per draw: runs that continue the last edge with the right parity,
+  joined by repeated indices (an extra repeat when the next run would start on an odd
+  position). `scene.strip_to_triangles` of the result gives back every triangle with
+  its winding;
+- weights: the 4 strongest influences, quantised to bytes that **sum to exactly 255**
+  (largest remainders get the leftovers); blend index = 3 × (node − palette start);
+- palettes: triangles sorted by the nodes they use and packed greedily into runs of at
+  most **61** nodes. A part that needs more becomes several draws (packets cloned, word
+  5 set for each);
+- own buffers rewritten whole; combined buffers **appended to**, so other shapes keep
+  their bytes. Header counts (`VBHeader`, `IBHeader`, `Combined_*`), shape words 3/5/6/7,
+  bounds and `_BOUNDINGBOX_` follow.
+
+A rigid shader (no blend elements, palette of 1) takes one bone per draw; a skinned
+shader needs weights. A shape filled at run time (the vertex-animated larvae) is not
+replaceable.
+
+### Tangent w ❓
+
+The game's skinning vertex shader (`ProtoSkinnedClothRGB`, translated with XenosRecomp)
+outputs the bitangent as `cross(normal, tangent) × tangent.w`, so w is used as a sign.
+But the stored w does not follow the UV layout's handedness: over a sample of 250 models
+per game, w = 0, +1 and −1 each pair with "mirrored" and "not mirrored" UVs in the same
+proportions (about 20 % / 80 % in CZ, 37 % / 63 % in CW), and half the vertices have w = 0 (code `00`, which
+decodes to 0, or to +1/3 if the GPU uses its "no zero" signed mode). So it is not a
+reliable handedness flag in the shipped data. **New tangents** are computed from the
+first UV set and given w = +1 where `cross(N, T)` points against the UV bitangent (the
+case of most of the games' vertices: 80 % in CZ, 63 % in CW) and −1 otherwise. Not verified visually on a normal
+map; unchanged shapes keep their stored tangents.
+
+### Census (phase 4, 2026-10-08, `dr2 census --reimport`)
+
+| | Case Zero | Case West |
+|---|---|---|
+| scenes whose every interpreted chunk rewrites identically | **1,510 / 1,510** | **1,639 / 1,639** |
+| draws whose every vertex element re-encodes to the stored bytes | **6,954 / 6,954** | **10,548 / 10,548** |
+| models exported to `.glb` and imported back **byte-identical** | **1,397 / 1,397** | **1,495 / 1,495** |
+| draws rebuilt from their own geometry (new strip, buffers, packets, palette, bounds) that decode to the same triangles and vertex values | **6,953** + 1 vertex-animated skipped | **10,547** + 1 skipped |
+| problems | 0 | 0 |
+
+(About 4 minutes for CZ, 8 for CW.) A Blender round trip (import, export with defaults
++ custom properties) of `chest_young_chuck.big` rebuilds every shape with the same
+triangles, palettes and skin weights; positions come back within 1 µm (float noise).
+
+### In-game check (phase 4, 2026-10-08, Case Zero)
+
+A mod replacing `npcs.big/chest_young_chuck.big` with a `.glb` that went through
+Blender: shirt and shirt bottom unchanged (rebuilt), both arms pushed out 2 cm along
+their normals, and the watch replaced by a **new mesh**: a sphere on every face and
+finger bone (each weighted 100 % to its bone) and a blob on the left wrist weighted 50/50
+between the forearm twist and the hand. It needs nodes 25-91 (67 > 61), so it was split
+into two draws (palettes 25-85 and 86-91). Captured with `tools/capture_gate.py --root`
+(procedure in [`dev/recomp-integration.md`](dev/recomp-integration.md) §Phase 4):
+
+- the recomp served `npcs.big` from `game_mods/`; the game ran normally;
+- **32 of 32** dumped draws of the skinning shader match the mod build byte for byte,
+  vertex stream and indices: the rebuilt shirt parts, the inflated arms and **both
+  draws of the new mesh** (360 + 3,240 vertices), in both passes;
+- bone palettes: 80 pairs of draws sharing a node got identical matrices, 0 disagree
+  (shifted controls fail), so the split palettes are right; for all 34 face bones the
+  head draw also covers, the new mesh got exactly the head's matrices, and 21 of them
+  were moving relative to the head in that frame; finger bones were bent up to 45°;
+- the picture: the forearm is visibly thicker, the spheres sit on Chuck's lips and nose
+  and on his fingers curled round the bottle, the shirt looks as without the mod.
+
+**Not proven yet:** a Case West run (its census passes the same gates); replacing a
+combined-buffer prop in game (the writer and census cover it); normal-map appearance
+of new tangents.
 
 ## Audio
 

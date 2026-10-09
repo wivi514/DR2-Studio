@@ -115,6 +115,24 @@ Game-data tests added: the scene counts in the census test, a slow "every model 
 decodes" test, and three reference exports (Chuck's chest part and the mechanic in CZ,
 the default chest in CW) that must find every texture.
 
+### Phase 4 results (2026-10-08)
+
+| Gate | Case Zero | Case West |
+|---|---|---|
+| Every chunk the reader interprets rewrites identically (`dr2 census`) | 1,510 / 1,510 scenes | 1,639 / 1,639 |
+| Every vertex element re-encodes to its stored bytes (`dr2 census --models`) | 6,954 / 6,954 draws | 10,548 / 10,548 |
+| **No-op gate**: model → `.glb` → import, byte-identical (`dr2 census --reimport`, ~4 / ~8 min) | 1,397 / 1,397 models | 1,495 / 1,495 |
+| Every shape rebuilt from its own geometry decodes the same (`--reimport`) | 6,953 draws + 1 vertex-animated skipped | 10,547 + 1 |
+| Blender 5.2 round trip of `chest_young_chuck.big` | every shape rebuilt, same triangles, palettes and weights; positions within 1 µm | |
+| **In-game gate** (gate model from `tools/blender_gate_model.py`, deployed as a mod, captured; `tools/capture_gate.py --root <game_mods>`) | 32 / 32 dumped skinning draws match the mod build byte for byte (rebuilt shirt, inflated arms, both draws of the new mesh); 80 draw pairs sharing a bone agree, 0 disagree; the new mesh gets the head's exact matrices for 34 face bones (21 moving) and follows fingers bent up to 45°; the picture shows it (side by side with `CZ_NO_MODS=1`) | not run |
+
+Unit tests added: `test_scene_write.py` (encoders incl. the lowest snorm codes, rewrite,
+strips with winding, weights, palette splitting, replacing own and combined shapes),
+`test_model_import.py` (no-op identity, reordered bones, unknown bone and unweighted
+errors, influence merge, material fallback, a mod with a `.glb` override), and the
+Studio test now runs *Replace with .glb…*. The procedure for the capture is in
+[`recomp-integration.md`](recomp-integration.md) §Phase 4.
+
 ## Writing a test for new code
 
 - One test file per module (`tests/test_<module>.py`).

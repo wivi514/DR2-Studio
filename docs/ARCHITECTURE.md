@@ -38,9 +38,11 @@ dr2kit/                 core library (pure Python; numpy optional)
   cli/ ✅               the `dr2` command (main.py)
   formats/              bct.py ✅ (phase 2); scene.py ✅, vertex.py ✅ (phase 3: chunks,
                         skeleton, materials, draws, vertex decode, bone palettes);
+                        scene_write.py ✅ (phase 4: chunk writers, strips, new geometry);
                         later: anim.py, xma.py, bik.py, bcs.py, scripts.py
   convert/              png.py ✅, dxt.py ✅, texture.py ✅ (phase 2); gltf.py ✅, model.py ✅
-                        (phase 3); later: audio.py, strings.py
+                        (phase 3); model_import.py ✅ (phase 4: .glb → model, rig
+                        validator); later: audio.py, strings.py
   index/ ✅             schema.sql, build.py, query.py (phase 2)
   mods/ ✅              manifest.py, build.py, deploy.py (phase 2)
   studio/ ✅            DR2 Studio v0: app.py, viewers.py (phase 2; inside the package so
@@ -48,7 +50,7 @@ dr2kit/                 core library (pure Python; numpy optional)
 native/lzx/ ✅          dr2lzx: libmspack's lzxd.c (LGPL, separate library) + a small wrapper, CMake
 blender/io_dr2/         Blender add-on (vendors dr2kit at build time)
 tests/ ✅               unit tests on synthetic data; game-data tests (skip if absent)
-tools/ ✅               developer scripts (PyAV codec check)
+tools/ ✅               developer scripts (PyAV codec check, the phase 3-4 gates)
 docs/                   this file, formats.md, roadmap.md, guides
 ```
 
@@ -215,19 +217,26 @@ byte for byte (the round-trip gate).
 parts) → a `.glb` armature with no mesh, so modellers start from the game's rig.
 Same bone names and rest pose as the game. This is the starting point for new models.
 
-**Import (Blender → game).**
+**Import (Blender → game).** ✅ phase 4 (`convert/model_import.py` over
+`formats/scene_write.py`; rules in `dev/gltf-mapping.md` §Coming back: models).
 1. Read the `.glb`. Map bones **by name** to the target skeleton. Refuse with a clear list
-   when a mesh is weighted to a bone the target lacks; warn about bones the game uses but
-   the mesh ignores.
+   when a mesh is weighted to a bone the target lacks. Parts are matched to the model's
+   shapes by object name; skinned vertices are brought back to the rest pose with the
+   file's own joint matrices, so Blender's bone orientation doesn't matter.
 2. Rebuild the bone palettes (split meshes when a palette would exceed the shader's
    bone-constant limit: 61 bones per draw, `gWorldMatrix[183]` from `c8`, measured in
    phase 3). A palette is a contiguous run of nodes, so a draw whose bones are far apart
    in node order needs a long run or a split.
 3. Re-encode the vertex format exactly as the original (positions, normals/tangents,
-   UVs, weights/indices in the same packed formats), rebuild `Combined Vertices/Indices`,
-   update bounds and `SceneDescription`, keep material slots matching the original.
-4. v1 rule: **replacement only**. The new model takes an existing model's slot and
-   material count. New materials or shaders come later.
+   UVs, weights/indices in the same packed formats), copying a **template draw** of the
+   same material (declaration, command packet, flags). A shape's own buffers are
+   rewritten; the shared `Combined Vertices/Indices` are appended to so other shapes keep
+   their bytes. Bounds, header counts and packet offsets follow. `SceneDescription` needs
+   no change because shapes are replaced, never added. A shape whose parts are unchanged
+   keeps its bytes, so a no-edit round trip gives the identical model.
+4. v1 rule: **replacement only**. The new mesh takes an existing shape's place and uses
+   the model's existing materials and bones. New shapes, materials, shaders or bones come
+   later.
 
 Known pitfalls from the community (see `prior-art.md`): finger and face weights broke
 the old MaxScript; DR2 vs Off the Record skeleton differences crashed the game; mesh

@@ -46,6 +46,17 @@ def test_window_shows_a_texture(tmp_path, monkeypatch):
     assert win.centre.currentWidget() is win.model_view
     assert win.btn_glb.isEnabled() and not win.btn_png.isEnabled()
     assert "3 bones, 1 meshes, 1 draws" in win.details.toPlainText()
+    # the rig validator: our own export passes and lands in the open mod
+    from dr2kit.convert.gltf import model_to_glb
+    from dr2kit.formats.scene import Scene
+    from dr2kit.mods.manifest import create
+    assert win.btn_glb_in.isEnabled()
+    glb = tmp_path / "box.glb"
+    glb.write_bytes(model_to_glb(Scene.parse(make_scene())))
+    assert win.check_glb(str(glb)).ok
+    win._set_mod(create(tmp_path / "mod", "boxmod"))
+    win.replace_glb(str(glb))
+    assert (tmp_path / "mod" / "replace" / "data" / "pack.big" / "box.big.glb").is_file()
     win.close()
     del app
 

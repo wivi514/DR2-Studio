@@ -32,6 +32,17 @@ Phase 3 adds scenes (models and skeletons, every archive with a ``SceneHeader``)
   skin weights summing to 1, palettes inside the skeleton, unit quaternions. This is
   the phase 3 "every model parses" gate.
 
+Phase 4 adds the writer gates:
+
+* **scene rewrite** (always): every chunk the reader interprets, rebuilt from the parsed
+  scene by `dr2kit.formats.scene_write`, equals the stored chunk (the no-op writer);
+* **vertex re-encode** (``models=True``): every element of every vertex of every draw,
+  decoded and encoded again, gives back the stored bytes;
+* **re-import** (``reimport=True``, slow): every model exported to ``.glb`` and imported
+  again (`dr2kit.convert.model_import`) gives back the identical file; and every shape,
+  rebuilt from its own decoded geometry (new strips, buffers, packets, bounds), decodes
+  to the same triangles with the same vertex values.
+
 Results for both games are recorded in docs/formats.md. Run it with ``dr2 census``.
 """
 
@@ -50,6 +61,8 @@ from .container.lzx.pydecode import _Bits
 from .container.vpath import AssetTree, entry_components, join
 from .formats import bct as bctfmt
 from .formats import scene as scenefmt
+from .formats import scene_write
+from .formats import vertex as vx
 
 # A .bct texture starts 05 01 01; the 4th byte varies (a flags byte, phase 2 work), so
 # only the first three are a magic (docs/formats.md, "Textures", retraction 2026-10-08).
@@ -212,7 +225,8 @@ def check_texture(rep: "CensusReport", evp: str, name: str, data: bytes,
 
 def run_census(game: str, tree: AssetTree, *, python_lzx: bool = False,
                reencode: bool = False, textures: bool = False, models: bool = False,
-               workers: int | None = None, progress=None) -> CensusReport:
+               reimport: bool = False, workers: int | None = None,
+               progress=None) -> CensusReport:
     """Census one game's data folder. See the module docstring for what is checked.
 
     ``progress(message)`` is called once per file on disk. ``workers`` sets the process
@@ -322,7 +336,7 @@ def run_census(game: str, tree: AssetTree, *, python_lzx: bool = False,
                     continue
                 visit(sub, data, evp, depth + 1)
         if scenefmt.is_scene(arc):
-            check_scene(rep, vp, arc, models)
+            check_scene(rep, vp, arc, models or reimport, reimport)
 
     try:
         for vp, path in tree.files():
@@ -355,8 +369,10 @@ def run_census(game: str, tree: AssetTree, *, python_lzx: bool = False,
 _NUMBERS = re.compile(r"\d+")
 
 
-def check_scene(rep: CensusReport, vp: str, arc: BigArchive, decode: bool) -> None:
-    """Parse one scene (and, with ``decode``, every draw); count and check what it holds."""
+def check_scene(rep: CensusReport, vp: str, arc: BigArchive, decode: bool,
+                reimport: bool = False) -> None:
+    """Parse one scene (and, with ``decode``, every draw); count and check what it holds.
+    ``reimport`` adds the phase 4 re-import gates (`check_reimport`)."""
     import math
     try:
         sc = scenefmt.Scene.from_archive(arc, vp)
@@ -364,6 +380,10 @@ def check_scene(rep: CensusReport, vp: str, arc: BigArchive, decode: bool) -> No
         rep.problems.append((vp, f"scene: {ex}"))
         return
     rep.scenes[sc.kind] += 1
+    rewrite = scene_write.rewrite_problems(sc)
+    rep.scene_checks["scene rewrite identical" if not rewrite else "scene rewrite differs"] += 1
+    for pr in rewrite:
+        rep.problems.append((vp, f"scene rewrite: {pr}"))
     rep.scene_nodes += len(sc.skeleton)
     for name in sc.unknown:
         rep.scene_unused_chunks[_NUMBERS.sub("N", name)] += 1
@@ -423,6 +443,112 @@ def check_scene(rep: CensusReport, vp: str, arc: BigArchive, decode: bool) -> No
             for w in dd.weights or ():
                 chk["skin weights sum to 1" if abs(sum(w) - 1) < 0.005
                     else "skin weights do NOT sum to 1"] += 1
+            bad = _reencode_vertices(sc, d)
+            chk["vertex elements re-encode identically" if not bad
+                else "vertex elements re-encode DIFFERENTLY"] += 1
+            if bad:
+                rep.problems.append((f"{vp}/{m.name}", f"draw {d.number}: {bad}"))
+    if reimport and sc.meshes:
+        check_reimport(rep, vp, arc.to_bytes())
+
+
+def _reencode_vertices(sc, d) -> str | None:
+    """Decode then encode every element of a draw's vertices; describe the first
+    difference with the stored bytes (None: all identical)."""
+    for el in d.declaration:
+        s = d.streams.get(el.stream)
+        if s is None or s.buffer is None:
+            continue
+        raw = sc.entry(s.buffer).data()
+        first = s.first + d.base_vertex + d.first_vertex
+        size = el.vtype.size
+        for i, v in enumerate(vx.decode_element(el, raw, s.stride, first, d.vertex_count)):
+            o = (first + i) * s.stride + el.offset
+            if vx.encode_value(el, v) != raw[o:o + size]:
+                return (f"{el.describe()} of vertex {i} re-encodes to "
+                        f"{vx.encode_value(el, v).hex()}, stored {raw[o:o + size].hex()}")
+    return None
+
+
+def _vertex_key(dd, v: int) -> tuple:
+    """Everything a vertex carries, joints only where they have weight (a rebuilt
+    palette may start elsewhere, which moves the unused slots)."""
+    sk = None
+    if dd.joints:
+        sk = tuple(sorted((j, w) for j, w in zip(dd.joints[v], dd.weights[v]) if w > 0))
+    return (dd.positions[v], dd.normals[v] if dd.normals else None,
+            dd.tangents[v] if dd.tangents else None, dd.colors[v] if dd.colors else None,
+            tuple(u[v] for u in dd.uvs), sk)
+
+
+def _triangle_set(dd) -> list:
+    out = []
+    for t in dd.triangles:
+        keys = [_vertex_key(dd, v) for v in t]
+        i = min(range(3), key=lambda k: keys[k])
+        out.append(tuple(keys[i:] + keys[:i]))
+    return sorted(out)
+
+
+def check_reimport(rep: CensusReport, vp: str, data: bytes) -> None:
+    """The phase 4 gates for one model (the census's ``reimport`` option):
+
+    1. ``.glb`` export then import, no edits → the identical model bytes;
+    2. every shape rebuilt from its own decoded geometry (`SceneEditor.replace_mesh`)
+       → the same triangles with the same vertex values (strip, buffers, packets,
+       palettes and bounds all regenerated).
+    """
+    from .convert.gltf import model_to_glb
+    from .convert.model_import import import_glb
+    chk = rep.scene_checks
+    try:
+        out, _ = import_glb(scenefmt.Scene.parse(data, vp),
+                            model_to_glb(scenefmt.Scene.parse(data, vp)))
+        ok = out == data
+    except Exception as ex:  # noqa: BLE001 - reported
+        rep.problems.append((vp, f"glb re-import: {ex}"))
+        ok = None
+    if ok is not None:
+        chk["glb re-import identical" if ok else "glb re-import DIFFERS"] += 1
+        if not ok:
+            rep.problems.append((vp, "glb re-import: the model's bytes differ"))
+    sc = scenefmt.Scene.parse(data, vp)
+    try:
+        ed = scene_write.SceneEditor(sc)
+        before = {}
+        for m in sc.meshes:
+            try:
+                scene_write.own_buffers(m)
+            except Exception:  # noqa: BLE001 - vertex-animated: not replaceable
+                chk["shapes not rebuilt (vertex-animated)"] += 1
+                continue
+            before[m.name] = [sc.draw_data(d, m.name) for d in m.draws]
+        for m in sc.meshes:                 # decode everything first: edits are in place
+            if m.name not in before:
+                continue
+            ed.replace_mesh(m.name, [
+                scene_write.DrawGeometry(d.material, dd.positions, dd.triangles, dd.normals,
+                                         dd.uvs, dd.colors, dd.joints, dd.weights,
+                                         dd.tangents)
+                for d, dd in zip(m.draws, before[m.name])])
+        sc2 = scenefmt.Scene.parse(ed.to_bytes(), vp)
+    except Exception as ex:  # noqa: BLE001 - reported
+        rep.problems.append((vp, f"shape rebuild: {ex}"))
+        return
+    for m in sc2.meshes:
+        if m.name not in before:
+            continue
+        old = before[m.name]
+        if len(m.draws) != len(old):
+            rep.problems.append((f"{vp}/{m.name}", f"rebuilt with {len(m.draws)} draws, "
+                                                   f"had {len(old)}"))
+            continue
+        for d, dd in zip(m.draws, old):
+            same = _triangle_set(sc2.draw_data(d, m.name)) == _triangle_set(dd)
+            chk["draws rebuilt identically" if same else "draws rebuilt DIFFERENTLY"] += 1
+            if not same:
+                rep.problems.append((f"{vp}/{m.name}", f"draw {d.number}: rebuilt geometry "
+                                                       f"differs"))
 
 
 def _reencode_job(data: bytes) -> int:

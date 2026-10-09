@@ -30,6 +30,8 @@ Key facts (docs/formats.md §"Vertex declarations"; counts from ``dr2 census --m
   becomes a skeleton node.
 
 Decoding is pure Python and returns plain lists, so it also runs in Blender's Python.
+Encoding (`encode_element`, `encode_value`, phase 4) is the exact inverse: decode then
+encode gives back the stored bytes of every element of both games (census).
 """
 
 from __future__ import annotations
@@ -144,7 +146,13 @@ def _s(v: int, bits: int) -> int:
 
 
 def _snorm(v: int, bits: int) -> float:
-    return max(_s(v, bits) / ((1 << (bits - 1)) - 1), -1.0)
+    """Signed normalised: q / (2^(bits-1) - 1), **not** clamped.
+
+    The lowest code, -2^(bits-1), decodes to slightly below -1 (-1.002 for 10 bits). The
+    GPU clamps it to -1, but the games store -1.0 that way on most fields (and the
+    2-bit tangent w never), so clamping here would make two codes decode to the same
+    value and the encoder could not give the stored bits back (census, phase 4)."""
+    return _s(v, bits) / ((1 << (bits - 1)) - 1)
 
 
 def _f16(h: int) -> float:
@@ -209,3 +217,94 @@ def decode_element(el: VertexElement, data: bytes, stride: int, first: int, coun
                           f"stream ({len(data)} bytes, stride {stride})")
     base = first * stride + el.offset
     return [_decode_one(t.kind, t.components, data, base + i * stride) for i in range(count)]
+
+
+# --- encoding (phase 4) -----------------------------------------------------------------
+#
+# Each encoder is the exact inverse of `_decode_one`: decode → encode gives back the
+# stored bytes for every element of every draw of both games (``dr2 census --models``,
+# check "vertex re-encode"). Values out of range are clamped, never wrapped.
+
+def _q_snorm(v: float, bits: int) -> int:
+    """A float → a ``bits``-wide two's complement field: round(v × m), m = 2^(bits-1) - 1,
+    clamped to [-m - 1, m]. The inverse of `_snorm` (which does not clamp either)."""
+    m = (1 << (bits - 1)) - 1
+    q = max(-m - 1, min(m, int(round(float(v) * m))))
+    return q & ((1 << bits) - 1)
+
+
+def _q_unorm(v: float, bits: int) -> int:
+    m = (1 << bits) - 1
+    return int(round(max(0.0, min(1.0, float(v))) * m))
+
+
+def _q_int(v: float, lo: int, hi: int) -> int:
+    return max(lo, min(hi, int(round(float(v)))))
+
+
+def _encode_one(kind: str, comps: int, vals) -> bytes:
+    """Encode one element (a sequence of ``comps`` numbers) to its bytes."""
+    v = list(vals)[:comps]
+    if len(v) < comps:
+        raise FormatError(f"{kind}: {len(v)} values for {comps} components")
+    if kind == "f32":
+        return struct.pack(f">{comps}f", *v)
+    if kind in ("u8n", "u8", "s8n", "color"):
+        if kind == "u8":
+            b = [_q_int(x, 0, 255) for x in v]
+        elif kind == "u8n":
+            b = [_q_unorm(x, 8) for x in v]
+        elif kind == "s8n":
+            b = [_q_snorm(x, 8) for x in v]
+        else:   # (r, g, b, a) → 0xAARRGGBB
+            r, g, bl, a = (_q_unorm(x, 8) for x in v)
+            b = [bl, g, r, a]
+        return struct.pack(">I", b[0] | b[1] << 8 | b[2] << 16 | b[3] << 24)
+    if kind in ("s16n", "s16", "u16n", "f16"):
+        if kind == "s16n":
+            h = [_q_snorm(x, 16) for x in v]
+        elif kind == "s16":
+            h = [_q_int(x, -32768, 32767) & 0xFFFF for x in v]
+        elif kind == "u16n":
+            h = [_q_unorm(x, 16) for x in v]
+        else:
+            h = [struct.unpack("<H", struct.pack("<e", float(x)))[0] for x in v]
+        h += [0] * (len(h) % 2)
+        return struct.pack(f">{len(h) // 2}I",
+                           *(h[i] | h[i + 1] << 16 for i in range(0, len(h), 2)))
+    if kind == "dec4n":
+        w = v[3] if comps > 3 else 0.0
+        return struct.pack(">I", _q_snorm(v[0], 10) | _q_snorm(v[1], 10) << 10
+                           | _q_snorm(v[2], 10) << 20 | _q_snorm(w, 2) << 30)
+    if kind == "hend3n":
+        return struct.pack(">I", _q_snorm(v[0], 11) | _q_snorm(v[1], 11) << 11
+                           | _q_snorm(v[2], 10) << 22)
+    raise FormatError(f"no encoder for vertex kind {kind!r}")
+
+
+def encode_value(el: VertexElement, value) -> bytes:
+    """The bytes of one element for one vertex (inverse of `decode_element`)."""
+    t = el.vtype
+    if t is None:
+        raise FormatError(f"unknown vertex type 0x{el.type:06X} ({el.usage_name})")
+    return _encode_one(t.kind, t.components, value)
+
+
+def encode_element(el: VertexElement, values: list, out: bytearray, stride: int,
+                   first: int = 0) -> None:
+    """Write one element for vertices ``first …`` into the stream ``out`` (in place).
+
+    ``out`` must already be long enough (``(first + len(values)) * stride`` bytes).
+    """
+    t = el.vtype
+    if t is None:
+        raise FormatError(f"unknown vertex type 0x{el.type:06X} ({el.usage_name})")
+    if el.offset + t.size > stride:
+        raise FormatError(f"element {el.describe()} does not fit a {stride}-byte vertex")
+    if (first + len(values)) * stride > len(out):
+        raise FormatError(f"element {el.describe()}: {len(values)} vertices from {first} "
+                          f"run past the stream ({len(out)} bytes)")
+    base = first * stride + el.offset
+    for i, v in enumerate(values):
+        o = base + i * stride
+        out[o:o + t.size] = _encode_one(t.kind, t.components, v)

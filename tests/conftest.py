@@ -112,7 +112,8 @@ def make_scene(*, combined: bool = False) -> bytes:
         entries += [(f"{shape} Vertices 0", vb),
                     (f"{shape} Indices 0", struct.pack(">4H", 0, 1, 2, 3))]
         pers += [(f"{shape} D3DVertexDesc 0", decl_bytes(*SKIN_DECL)),
-                 (f"{shape} RenderStrip", struct.pack(">7I", 0, 0x3F, 0, 0, 3, 0, 0x1D)),
+                 # word 5 = packet byte offset, word 6 = packet words up to the draw's end
+                 (f"{shape} RenderStrip", struct.pack(">7I", 0, 0x3F, 0, 0, 3, 0, 13)),
                  (f"{shape} CommandBuffer", struct.pack(">13I", 0x0D, 0x0001013C, 0x5CEF4D20,
                                                         0x0A, 0x0B, 0x0C, 0x408, 0, 0, 4, 0, 4, 1)
                   + struct.pack(">3I", 0x71, 0x3F, 0x5CEF4D20) + struct.pack(">I", 0xFFFFF604)),
@@ -133,7 +134,8 @@ def make_scene(*, combined: bool = False) -> bytes:
                                0x408, 0, 0, 4, 0, 4, 1, 0xFFFFF004)
         pers += [(f"{shape} D3DVertexDesc 0", decl_bytes((0, 0, 0x2A23B9, 0, 0),
                                                          (1, 0, 0x2C23A5, 5, 0))),
-                 (f"{shape} RenderStrip", struct.pack(">7I", 0, 0x3F, 0, 0, 1, 0, 0x1D) * 2),
+                 (f"{shape} RenderStrip", struct.pack(">7I", 0, 0x3F, 0, 0, 1, 0, 16)
+                  + struct.pack(">7I", 0, 0x3F, 0, 0, 1, 68, 16)),
                  (f"{shape} CommandBuffer", packet(0) + packet(1)),
                  (f"{shape} VDHeader", struct.pack(">Ii", 0, -1)),
                  ("Combined_VBHeader", buffer_record("Combined Vertices 8", 8, 8)

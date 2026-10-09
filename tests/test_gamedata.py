@@ -2,7 +2,8 @@
 
 These are the phase 1 gates in test form (docs/roadmap.md, docs/dev/testing.md):
 every archive round-trips byte-identically, every compressed entry decodes to its size2,
-nothing is left unparsed, and unpacking the XBLA package gives the recomp's files.
+nothing is left unparsed, and unpacking the XBLA package gives the recomp's files; plus
+the phase 3-4 model checks on reference models.
 Nothing here copies game data into the repository.
 
 The slow LZX gates (re-encode every compressed entry, pure-Python decode of every
@@ -72,6 +73,24 @@ def test_reference_model_exports_with_textures(game, vpath, bones, game_root):
         for prim in mesh["primitives"]:
             w = g.accessor(prim["attributes"]["WEIGHTS_0"])
             assert all(abs(sum(r) - 1) < 1e-6 for r in w)
+
+
+@pytest.mark.parametrize("game,vpath", [
+    ("cz", "data/models/npcs.big/chest_young_chuck.big"),
+    ("cz", "data/cine_props.big/cine_bike.big/cine_bike.big"),     # combined buffers
+    ("cw", "data/models/npcs.big/chest_default.big"),
+])
+def test_reference_model_reimports(game, vpath, game_root):
+    """Phase 4: export → import with no edits gives the identical model; rebuilding every
+    shape from its own geometry decodes back the same (the census --reimport gates on
+    a few models; the full run is `dr2 census --reimport`)."""
+    from dr2kit.census import CensusReport, check_reimport
+    data = AssetTree(game_root(game)).resolve(vpath).data()
+    rep = CensusReport(game, "")
+    check_reimport(rep, vpath, data)
+    assert rep.problems == []
+    assert rep.scene_checks["glb re-import identical"] == 1
+    assert rep.scene_checks["draws rebuilt identically"] > 0
 
 
 @pytest.mark.parametrize("game", ["cz", "cw"])

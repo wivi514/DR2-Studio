@@ -8,6 +8,9 @@ What counts as an override, under ``replace/``:
 
 * ``<vpath>.png`` where ``<vpath>`` is a texture: the PNG replaces that texture
   (same size, v1 rule; `dr2kit.convert.texture`).
+* ``<vpath>.glb`` where ``<vpath>`` is a model (``npcs.big/chest_young_chuck.big``): the
+  ``.glb`` (exported with ``dr2 extract --glb``, edited in Blender) replaces the model's
+  meshes it names (`dr2kit.convert.model_import`).
 * ``<vpath>`` exactly (any other file): its bytes replace the asset as they are, e.g. an
   edited ``datafile.big/zombie_effects.txt``. The toolkit re-compresses it if the
   original entry was compressed.
@@ -49,9 +52,9 @@ class ModError(Dr2Error):
 @dataclass
 class Override:
     """One file of a mod: ``vpath`` is the asset it replaces, ``kind`` how."""
-    vpath: str            # as written under replace/ (minus .png for textures)
+    vpath: str            # as written under replace/ (minus .png / .glb)
     source: Path
-    kind: str             # "texture-png" or "raw"
+    kind: str             # "texture-png", "model-glb" or "raw"
 
 
 @dataclass

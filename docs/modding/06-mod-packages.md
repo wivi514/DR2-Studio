@@ -22,7 +22,8 @@ asset inside the archives, see the [glossary](../glossary.md)):
 | File under `replace/` | What it does |
 |---|---|
 | `<texture's vpath>.png` | Replaces that texture. Same size as the original (the error tells you the size). |
-| `<any asset's vpath>` (no `.png` added) | Replaces that asset with your file's bytes, as they are. For text files (`.txt`, `.csv`) and anything you edited with another tool. |
+| `<model's vpath>.glb` | Puts the meshes of a `.glb` you edited in Blender into that model (`…/npcs.big/chest_young_chuck.big.glb`). Each object replaces the part with the same name; the rest of the model stays as it was. The model check runs first ([`08-edit-a-model.md`](08-edit-a-model.md)). |
+| `<any asset's vpath>` (no `.png` / `.glb` added) | Replaces that asset with your file's bytes, as they are. For text files (`.txt`, `.csv`) and anything you edited with another tool. |
 
 Letter case doesn't matter (`DATA/Models/…` works). A mod only ever holds **your** files:
 no game archives, nothing copied from the game. That's what makes it safe to share.
@@ -51,7 +52,7 @@ priority = 0                # higher wins when two mods replace the same asset
 
 | DR2 Studio | Command | What happens |
 |---|---|---|
-| (automatic) | `dr2 mod check MOD -g cz` | Checks every file: does the asset exist, is the PNG the right size, do mods clash. Writes nothing. |
+| (automatic) | `dr2 mod check MOD -g cz` | Checks every file: does the asset exist, is the PNG the right size, does each `.glb` pass the model check, do mods clash. Writes nothing. |
 | **Build && deploy** | `dr2 mod deploy MOD [MOD…] -g cz` | Builds the game files that hold your assets and copies them into the recomp's `assets/game_mods/` folder. |
 | — | `dr2 mod build MOD [MOD…] -g cz -o OUT` | Builds into the folder `OUT` (laid out like the game: `OUT/data/…`). For Xenia or a console. |
 | **Undeploy** | `dr2 mod undeploy -g cz` | Removes exactly the files the last deploy wrote. Files you put there yourself stay. |

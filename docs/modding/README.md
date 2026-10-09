@@ -17,11 +17,11 @@ New to the vocabulary? Keep the [glossary](../glossary.md) open.
 | [`05-first-mod-texture.md`](05-first-mod-texture.md) | **Your first mod:** recolour a texture and see it in game | ✅ written (phase 2), checked in both recomps |
 | [`06-mod-packages.md`](06-mod-packages.md) | What's in a mod folder, `mod.toml`, building, sharing | ✅ written (phase 2) |
 | [`07-blender-setup.md`](07-blender-setup.md) | Set up Blender to work with DR2 models and skeletons | ✅ written (phase 3), followed with Blender 5.2 |
-| `08-edit-a-model.md` | Edit an existing model in Blender and put it back | planned (phase 4) |
-| `09-new-model.md` | Rig a brand-new model to a game skeleton and replace a character/outfit/weapon | planned (phase 4) |
+| [`08-edit-a-model.md`](08-edit-a-model.md) | Edit an existing model in Blender and put it back | ✅ written (phase 4); its edit checked in game on CZ (scripted Blender run, `tools/blender_gate_model.py`) |
+| [`09-new-model.md`](09-new-model.md) | Rig a brand-new mesh to a game skeleton and replace a part of a character | ✅ written (phase 4); a new rigged mesh checked in game on CZ, fingers and face (scripted Blender run) |
 | `10-audio.md` | Replace music, voices and sound effects | planned (phase 5) |
 | `11-text.md` | Change in-game text and translations | planned (phase 6) |
-| [`12-troubleshooting.md`](12-troubleshooting.md) | Fix common problems: the mod doesn't show, the game crashes, rig errors | started (phases 1-3: game data, textures, mods, model export); grows with each phase |
+| [`12-troubleshooting.md`](12-troubleshooting.md) | Fix common problems: the mod doesn't show, the game crashes, rig errors | started (phases 1-4: game data, textures, mods, model export and import); grows with each phase |
 | [`asset-catalogue.md`](asset-catalogue.md) | Where things are: Chuck's outfits, zombies, weapons, rigs, music, maps… | started (phase 2, rigs and models in phase 3); grows |
 
 ## Rules for mods made with this toolkit

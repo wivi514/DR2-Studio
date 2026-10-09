@@ -5,8 +5,9 @@ on disk, so a texture three archives deep means rewriting the archive on disk th
 it. The build does that and nothing else:
 
 1. **Classify** every file under each mod's ``replace/`` (`classify`): a ``.png`` next to
-   a texture's vpath replaces that texture; any other file replaces the asset with the
-   same vpath, byte for byte. Unknown paths, wrong sizes and conflicts between mods are
+   a texture's vpath replaces that texture; a ``.glb`` next to a model's vpath replaces
+   that model's meshes (`dr2kit.convert.model_import`, checked by the rig validator
+   first); any other file replaces the asset with the same vpath, byte for byte. Unknown paths, wrong sizes and conflicts between mods are
    errors, reported all at once.
 2. **Patch** each file on disk that holds an override (`patch_archive`): parse it, walk
    down the vpath, replace the leaf, and re-serialise every archive on the way back up.
@@ -89,6 +90,9 @@ def classify(mods: list[Mod], game: str, tree: AssetTree) -> list[Planned]:
             if rel.lower().endswith(".png"):
                 target = rel[:-4]
                 kind = "texture-png"
+            elif rel.lower().endswith(".glb"):
+                target = rel[:-4]
+                kind = "model-glb"
             try:
                 node = tree.resolve(target)
             except Dr2Error:
@@ -101,6 +105,11 @@ def classify(mods: list[Mod], game: str, tree: AssetTree) -> list[Planned]:
                 problems.append(f"{mod.id}: replace/{rel}: {node.vpath} is not a texture, "
                                 f"so a PNG can't replace it")
                 continue
+            if kind == "model-glb":
+                problem = _check_model(node, src)
+                if problem:
+                    problems.append(f"{mod.id}: replace/{rel}: {problem}")
+                    continue
             key = node.vpath.lower()
             if key in plan and plan[key].mod.priority == mod.priority:
                 problems.append(f"{node.vpath}: replaced by both {plan[key].mod.id} and "
@@ -120,10 +129,36 @@ def classify(mods: list[Mod], game: str, tree: AssetTree) -> list[Planned]:
     return [plan[k] for k in keys]
 
 
+def _check_model(node, src: Path) -> str | None:
+    """Why a ``.glb`` can't replace this asset (None if it can): the rig validator."""
+    from ..convert.model_import import plan_import
+    from ..formats.scene import Scene
+    data = node.data()
+    if not is_big(data):
+        return f"{node.vpath} is not a model, so a .glb can't replace it"
+    try:
+        scene = Scene.parse(data, node.vpath)
+    except Dr2Error as e:
+        return f"{node.vpath} is not a model ({e})"
+    plan = plan_import(scene, src.read_bytes(), str(src))
+    if not plan.ok:
+        return "the model check failed:\n    " + "\n    ".join(str(i) for i in plan.errors)
+    return None
+
+
 def new_bytes(p: Planned, original: bytes) -> bytes:
     """The replacement bytes for one override, given the asset's current bytes."""
     if p.override.kind == "raw":
         return p.override.source.read_bytes()
+    if p.override.kind == "model-glb":
+        from ..convert.model_import import import_glb
+        from ..formats.scene import Scene
+        try:
+            out, _ = import_glb(Scene.parse(original, p.vpath), p.override.source.read_bytes(),
+                                str(p.override.source))
+        except Dr2Error as e:
+            raise ModError(f"{p.mod.id}: replace/{p.vpath}.glb: {e}") from None
+        return out
     from ..convert import png
     from ..convert.texture import replace_image
     tex = Bct.parse(original, p.vpath)
@@ -216,8 +251,8 @@ def build(mods: list[Mod], game: str, tree: AssetTree, out_dir: str | Path,
 def verify(res: BuildResult, tree: AssetTree, base_dirs=()) -> None:
     """Read every override back from the build and check it is what was meant.
 
-    For a texture, "what was meant" is the replacement built again from the original;
-    for a raw override, the file's bytes. Raises `ModError` on any difference.
+    For a texture or a model, "what was meant" is the replacement built again from the
+    original; for a raw override, the file's bytes. Raises `ModError` on any difference.
     """
     built = AssetTree(res.out_dir)
     for p in res.overrides:

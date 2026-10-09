@@ -1,5 +1,13 @@
 # Phase 4 kickoff: model replacement (Blender → game)
 
+> **Historical.** Phase 4 was completed on 2026-10-08 (devlog, "Phase 4"); the next
+> handoff is [`phase5-kickoff.md`](phase5-kickoff.md). Kept as the record of the plan.
+> Corrected since: packets are cut at `RenderStrip` word 5 (not every packet ends with
+> `0x04`); signed-normalised values decode without clamping (the lowest code is how the
+> games store −1); tangent w is used by the shader as a sign but doesn't follow the UV
+> handedness in the shipped data; every skinned shape has one draw, so splitting a
+> palette writes several draws in one shape (checked in game).
+
 A handoff for the session that starts phase 4. Read `CLAUDE.md` first (especially the
 documentation rules), then this. Scope and gate: `roadmap.md` §Phase 4. What phase 3
 built: `dev/code-tour.md`, `dev/gltf-mapping.md`; what it learned: `devlog.md`

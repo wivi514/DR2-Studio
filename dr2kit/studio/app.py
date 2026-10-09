@@ -12,7 +12,9 @@ Layout (docs/dev/studio.md has the diagram):
   a texture, the textures a model names; double-click to jump), and the actions:
   *Extract…*, *Export PNG…*, *Export .glb…* (models and skeletons, for Blender),
   *Replace with PNG…* (copies the PNG into the open mod's ``replace/`` folder under the
-  asset's vpath).
+  asset's vpath), *Replace with .glb…* (models: runs the rig validator on a ``.glb``
+  from Blender, `dr2kit.convert.model_import.plan_import`, shows its report, and copies
+  the file into the open mod when it passes; with no mod open it only checks).
 * **Bottom**: the mod bar (open/new mod folder, its overrides, *Build && deploy*) and a log.
 
 Long jobs (building the index, building a mod, exporting a model for the 3D view) run
@@ -183,6 +185,10 @@ class MainWindow(QMainWindow):
         self.btn_glb.setToolTip("The model (meshes, skeleton, skin, textures) or skeleton as "
                                 "glTF binary, for Blender")
         self.btn_replace = QPushButton("Replace with PNG…")
+        self.btn_glb_in = QPushButton("Replace with .glb…")
+        self.btn_glb_in.setToolTip("Check a .glb edited in Blender against this model (bones, "
+                                   "weights, materials) and add it to the open mod")
+        self.btn_glb_in.clicked.connect(self.replace_glb)
         self.btn_extract.clicked.connect(self.extract)
         self.btn_png.clicked.connect(self.export_png)
         self.btn_glb.clicked.connect(self.export_glb)
@@ -193,7 +199,8 @@ class MainWindow(QMainWindow):
         rl.addWidget(self.details, 2)
         rl.addWidget(QLabel("<b>Related</b> (double-click to open)"))
         rl.addWidget(self.relations, 1)
-        for b in (self.btn_extract, self.btn_png, self.btn_glb, self.btn_replace):
+        for b in (self.btn_extract, self.btn_png, self.btn_glb, self.btn_replace,
+                  self.btn_glb_in):
             rl.addWidget(b)
 
         # --- bottom: mod bar + log
@@ -276,6 +283,7 @@ class MainWindow(QMainWindow):
         self.btn_glb.setEnabled(bool(a) and a["kind"] in ("model", "skeleton"))
         self.btn_replace.setEnabled(is_tex and self.mod_dir is not None)
         self.btn_replace.setToolTip("" if self.mod_dir else "Open or create a mod first")
+        self.btn_glb_in.setEnabled(bool(a) and a["kind"] == "model")
 
     # ---- game, tree ----------------------------------------------------------------------
 
@@ -553,6 +561,45 @@ class MainWindow(QMainWindow):
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(src, dest)
         self.say(f"{self.mod_dir.name}: {a['vpath']} will be replaced by {Path(src).name}")
+        self._refresh_mod()
+
+    def check_glb(self, glb_path: str):
+        """Run the rig validator on a .glb against the selected model; return the plan."""
+        from ..convert.model_import import plan_import
+        from ..formats.scene import Scene
+        a = self.current
+        sc = Scene.parse(self.asset_tree().resolve(a["vpath"]).data(), a["vpath"])
+        return plan_import(sc, Path(glb_path).read_bytes(), Path(glb_path).name)
+
+    def replace_glb(self, glb_path: str | None = None) -> None:
+        a = self.current
+        if not a or a["kind"] != "model":
+            return
+        if not glb_path:
+            glb_path, _ = QFileDialog.getOpenFileName(self, f".glb to put into {a['name']}", "",
+                                                      "glTF binary (*.glb)")
+        if not glb_path:
+            return
+        from ..convert.model_import import format_plan
+        try:
+            plan = self.check_glb(glb_path)
+        except Dr2Error as e:
+            self.error(str(e))
+            return
+        report = format_plan(plan)
+        self.say(f"check {Path(glb_path).name} → {a['vpath']}:\n{report}")
+        if not plan.ok:
+            self.error(f"This .glb can't go into {a['name']}:\n\n{report}")
+            return
+        if not self.mod_dir:
+            QMessageBox.information(self, "Model check passed",
+                                    f"{report}\n\nOpen or create a mod to add it.")
+            return
+        dest = self.mod_dir / "replace" / (a["vpath"] + ".glb")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if Path(glb_path).resolve() != dest.resolve():
+            shutil.copyfile(glb_path, dest)
+        self.say(f"{self.mod_dir.name}: {a['vpath']} will get the meshes of {Path(glb_path).name}")
         self._refresh_mod()
 
     # ---- mods ---------------------------------------------------------------------------

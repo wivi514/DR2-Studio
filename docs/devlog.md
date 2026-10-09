@@ -17,6 +17,63 @@ Entry template:
 
 ---
 
+## 2026-10-08 — Phase 4: model replacement (Blender → game), rig validator, in-game check
+**Done:**
+- The scene writer (`formats/scene_write.py`): serialisers for every chunk the reader
+  interprets (`rewrite_problems`: every scene of both games rewrites identically),
+  triangles → strips, and `SceneEditor.replace_mesh`, which writes new geometry for a
+  shape by copying a template draw of the same material: own buffers rewritten, combined
+  buffers appended to, packets cloned, `RenderStrip`, shape words, bounds,
+  `_BOUNDINGBOX_`.
+- Exact vertex encoders (`formats/vertex.py`: `encode_element`, `encode_value`).
+- `.glb` → model (`convert/model_import.py`): parts by object name, bones by name,
+  materials by exported name, skinned back to the rest pose with the file's own
+  matrices, 4 influences quantised to 255, palettes split at 61 nodes; unchanged shapes
+  kept byte for byte. The same code is the **rig validator**: `dr2 model check`,
+  `dr2 model import`, Studio's *Replace with .glb…*, and `.glb` overrides in mods
+  (`replace/<model vpath>.glb`).
+- Census gates: `dr2 census` checks the rewrite; `--models` the vertex re-encode;
+  `--reimport` the `.glb` round trip and a rebuild of every shape.
+- In-game gate on Case Zero (`tools/blender_gate_model.py` + `tools/capture_gate.py
+  --root`): shirt rebuilt through Blender, arms inflated, the watch replaced by spheres
+  on every face and finger bone (split into two draws). The game drew all of it from the
+  mod's bytes, with the same bone matrices as Chuck's own head and hands.
+
+**Why:** phase 4 of the roadmap: put edited and new rigged models back into the games,
+the part the old community tools never got right (fingers and face).
+
+**Learned:**
+- **The games store −1.0 as the lowest signed code** (−512 in 10 bits) on most packed
+  fields, so phase 3's clamping decoder had two codes for one value and no exact
+  inverse. Decoding without the clamp makes every element of both games re-encode to
+  its bytes. Retraction recorded in `formats.md`.
+- `RenderStrip` word 5 is the packet's byte offset in the command buffer and word 6 its
+  length up to the draw command; 106 packets have no `0x04` end, so word 5, not the
+  end marker, says where packets start.
+- Every skinned shape of both games has exactly one draw; a split palette (several draws
+  in one skinned shape) is new to the games, and the game takes it (in-game gate).
+- The skin shader uses tangent w as the bitangent's sign, but the shipped w values don't
+  follow the UV handedness, and half are 0. New tangents use a chosen convention, not yet
+  checked on a normal map (`formats.md` §Tangent w).
+- Blender re-orders vertices and bones and adds float noise (≤ 1 µm here): matching must
+  go by names, and an "unchanged" shape can only be detected in our own files.
+- Importing Chuck's chest `.glb` into the mechanic "worked" at first (same shape names);
+  the validator now warns when a file comes from another model and no longer guesses
+  materials by number.
+- The user asked about the dark blobs on Chuck's face in the gate capture: they are the
+  test mesh (spheres on face bones, using the shirt material), as intended. Gate pictures
+  need that said next to them.
+
+**Docs updated:** `formats.md` (§Writing scenes, §Tangent w, snorm retraction,
+RenderStrip/shape rows, census, in-game check), `dev/gltf-mapping.md`, `dev/code-tour.md`,
+`dev/testing.md`, `dev/studio.md`, `dev/recomp-integration.md`, `modding/08`, `09`, `06`,
+`12`, `README`, `glossary.md`, `roadmap.md`, `ARCHITECTURE.md`, `phase4-kickoff.md`
+(historical), `phase5-kickoff.md`, `CLAUDE.md`, `README.md`.
+
+**Next:** phase 5, audio (`phase5-kickoff.md`). Open from phase 4: a CW in-game run, a
+combined-buffer prop in game, tangents on normal maps, adding shapes/materials/bones,
+the Blender add-on.
+
 ## 2026-10-08 — Phase 3: models and skeletons → Blender, 3D view, in-game check
 **Done:**
 - The scene reader (`formats/scene.py`, `formats/vertex.py`): skeleton, materials,

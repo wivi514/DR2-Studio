@@ -1,4 +1,5 @@
-"""The ``dr2`` command: list, search, extract, census, index and mod the games' data.
+"""The ``dr2`` command: list, search, extract, census, index and mod the games' data,
+and check or import models edited in Blender (``dr2 model``).
 
 Every command is a thin layer over `dr2kit`; no format knowledge lives here. Each
 subcommand has a ``cmd_<name>`` function; `build_parser` wires them up. Run
@@ -170,7 +171,7 @@ def cmd_extract(args) -> int:
 
 def _scene_glb(args, tree, vpath: str, data: bytes) -> bytes:
     """A scene as .glb bytes (``extract --glb``); says which textures were not found."""
-    from ..container.big import BigArchive
+    from ..container.big import BigArchive, is_big
     from ..convert import gltf
     from ..convert.model import TextureFinder
     from ..formats.scene import Scene, is_scene
@@ -191,6 +192,31 @@ def _scene_glb(args, tree, vpath: str, data: bytes) -> bytes:
         print(f"    note: texture {name!r} not found (run `dr2 index build` to search "
               f"the whole game)", file=sys.stderr)
     return out
+
+
+# ---- model -----------------------------------------------------------------------------
+
+def cmd_model(args) -> int:
+    """Check a .glb against a model (the rig validator), or import it into the model."""
+    from ..convert.model_import import format_plan, import_glb, plan_import
+    from ..formats.scene import Scene
+    tree = _tree(args)
+    node = tree.resolve(args.vpath)
+    data = node.data()
+    glb = Path(args.glb).read_bytes()
+    if args.action == "check":
+        plan = plan_import(Scene.parse(data, node.vpath), glb, args.glb)
+        print(format_plan(plan))
+        return 0 if plan.ok else 1
+    out, plan = import_glb(Scene.parse(data, node.vpath), glb, args.glb)
+    print(format_plan(plan))
+    dest = Path(args.out)
+    if dest.is_dir():
+        dest = dest / node.vpath.split("/")[-1]
+    dest.write_bytes(out)
+    same = " (identical to the original)" if out == data else ""
+    print(f"wrote {dest}: {_human(len(out))}{same}", file=sys.stderr)
+    return 0
 
 
 def _texture_png(vpath: str, data: bytes, level: int = 0) -> bytes:
@@ -409,7 +435,8 @@ def cmd_census(args) -> int:
         tree = AssetTree(locate(g).root)
         progress = None if args.quiet else (lambda vp: print(f"  {vp}", file=sys.stderr))
         rep = run_census(g, tree, python_lzx=args.python_lzx, reencode=args.reencode,
-                         textures=args.textures, models=args.models, workers=args.workers,
+                         textures=args.textures, models=args.models,
+                         reimport=args.reimport, workers=args.workers,
                          progress=progress)
         print(format_report(rep))
         reports.append(rep)
@@ -495,6 +522,22 @@ def build_parser() -> argparse.ArgumentParser:
     game_opt(p)
     p.set_defaults(func=cmd_extract)
 
+    p = sub.add_parser("model", help="check or import a .glb edited in Blender into a model")
+    msub = p.add_subparsers(dest="action", required=True, metavar="ACTION")
+    for name, helptext in (("check", "check a .glb against a model (bones, weights, "
+                                     "materials, palettes); write nothing"),
+                           ("import", "put a .glb's meshes into a model and write the "
+                                      "model file (to test outside a mod)")):
+        pm = msub.add_parser(name, help=helptext)
+        pm.add_argument("glb", help="the .glb file (from Blender, or dr2 extract --glb)")
+        pm.add_argument("vpath", help="the model it goes into, e.g. "
+                                      "data/models/npcs.big/chest_young_chuck.big")
+        game_opt(pm)
+        if name == "import":
+            pm.add_argument("-o", "--out", required=True,
+                            help="output file (or folder: the model's own name is used)")
+    p.set_defaults(func=cmd_model)
+
     p = sub.add_parser("info", help="describe one asset (texture header and layout, ...)")
     p.add_argument("vpath")
     game_opt(p)
@@ -566,6 +609,9 @@ def build_parser() -> argparse.ArgumentParser:
                    help="also decode every texture and re-encode it to the same bytes (slow)")
     p.add_argument("--models", action="store_true",
                    help="also decode every draw of every model (vertices, triangles, skin)")
+    p.add_argument("--reimport", action="store_true",
+                   help="also export every model to .glb and import it back (must give the "
+                        "same bytes), and rebuild every shape from its own geometry (slow)")
     p.add_argument("--workers", type=int, help="processes for --reencode (default: all CPUs)")
     p.add_argument("-q", "--quiet", action="store_true", help="no per-archive progress")
     p.set_defaults(func=cmd_census)

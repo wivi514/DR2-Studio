@@ -48,7 +48,10 @@ dr2kit/studio/
   its textures slot by slot (`query.textures_of`). Double-click jumps there.
 - **Actions**: *Extract…* writes the asset's bytes (decompressed); *Export PNG…* the
   texture as PNG; *Replace with PNG…* checks the PNG's size and copies it to
-  `<mod>/replace/<vpath>.png`.
+  `<mod>/replace/<vpath>.png`; *Replace with .glb…* (models, phase 4) runs the rig
+  validator (`model_import.plan_import`) on a `.glb`, shows the report in the log (and a
+  dialog on errors), and copies the file to `<mod>/replace/<vpath>.glb` when it passes,
+  or just reports when no mod is open.
 - **Mod bar**: *Open mod…* / *New mod…* select a mod folder (`mods.manifest`); *Build &&
   deploy* runs `mods.build.build` + `mods.deploy.deploy` into the recomp's
   `game_mods/` (on top of `game_patched`), the same as `dr2 mod deploy`.
@@ -100,5 +103,6 @@ guides are made.
 
 ## Next (later phases)
 
-Audio playback (phase 5), editing text assets as mod overrides, and in phase 4 a rig
-validator and "replace this model" next to the 3D view.
+Audio playback (phase 5), editing text assets as mod overrides, and showing the
+replaced model in the 3D view before building (the rig validator and *Replace with
+.glb…* came in phase 4).

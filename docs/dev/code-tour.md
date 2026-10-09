@@ -20,13 +20,15 @@ dr2kit/
   formats/
     bct.py             textures: 48-byte header, mip/face layout, Xenos tiling
     scene.py           models and skeletons: nodes, materials, meshes, draws (phase 3)
-    vertex.py          360 vertex declarations and stream decoding (phase 3)
+    scene_write.py     writing scenes: chunk serialisers, strips, new geometry (phase 4)
+    vertex.py          360 vertex declarations, stream decoding and encoding (phases 3-4)
   convert/
     png.py             pure-Python PNG reader/writer (Pillow used when present)
     dxt.py             DXT1/DXT5/DXN block decode + encode (numpy, pure-Python fallback)
     texture.py         .bct <-> RGBA image: decode, replace (reference blocks), mips
     gltf.py            scene -> .glb (skeleton, meshes, skin, materials); .glb -> node records
     model.py           vpath -> .glb with textures found by name (TextureFinder)
+    model_import.py    .glb (Blender) -> model: matching, rig validator, import (phase 4)
   index/
     schema.sql         the SQLite tables
     build.py           build / refresh the asset index (incremental), thumbnails, relations
@@ -43,7 +45,8 @@ dr2kit/
 native/lzx/            the C library behind the fast LZX decoder (libmspack, LGPL)
 tests/                 unit tests (synthetic data) + game-data tests (skip if absent)
 tools/                 developer scripts: PyAV codec check, the phase 3 gates
-                       (blender_skeleton_gate.py, capture_gate.py)
+                       (blender_skeleton_gate.py, capture_gate.py; --root for phase 4),
+                       blender_gate_model.py (builds the phase 4 test model in Blender)
 ```
 
 ## How a read flows
@@ -128,14 +131,16 @@ without a recomp (macOS) can get the data.
 ### `dr2kit/census.py`
 `run_census(game, tree)` reads every file, archive and entry (nested and compressed
 ones too), counts extensions, flags, compression, block types, alignments, texture
-header bytes and scenes (`check_scene`; with `models=True` every draw is decoded), and
-runs the gates: round trip, decode, and optionally re-encode
+header bytes and scenes (`check_scene`: every scene's chunks rewrite identically;
+with `models=True` every draw is decoded and its vertices re-encoded; with
+`reimport=True`, `check_reimport` exports each model to `.glb`, imports it back and
+rebuilds every shape), and runs the gates: round trip, decode, and optionally re-encode
 (parallel) and a pure-Python cross-check. `format_report()` prints it; `problems` must
 be empty.
 
 ### `dr2kit/cli/main.py`
-`dr2 doctor | games | ls | find | extract [--png | --glb] | info | index … | mod … |
-studio | census [--textures] [--models] | unpack`. One `cmd_<name>`
+`dr2 doctor | games | ls | find | extract [--png | --glb] | model check|import | info |
+index … | mod … | studio | census [--textures] [--models] [--reimport] | unpack`. One `cmd_<name>`
 function per command, no format logic. Exit code 1 on a `Dr2Error` or when a census
 finds problems.
 
@@ -172,6 +177,37 @@ reads and from where, index range. `Scene.draw_data(draw)` decodes it to a `Draw
 (positions, normals, UV sets, colours, joints as node indices, weights, triangles).
 `vertex.py` holds the 360 `D3DDECLTYPE` table and one decoder per packing. Read
 `formats.md` §Scene container first; both docstrings list the facts the code trusts.
+
+### `dr2kit/formats/scene_write.py` (phase 4)
+The way back. Read its docstring and `formats.md` §Writing scenes first.
+
+- **Serialisers** (`command_buffer_bytes`, `strip_bytes`, `shape_bytes`,
+  `buffer_record`) and `rewrite_problems(scene)`, which rebuilds every chunk the reader
+  interprets and names any that differ (the census runs it on every scene: none do).
+- `split_packets(cmds, offsets)`: a command buffer cut into one packet per draw at
+  the `RenderStrip` word-5 offsets.
+- `triangles_to_strip`: triangles → one strip with the games' winding rule.
+- `DrawGeometry`: one part of a shape in model space (positions, triangles, normals,
+  UVs, colours, joints as node indices, float weights). `quantize_weights`,
+  `compute_tangents`, `split_by_palette` (runs of ≤ 61 nodes).
+- `find_template(scene, mesh, material)`: the original draw a new part copies (its
+  declaration, packet, flags).
+- `SceneEditor(scene).replace_mesh(name, parts)` then `.to_bytes()`: encodes the parts,
+  rewrites the shape's own buffers or appends to the combined ones, clones packets,
+  writes `RenderStrip`, shape chunk, headers, bounds and `_BOUNDINGBOX_`. It edits the
+  `Scene`'s archives **in place**: decode everything you need before calling it.
+
+`vertex.py` gained `encode_element` / `encode_value`, the exact inverse of each decoder
+(and its signed-normalised decode no longer clamps, so the inverse exists).
+
+### `dr2kit/convert/model_import.py` (phase 4)
+`plan_import(scene, glb)` → `ImportPlan` (shapes to rewrite as `DrawGeometry` lists,
+shapes kept, every `Issue` found: the **rig validator**); `import_glb` runs it, writes
+through `SceneEditor`, then parses the result and decodes the new draws as a check;
+`format_plan` prints a plan (`dr2 model check`, Studio's *Replace with .glb…*). Matching
+rules (shape and bone names, materials, skinning back to the rest pose, "unchanged"
+detection): [`gltf-mapping.md`](gltf-mapping.md) §Coming back: models. Mods use it for a
+`replace/<model vpath>.glb` (`mods/build.py`, kind `model-glb`).
 
 ### `dr2kit/convert/gltf.py`, `model.py` (phase 3)
 - `gltf`: `GlbBuilder` (accessors, buffer views → `.glb` bytes) and `Glb.parse` (the

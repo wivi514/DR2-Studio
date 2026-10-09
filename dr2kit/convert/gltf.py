@@ -204,6 +204,7 @@ def skeleton_to_glb(scene: Scene) -> bytes:
     joints = add_skeleton(b, scene.skeleton)
     add_skin(b, scene.skeleton, joints)     # Blender makes an armature only from a skin
     b.gltf["asset"]["extras"] = {"dr2": {"source": scene.source}}
+    b.gltf["scenes"][0]["extras"] = {"dr2": {"source": scene.source}}   # Blender keeps this one
     return b.to_bytes()
 
 
@@ -398,4 +399,5 @@ def model_to_glb(scene: Scene, texture_png: Callable[[str], bytes | None] | None
         b.gltf["scenes"][0]["nodes"].append(b.add("nodes", node))
         st.meshes += 1
     b.gltf["asset"]["extras"] = {"dr2": {"source": scene.source}}
+    b.gltf["scenes"][0]["extras"] = {"dr2": {"source": scene.source}}   # Blender keeps this one
     return b.to_bytes()

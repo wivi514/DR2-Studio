@@ -51,6 +51,28 @@ one guide. Search the page for the error text you see.
 | In Blender, only bones and no mesh | A skeleton file (`data/skeleton/`), or `--skeleton` | Expected: export the model itself for meshes. |
 | A few prop bones differ after a trip through Blender | Their rest pose has a scale, which Blender bones can't hold | Known limit (25 prop bones in both games, none on characters). |
 
+## Model replacement (phase 4)
+
+The model check (`dr2 model check`, Studio's **Replace with .glb…**, and `dr2 mod check`
+for `.glb` files in a mod) names each problem. Errors stop the build; warnings don't.
+
+| Message or symptom | Cause | Fix |
+|---|---|---|
+| `object '…' matches no shape of the model` | An object whose name is not a part of this model (renamed, or new) | Name it exactly like the part it replaces (`geo_tshirtShape`); `.001` endings are ignored. New parts can't be added yet. |
+| `no object of the file matches a shape of the model` | The whole file belongs to another model, or every object was renamed | Check the model you picked; see the warning `this file was exported from …`. |
+| `vertices are weighted to bone '…', which the game skeleton doesn't have` | A bone you added, or a renamed bone | Move the weights to a game bone; don't rename bones. |
+| `N of M vertices have no bone weight` | New vertices with no weights | Weight Paint, or **Ctrl+P → With Automatic Weights**. |
+| `the material's shader is rigid …` | The part uses a material whose shader takes one bone per draw | Another material, or weight the whole part to one bone. |
+| `the material's shader is skinned, but the part has no bone weights` | The mesh isn't rigged | Parent it to the armature with weights. |
+| `a triangle uses nodes A..B, more than 61 apart` | One triangle weighted to bones from far-apart groups | Re-weight that area so no triangle mixes e.g. finger and face bones. |
+| `… vertices; a shape holds at most 65,536` | Too many vertices in one part | Decimate. |
+| `primitive mode … (only triangles …)` / `sparse accessors are not supported` | Lines/points, or shape keys in the export | Triangulate; apply or remove shape keys before export. |
+| `more than 4 bone weights` (warning) | The game uses 4 per vertex | Fine as is (the 4 strongest are kept), or **Weights → Limit Total**. |
+| `material '…' is not one of this model's` (warning) | New or renamed material | Use the model's own materials; the part keeps its original material otherwise. |
+| `bone(s) are not where the game's skeleton has them` (warning) | Bones moved, or the armature object moved or scaled | Bone edits aren't written: undo them, keep the armature at the origin. |
+| `this file was exported from …, not from …` (warning) | The `.glb` came from another model | Pick the right model. |
+| `vertex-animated (run-time stream); replacing it is not supported` | The larva model animates its vertices without bones | Not replaceable yet. |
+
 ## Reporting a problem
 
 Include the output of `dr2 doctor` and the exact command and error text. Never attach

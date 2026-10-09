@@ -81,6 +81,20 @@ consecutive skeleton bones (first bone, how many), at most 61 per draw because t
 what fits in the shader's constants. The old community tools never worked this out; the
 toolkit verified it against the running game.
 
+**Palette split.** When a part of a mesh uses bones too far apart in the skeleton's
+numbering for one palette (more than 61), the toolkit writes it as several draws, each
+with its own palette. Automatic; the model check tells you when it happens.
+
+**Template draw.** When the toolkit writes a new or edited part, it copies an original
+draw that used the same material: its shader, textures and vertex layout. That is why a
+new mesh must use one of the model's existing materials.
+
+**Model check (rig validator).** What `dr2 model check` and Studio's *Replace with .glb…*
+run on a `.glb` before it goes into a game model: are the parts named like the model's,
+are all bones the game's, does every vertex have a weight, at most 4 bones per vertex,
+can each part's bones fit the palettes, do the materials exist. Errors stop the build;
+warnings tell you what will happen.
+
 **Shader / shader constants.** A shader is the little program the GPU runs for every
 vertex (or pixel). *Constants* are the values the game hands it for a draw: the camera,
 and for a skinned draw the bone palette's matrices.

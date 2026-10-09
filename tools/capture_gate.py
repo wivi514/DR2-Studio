@@ -24,9 +24,13 @@ What it checks, for every dump it can match to a draw of a model in the game dat
    it (joints + weights) with the game's matrices and projected with the game's camera
    (``c0``-``c3``, ``c4``-``c6``), is drawn as a dot on the captured frame.
 
+Phase 4 reuses it with ``--root <mod build>``: the models are read from the mod's
+build (or the recomp's ``game_mods/``), so "same bytes" proves the game drew the
+replaced meshes, and the overlay shows them skinned with the game's matrices.
+
 Usage:
     python tools/capture_gate.py <capture dir> [--game cz] [--models data/models/npcs.big]
-                                 [--overlay overlay.png]
+                                 [--overlay overlay.png] [--root <folder>]
 """
 
 from __future__ import annotations
@@ -81,6 +85,9 @@ def main() -> int:
     ap.add_argument("--models", default="data/models/npcs.big",
                     help="archive whose scenes are searched for the dumped draws")
     ap.add_argument("--overlay", help="write the captured frame with skinned vertices drawn on it")
+    ap.add_argument("--root", help="read the models from this folder (laid out like the game "
+                                   "root, e.g. a mod build or the recomp's game_mods) instead "
+                                   "of the game: the phase 4 gate checks the game drew OUR bytes")
     args = ap.parse_args()
 
     from dr2kit.container.vpath import AssetTree
@@ -90,7 +97,7 @@ def main() -> int:
     if not dumps:
         print("no vsdump_*.bin in", args.capture)
         return 1
-    tree = AssetTree.for_game(args.game)
+    tree = AssetTree(args.root) if args.root else AssetTree.for_game(args.game)
     by_icount = defaultdict(list)
     for vp, arc, _ in tree.walk_archives():
         if not vp.lower().startswith(args.models.lower()) or not is_scene(arc):
@@ -114,8 +121,11 @@ def main() -> int:
             ours_i = ib[start:start + d.index_count * 2]
             first = (s0.first + d.base_vertex + d.first_vertex) * s0.stride
             ours_v = vb[first:first + d.vertex_count * s0.stride]
+            # the dump holds the stream from its start; a draw that begins further in
+            # (first vertex > 0: the second part of a split mesh) is found at its offset
             if dp["ibytes"][:len(ours_i)] == ours_i and ours_v and \
-                    dp["vbytes"][:len(ours_v)] == ours_v:
+                    (dp["vbytes"][:len(ours_v)] == ours_v
+                     or dp["vbytes"][first:first + len(ours_v)] == ours_v):
                 hit = (sc, m, d)
                 break
         if hit:

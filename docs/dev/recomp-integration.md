@@ -3,7 +3,8 @@
 How the two recomps load mods built by this toolkit, and how to test that they do.
 Decision and design: [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §Recomp integration.
 PCM audio substitution (the second approved change) comes in phase 5 and will be
-documented here too.
+documented here too. The capture procedures used as in-game gates (phases 3 and 4) are
+at the end.
 
 ## What the runtime does
 
@@ -132,3 +133,41 @@ Things learned running it:
   renderer; CZ `vk_renderer.cpp`, `WideFovFactor`).
 - A second set of the same draws appears (two passes); the shadow passes use other vertex
   shaders (`eae0f9b607fcbe92` in that frame).
+
+## Phase 4: checking a replaced model in game
+
+The gate: a model rebuilt from a `.glb` that went through Blender loads, an edited part
+shows its edit, and a new rigged mesh follows the bones, fingers and face included. The
+same capture as phase 3, with the models read from the mod instead of the game:
+
+```
+dr2 extract --glb data/models/npcs.big/chest_young_chuck.big -o work
+blender -b --factory-startup --python tools/blender_gate_model.py -- \
+    work/data/models/npcs.big/chest_young_chuck.big.glb gate.glb
+dr2 mod new gate_mod --id phase4_gate                      # games = ["cz"] in mod.toml
+mkdir -p gate_mod/replace/data/models/npcs.big
+cp gate.glb gate_mod/replace/data/models/npcs.big/chest_young_chuck.big.glb
+dr2 mod check gate_mod -g cz && dr2 mod deploy gate_mod -g cz
+cp -r <recomp>/assets/save /tmp/save_copy
+cd <recomp>/runtime/build
+CZ_BUG_REPORTS=0 CZ_SAVE_DIR=/tmp/save_copy CZ_NO_WINDOW=1 CZ_VKDRAW=1 CZ_CAPTURE_KEY=/tmp/cap \
+  CZ_CAPTURE_DUMP_VS=c3d6d30111313392 CZ_FAKE_START_MS=8000 CZ_FAKE_PRESS_SEQ=$SEQ \
+  timeout 240 ./cz_runtime > cap.log 2>&1                  # $SEQ as in phase 3
+rm /tmp/cap/*_snap_*.ppm
+python tools/capture_gate.py /tmp/cap --root <recomp>/assets/game_mods --overlay overlay.png
+# the same run with CZ_NO_MODS=1 for a side-by-side picture
+dr2 mod undeploy -g cz                                    # then remove the empty game_mods/
+```
+
+`--root` makes the gate look for the dumped draws in the mod's files, so "same bytes"
+proves the game drew the replacement. A draw that starts past vertex 0 of its stream
+(the second draw of a split mesh) is matched at its offset in the dumped stream.
+
+Learned running it (2026-10-08):
+
+- The shader hash `c3d6d30111313392` (main pass) also covers the arms' skin shader in
+  that frame: 32 dumps, two passes of 16 draws.
+- `npcs.big` with one model replaced builds in about a second (only that entry is
+  re-compressed); the recomp logs `served from the MODS overlay` once.
+- Pose differs a little between two runs (timing), so compare pictures by eye, not by
+  pixel difference.
