@@ -155,6 +155,25 @@ links on a synthetic game; `test_studio.py` the audio view. Game-data tests:
 procedure for the in-game check is in
 [`recomp-integration.md`](recomp-integration.md#testing-it-the-phase-5-in-game-gate).
 
+### Phase 6 results (2026-10-09)
+
+| Gate | Case Zero | Case West |
+|---|---|---|
+| Every string bank parses and re-writes byte-identically (`dr2 census`, always on) | 8 / 8 (7,599 ids each) | 8 / 8 (2,469 ids each) |
+| Every digest of the XEX matches a file of the game (`tools/xex_digests.py`) | 1 / 1 | 6 / 6 |
+| Every Bink movie decodes: all frames, and the sound as long as the pictures (`census --audio`) | (no movies) | 10 / 10 (7.7 min) |
+| **In-game gate**: `IDS_PRESS_START` changed through a `.bcs.json`, deployed with `dr2 mod deploy`, title screen captured headless | shows the new text; VFS logs `str_en.bcs served from the MODS overlay` | same |
+
+Unit tests added: `test_bcs.py` (banks laid out by hand: padded and unpadded round trips,
+reader errors, padding kept when the text fits, `apply` notes and the last-id rule, JSON
+and labels, the strings helpers, string mods merging by id with priorities, whole bank
+vs strings conflicts, digest-checked files refused, the `dr2 strings` commands);
+`test_library.py` (install, order, switches, the plan's winners, priorities on install,
+hand-copied folders, pack and install a zip, zip-slip refused, the `dr2 mod` library
+commands); `test_studio.py` (text editor with CRLF and diff, the strings table, the mod
+manager). Game-data tests: `test_string_banks`, `test_digest_checked_files_exist`,
+`test_movies_probe`.
+
 ## Writing a test for new code
 
 - One test file per module (`tests/test_<module>.py`).

@@ -17,6 +17,43 @@ Entry template:
 
 ---
 
+## 2026-10-09 — Phase 6, part 1: strings, text editing, movies, the mod manager
+**Done:** string banks (`formats/bcs.py`: read, write byte-identically, JSON, apply
+changes with notes) and `dr2 strings search/show/export/set/unset`; mods change strings
+with `replace/…/str_<lang>.bcs.json` (only the listed ids; several mods merge per id).
+DR2 Studio got a strings table (edit a cell → the mod), a text editor that saves a text
+file into the mod with a coloured diff, a Bink movie player and *Export MP4…*
+(`convert/video.py`, `dr2 extract --mp4`). The mod manager (`mods/library.py`, `dr2 mod
+list/install/remove/enable/disable/move/conflicts/library/pack`, Studio's **Mod
+manager…**) keeps installed mods in a library with a load order. The files the
+executables digest-check were read from both XEXs (`tools/xex_digests.py`) into the
+profiles; the build refuses them. In game: a changed `IDS_PRESS_START` shows on the
+title screen of both recomps.
+
+**Why:** phase 6 scope (roadmap): text and translations are the most asked-for mods after
+textures, and several mods at once need an order and a conflict report, not an error.
+
+**Learned:** every bank of a game has the same ids and the same size (zero-padded to the
+largest, `str_lg`); `str_id.bcs` is the label bank (`IDS_…`); every string with colour
+or icon markup starts with `@`; CZ's last string is the developers' joke-reminder
+`IDS_LAST_LETTER_OF_LAST_STRING_IS_ALWAYS_MISSING`. The XEX `Digest` resource is
+`count, {name hash, SHA-1(file + be32 length)}`: Case West checks six files, including
+`padmap.txt` and `zombie_pdv_variations.txt`. Bink 5.1 is four tracks (FL/FR, C, LFE,
+SL/SR). PyAV's wheels carry GPL x264/x265 next to an LGPLv3 ffmpeg (matters for
+packaging). Frame dumps of a 3440×1440 window filled the RAM-backed `/tmp`: put them
+on disk. The Blender add-on raised a license question; the user chose a GPL add-on that
+doesn't bundle dr2kit.
+
+**Docs updated:** `formats.md` (§Strings, §Digest-checked files, §Movies, table, the CW
+digest sentence superseded), `modding/11-text.md` (new), `06-mod-packages.md` (mod
+manager, string files, pack), `04-extracting.md` (movies), `asset-catalogue.md` (text,
+movies), `12-troubleshooting.md`, `modding/README.md`, `glossary.md`,
+`dev/code-tour.md`, `dev/studio.md`, `dev/testing.md` (phase 6 results),
+`dev/recomp-integration.md` (§Phase 6), `ARCHITECTURE.md`, `roadmap.md`,
+`THIRD_PARTY.md` (PyAV licences).
+
+**Next:** the Blender add-on, packaging and CI, `01-install.md`.
+
 ## 2026-10-09 — White models: colour textures named `_dm` or `_cm<hex>`, packs on disk
 **Done:** the user found Case West's final boss (`boss_commander_epi`) white in DR2
 Studio. His colour maps are `_dm` ("diffuse map"); the role rule only knew `_cm`. A

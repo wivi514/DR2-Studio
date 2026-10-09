@@ -7,7 +7,9 @@ Layout (docs/dev/studio.md has the diagram):
   asset names, filtered by kind; results show texture thumbnails, as a list or a grid.
 * **Centre**: a viewer for the selected asset (`viewers.TextureViewer`,
   `model_view.ModelViewer` for models and skeletons, `audio_view.AudioViewer` for sounds,
-  or `viewers.PlainViewer` for text, `.sfx` and everything else).
+  `text_view.TextEditor` for text and `.sfx` (edit into the open mod, with a diff),
+  `text_view.StringsViewer` for string banks, `video_view.VideoViewer` for Bink movies,
+  or `viewers.PlainViewer` (hex) for everything else).
 * **Right**: details (sizes, compression, texture facts), relations (the models that use
   a texture, the textures a model names; double-click to jump), and the actions:
   *Extract…*, *Export PNG…*, *Export .glb…* (models and skeletons, for Blender),
@@ -18,7 +20,10 @@ Layout (docs/dev/studio.md has the diagram):
   *Export WAV…* and *Replace with audio…* (sounds: copies a WAV/OGG/FLAC/MP3 into the
   open mod as ``<vpath>.<ext>``; the build fits it to the sound, `dr2kit.mods.build`).
   For sounds the relations list the ``.sfx`` and the scene-script events that play them.
+  *Export MP4…* for movies.
 * **Bottom**: the mod bar (open/new mod folder, its overrides, *Build && deploy*) and a log.
+* **Toolbar**: game switcher, *Build / refresh index*, *Mod manager…*
+  (`mod_manager.ModManager`: the mod library, load order, conflicts, deploy).
 
 Long jobs (building the index, building a mod, exporting a model for the 3D view) run
 in a `QThread` so the window stays
@@ -49,6 +54,8 @@ from ..index.build import build_index, connect, default_db_path, format_stats
 from ..profiles import GAME_IDS, locate
 from . import model_view
 from .audio_view import AudioViewer
+from .text_view import StringsViewer, TextEditor
+from .video_view import VideoViewer
 from .viewers import PlainViewer, TextureViewer
 
 # The 3D view's URL scheme must be declared before the QApplication exists (Qt's rule);
@@ -60,7 +67,8 @@ ROLE_VPATH = Qt.UserRole + 2
 ROLE_LOADED = Qt.UserRole + 3
 CONTAINER_KINDS = {"archive", "texture-pack", "model", "skeleton", "scene"}
 KINDS = ["all kinds", "texture", "model", "skeleton", "texture-pack", "archive", "audio",
-         "sfx", "anim", "text", "shader", "binary", "video", "empty"]
+         "sfx", "anim", "text", "strings", "shader", "binary", "video", "empty"]
+TEXT_KINDS = {"text", "sfx"}
 
 
 def _human(n: int) -> str:
@@ -130,6 +138,9 @@ class MainWindow(QMainWindow):
         act = QAction("Build / refresh index", self)
         act.triggered.connect(self.build_index)
         tb.addAction(act)
+        act = QAction("Mod manager…", self)
+        act.triggered.connect(self.open_mod_manager)
+        tb.addAction(act)
 
         # --- left: browse + search
         self.tree_model = QStandardItemModel()
@@ -171,13 +182,17 @@ class MainWindow(QMainWindow):
         self.tex_view = TextureViewer()
         self.plain_view = PlainViewer()
         self.audio_view = AudioViewer()
+        self.text_view = TextEditor()
+        self.strings_view = StringsViewer()
+        self.video_view = VideoViewer()
         self.model_view = model_view.ModelViewer()
         self.model_view.status.connect(lambda t: self.say(f"3D view: {t}"))
         self.empty = QLabel("Select an asset on the left.\n\nNo index yet? Use “Build / refresh "
                             "index” (about a minute per game).")
         self.empty.setAlignment(Qt.AlignCenter)
         self.centre = QStackedWidget()
-        for w in (self.empty, self.tex_view, self.plain_view, self.model_view, self.audio_view):
+        for w in (self.empty, self.tex_view, self.plain_view, self.model_view, self.audio_view,
+                  self.text_view, self.strings_view, self.video_view):
             self.centre.addWidget(w)
 
         # --- right: details, relations, actions
@@ -200,6 +215,9 @@ class MainWindow(QMainWindow):
         self.btn_audio_in.setToolTip("Put a WAV/OGG/FLAC/MP3 in the open mod in place of this "
                                      "sound (the recomp plays it instead)")
         self.btn_audio_in.clicked.connect(self.replace_audio)
+        self.btn_mp4 = QPushButton("Export MP4…")
+        self.btn_mp4.setToolTip("The movie as .mp4 (MPEG-4 video, AAC stereo sound)")
+        self.btn_mp4.clicked.connect(self.export_mp4)
         self.btn_extract.clicked.connect(self.extract)
         self.btn_png.clicked.connect(self.export_png)
         self.btn_glb.clicked.connect(self.export_glb)
@@ -211,7 +229,7 @@ class MainWindow(QMainWindow):
         rl.addWidget(QLabel("<b>Related</b> (double-click to open)"))
         rl.addWidget(self.relations, 1)
         for b in (self.btn_extract, self.btn_png, self.btn_glb, self.btn_replace,
-                  self.btn_glb_in, self.btn_wav, self.btn_audio_in):
+                  self.btn_glb_in, self.btn_wav, self.btn_audio_in, self.btn_mp4):
             rl.addWidget(b)
 
         # --- bottom: mod bar + log
@@ -297,6 +315,7 @@ class MainWindow(QMainWindow):
         self.btn_glb_in.setEnabled(bool(a) and a["kind"] == "model")
         is_audio = bool(a) and a["kind"] == "audio"
         self.btn_wav.setEnabled(is_audio)
+        self.btn_mp4.setEnabled(bool(a) and a["kind"] == "video")
         self.btn_audio_in.setEnabled(is_audio and self.mod_dir is not None)
         self.btn_audio_in.setToolTip("" if self.mod_dir else "Open or create a mod first")
 
@@ -425,12 +444,16 @@ class MainWindow(QMainWindow):
         self.relations.clear()
         if self.centre.currentWidget() is self.audio_view:
             self.audio_view.stop()
+        if self.centre.currentWidget() is self.video_view:
+            self.video_view.stop()
         if row["kind"] == "audio":
             lines += self._show_sound(row, data)
-        elif row["kind"] == "sfx" or (row["kind"] == "text" and query.sound_targets(self.con, asset_id)):
-            from ..census import content_kind
-            self.plain_view.show_bytes(data, content_kind(data) == "text")
-            self.centre.setCurrentWidget(self.plain_view)
+        elif row["kind"] == "video":
+            lines += self._show_movie(row, data)
+        elif row["kind"] == "strings":
+            lines += self._show_strings(row, data)
+        elif row["kind"] in TEXT_KINDS:
+            self._show_text(row, data)
             for r in query.sound_targets(self.con, asset_id)[:500]:
                 where = r["vpath"] or "not in the game data"
                 ctx = f"  [{r['context']}]" if r["rel_kind"] == "script-asset" else ""
@@ -560,6 +583,103 @@ class MainWindow(QMainWindow):
         self.run_job(work, done)
         return lines
 
+    def _show_movie(self, row, data: bytes) -> list[str]:
+        """Show a Bink movie; its sound is decoded in the background."""
+        from ..convert import video
+        self.centre.setCurrentWidget(self.video_view)
+        self.video_view.clear()
+        if not video.have_bink():
+            self.video_view.title.setText("Install PyAV to play movies: pip install av")
+            return []
+        try:
+            info = video.probe(data)
+        except Dr2Error as e:
+            self.error(str(e))
+            return []
+        vpath = row["vpath"]
+        self.video_view.title.setText(f"{row['name']}: decoding the sound…")
+
+        def work(progress):
+            return video.audio(data) if info.audio_tracks else None
+
+        def done(pcm, err):
+            if err:
+                self.error(err)
+                return
+            if self.current is None or self.current["vpath"] != vpath:
+                return
+            self.video_view.show_movie(data, info, pcm, row["name"])
+        self.run_job(work, done)
+        return [f"movie: {info.describe()}",
+                "replacing a movie needs a Bink encoder (not available)"]
+
+    # ---- text and strings ------------------------------------------------------------------
+
+    def _locked_reason(self, vpath: str) -> str:
+        """Why a mod can't change ``vpath`` ('' if it can)."""
+        from ..profiles import load_profile
+        low = vpath.lower()
+        for d in load_profile(self.game).digest_checked:
+            if low == d.lower():
+                return (f"The game checks {d} against a digest and crashes on an edited "
+                        f"copy, so it can't be modded.")
+        return ""
+
+    def _show_text(self, row, data: bytes) -> None:
+        vpath = row["vpath"]
+        locked = self._locked_reason(vpath)
+        mod_file = self.mod_dir / "replace" / vpath if self.mod_dir else None
+        current = mod_file.read_bytes() if mod_file and mod_file.is_file() else None
+        reason = locked or ("" if self.mod_dir else "Open or create a mod to edit this text.")
+
+        def save(new: bytes) -> None:
+            if new == data:
+                revert()
+                return
+            mod_file.parent.mkdir(parents=True, exist_ok=True)
+            mod_file.write_bytes(new)
+            self.say(f"{self.mod_dir.name}: saved {vpath} (the build re-packs it)")
+            self._refresh_mod()
+            self.text_view.title.setText(f"<b>{row['name']}</b>  (changed by the open mod)")
+
+        def revert() -> None:
+            if mod_file and mod_file.is_file():
+                mod_file.unlink()
+                self.say(f"{self.mod_dir.name}: {vpath} back to the game's text")
+                self._refresh_mod()
+            self.text_view.load(vpath, data, None, editable=bool(self.mod_dir) and not locked,
+                                reason=reason, save=save, revert=revert)
+
+        self.text_view.load(vpath, data, current, editable=bool(self.mod_dir) and not locked,
+                            reason=reason, save=save, revert=revert)
+        self.centre.setCurrentWidget(self.text_view)
+
+    def _show_strings(self, row, data: bytes) -> list[str]:
+        from ..convert import strings as cstr
+        from ..formats import bcs
+        try:
+            bank = bcs.StringBank.parse(data, row["vpath"])
+        except Dr2Error as e:
+            self.error(str(e))
+            return []
+        lang = bcs.bank_name(row["vpath"])[4:]
+        labels = cstr.load_labels(self.asset_tree())
+        changes = cstr.read_mod_strings(self.mod_dir, lang) if self.mod_dir else {}
+        mod_dir = self.mod_dir
+
+        def set_string(i: int, text):
+            notes = bcs.apply(bank, {i: text})[1] if text is not None else []
+            cstr.set_mod_strings(mod_dir, lang, {i: text}, labels, bank.strings)
+            self.say(f"{mod_dir.name}: {lang} string {i} "
+                     + ("back to the game's" if text is None else f"→ {text!r}"))
+            self._refresh_mod()
+            return notes
+
+        self.strings_view.load(row["name"], bank, labels, changes, bool(mod_dir),
+                               set_string if mod_dir else None)
+        self.centre.setCurrentWidget(self.strings_view)
+        return [f"strings: {len(bank.strings):,}", f"language: {lang}"]
+
     def _relation(self, text: str, asset_id) -> None:
         it = QListWidgetItem(text)
         it.setData(ROLE_ID, asset_id)
@@ -635,6 +755,28 @@ class MainWindow(QMainWindow):
         shutil.copyfile(src, dest)
         self.say(f"{self.mod_dir.name}: {a['vpath']} will be replaced by {Path(src).name}")
         self._refresh_mod()
+
+    def export_mp4(self) -> None:
+        a = self.current
+        if not a or a["kind"] != "video":
+            return
+        path, _ = QFileDialog.getSaveFileName(self, "Export MP4", a["name"] + ".mp4",
+                                              "MP4 (*.mp4)")
+        if not path:
+            return
+        data = self.asset_tree().resolve(a["vpath"]).data()
+        self.say(f"exporting {a['vpath']}…")
+
+        def work(progress):
+            from ..convert.video import to_mp4
+            return to_mp4(data, path, progress)
+
+        def done(info, err):
+            if err:
+                self.error(err)
+                return
+            self.say(f"exported {a['vpath']} -> {path} ({info.seconds:.1f} s)")
+        self.run_job(work, done)
 
     def export_wav(self) -> None:
         a = self.current
@@ -756,12 +898,23 @@ class MainWindow(QMainWindow):
         if not self.mod_dir:
             self.error("Open or create a mod first.")
             return
-        game, folder = self.game, self.mod_dir
+        from ..mods.manifest import Mod
+        try:
+            mod = Mod.load(self.mod_dir)
+        except Dr2Error as e:
+            self.error(str(e))
+            return
+        self.deploy_mods([mod])
+
+    def deploy_mods(self, mods: list, report=None) -> None:
+        """Build ``mods`` for the current game and deploy them to the recomp's
+        ``game_mods/`` (on top of ``game_patched``); ``report(line)`` also gets the log."""
+        game = self.game
+        say = (lambda t: (self.say(t), report(t))) if report else self.say
 
         def work(progress):
             from ..mods import build as mbuild
             from ..mods import deploy as mdeploy
-            from ..mods.manifest import Mod
             import tempfile
             loc = locate(game)
             if not mdeploy.is_recomp_root(loc.root):
@@ -769,26 +922,33 @@ class MainWindow(QMainWindow):
             dirs = mdeploy.recomp_folders(loc.root)
             base = [dirs["patched"]] if dirs["patched"].is_dir() else []
             with tempfile.TemporaryDirectory(prefix="dr2mod-") as tmp:
-                res = mbuild.build([Mod.load(folder)], game, AssetTree(loc.root), tmp, base,
+                res = mbuild.build(mods, game, AssetTree(loc.root), tmp, base,
                                    progress=lambda vp: progress(f"built {vp}"))
                 written = mdeploy.deploy(res, dirs["mods"])
-            for w in res.warnings:
-                progress("note: " + w)
-            for w in mdeploy.shadowed_layers(loc.root, written):
-                progress("warning: " + w)
-            return written, dirs["mods"]
+            lines = [f"{what}: {won} wins over {lost}" for what, lost, won in res.shadowed]
+            lines += ["note: " + w for w in res.warnings]
+            lines += ["warning: " + w for w in mdeploy.shadowed_layers(loc.root, written)]
+            return written, dirs["mods"], lines
 
-        self.say(f"building {folder.name} for {game}…")
+        say(f"building {', '.join(m.id for m in mods)} for {game}…")
 
         def done(result, err):
             if err:
+                if report:
+                    report("error: " + err)
                 self.error(err)
                 return
-            written, target = result
+            written, target, lines = result
+            for ln in lines:
+                say(ln)
             env = "CZ_NO_MODS" if game == "cz" else "CW_NO_MODS"
-            self.say(f"deployed {len(written)} file(s) to {target}. Start the recomp; "
-                     f"{env}=1 turns mods off.")
+            say(f"deployed {len(written)} file(s) to {target}. Start the recomp; "
+                f"{env}=1 turns mods off.")
         self.run_job(work, done)
+
+    def open_mod_manager(self) -> None:
+        from .mod_manager import ModManager
+        ModManager(self).show()
 
     def undeploy_mod(self) -> None:
         from ..mods.deploy import recomp_folders, undeploy

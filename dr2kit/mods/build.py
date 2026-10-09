@@ -9,9 +9,12 @@ it. The build does that and nothing else:
    that model's meshes (`dr2kit.convert.model_import`, checked by the rig validator
    first); a ``.wav``/``.ogg``/``.flac``/``.mp3`` next to a sound's vpath is played by
    the recomp instead of that sound (`dr2kit.mods.audio`: no game file changes, the
-   build writes ``dr2kit_audio/``); any other file replaces the asset with the same
-   vpath, byte for byte. Unknown paths, wrong sizes and conflicts between mods are
-   errors, reported all at once.
+   build writes ``dr2kit_audio/``); a ``.bcs.json`` next to a string bank changes the
+   strings it lists (`dr2kit.formats.bcs`; several mods merge by string id); any other
+   file replaces the asset with the same vpath, byte for byte. Unknown paths, wrong
+   sizes, files the game digest-checks and conflicts between mods at the same priority
+   are errors, reported all at once. Between different priorities the higher one wins,
+   and `plan_mods` lists what lost (``ModPlan.shadowed``) for the mod manager.
 2. **Patch** each file on disk that holds an override (`patch_archive`): parse it, walk
    down the vpath, replace the leaf, and re-serialise every archive on the way back up.
    An entry that was LZX-compressed is compressed again (the game crashes on a stored
@@ -36,7 +39,7 @@ from ..container.big import BigArchive, is_big
 from ..container.vpath import AssetTree, entry_component, find_entry, join, split
 from ..errors import Dr2Error
 from ..formats.bct import Bct, is_bct
-from .manifest import AUDIO_EXTS, Mod, ModError, Override
+from .manifest import AUDIO_EXTS, STRINGS_EXT, Mod, ModError, Override
 
 BUILD_INFO = "dr2kit-build.json"
 
@@ -48,6 +51,7 @@ class Planned:
     mod: Mod
     vpath: str            # real letter case, as the game spells it
     disk_parts: int       # how many leading vpath components are folders/file on disk
+    strings: dict | None = None   # kind "strings": id -> text, read from the .bcs.json
 
 
 @dataclass
@@ -59,6 +63,7 @@ class BuildResult:
     overrides: list[Planned] = field(default_factory=list)
     base_used: dict = field(default_factory=dict)     # file vpath -> base folder used
     warnings: list[str] = field(default_factory=list)
+    shadowed: list = field(default_factory=list)      # (vpath, losing mod, winning mod)
 
 
 def _disk_parts(tree: AssetTree, vpath: str) -> int:
@@ -75,31 +80,63 @@ def _disk_parts(tree: AssetTree, vpath: str) -> int:
     return len(parts)
 
 
+@dataclass
+class ModPlan:
+    """What a set of mods will do: the overrides that apply, and what lost.
+
+    ``shadowed`` lists ``(vpath, losing mod id, winning mod id)`` for every asset (or
+    string id, written ``<bank vpath> id <n>``) that two mods replace: the mod with the
+    higher priority wins (the mod manager's order sets priorities). ``notes`` are
+    warnings for the modder (a string without its ``@``, placeholders changed…).
+    """
+    planned: list[Planned]
+    shadowed: list[tuple[str, str, str]] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
+
+
+def _kind_of(rel: str) -> tuple[str, str]:
+    """``(kind, target vpath)`` of a file under ``replace/`` (see `manifest`)."""
+    low = rel.lower()
+    if low.endswith(".png"):
+        return "texture-png", rel[:-4]
+    if low.endswith(".glb"):
+        return "model-glb", rel[:-4]
+    if low.endswith(STRINGS_EXT):
+        return "strings", rel[:-len(".json")]
+    if low.endswith(AUDIO_EXTS) and rel.rsplit(".", 1)[0].lower().endswith(".xma"):
+        return "audio", rel.rsplit(".", 1)[0]
+    return "raw", rel
+
+
 def classify(mods: list[Mod], game: str, tree: AssetTree) -> list[Planned]:
     """Check every override of ``mods`` against the game and return the plan.
 
-    Raises `ModError` listing every problem: an unknown vpath, a PNG whose target is not a
-    texture, two mods replacing the same asset at the same priority, or one mod replacing
-    an archive while another replaces something inside it.
+    Raises `ModError` listing every problem (see `plan_mods`).
     """
+    return plan_mods(mods, game, tree).planned
+
+
+def plan_mods(mods: list[Mod], game: str, tree: AssetTree) -> ModPlan:
+    """Check every override of ``mods`` against the game and return a `ModPlan`.
+
+    Raises `ModError` listing every problem: an unknown vpath, a PNG whose target is not a
+    texture, a file the game checks against a digest (it crashes on an edited copy), two
+    mods replacing the same asset at the same priority, or one mod replacing an archive
+    while another replaces something inside it. String overrides (``.bcs.json``) merge:
+    several mods can change one bank, and only a string id that two of them change is a
+    conflict.
+    """
+    from ..profiles import load_profile
+    digest = [d.lower() for d in load_profile(game).digest_checked]
     problems: list[str] = []
     plan: dict[str, Planned] = {}
+    shadowed: list[tuple[str, str, str]] = []
+    notes: list[str] = []
     for mod in sorted(mods, key=lambda m: m.priority):
         if game not in mod.games:
             continue
         for rel, src in mod.files():
-            kind = "raw"
-            target = rel
-            if rel.lower().endswith(".png"):
-                target = rel[:-4]
-                kind = "texture-png"
-            elif rel.lower().endswith(".glb"):
-                target = rel[:-4]
-                kind = "model-glb"
-            elif rel.lower().endswith(AUDIO_EXTS) and \
-                    rel.rsplit(".", 1)[0].lower().endswith(".xma"):
-                target = rel.rsplit(".", 1)[0]
-                kind = "audio"
+            kind, target = _kind_of(rel)
             try:
                 node = tree.resolve(target)
             except Dr2Error:
@@ -107,6 +144,13 @@ def classify(mods: list[Mod], game: str, tree: AssetTree) -> list[Planned]:
                 continue
             if node.kind == "dir":
                 problems.append(f"{mod.id}: replace/{rel}: {node.vpath} is a folder")
+                continue
+            low = node.vpath.lower()
+            hit = next((d for d in digest if low == d or low.startswith(d + "/")), None)
+            if hit:
+                problems.append(f"{mod.id}: replace/{rel}: the game checks {hit} against a "
+                                f"digest and crashes on an edited copy, so it can't be "
+                                f"modded (docs/formats.md)")
                 continue
             if kind == "texture-png" and not is_bct(node.data()[:3]):
                 problems.append(f"{mod.id}: replace/{rel}: {node.vpath} is not a texture, "
@@ -117,13 +161,24 @@ def classify(mods: list[Mod], game: str, tree: AssetTree) -> list[Planned]:
                 if problem:
                     problems.append(f"{mod.id}: replace/{rel}: {problem}")
                     continue
-            key = node.vpath.lower()
+            strings = None
+            if kind == "strings":
+                try:
+                    strings = _read_strings(tree, node, src)
+                except Dr2Error as e:
+                    problems.append(f"{mod.id}: replace/{rel}: {e}")
+                    continue
+                key = f"{low}|strings|{mod.id}"
+            else:
+                key = low
             if key in plan and plan[key].mod.priority == mod.priority:
                 problems.append(f"{node.vpath}: replaced by both {plan[key].mod.id} and "
                                 f"{mod.id} at the same priority; raise one mod's priority")
                 continue
+            if key in plan:
+                shadowed.append((node.vpath, plan[key].mod.id, mod.id))
             plan[key] = Planned(Override(node.vpath, src, kind), mod, node.vpath,
-                                _disk_parts(tree, node.vpath))
+                                _disk_parts(tree, node.vpath), strings)
     keys = sorted(plan)
     for a in keys:
         for b in keys:
@@ -131,9 +186,59 @@ def classify(mods: list[Mod], game: str, tree: AssetTree) -> list[Planned]:
                 problems.append(f"{plan[a].mod.id} replaces {plan[a].vpath} as a whole, and "
                                 f"{plan[b].mod.id} replaces {plan[b].vpath} inside it; "
                                 f"only one can apply")
+    banks: dict[str, list[Planned]] = {}
+    for k in keys:
+        if plan[k].override.kind == "strings":
+            banks.setdefault(plan[k].vpath.lower(), []).append(plan[k])
+    for low, items in banks.items():
+        if low in plan:
+            problems.append(f"{plan[low].mod.id} replaces {plan[low].vpath} as a whole and "
+                            f"{items[0].mod.id} changes strings in it; use a .bcs.json "
+                            f"for both")
+        owner: dict[int, Planned] = {}
+        for p in sorted(items, key=lambda p: p.mod.priority):
+            for i in p.strings:
+                if i in owner and owner[i].mod.priority == p.mod.priority:
+                    problems.append(f"{p.vpath} id {i}: changed by both {owner[i].mod.id} "
+                                    f"and {p.mod.id} at the same priority")
+                elif i in owner:
+                    shadowed.append((f"{p.vpath} id {i}", owner[i].mod.id, p.mod.id))
+                owner[i] = p
     if problems:
         raise ModError("the mod set can't be built:\n  " + "\n  ".join(problems))
-    return [plan[k] for k in keys]
+    planned = [plan[k] for k in keys]
+    for low, items in banks.items():
+        try:
+            _apply_strings(items, tree.resolve(items[0].vpath).data(), notes)
+        except Dr2Error as e:
+            raise ModError(f"the mod set can't be built:\n  {e}") from None
+    return ModPlan(planned, shadowed, notes)
+
+
+def _read_strings(tree: AssetTree, node, src: Path) -> dict[int, str]:
+    """A ``.bcs.json`` override's changes, ids resolved (labels through ``str_id``)."""
+    from ..formats import bcs
+    bcs.StringBank.parse(node.data(), node.vpath)         # the target must be a bank
+    by_label = None
+    folder = node.vpath.rsplit("/", 1)[0]
+    try:
+        ids = tree.resolve(f"{folder}/{bcs.LABEL_BANK}.bcs").data()
+        by_label = {v.upper(): k for k, v in bcs.StringBank.parse(ids).strings.items()}
+    except Dr2Error:
+        pass
+    return bcs.from_json(src.read_text("utf-8-sig"), src.name, by_label)
+
+
+def _apply_strings(items: list[Planned], original: bytes, notes: list | None = None) -> bytes:
+    """The bank ``original`` with every string override in ``items`` applied, lowest
+    priority first (so the highest wins)."""
+    from ..formats import bcs
+    bank = bcs.StringBank.parse(original, items[0].vpath)
+    for p in sorted(items, key=lambda p: p.mod.priority):
+        bank, n = bcs.apply(bank, p.strings, f"{p.mod.id}: {p.vpath}")
+        if notes is not None:
+            notes += n
+    return bank.to_bytes()
 
 
 def _check_model(node, src: Path) -> str | None:
@@ -157,6 +262,8 @@ def new_bytes(p: Planned, original: bytes) -> bytes:
     """The replacement bytes for one override, given the asset's current bytes."""
     if p.override.kind == "raw":
         return p.override.source.read_bytes()
+    if p.override.kind == "strings":
+        return _apply_strings([p], original)
     if p.override.kind == "model-glb":
         from ..convert.model_import import import_glb
         from ..formats.scene import Scene
@@ -208,8 +315,10 @@ def build(mods: list[Mod], game: str, tree: AssetTree, out_dir: str | Path,
     ``progress(message)`` is called per file written.
     """
     out = Path(out_dir)
-    plan = classify(mods, game, tree)
-    res = BuildResult(game, out, overrides=plan)
+    mplan = plan_mods(mods, game, tree)
+    plan = mplan.planned
+    res = BuildResult(game, out, overrides=plan, shadowed=mplan.shadowed,
+                      warnings=list(mplan.notes))
     by_file: dict[str, list[Planned]] = {}
     sounds = [p for p in plan if p.override.kind == "audio"]
     if sounds:
@@ -229,7 +338,9 @@ def build(mods: list[Mod], game: str, tree: AssetTree, out_dir: str | Path,
             res.base_used[file_vp] = str(base)
         data = src.read_bytes()
         whole = [p for p in items if p.disk_parts == len(split(p.vpath))]
-        if whole:                                  # the file itself is replaced
+        if whole and whole[0].override.kind == "strings":   # merged by string id
+            data = _apply_strings(whole, data)
+        elif whole:                                # the file itself is replaced
             data = new_bytes(whole[0], data)
         else:
             edits: dict = {}
@@ -255,6 +366,7 @@ def build(mods: list[Mod], game: str, tree: AssetTree, out_dir: str | Path,
                   for f in res.files},
         "overrides": [{"vpath": p.vpath, "kind": p.override.kind, "mod": p.mod.id}
                       for p in plan],
+        "shadowed": [{"what": w, "lost": a, "won": b} for w, a, b in res.shadowed],
         "base_used": res.base_used,
     }
     (out / BUILD_INFO).write_text(json.dumps(info, indent=1), "utf-8")
@@ -268,8 +380,23 @@ def verify(res: BuildResult, tree: AssetTree, base_dirs=()) -> None:
     original; for a raw override, the file's bytes. Raises `ModError` on any difference.
     """
     built = AssetTree(res.out_dir)
+    banks: dict[str, list[Planned]] = {}
     for p in res.overrides:
-        if p.override.kind == "audio":           # checked by mods.audio.build_audio
+        if p.override.kind == "strings":
+            banks.setdefault(p.vpath.lower(), []).append(p)
+    for items in banks.values():
+        got = built.resolve(items[0].vpath).data()
+        if got != _apply_strings(items, _original(tree, base_dirs, items[0])):
+            raise ModError(f"build check failed: {items[0].vpath} reads back differently")
+        from ..formats.bcs import StringBank
+        final = StringBank.parse(got, items[0].vpath).strings
+        winner = {}
+        for p in sorted(items, key=lambda p: p.mod.priority):
+            winner.update(p.strings)
+        if any(final.get(i) != t for i, t in winner.items()):
+            raise ModError(f"build check failed: {items[0].vpath} lost a string")
+    for p in res.overrides:
+        if p.override.kind in ("audio", "strings"):   # audio: checked by build_audio
             continue
         got = built.resolve(p.vpath).data()
         if p.override.kind == "raw":

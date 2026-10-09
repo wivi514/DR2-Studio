@@ -40,6 +40,7 @@ class Profile:
     title_id: str
     recomp_dirs: tuple[str, ...] = ()
     package_globs: tuple[str, ...] = ()
+    digest_checked: tuple[str, ...] = ()     # vpaths the executable checks (no mods)
     census: dict = field(default_factory=dict)
 
 
@@ -53,6 +54,7 @@ def load_profile(game: str) -> Profile:
     return Profile(id=raw["id"], name=raw["name"], title_id=raw["title_id"],
                    recomp_dirs=tuple(raw.get("recomp_dirs", ())),
                    package_globs=tuple(raw.get("package_globs", ())),
+                   digest_checked=tuple(raw.get("digest_checked", ())),
                    census=dict(raw.get("census", {})))
 
 
@@ -74,16 +76,32 @@ def set_game_root(game: str, folder: str | Path) -> Path:
     root = normalise_root(Path(folder))
     if root is None:
         raise GameNotFoundError(f"{folder}: no 'data' folder with .big files there")
+    set_config("games", game.lower(), str(root))
+    return root
+
+
+def get_config(section: str, key: str, default: str | None = None) -> str | None:
+    """One value of the user config file (``[section] key = "value"``)."""
+    return _read_config().get(section, {}).get(key, default)
+
+
+def set_config(section: str, key: str, value: str | None) -> None:
+    """Set (or, with ``None``, remove) one value of the user config file."""
     cfg = _read_config()
-    cfg.setdefault("games", {})[game.lower()] = str(root)
+    if value is None:
+        cfg.get(section, {}).pop(key, None)
+    else:
+        cfg.setdefault(section, {})[key] = str(value)
     p = config_path()
     p.parent.mkdir(parents=True, exist_ok=True)
-    # Tiny writer: the config only ever holds [games] with string values.
-    lines = ["# dr2kit user settings (written by `dr2 games set`)", "", "[games]"]
-    for k, v in sorted(cfg["games"].items()):
-        lines.append(f"{k} = {_toml_string(v)}")
+    # Tiny writer: the config only ever holds tables of string values.
+    lines = ["# dr2kit user settings (written by `dr2 games set`, `dr2 mod library`)"]
+    for name, table in sorted(cfg.items()):
+        if not isinstance(table, dict) or not table:
+            continue
+        lines += ["", f"[{name}]"]
+        lines += [f"{k} = {_toml_string(str(v))}" for k, v in sorted(table.items())]
     p.write_text("\n".join(lines) + "\n", "utf-8")
-    return root
 
 
 def _toml_string(s: str) -> str:

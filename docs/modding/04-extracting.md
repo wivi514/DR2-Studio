@@ -1,12 +1,13 @@
-# Export assets: textures as PNG, models and skeletons as `.glb`, sounds as WAV
+# Export assets: textures as PNG, models and skeletons as `.glb`, sounds as WAV, movies as MP4
 
 **You will:** save textures as PNG images you can open anywhere, models or skeletons
-as `.glb` files that Blender opens with their bones, weights and textures, and sounds as
-WAV files any player opens.
+as `.glb` files that Blender opens with their bones, weights and textures, sounds as
+WAV files any player opens, and Case West's movies as MP4. Strings: see
+[`11-text.md`](11-text.md).
 **Time:** ~5 min.   **Games:** both.
 **You need:** the toolkit pointed at your game ([`02-game-data.md`](02-game-data.md)).
 
-> Sounds need PyAV (`pip install av`): it holds the XMA decoder.
+> Sounds and movies need PyAV (`pip install av`): it holds the XMA and Bink decoders.
 
 ## Steps
 
@@ -90,6 +91,22 @@ Chuck is assembled from parts: `chest_*`, `leg_*`, `feet_*`, `hands_*`, `head_*`
 `headwear_*` in `npcs.big`, all on the same 98-bone player rig, so you can import several
 into one Blender scene and they line up. Next: [`07-blender-setup.md`](07-blender-setup.md).
 
+### Movies (Case West)
+
+Case West has ten Bink movies (`.bik`) in `data/movies`: the intro, the logos and the
+security-monitor loops of the labs. **In DR2 Studio**, click one: it plays in the middle
+(**Play** / **Pause**, drag the bar to move, **Loop**), with its sound mixed to stereo.
+**Export MP4…** saves it as an `.mp4` any player opens. **With the `dr2` command:**
+
+```
+dr2 extract --mp4 -g cw data/movies/800a_intro.bik -o out      # out/data/movies/800a_intro.bik.mp4
+dr2 info -g cw data/movies/800a_intro.bik                      # size, frame rate, length, sound
+```
+
+The MP4 has the movie's pictures (MPEG-4) and its sound as stereo AAC (the 5.1 sound of
+the intro and logos is mixed down). Movies can't be replaced: that would need Bink's own
+encoder.
+
 ## What you get (textures)
 
 | Texture format | PNG | Notes |
@@ -117,7 +134,7 @@ purpose (placeholders).
 | `… is a folder; give a file or entry` | You gave a folder | Give a file or archive entry; `-r` for whole archives. |
 | The PNG is a strange colour | Normal map (`_nm`), specular (`_sm`) or mask (`_mask`) | Expected: they hold data, not colours. |
 | `--glb needs one` / "not a model or skeleton" | The path is a texture pack, a sound bank… | Give the model's `.big` (the one next to its `.tex`). |
-| `decoding XMA needs PyAV` | `--wav` without PyAV | `pip install av`. |
+| `decoding XMA needs PyAV` / `Bink movies need PyAV` | `--wav` or `--mp4` without PyAV | `pip install av`. |
 | `note: texture 'x' not found` | The texture lives in another archive | Run `dr2 index build` once; the export then searches the whole game. The model is still exported, without that texture. |
 | The 3D view says it needs QtWebEngine | Your PySide6 install lacks it | `pip install PySide6-Addons`, or use **Export .glb…** and Blender. |
 

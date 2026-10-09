@@ -17,13 +17,14 @@ Case West census before they count as rules (CLAUDE.md rule 7).
 | `cache.big` stream tables `$GIB` | `audio/cache.big/<bank>.$$$` | ✅ | `xma.StreamTable`: rate, channels, loop of every raw stream, keyed by the case-kept name hash |
 | `.sfx` sound effect | next to the sounds in `fx_*.big` | ✅ text | `dr2kit/formats/audioscript.py`: `cSoundEffect` with one `cSfxTrack` per layer; `Sample` = the bank's `.xma` (or a sub-`.sfx`) |
 | audio scene scripts `.txt` | `audio/Prologue.txt` (CZ), `audio/*.txt` + `scenegraph.txt` | ✅ text | `cAudioScene` / `cAudioJukebox` tree, `Asset = "music.big/<name>"`. **CZ's `Prologue.txt` is digest-checked by the executable: an edited copy crashes the game** |
-| `.bcs` string bank | `frontend/str_<lang>.bcs` | ✅ | `gen_pc_options.patch_bcs` reads and patches it |
+| `.bcs` string bank | `frontend/str_<lang>.bcs` | ✅ read + write | `dr2kit/formats/bcs.py` (§Strings). All 16 banks of both games re-write byte-identically (census); `.bcs.json` mod overrides change strings by id; a changed string checked in game in both recomps |
 | `.bcf` font | `system/**` | 🟡 | 9 of 11 in CZ and 6 of 11 in CW are plain `.big` archives (read by the census); the rest start `04 03 02 01`, an unknown sibling container ❓ |
 | `.anm` / anim `.big` | `anim/**`, `skeleton/*.anm` | ❓ | |
 | ragdoll `.dat` | `skeleton/*_ragdoll.dat` | ❓ | Havok likely (`hkp*` RTTI in the XEX) |
 | shader banks `.vo/.po/.vdo/.pdo/.sdo/.scv` | `shaders/*-{vs,ps,vd,pd,sc,sd,ss}.big` | 🟡 | `.vo`/`.po` are standard 360 D3D shader containers (`10 2A 11 01`, XenosRecomp translates them); `.sdo` = a shader name's permutations (`5cef4d20.sdo` → `ProtoSkinnedClothRGB`). Models carry their **own** vertex declarations, so the decoder doesn't need `-vd.big` (phase 0 guessed it did) |
 | mission / data `.txt`, `.csv` | `datafile.big`, CW loose `.csv` | ✅ text | engine scripting; edited for co-op in the CZ recomp |
-| `.bik` | **CW only**, `data/movies` | ✅ (Bink) | ffmpeg decodes it; replacing it needs a Bink encoder |
+| `.bik` | **CW only**, `data/movies` | ✅ read (Bink) | `dr2kit/convert/video.py` through PyAV: all 10 movies decode, every frame and the sound (`census --audio`); export to `.mp4`. Replacing one needs a Bink encoder (§Movies) |
+| digest list | the XEX's `Digest` resource | ✅ | files the executable checks; mods can't touch them (§Digest-checked files) |
 
 ## `.big` container
 
@@ -842,8 +843,11 @@ in game, 2026-10-09: a copy with one `Asset` changed was served from `game_mods/
 digest check ran on it (`CZ_DIGEST_PROBE=1`), and the game crashed on the spot (the
 check's failure path is an assert that stores to address 0). So remapping sounds by
 editing the scene script, the PC community's music swap, **does not work on Case
-Zero**. Case West has the same digest manager (its gotcha about "Bad file digest"); which
-of its files are listed was not measured, so treat its scripts the same way.
+Zero**. Case West has the same digest manager (its gotcha about "Bad file digest"); ~~which
+of its files are listed was not measured, so treat its scripts the same way~~ (superseded
+2026-10-09: its list was read from the XEX, §Digest-checked files: `Safehouse.txt`,
+`scenegraph.txt`, `audiomixer.txt` and `curves.txt` are checked; `LivingResearch.txt`,
+`SecureLab.txt` and `StoragePens.txt` are not).
 
 ### Replacing sounds: PCM substitution ✅ (in game, both games)
 
@@ -896,6 +900,100 @@ the game sent to the speakers, once with the mod and once with `CZ_NO_AUDIO_MODS
 
 Not proven yet: a 5.1 cinematic replaced in game (built, and positions checked against
 PyAV per stream, but not heard); a sound effect from an fx bank in game.
+
+## Strings (`.bcs`) ✅
+
+Implemented by `dr2kit/formats/bcs.py`. Every text the games show (menus, subtitles,
+case files, item descriptions, tutorials) is a **string id** looked up in the bank of
+the current language, `data/frontend/str_<lang>.bcs`. Layouts and scripts name ids
+(`Text="10611 …"` in the frontend layouts), never the text.
+
+Layout, **little-endian** like the `.big` index (checked on all 8 banks of both games):
+
+```
+u32 n
+u32 ids[n]        strictly increasing, 1 .. 99999
+u32 offsets[n]    from the file start; offsets[0] = 4 + 8n
+strings           UTF-8, NUL-terminated, in id order, back to back (no gaps)
+zero padding      to a size shared by all banks of the game
+```
+
+- **Same ids, same size.** All banks of a game hold the same ids (CZ 7,599, CW 2,469)
+  and have the same file size (CZ 441,496 B, CW 120,418 B): each is zero-padded to the
+  size of the largest, `str_lg` (which has no padding). The writer keeps that size when
+  the edited text fits, so an unedited bank comes back byte-identical (census: 16/16),
+  and writes unpadded when it doesn't. The game loads unpadded and larger banks: the CZ
+  recomp's `gen_pc_options.py` and KB/M tools ship rebuilt banks of other sizes, and the
+  toolkit's in-game check below used an unpadded bank (built on the recomp's
+  `game_patched` copy, 384,959 B).
+- **The banks.** `en`, `fr`, `it`, `es`, `ja`, `ko`: the six languages a player can pick
+  (CZ recomp, `localization-and-bootskip-plan.md`; console language 1 en, 2 ja, 4 fr,
+  5 es, 6 it, 7 ko). `str_id.bcs` holds each id's **label** (`IDS_START_DEMO`,
+  `IDS_PRESS_START`); `str_lg.bcs` is legal and pre-language-select text in several
+  languages. There is no German bank.
+- **Markup.** `[RRGGBBAA,text]` draws `text` in a colour (`[00CC00FF,golf club]`);
+  `[@name]` draws an icon (`[@x_button_ig]`, `[@world_icon_food]`). **Every string that
+  uses either starts with `@`** (all 8 banks of both games; 643 strings in CZ English):
+  the `@` switches markup on and isn't shown. Some `@` strings have no markup (9 in CZ
+  English). One shipped French string (CZ id 2546) has an unbalanced `[`.
+- **Placeholders.** `%s`, `%d`, `%0`, `%1`, `%.1f`… are filled in by the game. A mod that
+  drops or adds one gets a note (`bcs.apply`): the game may show garbage or crash.
+- **The last id.** CZ's last string is id 99999, labelled
+  `IDS_LAST_LETTER_OF_LAST_STRING_IS_ALWAYS_MISSING` (text "Yeap, its always missing."):
+  the developers' reminder that the reader drops the last character of the last string.
+  The toolkit refuses new ids above a bank's last id. (Not measured in game. The CZ
+  recomp's `gen_pc_options.py` adds ids 100000-100004 after it, so if the reminder is
+  true, its last string, "Borderless", loses its last letter.)
+- **JSON** (`bcs.to_json`, `dr2 strings export`): `{"format": "dr2kit strings v1",
+  "bank": vpath, "strings": {"<id>": text}, "labels": {"<id>": "IDS_…"}}`. A mod's
+  `replace/data/frontend/str_<lang>.bcs.json` holds only the strings it changes, by id
+  or label; several mods' files merge by id (`mods/build.plan_mods`).
+
+**In-game check (2026-10-09, both recomps):** a mod setting `IDS_PRESS_START` (10611) to
+`DR2KIT STRINGS OK` in `str_en.bcs.json`, deployed with `dr2 mod deploy`; the VFS
+logged `str_en.bcs served from the MODS overlay` and the title screen showed the new
+text in both games (procedure: `dev/recomp-integration.md` §Phase 6).
+
+## Digest-checked files ✅
+
+The executables verify a few data files when they load them and crash on an edited copy
+(an assert in `digestmanager.cpp`, "Bad file digest"; CZ checked in game, §Audio scene
+scripts). The list is the XEX's `Digest` resource (optional header `0x000002FF` names
+the resources; the bytes are in the decrypted image, which a recomp keeps as
+`assets/game/default_image.bin`). Layout, measured on both games
+(`tools/xex_digests.py`):
+
+```
+be32 count
+count × { be32 key; u8 sha1[20] }
+```
+
+`key` is the engine's name hash (`dr2kit.hashing.name_hash`, case kept) of the path as
+the game writes it; `sha1` is SHA-1 over the file's bytes followed by its length as a
+big-endian u32. Every digest matched a file of the game:
+
+| Game | Checked files |
+|---|---|
+| Case Zero (1) | `data/audio/Prologue.txt` |
+| Case West (6) | `data/audio/Safehouse.txt`, `data/audio/scenegraph.txt`, `data/audio/audiomixer.txt`, `data/audio/curves.txt`, `data/controls/padmap.txt`, `data/models/zombies/zombie_pdv_variations.txt` |
+
+The lists are in the game profiles (`digest_checked`); `dr2 mod check/build` refuses an
+override of these files and DR2 Studio opens them read-only.
+
+## Movies (`.bik`, Case West) ✅ read
+
+Ten Bink movies in CW's `data/movies` (Bink 1: ffmpeg's `binkvideo`,
+`binkaudio_dct`): the intro (`800a_intro.bik`, 1280×720, 39 s), three logo movies, and
+six 512×512 security-monitor loops without sound (25-114 s). Read through PyAV
+(`dr2kit/convert/video.py`).
+
+- **Audio tracks:** a movie with 5.1 sound has four Bink tracks: stereo + mono + mono +
+  stereo = front L/R, centre, LFE, surround L/R. Measured on `800a_intro.bik`: track 2
+  has 90 % of its energy under 200 Hz and is nearly silent (LFE); track 1 is quiet with
+  a high centroid (centre). `DR_LOGO_shortLoop.bik` has one stereo track.
+- **Census** (`dr2 census cw --audio`): all 10 decode, every frame (count = length × fps
+  ±1) and the sound (as long as the pictures ±0.25 s), 7.7 minutes.
+- **Replacing** a movie needs RAD's Bink encoder, which can't be redistributed: not done.
 
 ## Case West differences (phase 1 census)
 

@@ -291,3 +291,32 @@ Learned running it (2026-10-08):
   re-compressed); the recomp logs `served from the MODS overlay` once.
 - Pose differs a little between two runs (timing), so compare pictures by eye, not by
   pixel difference.
+
+## Phase 6: checking a string mod in game
+
+The gate: a string changed by a `.bcs.json` override shows in game, in both recomps. The
+title screen's "PRESS START" is on screen a few seconds after boot with no input, so no
+save or button presses are involved:
+
+```
+dr2 mod new strings_gate --id phase6_strings
+dr2 strings set strings_gate IDS_PRESS_START "DR2KIT STRINGS OK"
+dr2 mod deploy strings_gate -g cz          # built on game_patched's str_en.bcs
+cp -r <recomp>/assets/save ~/gate/save_copy
+cd <recomp>/runtime/build
+CZ_BUG_REPORTS=0 CZ_SAVE_DIR=~/gate/save_copy CZ_NO_WINDOW=1 CZ_VKDRAW=1 \
+  CZ_VK_FRAME_DUMP=~/gate/frames timeout -s KILL 45 ./cz_runtime > on.log 2>&1
+grep "MODS overlay" on.log                 # str_en.bcs served from the MODS overlay
+dr2 mod undeploy -g cz                     # then remove the empty game_mods/
+```
+
+Case West: the same with `CW_` names, `./cw_runtime` and 50 s.
+
+Learned running it (2026-10-09):
+
+- **Put frame dumps on a disk, not in `/tmp`.** Frames are dumped at the window's
+  resolution (3440×1440 here, 14 MB each); 45 s filled a RAM-backed `/tmp`.
+- The deploy warns that `game_kbm` also has `str_en.bcs` (the recomps' keyboard prompts
+  edit it). While a string mod is deployed, its bank is used, so the keyboard wording
+  ("PRESS ENTER") is replaced by the shipped one plus the mod's changes. Known limit;
+  `docs/modding/11-text.md` says so.

@@ -149,11 +149,27 @@ Handoff was `phase4-kickoff.md`; the next one is `phase5-kickoff.md`.
 - **Not proven yet:** a 5.1 cinematic and an fx-bank sound replaced in game; longer
   replacements than the original (the game sets a sound's length; v1 cuts or pads).
 
-## Phase 6: polish and distribution
+## Phase 6: polish and distribution (in progress, 2026-10-09)
 - Blender add-on `io_dr2` (index browser in Blender, validator panel, export to mod).
-- Mod manager: priorities, conflicts, enable/disable, deploy to `game_mods/`.
-- Strings (`.bcs` ⇄ JSON), mission/data text editing with diff, CW Bink preview.
+  *Decision (user, 2026-10-09):* the add-on's own code is **GPL-3.0-or-later** (Blender
+  treats add-ons using `bpy` as GPL) and does **not bundle dr2kit**: it imports the
+  toolkit from a folder set in its preferences (or from Blender's Python), so dr2kit
+  keeps the toolkit license.
+- Mod manager: a library folder, load order = priority (later wins), enable/disable,
+  conflicts listed with the winner, install/pack zips, deploy every switched-on mod
+  (`mods/library.py`, `dr2 mod list/install/enable/move/conflicts/pack`, Studio's
+  **Mod manager…**). ✅
+- Strings (`.bcs` ⇄ JSON, `formats/bcs.py`, `dr2 strings`, Studio's strings table;
+  `.bcs.json` mod overrides merge per string id), text editing into a mod with a diff
+  (Studio), CW Bink preview and `.mp4` export (`convert/video.py`). ✅
+- Files the executables digest-check, read from the XEX for both games (CZ 1, CW 6):
+  mods refuse them (answers phase 5's open question about Case West). ✅
 - Packaging: AppImage / Windows zip (match the recomps' release style).
+- Guides `01-install.md`, `11-text.md` ✅, `asset-catalogue.md` (text, movies ✅).
+- **Gate (strings, in game, both games):** a `.bcs.json` changing `IDS_PRESS_START`
+  shows on the title screen. **Passed** in CZ and CW (`formats.md` §Strings).
+- **Gate (census):** all 16 string banks re-write byte-identically; all 10 Bink movies
+  decode (frames and sound). **Passed.**
 
 ## Stretch
 - In-game "identify": the recomp sends the textures/models under the crosshair to Studio.

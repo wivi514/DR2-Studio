@@ -42,7 +42,10 @@ from ..convert.audio import AudioLookup
 from ..formats import audioscript, xma
 from ..formats.bct import Bct, is_bct
 
-SCHEMA_VERSION = "2"
+# Bumped when the tables change *or* when assets are classified differently (an index
+# only re-reads changed files, so a new rule would otherwise miss old rows).
+# 2: audio tables (phase 5). 3: string banks get kind "strings" (phase 6).
+SCHEMA_VERSION = "3"
 THUMB_SIZE = 128
 SCENE_HEADER = "sceneheader"
 MAT_TEXTURE_INFO = "mattextureinfoarray"
@@ -50,7 +53,8 @@ MAT_RECORD = 100          # bytes per MatTextureInfoArray record (formats.md)
 MAT_NAME = slice(4, 56)   # NUL-padded texture name inside a record
 
 _EXT_KIND = {"xma": "audio", "sfx": "sfx", "anm": "anim", "po": "shader", "vo": "shader", "pdo": "shader",
-             "vdo": "shader", "sdo": "shader", "scv": "shader", "bik": "video"}
+             "vdo": "shader", "sdo": "shader", "scv": "shader", "bik": "video",
+             "bcs": "strings"}
 
 
 def default_db_path() -> Path:

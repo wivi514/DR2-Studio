@@ -39,7 +39,7 @@ def test_window_shows_a_texture(tmp_path, monkeypatch):
     assert win.centre.currentWidget() is win.tex_view
     assert win.tex_view.level.maximum() == 2
     win.show_asset(query.get(win.con, "cz", "data/pack.big/notes.txt")["id"])
-    assert win.plain_view.toPlainText() == "hello"
+    assert win.text_view.edit.toPlainText() == "hello"          # text opens in the editor
     model = query.get(win.con, "cz", "data/pack.big/box.big")
     assert model["kind"] == "model"
     win.show_asset(model["id"])
@@ -89,3 +89,68 @@ def test_audio_view_shows_a_sound():
     v.clear()
     v.deleteLater()
     app.processEvents()
+
+
+def test_text_strings_and_mod_manager(tmp_path, monkeypatch):
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
+    from dr2kit.formats import bcs
+    from dr2kit.mods.library import ModLibrary
+    from dr2kit.mods.manifest import create
+    from dr2kit.studio.app import MainWindow
+    from dr2kit.studio.mod_manager import ModManager
+    from dr2kit.studio.text_view import diff_html
+    from test_bcs import EN, LABELS, bank_bytes
+    root = tmp_path / "game"
+    (root / "data" / "frontend").mkdir(parents=True)
+    (root / "data" / "pack.big").write_bytes(
+        make_archive(("rules.txt", b"speed = 1\r\nlives = 3\r\n")).to_bytes())
+    (root / "data" / "frontend" / "str_en.bcs").write_bytes(bank_bytes(EN, 400))
+    (root / "data" / "frontend" / "str_id.bcs").write_bytes(bank_bytes(LABELS, 400))
+    monkeypatch.setenv("DR2_CZ_DATA", str(root))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    db = tmp_path / "i.sqlite"
+    build_index("cz", AssetTree(root), db)
+    app = QApplication.instance() or QApplication([])
+    win = MainWindow(db)
+    # text: read-only without a mod; edited, saved with CRLF kept, diffed, reverted
+    txt = query.get(win.con, "cz", "data/pack.big/rules.txt")
+    win.show_asset(txt["id"])
+    assert win.centre.currentWidget() is win.text_view
+    assert win.text_view.edit.isReadOnly()
+    mod = create(tmp_path / "mod", "textmod")
+    win._set_mod(mod)
+    win.show_asset(txt["id"])
+    assert not win.text_view.edit.isReadOnly()
+    win.text_view.edit.setPlainText("speed = 2\nlives = 3\n")
+    win.text_view.save()
+    saved = mod / "replace" / "data" / "pack.big" / "rules.txt"
+    assert saved.read_bytes() == b"speed = 2\r\nlives = 3\r\n"
+    win.text_view.btn_diff.setChecked(True)
+    assert "speed = 2" in win.text_view.diff.toPlainText()
+    win.text_view.revert()
+    assert not saved.exists()
+    assert "No changes" in diff_html("a\n", "a\n", "x")
+    # strings: edit a cell, the mod gets a .bcs.json
+    bank = query.get(win.con, "cz", "data/frontend/str_en.bcs")
+    assert bank["kind"] == "strings"
+    win.show_asset(bank["id"])
+    assert win.centre.currentWidget() is win.strings_view
+    view = win.strings_view
+    assert view.table.rowCount() == len(EN)
+    row = list(EN).index(3)
+    view.table.item(row, 2).setText("GO")
+    doc = (mod / "replace/data/frontend/str_en.bcs.json").read_text()
+    assert '"3": "GO"' in doc
+    view.filter.setText("IDS_SKIP")
+    assert sum(not view.table.isRowHidden(r) for r in range(view.table.rowCount())) == 1
+    # mod manager: install the mod, it shows up switched on
+    lib = ModLibrary(tmp_path / "lib")
+    lib.install(mod)
+    mm = ModManager(win, tmp_path / "lib")
+    assert mm.list.count() == 1 and "textmod" in mm.list.item(0).text()
+    mm.list.item(0).setCheckState(Qt.Unchecked)
+    assert not ModLibrary(tmp_path / "lib").entries()[0].enabled
+    mm.close()
+    win.close()
+    del app

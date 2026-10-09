@@ -99,3 +99,15 @@ game files.
 | Your song is cut short | The game plays a sound for the original's length; the build cuts yours to fit | Expected for now; pick a sound at least as long as your audio, or edit your audio to fit. |
 | The game crashes when gameplay starts after editing `data/audio/Prologue.txt` | Case Zero checks that file against a fingerprint in the game | Remove the edited script from the mod; use a sound replacement ([`10-audio.md`](10-audio.md#why-not-edit-the-audio-scripts)). |
 
+## Text, strings and the mod manager (phase 6)
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Brackets show in game: `[00CC00FF,Zombrex]` | A string with markup doesn't start with `@` | Start it with `@` ([`11-text.md`](11-text.md#rules-for-a-string)). |
+| `the game checks … against a digest and crashes on an edited copy` | You replaced a file the game verifies | It can't be modded; the list is in [`11-text.md`](11-text.md#files-you-cant-change). |
+| A string mod made the keyboard prompts say "PRESS START" again | The recomp's keyboard layer edits `str_en.bcs` too, and the mod's bank is used instead | Known limit (deploy prints a warning). |
+| `dr2 mod deploy` with no folder says "none enabled in the library" | Nothing installed or switched on | `dr2 mod list`, then `dr2 mod install` / `dr2 mod enable`, or give mod folders. |
+| A mod you copied into the library doesn't deploy | Hand-copied folders start switched off | Tick it in the mod manager, or `dr2 mod enable <id>`. |
+| A movie has no sound in Studio | No audio output device, or the monitor loops (they have none) | Export MP4 and play it elsewhere. |
+| `Bink movies need PyAV` | PyAV not installed | `pip install av`. |
+

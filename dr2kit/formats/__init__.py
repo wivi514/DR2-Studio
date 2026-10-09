@@ -10,4 +10,8 @@ Modules:
     scene   a model or skeleton (a `.big` of chunks): nodes, materials, meshes, draws,
             bone palettes, and decoding a draw's vertices and triangles
     vertex  the Xbox 360 vertex declarations and stream packings scenes use
+    scene_write  writing scenes back (phase 4)
+    xma, audioscript  sounds and the scripts that name them (phase 5)
+    shader  shader constant tables and material value sets
+    bcs     string banks (``str_<lang>.bcs``): every on-screen text by id (phase 6)
 """

@@ -248,3 +248,30 @@ bit-for-bit identical.
 1, 2, 3, 4 goes here". Zombie clothing's `_cm1` is one; the toolkit turns it into a
 normal colour picture ("bakes" it) for previews and Blender.
 
+**String bank / `.bcs`.** The file that holds every piece of text the game shows, in one
+language: `data/frontend/str_en.bcs` (English), `str_fr.bcs` (French)… Each text has a
+number, its **string id**; menus and scripts name the id, and the game looks up the text
+in the bank of the language the player chose.
+
+**String id / label.** A string's number (`10611`) and its developer name
+(`IDS_PRESS_START`, from `str_id.bcs`). The toolkit accepts either.
+
+**Markup (strings).** Codes inside a string: `[00CC00FF,golf club]` draws "golf club" in
+a colour (red, green, blue, opacity in hex), `[@x_button_ig]` draws a button icon. A
+string that uses them must start with `@`.
+
+**Placeholder.** `%s`, `%d`, `%1`… in a string: the game fills in a name or a number
+there. Keep them when you change a string.
+
+**Digest / digest-checked file.** A fingerprint (SHA-1) of a file, stored in the game's
+executable. For the few files listed there, the game compares the fingerprint when it
+loads them and crashes if the file was changed, so mods can't change them (Case Zero:
+`Prologue.txt`; Case West: six files, listed in `formats.md`).
+
+**Mod library / load order.** The mod manager's folder of installed mods, and their
+order. Mods later in the order win when two change the same thing; each mod can be
+switched on or off.
+
+**Bink / `.bik`.** A video format (by RAD Game Tools) used for Case West's movies. The
+toolkit can play and export them, not make new ones.
+

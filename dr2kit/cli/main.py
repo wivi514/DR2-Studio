@@ -131,6 +131,12 @@ def cmd_extract(args) -> int:
         nonlocal written, lookup
         if args.png and data[:3] == b"\x05\x01\x01":
             vpath, data = vpath + ".png", _texture_png(vpath, data, args.level)
+        elif args.mp4 and vpath.lower().endswith(".bik"):
+            import tempfile
+            from ..convert.video import to_mp4
+            with tempfile.TemporaryDirectory(prefix="dr2mp4-") as tmp:
+                to_mp4(data, Path(tmp) / "m.mp4")
+                vpath, data = vpath + ".mp4", (Path(tmp) / "m.mp4").read_bytes()
         elif args.wav and vpath.lower().endswith(".xma"):
             from ..convert.audio import AudioLookup, decode
             lookup = lookup or AudioLookup(tree)
@@ -273,6 +279,15 @@ def cmd_info(args) -> int:
                   f"{lv.offset:>#8x} {lv.pitch:>5}  {where}")
     elif node.vpath.lower().endswith(".xma"):
         _audio_info(tree, node.vpath, data)
+    elif node.vpath.lower().endswith(".bik"):
+        from ..convert.video import have_bink, probe
+        print(f"movie:      {probe(data).describe()}" if have_bink() else
+              "movie:      Bink (install PyAV to read it: pip install av)")
+    elif node.vpath.lower().endswith(".bcs"):
+        from ..formats.bcs import StringBank
+        bank = StringBank.parse(data, node.vpath)
+        print(f"strings:    {len(bank.strings):,} (ids {min(bank.strings)}..{bank.last_id}); "
+              f"dr2 strings search / export")
     elif node.vpath.lower().endswith(".sfx"):
         from ..formats.audioscript import sfx_tracks
         names = {e.name.lower() for e in node.archive.entries} if node.kind == "entry" else set()
@@ -391,13 +406,16 @@ def cmd_index(args) -> int:
 # ---- mods -----------------------------------------------------------------------------
 
 def cmd_mod(args) -> int:
-    """Create, check, build and deploy mod packages."""
+    """Create, check, build and deploy mod packages; manage the mod library."""
+    from ..mods import library as mlib
     from ..mods import manifest
     if args.action == "new":
         root = manifest.create(args.folder, args.id, args.name)
         print(f"created {root / manifest.MANIFEST}; put replacement files under "
               f"{root / manifest.REPLACE_DIR}/ (see docs/modding/06-mod-packages.md)")
         return 0
+    if args.action in _LIBRARY_ACTIONS:
+        return _cmd_library(args, mlib)
     from ..container.vpath import AssetTree
     from ..mods import build as mbuild
     from ..mods import deploy as mdeploy
@@ -409,12 +427,31 @@ def cmd_mod(args) -> int:
         removed = mdeploy.undeploy(target)
         print(f"removed {len(removed)} file{'s' if len(removed) != 1 else ''} from {target}")
         return 0
-    mods = [manifest.Mod.load(m) for m in args.mods]
-    if args.action == "check":
-        plan = mbuild.classify(mods, game, tree)
-        for p in plan:
-            print(f"{p.mod.id:>16}  {p.override.kind:<11}  {p.vpath}")
-        print(f"{len(plan)} override{'s' if len(plan) != 1 else ''} OK for {game}")
+    if args.mods:
+        mods = [manifest.Mod.load(m) for m in args.mods]
+    else:
+        lib = mlib.ModLibrary(args.library)
+        mods = lib.active(game)
+        print(f"enabled mods for {game} in {lib.folder}: "
+              f"{', '.join(m.id for m in mods) or 'none'}", file=sys.stderr)
+        if not mods:
+            raise Dr2Error("no mod given and none enabled in the library "
+                           "(dr2 mod list / dr2 mod enable ID)")
+    if args.action in ("check", "conflicts"):
+        mplan = mbuild.plan_mods(mods, game, tree)
+        if args.action == "check":
+            for p in mplan.planned:
+                print(f"{p.mod.id:>16}  {p.override.kind:<11}  {p.vpath}")
+        for what, lost, won in mplan.shadowed:
+            print(f"{what}: {won} wins over {lost}")
+        for n in mplan.notes:
+            print(f"note: {n}", file=sys.stderr)
+        if args.action == "check":
+            print(f"{len(mplan.planned)} override{'s' if len(mplan.planned) != 1 else ''} "
+                  f"OK for {game}")
+        else:
+            print(f"{len(mplan.shadowed)} conflict{'s' if len(mplan.shadowed) != 1 else ''} "
+                  f"between {len(mods)} mods for {game} (the later mod in the load order wins)")
         return 0
     recomp = mdeploy.is_recomp_root(loc.root)
     base = []
@@ -428,10 +465,7 @@ def cmd_mod(args) -> int:
         res = mbuild.build(mods, game, tree, args.out, base, progress=progress)
         print(f"built {len(res.files)} file{'s' if len(res.files) != 1 else ''} for {game} "
               f"in {args.out}")
-        for vp, b in res.base_used.items():
-            print(f"    {vp}: built on top of {b}")
-        for w in res.warnings:
-            print(f"note: {w}", file=sys.stderr)
+        _report_build(res)
         return 0
     # deploy
     import tempfile
@@ -447,10 +481,7 @@ def cmd_mod(args) -> int:
         written = mdeploy.deploy(res, target)
     for vp in written:
         print(f"deployed {vp}")
-    for vp, b in res.base_used.items():
-        print(f"    {vp}: built on top of {b}")
-    for w in res.warnings:
-        print(f"note: {w}", file=sys.stderr)
+    _report_build(res)
     if recomp and not args.to:
         for w in mdeploy.shadowed_layers(loc.root, written):
             print(f"warning: {w}", file=sys.stderr)
@@ -458,6 +489,119 @@ def cmd_mod(args) -> int:
         print(f"{len(written)} file{'s' if len(written) != 1 else ''} in {target}. "
               f"Start the recomp to use them; {env}=1 turns mods off, "
               f"`dr2 mod undeploy -g {game}` removes them.")
+    return 0
+
+
+def _report_build(res) -> None:
+    for vp, b in res.base_used.items():
+        print(f"    {vp}: built on top of {b}")
+    for what, lost, won in res.shadowed:
+        print(f"    {what}: {won} wins over {lost}")
+    for w in res.warnings:
+        print(f"note: {w}", file=sys.stderr)
+
+
+_LIBRARY_ACTIONS = ("list", "install", "remove", "enable", "disable", "move", "library",
+                    "pack")
+
+
+def _cmd_library(args, mlib) -> int:
+    """The mod manager actions (`dr2kit.mods.library`)."""
+    if args.action == "pack":
+        out = mlib.pack(args.folder, args.out)
+        print(f"wrote {out}")
+        return 0
+    if args.action == "library":
+        if args.reset:
+            mlib.set_default_library(None)
+        elif args.folder:
+            mlib.set_default_library(args.folder)
+        print(f"mod library: {mlib.default_library()}  (config: {config_path()})")
+        return 0
+    lib = mlib.ModLibrary(args.library)
+    if args.action == "install":
+        for src in args.sources:
+            mod = lib.install(src, replace=args.replace)
+            print(f"installed {mod.id} {mod.version} ({mod.name}) -> {mod.root}, enabled")
+        return 0
+    if args.action == "remove":
+        for mid in args.ids:
+            print(f"removed {lib.remove(mid)}")
+        return 0
+    if args.action in ("enable", "disable"):
+        for mid in args.ids:
+            lib.enable(mid, args.action == "enable")
+            print(f"{mid}: {args.action}d")
+        return 0
+    if args.action == "move":
+        pos = lib.move(args.id, args.where)
+        print(f"{args.id}: now number {pos} in the load order (higher numbers win)")
+        return 0
+    entries = lib.entries()
+    print(f"mod library: {lib.folder}")
+    if not entries:
+        print("  (empty: dr2 mod install <folder or .zip>)")
+        return 0
+    print(f"{'#':>3}  on   {'id':<24} {'version':<9} {'games':<6} files  name")
+    for e in entries:
+        flag = "yes" if e.enabled else "new" if e.new else "no"
+        print(f"{e.position + 1:>3}  {flag:<4} {e.mod.id:<24} {e.mod.version:<9} "
+              f"{','.join(e.mod.games):<6} {len(e.mod.files()):>5}  {e.mod.name}")
+    print("Later mods win over earlier ones (dr2 mod move ID up|down|top|bottom|N).")
+    return 0
+
+
+# ---- strings --------------------------------------------------------------------------
+
+def cmd_strings(args) -> int:
+    """Search, show and export the string banks; change strings in a mod."""
+    from ..convert import strings as cstr
+    from ..formats import bcs
+    tree = _tree(args)
+    labels = cstr.load_labels(tree)
+    if args.action == "search":
+        langs = cstr.languages(tree) if args.lang == ["all"] else args.lang or ["en"]
+        hits = cstr.search(tree, " ".join(args.text), langs, args.limit)
+        for h in hits:
+            text = h.text.replace("\n", "\\n")
+            print(f"{h.id:>6}  {h.lang}  {h.label:<36} {text}")
+        print(f"{len(hits)} string{'s' if len(hits) != 1 else ''}"
+              f"{' (limit reached)' if len(hits) == args.limit else ''}", file=sys.stderr)
+        return 0
+    if args.action == "show":
+        i = cstr.resolve_id(args.id, labels)
+        print(f"id {i}  {labels.get(i, '')}")
+        for lang in cstr.languages(tree):
+            if lang == "id":
+                continue
+            t = cstr.load_bank(tree, lang).strings.get(i)
+            print(f"  {lang}: {'(none)' if t is None else t!r}")
+        return 0
+    if args.action == "export":
+        langs = cstr.languages(tree) if args.lang == "all" else [args.lang]
+        out = Path(args.out)
+        for lang in langs:
+            dest = out / f"str_{lang}.bcs.json" if out.is_dir() or len(langs) > 1 else out
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            bank = cstr.load_bank(tree, lang)
+            dest.write_text(bcs.to_json(bank, cstr.bank_vpath(lang), labels), "utf-8")
+            print(f"wrote {dest}: {len(bank.strings)} strings")
+        return 0
+    # set / unset: change a mod's string overrides
+    from ..mods.manifest import Mod
+    mod = Mod.load(args.mod)
+    i = cstr.resolve_id(args.id, labels)
+    bank = cstr.load_bank(tree, args.lang)
+    if args.action == "set":
+        text = args.text.replace("\\n", "\n")
+        _, notes = bcs.apply(bank, {i: text})
+        f = cstr.set_mod_strings(mod.root, args.lang, {i: text}, labels, bank.strings)
+        for n in notes:
+            print(f"note: {n}", file=sys.stderr)
+        print(f"{mod.id}: {args.lang} id {i} ({labels.get(i, '')}) -> {text!r}  ({f})")
+    else:
+        f = cstr.set_mod_strings(mod.root, args.lang, {i: None}, labels, bank.strings)
+        print(f"{mod.id}: {args.lang} id {i} back to the game's text  ({f})")
     return 0
 
 
@@ -560,6 +704,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="with --png: which mip level (0 = full size)")
     p.add_argument("--wav", action="store_true",
                    help="write sounds (.xma) as 16-bit WAV files (<name>.xma.wav); needs PyAV")
+    p.add_argument("--mp4", action="store_true",
+                   help="write Bink movies (.bik, Case West) as .mp4 (<name>.bik.mp4); needs PyAV")
     p.add_argument("--glb", action="store_true",
                    help="write models and skeletons as glTF binary (<name>.glb) for Blender: "
                         "meshes, skeleton, skin and textures")
@@ -615,24 +761,27 @@ def build_parser() -> argparse.ArgumentParser:
         pi.add_argument("--db", help="index file (default: the per-user cache folder)")
     p.set_defaults(func=cmd_index)
 
-    p = sub.add_parser("mod", help="create, check, build and deploy mod packages")
+    p = sub.add_parser("mod", help="create, check, build and deploy mods; the mod library")
     msub = p.add_subparsers(dest="action", required=True, metavar="ACTION")
     pm = msub.add_parser("new", help="make an empty mod folder with a mod.toml")
     pm.add_argument("folder")
     pm.add_argument("--id")
     pm.add_argument("--name")
-    for name, helptext in (("check", "check a mod's files against the game, write nothing"),
+    for name, helptext in (("check", "check mods against the game, write nothing"),
+                           ("conflicts", "list the assets and strings two mods both replace"),
                            ("build", "build replacement files into a folder"),
                            ("deploy", "build and copy into the recomp's game_mods/ (or --to)")):
         pm = msub.add_parser(name, help=helptext)
-        pm.add_argument("mods", nargs="+", metavar="MOD", help="mod folder(s)")
+        pm.add_argument("mods", nargs="*", metavar="MOD",
+                        help="mod folder(s); none = the library's enabled mods, in order")
         game_opt(pm)
+        pm.add_argument("--library", help="the mod library folder (default: dr2 mod library)")
         pm.add_argument("-q", "--quiet", action="store_true")
         if name == "build":
             pm.add_argument("-o", "--out", required=True, help="output folder")
         if name == "deploy":
             pm.add_argument("--to", help="deploy into this folder instead of the recomp")
-        if name != "check":
+        if name in ("build", "deploy"):
             pm.add_argument("--base", action="append",
                             help="patch this folder's copy of a file when it has one "
                                  "(default: the recomp's game_patched)")
@@ -641,7 +790,55 @@ def build_parser() -> argparse.ArgumentParser:
     pm = msub.add_parser("undeploy", help="remove what the last deploy wrote")
     game_opt(pm)
     pm.add_argument("--to", help="the folder deployed to with --to")
+    # the mod manager (dr2kit.mods.library)
+    pm = msub.add_parser("list", help="the mod library: load order, which mods are on")
+    pm = msub.add_parser("install", help="copy mod folders or .zip files into the library")
+    pm.add_argument("sources", nargs="+", metavar="FOLDER_OR_ZIP")
+    pm.add_argument("--replace", action="store_true", help="update a mod already installed")
+    pm = msub.add_parser("remove", help="delete mods from the library")
+    pm.add_argument("ids", nargs="+", metavar="ID")
+    for name in ("enable", "disable"):
+        pm = msub.add_parser(name, help=f"{name} mods in the library")
+        pm.add_argument("ids", nargs="+", metavar="ID")
+    pm = msub.add_parser("move", help="change a mod's place in the load order")
+    pm.add_argument("id")
+    pm.add_argument("where", help="up, down, top, bottom, or a position (1 = lowest)")
+    for name in ("list", "install", "remove", "enable", "disable", "move"):
+        msub.choices[name].add_argument("--library",
+                                        help="the mod library folder (default: dr2 mod library)")
+    pm = msub.add_parser("library", help="show or set the mod library folder")
+    pm.add_argument("folder", nargs="?")
+    pm.add_argument("--reset", action="store_true", help="back to the default folder")
+    pm = msub.add_parser("pack", help="zip a mod folder for sharing (<id>-<version>.zip)")
+    pm.add_argument("folder")
+    pm.add_argument("-o", "--out", help="zip file or folder (default: current folder)")
     p.set_defaults(func=cmd_mod)
+
+    p = sub.add_parser("strings", help="search and export the game's text; change it in a mod")
+    ssub = p.add_subparsers(dest="action", required=True, metavar="ACTION")
+    ps = ssub.add_parser("search", help="find strings by text, label or id")
+    ps.add_argument("text", nargs="+")
+    ps.add_argument("--lang", action="append",
+                    help="language code (en, fr, it, es, ja, ko; id = labels), or 'all' "
+                         "(default: en; repeatable)")
+    ps.add_argument("--limit", type=int, default=200)
+    ps = ssub.add_parser("show", help="one string in every language")
+    ps.add_argument("id", help="a string id (3) or label (IDS_START_DEMO)")
+    ps = ssub.add_parser("export", help="write a string bank as JSON")
+    ps.add_argument("--lang", default="en", help="language code, or 'all' (default: en)")
+    ps.add_argument("-o", "--out", default=".", help="file, or folder (default: here)")
+    ps = ssub.add_parser("set", help="change one string in a mod (writes its .bcs.json)")
+    ps.add_argument("mod", help="the mod folder")
+    ps.add_argument("id", help="a string id (3) or label (IDS_START_DEMO)")
+    ps.add_argument("text", help=r"the new text (\n for a new line)")
+    ps.add_argument("--lang", default="en", help="language code (default: en)")
+    ps = ssub.add_parser("unset", help="drop a mod's change to one string")
+    ps.add_argument("mod")
+    ps.add_argument("id")
+    ps.add_argument("--lang", default="en")
+    for ps in ssub.choices.values():
+        game_opt(ps)
+    p.set_defaults(func=cmd_strings)
 
     p = sub.add_parser("studio", help="start DR2 Studio, the graphical browser")
     p.set_defaults(func=cmd_studio)

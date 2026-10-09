@@ -1,7 +1,7 @@
 # Mod packages: what's in a mod folder, building, sharing
 
-**You will:** understand a mod folder, write its `mod.toml`, combine several mods, and
-share a mod without sharing game files.   **Time:** ~10 min to read.   **Games:** both.
+**You will:** understand a mod folder, write its `mod.toml`, run several mods at once
+with the mod manager, and share a mod without sharing game files.   **Time:** ~10 min to read.   **Games:** both.
 **You need:** a mod made as in [`05-first-mod-texture.md`](05-first-mod-texture.md).
 
 ## What a mod is
@@ -24,7 +24,8 @@ asset inside the archives, see the [glossary](../glossary.md)):
 | `<texture's vpath>.png` | Replaces that texture. Same size as the original (the error tells you the size). |
 | `<model's vpath>.glb` | Puts the meshes of a `.glb` you edited in Blender into that model (`…/npcs.big/chest_young_chuck.big.glb`). Each object replaces the part with the same name; the rest of the model stays as it was. The model check runs first ([`08-edit-a-model.md`](08-edit-a-model.md)). |
 | `<sound's vpath>.wav` (or `.ogg`, `.flac`, `.mp3`) | The recomp plays your audio instead of that sound (`…/music.big/PressStartPrologue.xma.ogg`). Fitted to the sound's length, channels and rate; recomps only ([`10-audio.md`](10-audio.md)). |
-| `<any asset's vpath>` (no `.png` / `.glb` added) | Replaces that asset with your file's bytes, as they are. For text files (`.txt`, `.csv`) and anything you edited with another tool. |
+| `<string bank's vpath>.json` | Changes only the strings it lists, by id or label (`…/frontend/str_en.bcs.json`). Several mods can change one bank ([`11-text.md`](11-text.md)). |
+| `<any asset's vpath>` (no `.png` / `.glb` added) | Replaces that asset with your file's bytes, as they are. For text files (`.txt`, `.csv`) and anything you edited with another tool. A few files can't be replaced: the game checks them and crashes on a changed copy ([`11-text.md`](11-text.md#files-you-cant-change)). |
 
 Letter case doesn't matter (`DATA/Models/…` works). A mod only ever holds **your** files:
 no game archives, nothing copied from the game. That's what makes it safe to share.
@@ -48,6 +49,8 @@ priority = 0                # higher wins when two mods replace the same asset
   game (Case West has many textures Case Zero lacks), list only that game.
 - **priority**: when two mods replace the *same* asset, the one with the higher number
   wins. At equal priority the toolkit refuses to guess and tells you which mods clash.
+  Once a mod is installed in the mod manager, its place in the load order decides
+  instead (below); `priority` only says where it lands when installed.
 
 ## Build, deploy, undeploy
 
@@ -80,6 +83,46 @@ recomp option layer (`game_kbm`, keyboard prompts; `game_bootskip`, skip intro l
 carries the same file, deploy prints a warning: while your mod is installed, its copy
 is used.
 
+## Several mods: the mod manager
+
+The **mod library** is a folder where your installed mods live, with their **load
+order** and an on/off switch for each. Mods later in the order win when two change the
+same texture, model, sound or string. Deploying deploys every switched-on mod at once.
+
+### In DR2 Studio
+
+1. Click **Mod manager…** in the toolbar. The window lists the library's mods in load
+   order (the folder is shown at the top; **Library folder…** changes it).
+2. **Install folder…** or **Install .zip…** copies a mod in, switched on. A mod already
+   installed asks whether to update it (it keeps its place and switch).
+3. Tick or untick a mod to switch it on or off; **Up** / **Down** move the selected mod.
+   Lower in the list = wins.
+4. **Conflicts** lists, for the game picked in the main window, everything two
+   switched-on mods both change and which one wins:
+   `data/models/npcs.big/chest_default.tex/cr_jacket_cm: blue_jacket wins over red_jacket`.
+5. **Deploy** builds and deploys all switched-on mods for that game into the recomp
+   (replacing the previous deploy). **Undeploy** in the main window removes them.
+6. **Edit in Studio** makes the selected mod the open mod in the main window, so new
+   replacements go into it. **Pack .zip…** saves it as a zip to share; **Remove**
+   deletes it from the library folder.
+
+### With the `dr2` command
+
+```
+dr2 mod install red_jacket blue_jacket.zip    # folders or zips, switched on
+dr2 mod list                                  # load order, on/off, files
+dr2 mod move red_jacket top                   # up, down, top, bottom, or a number
+dr2 mod disable blue_jacket                   # enable / disable
+dr2 mod conflicts -g cz                       # who wins over whom
+dr2 mod deploy -g cz                          # no folder given: every switched-on mod
+dr2 mod remove blue_jacket
+dr2 mod library D:/dr2-mods                   # use another library folder
+```
+
+`dr2 mod check`, `conflicts`, `build` and `deploy` take mod folders as before; with
+none, they use the library's switched-on mods in order. A folder you copy into the
+library by hand shows up as "new" and switched off until you enable it.
+
 ## Turning mods off
 
 - Recomp: start it with `CZ_NO_MODS=1` (Case Zero) or `CW_NO_MODS=1` (Case West). The
@@ -88,7 +131,9 @@ is used.
 
 ## Sharing a mod
 
-Zip the mod folder (`mod.toml` + `replace/`) and share the zip. Never share the built
+Click **Pack .zip…** in the mod manager, or run `dr2 mod pack my_mod` (writes
+`my_mod-1.0.0.zip`, leaving out hidden files), and share the zip. Others install it with
+**Install .zip…** or `dr2 mod install my_mod-1.0.0.zip`. Never share the built
 files from `game_mods/` or `dr2 mod build`: those are the game's archives with your
 change inside, i.e. copyrighted game data. The person installing your mod runs
 `dr2 mod deploy` on their own copy of the game.
@@ -102,6 +147,9 @@ Mods made with this toolkit must be free for everyone (see the rules in
 |---|---|---|
 | `replaced by both a and b at the same priority` | Two mods change the same asset | Raise one mod's `priority`, or remove one of the files. |
 | `… replaces X as a whole, and … replaces Y inside it` | One mod replaces an archive, another a file inside it | Make the first mod replace only the files it changes. |
+| `… both have id 'x'` (mod manager) | Two folders in the library have the same `id` | Remove or rename one. |
+| `refusing entry '../…'` when installing a zip | The zip would write outside the mod | Don't install it; ask its author for a clean zip. |
+| `expected one mod … found 2` | The zip holds several mods | Unzip it and install each folder. |
 | `id 'My Mod' must be lower-case…` | `id` has spaces or capitals | Use e.g. `my_mod` (the `name` can be anything). |
 | `… is not in a recomp; say where to put the files with --to` | Your game data isn't a recomp's `assets/game` | Use `dr2 mod build … -o OUT` and copy the files over the game's own (keep backups). |
 

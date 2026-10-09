@@ -12,4 +12,6 @@ Modules:
     manifest  read and check ``mod.toml``; list the overrides a mod carries
     build     turn the overrides into whole replacement files (re-pack, re-compress)
     deploy    copy a build into a recomp's ``assets/game_mods/`` (or anywhere)
+    audio     sound overrides → the recomps' PCM substitution files (phase 5)
+    library   the mod manager: installed mods, load order, on/off, zips (phase 6)
 """

@@ -39,12 +39,15 @@ dr2kit/                 core library (pure Python; numpy optional)
   formats/              bct.py ✅ (phase 2); scene.py ✅, vertex.py ✅ (phase 3: chunks,
                         skeleton, materials, draws, vertex decode, bone palettes);
                         scene_write.py ✅ (phase 4: chunk writers, strips, new geometry);
-                        later: anim.py, xma.py, bik.py, bcs.py, scripts.py
+                        xma.py ✅, audioscript.py ✅ (phase 5); shader.py ✅;
+                        bcs.py ✅ (phase 6: string banks); later: anim.py
   convert/              png.py ✅, dxt.py ✅, texture.py ✅ (phase 2); gltf.py ✅, model.py ✅
                         (phase 3); model_import.py ✅ (phase 4: .glb → model, rig
-                        validator); later: audio.py, strings.py
+                        validator); audio.py ✅ (phase 5); material.py ✅; strings.py ✅,
+                        video.py ✅ (phase 6: Bink through PyAV, no format code of ours)
   index/ ✅             schema.sql, build.py, query.py (phase 2)
-  mods/ ✅              manifest.py, build.py, deploy.py (phase 2)
+  mods/ ✅              manifest.py, build.py, deploy.py (phase 2), audio.py (phase 5),
+                        library.py (phase 6: the mod manager)
   studio/ ✅            DR2 Studio v0: app.py, viewers.py (phase 2; inside the package so
                         `dr2 studio` works after pip install)
 native/lzx/ ✅          dr2lzx: libmspack's lzxd.c (LGPL, separate library) + a small wrapper, CMake
@@ -164,12 +167,15 @@ This answers the "which texture is what" questions:
   - Model: three.js orbit view with textures applied, skeleton overlay (✅ phase 3, with
     wireframe and *Export .glb…*); per-mesh visibility, bone-name hover (later).
   - Skeleton: the 3D view shows the bones (✅ phase 3); a bone tree (later).
-  - Text/scripts/strings: syntax-highlighted, editable as a mod override.
-  - Bink (CW): play through ffmpeg.
+  - Text/scripts: editable into the open mod, with a diff against the game's text;
+    strings: a filterable table whose edits go into the mod's `.bcs.json` (✅ phase 6,
+    `studio/text_view.py`; no syntax highlighting yet).
+  - Bink (CW): play through ffmpeg, pictures and sound (✅ phase 6, `studio/video_view.py`).
 - **Right:** metadata and relations, plus **Extract** (in native or converted format),
   **Add to mod** and **Replace…** buttons.
-- **Mod panel:** the active mod's overrides, a conflict check against other mods,
-  **Build** and **Deploy to recomp**.
+- **Mod panel:** the active mod's overrides, **Build && deploy**, **Undeploy**.
+- **Mod manager** (✅ phase 6, `studio/mod_manager.py`): the mod library, load order,
+  on/off, conflicts, install/pack zips, deploy every switched-on mod.
 
 ## Mod package format
 
@@ -198,6 +204,20 @@ mirrors `data/`. Two deploy targets:
    See "Recomp integration" below.
 2. **Patched archives:** whole replacement `.big` files that work anywhere (Xenia, a real
    console, or dropped into `game_patched` today).
+
+**Several mods and the mod manager** (phase 6, `mods/library.py`). Any number of mods
+build together; an asset two mods replace goes to the higher priority, and string
+overrides merge per string id. The mod manager keeps installed mods in a **library**
+folder (per-user data folder by default) with a `modlist.toml` holding the **load
+order** and an on/off switch per mod. *Decision:* the load order *is* the priority
+(later wins), so two switched-on mods never tie and a conflict is reported, not an
+error; `priority` in `mod.toml` only places a newly installed mod. Mods are shared as
+zips (`dr2 mod pack`), installed with `dr2 mod install` (zip entries that would land
+outside the mod are refused).
+
+**Files mods can't touch.** The executables digest-check a few data files (CZ 1, CW 6;
+`formats.md` §Digest-checked files). Each game profile lists them (`digest_checked`) and
+the build refuses an override of one, since the game would crash.
 
 Build is deterministic and verified: every output archive passes a read-back and an LZX
 decode check before deploy. With no overrides, `build` must reproduce the original files
@@ -313,6 +333,9 @@ Two runtime changes, made in each recomp repo following that repo's own conventi
    the recomp's patch. So `dr2 mod deploy` builds the mod archive **on top of the
    `game_patched` copy when one exists**, and the runtime only serves whole files.
    Merging stays in the toolkit; the runtime stays simple.
+   *Known limit (phase 6):* `game_kbm` (keyboard prompts) and `game_bootskip` are
+   toggles, so a mod is not built on top of them; a deployed mod carrying the same file
+   (`str_en.bcs`, `fecmn.big`) wins over the toggle while installed, and deploy warns.
 2. **PCM audio substitution** (✅ phase 5, both recomps, `runtime/kernel/audio.cpp`).
    After each XMA packet is decoded, if the packet belongs to a replaced sound, the
    samples it produced are overwritten with the mod's (`game_mods/dr2kit_audio/`).

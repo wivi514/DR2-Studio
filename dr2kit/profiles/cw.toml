@@ -9,6 +9,18 @@ title_id = "58410B00"
 recomp_dirs = ["../Dead_Rising_2_Case_West_Xenon_Recomp/assets/game"]
 package_globs = ["../Dead_Rising_2_Case_West_Xenon_Recomp/assets/package/58410B00/000D0000/*"]
 
+# Files the executable checks against a SHA-1 digest: an edited copy crashes the game.
+# Read from the XEX's Digest resource (6 entries; tools/xex_digests.py, 2026-10-09,
+# docs/formats.md §Digest-checked files). Mods can't touch them.
+digest_checked = [
+    "data/audio/Safehouse.txt",
+    "data/audio/audiomixer.txt",
+    "data/audio/curves.txt",
+    "data/audio/scenegraph.txt",
+    "data/controls/padmap.txt",
+    "data/models/zombies/zombie_pdv_variations.txt",
+]
+
 [census]
 archive_files = 202   # .big files plus .tex packs and 6 .bcf fonts that are archives
 archives = 8017

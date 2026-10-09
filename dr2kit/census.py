@@ -163,6 +163,10 @@ class CensusReport:
     sfx_parsed: int = 0
     sfx_tracks: Counter = field(default_factory=Counter)      # xma / sfx / missing
     sfx_missing: list = field(default_factory=list)
+    movies: int = 0                                           # .bik decoded (with --audio)
+    movie_seconds: float = 0.0
+    string_banks: int = 0                                     # .bcs parsed and rewritten
+    strings: Counter = field(default_factory=Counter)         # bank -> string count
     duplicate_name_archives: int = 0
     duplicate_name_entries: int = 0
     unsafe_names: list = field(default_factory=list)
@@ -433,6 +437,12 @@ def run_census(game: str, tree: AssetTree, *, python_lzx: bool = False,
             ext = path.suffix.lower().lstrip(".") or "(none)"
             rep.files_by_ext[ext] += 1
             raw = path.read_bytes()
+            if ext == "bcs":                # a string bank (formats/bcs.py)
+                check_bcs(rep, vp, raw)
+                continue
+            if ext == "bik" and audio:      # a movie (convert/video.py)
+                check_movie(rep, vp, path)
+                continue
             if raw[:3] == BCT_MAGIC:       # a loose texture on disk
                 rep.bct_byte3[f"{raw[3]:02X}"] += 1
                 check_texture(rep, vp, path.name, raw, textures)
@@ -462,6 +472,43 @@ def run_census(game: str, tree: AssetTree, *, python_lzx: bool = False,
 
 
 _NUMBERS = re.compile(r"\d+")
+
+
+def check_movie(rep: CensusReport, vp: str, path) -> None:
+    """A Bink movie must decode: every frame, and a sound as long as the pictures."""
+    from .convert import video
+    try:
+        info = video.probe(path)
+        n = sum(1 for _ in video.frames(path))
+        if abs(n - info.frames) > 1:
+            rep.problems.append((vp, f"movie: {n} frames decoded, {info.frames} expected"))
+            return
+        if info.audio_tracks:
+            pcm = video.audio(path)
+            if abs(pcm.seconds - info.seconds) > 0.25:
+                rep.problems.append((vp, f"movie: sound lasts {pcm.seconds:.2f} s, pictures "
+                                         f"{info.seconds:.2f} s"))
+                return
+    except Exception as ex:  # noqa: BLE001 - reported
+        rep.problems.append((vp, f"movie: {ex}"))
+        return
+    rep.movies += 1
+    rep.movie_seconds += info.seconds
+
+
+def check_bcs(rep: CensusReport, vp: str, raw: bytes) -> None:
+    """A string bank must parse and write back to the same bytes."""
+    from .formats.bcs import StringBank, bank_name
+    try:
+        bank = StringBank.parse(raw, vp)
+    except Exception as ex:  # noqa: BLE001 - reported
+        rep.problems.append((vp, f"string bank: {ex}"))
+        return
+    if bank.to_bytes() != raw:
+        rep.problems.append((vp, "string bank: re-written bank differs"))
+        return
+    rep.string_banks += 1
+    rep.strings[bank_name(vp)] = len(bank.strings)
 
 
 def check_scene(rep: CensusReport, vp: str, arc: BigArchive, decode: bool,
@@ -721,6 +768,14 @@ def format_report(rep: CensusReport) -> str:
             w(f"    missing from the game data: {m}")
         if len(rep.sfx_missing) > 5:
             w(f"    ... and {len(rep.sfx_missing) - 5} more")
+    if rep.movies:
+        w(f"movies (.bik): {rep.movies} decoded (every frame, and the sound), "
+          f"{rep.movie_seconds / 60:.1f} min")
+    if rep.string_banks:
+        counts = set(rep.strings.values())
+        w(f"string banks (.bcs): {rep.string_banks} parsed and re-written identically, "
+          f"{'same' if len(counts) == 1 else 'DIFFERENT'} ids count: "
+          f"{_fmt(rep.strings, sort_keys=True) if len(counts) > 1 else counts.pop()}")
     w(f"duplicate names: {rep.duplicate_name_entries} entries in "
       f"{rep.duplicate_name_archives} archives")
     w(f"names unsafe in a vpath or as a Windows file name: {len(rep.unsafe_names)}")

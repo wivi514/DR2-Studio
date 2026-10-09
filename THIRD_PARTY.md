@@ -31,5 +31,5 @@ and how it is used. Checked 2026-10-08 (docs/phase1-kickoff.md, "Licensing of re
 | `PySide6` (optional, `[studio]`) | LGPL-3.0 | DR2 Studio, the GUI; used as an unmodified, dynamically loaded library |
 | `Pillow` (optional) | HPND (MIT-like) | faster PNG reading, and interlaced PNGs; the toolkit's own pure-Python PNG reader is used without it |
 | `pytest` (dev) | MIT | tests |
-| `av` / PyAV (optional, `[audio]`, `[studio]`) | BSD; the ffmpeg its wheels bundle is LGPL-2.1+ | XMA decoding (phase 5: preview, WAV export, the census, fitting sound mods); Bink later. Used unmodified, as a dynamically loaded library |
+| `av` / PyAV (optional, `[audio]`, `[studio]`) | BSD; the ffmpeg its wheels bundle reports **LGPL-3.0+** (`--enable-version3`), and the wheels also carry **x264 and x265, which are GPL** (checked on PyAV 19.0.1, Linux x86_64: `av._core.library_meta`, `av.libs/`) | XMA decoding (phase 5: preview, WAV export, the census, fitting sound mods); Bink movies (phase 6: preview, `.mp4` export with ffmpeg's own LGPL `mpeg4` and `aac` encoders; the toolkit never uses x264/x265). Used unmodified, as a dynamically loaded library. **Packaging note:** a release bundle that includes these wheels ships GPL libraries; see `docs/dev/packaging.md` |
 | Qt Multimedia (part of PySide6) | LGPL-3.0 | DR2 Studio's audio playback (`QAudioSink`) |

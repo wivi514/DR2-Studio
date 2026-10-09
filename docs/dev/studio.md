@@ -13,13 +13,16 @@ dr2kit/studio/
   viewers.py   TextureViewer (zoom, channels, mip, face), PlainViewer (text / hex)
   model_view.py  ModelViewer: the 3D view (QWebEngineView + three.js), phase 3
   audio_view.py  AudioViewer: waveform, play / stop / seek / loop (QAudioSink), phase 5
+  text_view.py   TextEditor (edit text into the mod, diff), StringsViewer (string banks), phase 6
+  video_view.py  VideoViewer: Bink movies (pictures + sound), phase 6
+  mod_manager.py ModManager: the mod library window (order, on/off, conflicts, deploy), phase 6
   web/         viewer.html + viewer.js, and three.js 0.186.1 (MIT) under vendor/three/
 ```
 
 ## The window
 
 ```
-┌ Game [Case Zero ▾]  Build / refresh index ───────────────────────────────────────┐
+┌ Game [Case Zero ▾]  Build / refresh index  Mod manager… ─────────────────────────┐
 │ ┌ Browse | Search ─┐ ┌ Show [RGBA▾] mip [0] face [0] Zoom [fit▾] ┐ ┌ Details ───┐ │
 │ │ data/            │ │                                            │ │ name, size │ │
 │ │  models/         │ │           texture / text / hex             │ │ format...  │ │
@@ -116,6 +119,41 @@ with their trigger names), then decodes it in a worker thread
   (`query.sound_targets`) and, for a `.sfx`, which events or parent effects use it.
 - Without PyAV the view says how to install it; everything else works.
 
+## Text, strings and movies (phase 6)
+
+- **Text** (kinds `text` and `sfx`): `TextEditor` shows the game's text, or the open
+  mod's copy when it has one (`replace/<vpath>`). With a mod open it is editable; *Save
+  to mod* writes the whole file there (bytes ↔ text through Latin-1, line ends written
+  back as the original's `\r\n` or `\n`; saving the game's own text removes the
+  override), *Changes* shows `difflib`'s unified diff in colour, *Revert to the game's*
+  deletes the mod's copy. A file in the profile's `digest_checked` opens read-only with
+  the reason. Audio scene scripts keep their Related rows.
+- **Strings** (kind `strings`, a `.bcs`): `StringsViewer`, a `QTableWidget` of id,
+  label (from `str_id.bcs`) and text, with a filter over all three. With a mod open the
+  text column is editable; each edit calls back into the window, which writes
+  `replace/data/frontend/str_<lang>.bcs.json` (`convert.strings.set_mod_strings`) and
+  shows `bcs.apply`'s notes under the table. Changed rows are highlighted, with the
+  game's text as tooltip; *Revert string* puts the game's text back (and drops the
+  change).
+- **Movies** (kind `video`, Case West's `.bik`): the sound is decoded in a worker thread
+  (`convert.video.audio`), then `VideoViewer` decodes pictures on the GUI thread as the
+  clock reaches them (`convert.video.frames`), skipping pictures when behind. The clock
+  is the `QAudioSink`'s position while sound plays, an elapsed timer otherwise. *Loop*
+  is on by default for the monitor loops. *Export MP4…* runs `convert.video.to_mp4` in a
+  worker.
+
+## The mod manager (phase 6)
+
+**Mod manager…** in the toolbar opens `ModManager`, a window over the same library as
+`dr2 mod list` (`mods.library.ModLibrary`): mods in load order (the bottom wins), a
+check box per mod (`enable`), *Up* / *Down* (`move`), *Install folder…* / *Install
+.zip…* (`install`; an already installed id asks to update), *Remove*, *Pack .zip…*,
+*Edit in Studio* (makes it the open mod of the main window), *Conflicts* (runs
+`ModLibrary.plan` for the main window's game in a worker; lists what each mod wins over)
+and *Deploy* (`MainWindow.deploy_mods` with the switched-on mods, the same job as
+*Build && deploy* in the mod bar). *Library folder…* changes the folder
+(`set_default_library`, saved in the user config).
+
 ## Testing
 
 `QT_QPA_PLATFORM=offscreen` runs the window without a display. A smoke test opens the
@@ -127,11 +165,13 @@ the widget (`deleteLater` + `processEvents`) before the test ends, or Qt Multime
 aborts at interpreter exit ("shared QObject was deleted directly"). The 3D view
 itself was checked offscreen too (WebGL works there through software rendering):
 `window.grab()` after the page reports the model.
+A second test edits a text file (CRLF kept, diff, revert), changes a string through the
+table, and switches a mod off in the mod manager, on a synthetic game.
 Grabbing the window to a PNG (`window.grab().save(...)`) is how the screenshots in the
 guides are made.
 
 ## Next (later phases)
 
-Editing text assets as mod overrides, showing the replaced model in the 3D view before
-building (the rig validator and *Replace with .glb…* came in phase 4), and playing a
-replacement sound next to the original before building (phase 5 has the original only).
+Showing the replaced model in the 3D view before building (the rig validator and
+*Replace with .glb…* came in phase 4), and playing a replacement sound next to the
+original before building (phase 5 has the original only).

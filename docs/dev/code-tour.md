@@ -25,6 +25,7 @@ dr2kit/
     xma.py             sounds: RIFF XMA2, cache.big stream tables, packet headers (phase 5)
     audioscript.py     .sfx and audio scene scripts: the block text format (phase 5)
     shader.py          shader constant tables (.po) and material value sets (.scv)
+    bcs.py             string banks (str_<lang>.bcs): read, write, JSON, apply changes (phase 6)
   convert/
     png.py             pure-Python PNG reader/writer (Pillow used when present)
     dxt.py             DXT1/DXT5/DXN block decode + encode (numpy, pure-Python fallback)
@@ -34,6 +35,8 @@ dr2kit/
     model_import.py    .glb (Blender) -> model: matching, rig validator, import (phase 4)
     audio.py           .xma -> PCM / WAV through PyAV; fitting audio to a sound (phase 5)
     material.py        bake colours that come from shader constants (zombie clothing)
+    strings.py         find, search and export strings; write a mod's string changes (phase 6)
+    video.py           Bink movies (Case West): probe, frames, sound, .mp4 export (phase 6)
   index/
     schema.sql         the SQLite tables
     build.py           build / refresh the asset index (incremental), thumbnails, relations
@@ -43,17 +46,22 @@ dr2kit/
     build.py           overrides -> whole replacement files (re-pack, re-compress, verify)
     deploy.py          copy a build into a recomp's game_mods/ (and undo it)
     audio.py           sound overrides -> dr2kit_audio/ (WAVs + substitution table, phase 5)
+    library.py         the mod manager: a library folder, load order, on/off, install, pack (phase 6)
   studio/
     app.py, viewers.py DR2 Studio (PySide6): tree, search, texture viewer, mod bar
     model_view.py      the 3D view: QWebEngineView + three.js over a dr2: URL scheme
     audio_view.py      the audio view: waveform, playback (QAudioSink), loop (phase 5)
+    text_view.py       text editor with a diff, and the string-bank table (phase 6)
+    video_view.py      the movie view: Bink pictures + sound (phase 6)
+    mod_manager.py     the mod manager window (phase 6)
     web/               its page (viewer.html, viewer.js) and vendored three.js (MIT)
   cli/main.py          the `dr2` command
 native/lzx/            the C library behind the fast LZX decoder (libmspack, LGPL)
 tests/                 unit tests (synthetic data) + game-data tests (skip if absent)
 tools/                 developer scripts: PyAV codec check, the phase 3 gates
                        (blender_skeleton_gate.py, capture_gate.py; --root for phase 4),
-                       blender_gate_model.py (builds the phase 4 test model in Blender)
+                       blender_gate_model.py (builds the phase 4 test model in Blender),
+                       xex_digests.py (the files each executable digest-checks)
 ```
 
 ## How a read flows
@@ -89,7 +97,9 @@ every entry of both games by the census).
 
 ### `dr2kit/profiles/`
 `load_profile("cz")` reads `cz.toml`: name, title ID, where a recomp keeps the data,
-and the census totals the game-data tests expect. `locate("cz")` finds the data: the
+the files the executable digest-checks (`digest_checked`), and the census totals the
+game-data tests expect. `get_config` / `set_config` read and write the user config file
+(`[games]`, `[mods]`). `locate("cz")` finds the data: the
 `DR2_CZ_DATA` environment variable, then the user config file (`dr2 games set`), then a
 recomp next to the checkout. It returns a `GameLocation` (the root folder containing
 `data/`, and how it was found). Game differences belong in the TOML, never in `if game
@@ -142,13 +152,18 @@ header bytes and scenes (`check_scene`: every scene's chunks rewrite identically
 with `models=True` every draw is decoded and its vertices re-encoded; with
 `reimport=True`, `check_reimport` exports each model to `.glb`, imports it back and
 rebuilds every shape; with `audio=True` every `.xma` is decoded in a process pool and
-its length checked, and every `.sfx` track resolved), and runs the gates: round trip, decode, and optionally re-encode
+its length checked, every `.sfx` track resolved and every Bink movie decoded,
+`check_movie`; string banks are always parsed and re-written, `check_bcs`), and runs the gates: round trip, decode, and optionally re-encode
 (parallel) and a pure-Python cross-check. `format_report()` prints it; `problems` must
 be empty.
 
 ### `dr2kit/cli/main.py`
-`dr2 doctor | games | ls | find | extract [--png | --glb | --wav] | model check|import | info |
-index … | mod … | studio | census [--textures] [--models] [--reimport] [--audio] | unpack`. One `cmd_<name>`
+`dr2 doctor | games | ls | find | extract [--png | --glb | --wav | --mp4] | model check|import | info |
+index … | mod … | strings … | studio | census [--textures] [--models] [--reimport] [--audio] | unpack`.
+`dr2 mod` covers single mods (`new`, `check`, `build`, `deploy`, `undeploy`) and the mod
+manager (`list`, `install`, `remove`, `enable`, `disable`, `move`, `conflicts`,
+`library`, `pack`); `check/conflicts/build/deploy` with no mod folder use the library's
+switched-on mods. One `cmd_<name>`
 function per command, no format logic. Exit code 1 on a `Dr2Error` or when a census
 finds problems.
 
@@ -243,6 +258,27 @@ name → register table; `ValueSet.parse(scv)` a material's constants by registe
 is the `base_colour` hook `gltf.model_to_glb` uses (CLI `--glb`, Studio's 3D view and
 *Export .glb…*).
 
+### `dr2kit/formats/bcs.py`, `dr2kit/convert/strings.py` (phase 6)
+Read `formats.md` §Strings first.
+
+- `bcs`: `StringBank.parse(bytes)` → `.strings` (id → text, in id order) and `.size`
+  (the padded file size, kept so an unedited bank writes back identically);
+  `.to_bytes()`. `to_json` / `from_json` (ids or `IDS_` labels), `apply(bank, changes)`
+  → a new bank plus notes for the modder (markup without `@`, placeholders changed,
+  new ids; refuses ids past the last), `markup_problems(text)`.
+- `strings`: the modder's level. `languages(tree)`, `load_bank(tree, "fr")`,
+  `load_labels(tree)` (from `str_id.bcs`), `resolve_id("IDS_PRESS_START")`,
+  `search(tree, text, langs)`, and a mod's string file: `read_mod_strings`,
+  `set_mod_strings(mod, lang, {id: text or None})` (keeps labels and the original text
+  next to each change as a reminder). Used by `dr2 strings` and Studio's strings table.
+
+### `dr2kit/convert/video.py` (phase 6)
+Case West's Bink movies through PyAV: `probe` → `VideoInfo`, `frames(data, start)`
+yields RGB pictures, `audio(data)` → stereo `Pcm` (5.1 tracks mixed, see the module
+docstring and `formats.md` §Movies), `to_mp4` (ffmpeg's LGPL `mpeg4` + `aac`
+encoders). Used by `dr2 extract --mp4`, `dr2 info`, the census (`check_movie`) and
+Studio's video view.
+
 ### `dr2kit/convert/audio.py` (phase 5)
 `AudioLookup(tree).info(vpath, data)` finds a sound's format (its RIFF header, or its
 stream-table record; tables are read once). `decode(data, info)` → `Pcm` (16-bit
@@ -295,6 +331,16 @@ folder (`default_db_path()`).
   `shared_packets()` scans every sound of the game so packets that occur elsewhere are
   marked continue-only; `verify_audio()` reads it all back. No game file changes.
   Design: [`recomp-integration.md`](recomp-integration.md#audio-substitution).
+- `build.plan_mods(mods, game, tree)` → `ModPlan`: the overrides that apply, what lost
+  (`shadowed`: two mods replace one asset or string id, the higher priority wins) and
+  notes. Also refuses files the game digest-checks (`Profile.digest_checked`). String
+  overrides (`.bcs.json`, kind `strings`) merge by id; `_apply_strings` applies them in
+  priority order. `classify()` is `plan_mods(...).planned`.
+- `library` (phase 6): `ModLibrary(folder)`: `entries()` in load order (lowest priority
+  first; folders not in `modlist.toml` come last, off, marked new), `active(game)` (the
+  switched-on mods with priorities set from the order), `plan`, `install` (folder or
+  zip, refusing zip entries that escape), `remove`, `enable`, `move`; `pack(folder)`
+  zips a mod; `default_library()` / `set_default_library()` (user config `[mods]`).
 - `deploy`: `deploy(build, target)` copies files and records them in
   `dr2kit-deployed.json`; `undeploy(target)` removes exactly those. `recomp_folders()`
   names `game_mods` / `game_patched` / `game_kbm` / `game_bootskip` next to a game root.
@@ -302,7 +348,10 @@ folder (`default_db_path()`).
 ### `dr2kit/studio/` (phases 2-3)
 DR2 Studio; see [`studio.md`](studio.md). `model_view.py` is the 3D view (phase 3),
 `audio_view.py` the audio view (phase 5: `Waveform`, `AudioViewer`, `playback_bytes`
-mixes 5.1 to stereo for listening).
+mixes 5.1 to stereo for listening). Phase 6: `text_view.py` (`TextEditor`: edit a text
+file into the open mod, *Changes* shows a diff; `StringsViewer`: a bank as a filterable
+table, edits go into the mod's `.bcs.json`), `video_view.py` (`VideoViewer`), and
+`mod_manager.py` (`ModManager`, the library window).
 
 ## Tests
 

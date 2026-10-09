@@ -13,6 +13,12 @@ recomp_dirs = ["../Dead_Rising_2_Case_Zero_Xenon_Recomp/assets/game"]
 # The XBLA package as it sits in a recomp checkout (used by `dr2 games` to point at it).
 package_globs = ["../Dead_Rising_2_Case_Zero_Xenon_Recomp/assets/package/58410A8D/000D0000/*"]
 
+# Files the executable checks against a SHA-1 digest: an edited copy crashes the game
+# The XEX's Digest resource has this one entry (tools/xex_digests.py); an edited copy
+# crashed the game (checked 2026-10-09, docs/formats.md §Digest-checked files).
+# Mods can't touch them.
+digest_checked = ["data/audio/Prologue.txt"]
+
 # Measured by `dr2 census` (2026-10-08). Used by tests to notice a different game version.
 [census]
 archive_files = 197   # .big files plus .tex packs and 9 .bcf fonts that are archives

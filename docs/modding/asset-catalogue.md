@@ -111,3 +111,42 @@ play it; the Related list says which `.sfx` and game events use it.
 | `data/streamedassets.big/fx_<weapon or vehicle>.big` | Each weapon's and vehicle's sounds (`fx_superbike`, `fx_chefknife`, `fx_propanetanknails`…) | mono |
 | `data/audio/Prologue.txt` (CZ), `data/audio/*.txt` (CW) | The audio scene scripts: which events play which sounds. **Don't edit** (checked by the game) | text |
 
+## Text
+
+All on-screen text is in the string banks ([`11-text.md`](11-text.md)); find a string
+with Studio's filter or `dr2 strings search <words>`.
+
+| Where | What | Notes |
+|---|---|---|
+| `data/frontend/str_en.bcs` … `str_ko.bcs` | Every on-screen string in one language: English, French, Italian, Spanish, Japanese, Korean. 7,599 strings in CZ, 2,469 in CW | Change them with a `.bcs.json` |
+| `data/frontend/str_id.bcs` | The label of every string (`IDS_PRESS_START`) | Read-only reference |
+| `data/frontend/str_lg.bcs` | Legal and before-language-select text, mixed languages | |
+| `data/datafile.big/*.txt` | Game data and scripts: zombie effects, items, missions, the scene graph | Edit as text ([`11-text.md`](11-text.md#steps-edit-a-text-file)) |
+| `data/*.csv`, `data/**/*.ini` (CW) | Loose tables and settings | Text |
+
+What the id ranges hold in Case Zero, going by the labels (`dr2 strings search IDS_`):
+
+| Ids | Mostly |
+|---|---|
+| 1-9,999 | Menus, loading tips, store and map names, skill and combo-card text, level-up messages |
+| 10,000-49,999 | Dialog boxes, options, online and save/load messages, HUD |
+| 50,000-59,999 | Item display names (`IDS_DISPLAY_NAME_…`), button prompts in the world |
+| 60,000-79,999 | Tutorials, survivor conversations, phone calls, Zombrex dialogue |
+| 80,000-89,999 | Character names, achievements, some subtitles |
+| 90,000-99,999 | Cutscene subtitles (`IDS_SUBTITLE_…`), font tests |
+
+Files the game checks and that can't be changed: `data/audio/Prologue.txt` (CZ);
+`data/audio/Safehouse.txt`, `scenegraph.txt`, `audiomixer.txt`, `curves.txt`,
+`data/controls/padmap.txt`, `data/models/zombies/zombie_pdv_variations.txt` (CW).
+
+## Movies (Case West)
+
+| File in `data/movies` | What | Notes |
+|---|---|---|
+| `800a_intro.bik` | The opening movie, 39 s | 1280×720, 5.1 sound |
+| `dr2_logo.bik`, `dr2_logo_b.bik` | The Dead Rising 2 logo, 10 s | 1280×720, 5.1 sound |
+| `DR_LOGO_shortLoop.bik` | A 4 s logo loop | stereo |
+| `807_monitors.bik` … `816_monitors.bik` | Security-monitor loops of the labs, 25-114 s | 512×512, no sound |
+
+Play and export them in Studio or with `dr2 extract --mp4` ([`04-extracting.md`](04-extracting.md)).
+

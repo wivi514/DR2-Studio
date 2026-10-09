@@ -179,3 +179,49 @@ def test_audio_mod_build(game_root, tmp_path):
     assert [int(ln[2]) for ln in lines[1:]] == sp.starts
     assert all(ln[3] == "u" for ln in lines[1:])
     assert any("cut" in w for w in res.warnings)
+
+
+# ---- phase 6: strings, digest lists, movies -------------------------------------------
+
+@pytest.mark.parametrize("game, count, size", [("cz", 7599, 441496), ("cw", 2469, 120418)])
+def test_string_banks(game, count, size, game_root):
+    """formats.md §Strings: same ids and size in every bank; byte-identical rewrite."""
+    from dr2kit.convert import strings as cstr
+    from dr2kit.formats.bcs import StringBank
+    tree = AssetTree(game_root(game))
+    langs = cstr.languages(tree)
+    assert langs == ["en", "es", "fr", "id", "it", "ja", "ko", "lg"]
+    ids = None
+    for lang in langs:
+        data = tree.resolve(cstr.bank_vpath(lang)).data()
+        bank = StringBank.parse(data)
+        assert bank.to_bytes() == data and len(data) == size
+        assert len(bank.strings) == count
+        ids = ids or list(bank.strings)
+        assert list(bank.strings) == ids
+    assert cstr.load_labels(tree)[10611] == "IDS_PRESS_START"
+
+
+@pytest.mark.parametrize("game", ["cz", "cw"])
+def test_digest_checked_files_exist(game, game_root):
+    """The profile's digest list names real loose files (tools/xex_digests.py)."""
+    tree = AssetTree(game_root(game))
+    listed = load_profile(game).digest_checked
+    assert listed
+    for vp in listed:
+        assert tree.resolve(vp).kind == "file", vp
+
+
+def test_movies_probe(game_root):
+    """formats.md §Movies: CW's ten Bink movies and their sound tracks."""
+    from dr2kit.convert import video
+    if not video.have_bink():
+        pytest.skip("PyAV with the Bink decoder is not installed (pip install av)")
+    root = game_root("cw")
+    movies = sorted((root / "data" / "movies").glob("*.bik"))
+    assert len(movies) == 10
+    info = {m.name: video.probe(m) for m in movies}
+    assert info["800a_intro.bik"].audio_tracks == [2, 1, 1, 2]
+    assert (info["807_monitors.bik"].width, info["807_monitors.bik"].audio_tracks) == (512, [])
+    pcm = video.audio(root / "data/movies/DR_LOGO_shortLoop.bik")
+    assert pcm.channels == 2 and abs(pcm.seconds - info["DR_LOGO_shortLoop.bik"].seconds) < 0.25

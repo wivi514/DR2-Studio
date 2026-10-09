@@ -14,6 +14,10 @@ What counts as an override, under ``replace/``:
 * ``<vpath>.wav`` (or ``.ogg``, ``.flac``, ``.mp3``) where ``<vpath>`` is a sound
   (``music.big/HB_Indemnify.xma``): the recomp plays that audio instead of the sound
   (PCM substitution, `dr2kit.mods.audio`). The game files are not changed.
+* ``<bank>.bcs.json`` where ``<bank>`` is a string bank (``data/frontend/str_en.bcs``):
+  only the strings it lists, by id (``"3"``) or label (``"IDS_START_DEMO"``), change
+  (`dr2kit.formats.bcs`). Several mods can change one bank; only an id that two of
+  them change is a conflict, decided by priority.
 * ``<vpath>`` exactly (any other file): its bytes replace the asset as they are, e.g. an
   edited ``datafile.big/zombie_effects.txt``. The toolkit re-compresses it if the
   original entry was compressed.
@@ -34,6 +38,7 @@ from ..profiles import GAME_IDS
 MANIFEST = "mod.toml"
 REPLACE_DIR = "replace"
 AUDIO_EXTS = (".wav", ".ogg", ".flac", ".mp3")   # what can replace a sound
+STRINGS_EXT = ".bcs.json"                         # string changes for a string bank
 _ID = re.compile(r"^[a-z0-9][a-z0-9_.-]{0,63}$")
 
 TEMPLATE = '''# A DR2 Case Zero / Case West mod. Reference: docs/modding/06-mod-packages.md
@@ -58,7 +63,7 @@ class Override:
     """One file of a mod: ``vpath`` is the asset it replaces, ``kind`` how."""
     vpath: str            # as written under replace/ (minus .png / .glb)
     source: Path
-    kind: str             # "texture-png", "model-glb", "audio" or "raw"
+    kind: str             # "texture-png", "model-glb", "audio", "strings" or "raw"
 
 
 @dataclass
