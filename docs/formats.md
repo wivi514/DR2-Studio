@@ -1025,9 +1025,36 @@ accessories, `0x4000` bare arms, `0x8000` gas look, `0x10000` burnt look (`*_bla
 `0x400000000000…0x10000000000000` feet 1-7; `lleg_tallboot1*,rleg_tallboot1*` follows,
 but the words after it read as floats (3.0, 0.3), so its mask is not known ❓.
 Shapes matching no numbered group (`head_eyes`, `rarm_arm`) are always drawn; `cap_*`
-shapes are the wound caps shown when a limb comes off. Checked: the numbered shapes of
+shapes are the wound caps shown when a limb comes off. Bit values in this paragraph are
+the table's stored values; the per-mesh bits the game uses are half of them (below).
+Checked: the numbered shapes of
 every zombie `_2` model in both games fit these groups. ❓ How the game picks a number
 per slot (the mask is set in code not yet read; the loader is CZ `sub_825B3670`).
+
+**At run time (measured in the CZ recomp, its sessions 2026-10-08 to 10; code
+`runtime/cpu/zombie_variant_names.cpp` there, commit `78632f1`).**
+- When a model loads, `sub_827ACF00` runs every mesh name through the wildcard
+  classifier `sub_827A2E10` and builds a per-type table, 8 bytes per mesh in model order.
+  **A mesh's bits are the table values above shifted right by one**: head 1 `0x10000`,
+  head 2 `0x20000`, head 3 `0x40000`, the helmet `headwear2` `0x04000101` (headwear 2 +
+  headwear + head region). Checked here against the recomp's live hide mask
+  `0x001FFFCF767EC602`: only the halved bits reproduce the bare-headed soldier it drew.
+- **Each zombie carries a 64-bit hide mask** (actor `+0x40`); at draw time `sub_827ADD40`
+  skips a mesh when `bits & mask != 0`. So a set bit hides a variant, and meshes with no
+  variant bits always draw. The mask is set in `sub_82437600` (`0x82437978`):
+  `actor+0x40 = r24 ? 0x4000 : *(spawn+0x30)`. ❓ What writes `spawn+0x30`: probably
+  rolled from the zombie-spawn seed (random stream 4, a Park-Miller generator at
+  `0x8276F728`), not found yet. ❓ How a colour set is chosen per zombie.
+- **Distance:** the crowd renderer `sub_825B8680` gives the zombies largest on screen `_2`,
+  the next `_3`, the rest `_4`. `_2` and `_3` honour the mask; `_3`'s shaders don't sample
+  normal maps; `_4` is one baked texture (`zombie_fat_4.tex/al_lod4_cm`) and only roughly
+  follows the outfit.
+- **Names decide, so a misspelling breaks a variant.** CZ `zombie_soldier_3.big` has
+  `headwearShape2Deformed` and `chestupper_neckShape2Deformed` (digit after "Shape"), which
+  classify without their variant bit: every far soldier wore the helmet. The CZ recomp
+  corrects the name for the classifier. CW `zombie_security_2.big` (the close model) has
+  `chestupper_neckShape1Deformed` and `chestupper_neckShape3Deformed` too, seen in the
+  shape census here; the CW recomp has no such fix ❓ (effect in CW not checked).
 
 **Detail levels.** `<zombie>_2.big`, `_3.big`, `_4.big` are high, medium and low detail
 (CZ `zombie_cop`: 214, 102, 19 KB). `_3` keeps the same groups; `_4` keeps the clothing

@@ -29,7 +29,12 @@ choices, all found by name in `shaders/deadrisingprologue-sc.big`; CW's list is 
 `KHR_materials_variants` but not `KHR_node_visibility` (checked in 5.2's add-on).
 **Docs updated:** `phase9-kickoff.md` (new), `formats.md` §Variants, `roadmap.md`,
 `glossary.md` (variant, detail level, wound cap), `docs/README.md`, `CLAUDE.md`, this devlog.
-**Next:** phase 9 step 0, confirming the choice rules in game.
+The user then shared the CZ recomp's measurements: mesh names become variant bits at load
+(half the table's stored values, checked here against its live mask), each zombie has a
+64-bit hide mask from its spawn record, and misplaced digits in names lose the bit (CZ
+`zombie_soldier_3`; also CW `zombie_security_2`, found in the shape census here). Added to
+`formats.md` §Variants and the phase plan.
+**Next:** phase 9 step 0: what writes the mask (the per-slot roll) and picks the colours.
 
 ## 2026-10-10 — The Windows build's 3D view stayed at "loading…"
 **Done:** the user's next Windows test: clicking a model now got as far as the 3D view,

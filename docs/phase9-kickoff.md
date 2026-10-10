@@ -58,11 +58,16 @@ The groups and the shape names agree on every zombie of both games: `zombie_cop_
 heads 1-3, `zombie_skinny_2` heads 1-4, shirts 1-4, trousers 1-3 and the burnt set;
 CW's `zombie_fat_female_2` names its pieces `shirt5_loose`, `pants4_pantskhakis`…
 
-**Not known yet:** how a number is picked for each slot (random? weighted? the same
-number for head and shirt?), and when the burnt and gas sets are used. The loader is
-`sub_825B3670` (CZ); the code that sets the mask is still to find. The detail levels
-`_3` keep the same groups; `_4` keeps only the clothing groups (`chest_shirt1…4`,
-`pants_pants1…3`, `headwear1…3`) or is a single shape (`zombie_cop_4`: `geo_lod4`).
+**How the game uses it (measured in the CZ recomp; `formats.md` §Variants):** each mesh
+gets bits from its name when the model loads (the table values shifted right by one);
+**each zombie carries a 64-bit hide mask**, and a mesh is skipped when its bits and the
+mask share a bit. The mask comes from the spawn record (`spawn+0x30`). Detail levels
+`_2` and `_3` honour it; `_4` (one baked texture) only roughly follows. A misplaced digit
+in a mesh name (`headwearShape2Deformed`) loses the variant bit: CZ `zombie_soldier_3`
+(fixed in the CZ recomp) and CW `zombie_security_2` (not fixed there).
+
+**Not known yet:** what writes `spawn+0x30` (probably rolled per slot from the
+zombie-spawn seed), and how a colour set is chosen per zombie.
 
 ### 2. Colour variants
 
@@ -114,8 +119,9 @@ number for head and shirt?), and when the burnt and gas sets are used. The loade
 
 ### 0. Before building: confirm in game (both games)
 
-- Find the code that fills the zombie's mask (from the table's users and the loader
-  `sub_825B3670`), and write down how each slot's number is picked.
+- Already measured in the CZ recomp: names → bits, the per-zombie hide mask, where it is
+  read. Still to find: the code that writes `spawn+0x30` (how each slot's number is
+  rolled), and how a colour set is picked.
 - Capture a frame with several zombies in the CZ and CW recomps (`tools/capture_gate.py`
   procedure, `dev/recomp-integration.md`): each zombie's drawn shapes must be one
   choice per slot, no caps, and its clothing constants must equal one listed colour
@@ -129,6 +135,10 @@ number for head and shirt?), and when the burnt and gas sets are used. The loade
 - `variants(scene)` → the slots a model really has (`Head: 1 2 3`, `Shirt: 1 2`,
   `Burnt: off/on`), each shape's group, the always-drawn shapes, the caps; and the
   colour choices per material (CZ from the list, CW by the name rule if step 0 says so).
+- The classifier works like the game's: same patterns, same bits, so a choice converts to
+  **the game's hide mask** and back (shown in Studio and `info.txt`; useful to compare
+  with the recomp). Misplaced digits (`<part>Shape<N>Deformed`) are read as the artist
+  meant, the way the CZ recomp's fix does, and reported by the census.
 - A **choice** is plain text: `head=2 shirt=1 pants=3 headwear=none colour.jersey=4`.
   The **default** is what the game would show (the first of each slot until step 0 says
   otherwise, no caps, not burnt), never "everything".
@@ -167,6 +177,8 @@ number for head and shirt?), and when the burnt and gas sets are used. The loade
   group is always drawn; warn when that's probably not meant).
 - A guide: adding a new shirt as `chest_shirt5`, and what the game will do with it
   (after step 0 says how numbers are picked).
+- `dr2 model check` warns about a mesh name the game would classify without its variant
+  bit (the misplaced-digit case).
 - **Colour choice mods** (change `jersey3`'s colours) are a small step from here, since
   value sets are read already: a stretch goal, decided after step 0.
 
