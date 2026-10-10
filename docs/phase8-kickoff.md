@@ -69,7 +69,8 @@ Read `CLAUDE.md` first (documentation and clean-up rules), then `phase7-kickoff.
    `build/release/` (AppImage, tar.zst), Windows unpacked at `C:\dr2kit\test3` on the build
    laptop (zip in `C:\dr2kit\src\build\release`). The first two Windows builds had no help
    and no three.js (both fixed, the gate now checks them, `dev/packaging.md`). After the
-   user switches: delete `C:\dr2kit\test` and `test-new`; after testing, `build/release`.
+   user switched, `C:\dr2kit\test` and `test-new` were deleted (2026-10-10); after testing,
+   delete `test3` and `build/release`.
    Not tried by us on Windows: Studio's GUI (Play, Open in Blender, the 3D view).
 
 ## What exists to build on
