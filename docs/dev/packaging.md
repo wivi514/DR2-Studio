@@ -59,7 +59,7 @@ toolkit:
    or reports a GPL ffmpeg, and after PyInstaller it **refuses the bundle** if any file
    is named like a GPL library (x264, x265, xvid, postproc, vvenc…) or if the bundled
    `dr2 doctor` doesn't report an LGPL ffmpeg with the XMA and Bink decoders and the
-   native LZX library.
+   native LZX library, or if the bundled `dr2 help` can't show the guides (the help).
 
 Development installs keep using the PyPI wheel (`pip install av`): nothing is
 redistributed there. Qt Multimedia brings its own ffmpeg (LGPL 2.1+, inside PySide6);
@@ -98,6 +98,15 @@ passes; the bundled and the AppImage's `dr2` extract a sound as WAV, a movie as 
 model as `.glb` and a texture as PNG, show strings, and check a mod; DR2 Studio starts
 (offscreen); the LGPL PyAV passes `dr2 census --audio` on both games (every sound and
 movie decodes; 9 minutes without nasm, against about 1.5 with the PyPI wheel).
+
+**The help inside the bundle.** PyInstaller runs from the repository, so it collects the
+package's data files from the source checkout, where the guides live in `docs/modding/`,
+not in `dr2kit/help/en/` as in an installed package (`setup.py` copies them there). The
+first test builds (2026-10-10) had no help, and Studio then showed no asset at all (its
+"How to mod this" box reads the help, and the error was invisible without a console).
+The spec now adds the guides itself, the gate runs the bundled `dr2 help`, and Studio
+reports unexpected errors in its log, an error box and `studio-errors.log` in the cache
+folder.
 
 **MP4 bitrate.** The movie export asks ffmpeg's `mpeg4` encoder for 8 Mb/s; with x86
 assembly (PyPI's PyAV, the Windows build) it lands at ~3 Mb/s for `dr2_logo.bik`, without

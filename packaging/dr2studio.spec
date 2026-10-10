@@ -16,6 +16,20 @@ HERE = Path(SPECPATH)
 LZX = [(str(p), "dr2kit/container/lzx/_native")
        for p in (HERE.parent / "build" / "release" / "native").glob("*dr2lzx*")]
 datas = collect_data_files("dr2kit", excludes=["**/__pycache__/*"])
+# The in-app help: the modding guides, as setup.py copies them into an installed package
+# (dr2kit/help/<lang>/). collect_data_files reads the package PyInstaller imports, which
+# is the source checkout (it runs from the repository), where the guides live in
+# docs/modding/ instead: without this, releases had no help, and Studio couldn't show
+# an asset (its "How to mod this" box reads the help; found on 2026-10-10).
+MODDING = HERE.parent / "docs" / "modding"
+datas = [d for d in datas if not d[1].startswith("dr2kit/help/")]
+for lang, src in [("en", MODDING)] + [(d.name, d) for d in MODDING.iterdir()
+                                       if d.is_dir() and len(d.name) == 2]:
+    datas += [(str(f), f"dr2kit/help/{lang}") for f in sorted(src.glob("*"))
+              if f.suffix in (".md", ".toml")]
+    gloss = src / "glossary.md"
+    datas.append((str(gloss if gloss.is_file() else HERE.parent / "docs" / "glossary.md"),
+                  f"dr2kit/help/{lang}"))
 hidden = collect_submodules("dr2kit", filter=lambda m: ".tests" not in m)
 excludes = ["tkinter", "pytest", "PyInstaller"]
 

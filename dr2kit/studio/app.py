@@ -397,7 +397,12 @@ class MainWindow(QMainWindow):
 
     def _show_howto(self, kind: str | None) -> None:
         from .. import help as dhelp
-        ctx = dhelp.context(kind) if kind else None
+        try:
+            ctx = dhelp.context(kind) if kind else None
+        except OSError as e:            # help files missing: say so, show the asset anyway
+            self.howto.setText(f"<b>How to mod this</b><br>The help is missing from this "
+                               f"installation ({e}).")
+            return
         if ctx is None:
             self.howto.setText("<b>How to mod this</b><br>Select an asset on the left. "
                                "Press F1 for the help.")
@@ -1528,11 +1533,39 @@ def app_icon() -> QIcon:
     return QIcon(str(Path(__file__).with_name("icon") / "dr2studio.svg"))
 
 
+def install_error_hook(win: "MainWindow") -> None:
+    """Show unexpected Python errors instead of losing them.
+
+    Studio on Windows has no console, and Qt drops an exception raised in a click
+    handler after printing it there: a bug then looked like nothing happening (a model
+    that never showed, 2026-10-10). Every such error now goes to the log, to
+    ``studio-errors.log`` in the cache folder (for bug reports), and to an error box.
+    """
+    from ..userdirs import cache_dir
+    previous = sys.excepthook
+
+    def hook(kind, value, tb):
+        text = "".join(traceback.format_exception(kind, value, tb))
+        try:
+            f = cache_dir() / "studio-errors.log"
+            f.parent.mkdir(parents=True, exist_ok=True)
+            with f.open("a", encoding="utf-8") as out:
+                out.write(text + "\n")
+            win.error(f"Something went wrong inside DR2 Studio (a bug). The details are in "
+                      f"the log below and in {f}; please include them in a report.\n\n"
+                      f"{kind.__name__}: {value}")
+            win.say(text)
+        except Exception:  # noqa: BLE001 - never fail inside the error handler
+            previous(kind, value, tb)
+    sys.excepthook = hook
+
+
 def main(argv: list[str] | None = None) -> int:
     app = QApplication.instance() or QApplication(sys.argv[:1] + list(argv or []))
     app.setApplicationName("DR2 Studio")
     app.setWindowIcon(app_icon())
     win = MainWindow()
+    install_error_hook(win)
     win.show()
     for arg in argv or []:                  # `dr2 studio x.dr2mod`, or a double-click
         if Path(arg).suffix.lower() in (".dr2mod", ".zip") and Path(arg).is_file():

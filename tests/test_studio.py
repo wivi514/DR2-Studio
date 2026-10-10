@@ -246,3 +246,43 @@ def test_open_in_blender_script(tmp_path):
                          env=env).stdout
     assert "TYPES ['ARMATURE', 'MESH'] data/x.big/box.big" in out, out[-2000:]
     assert "SPHERES 0" in out, out[-2000:]
+
+
+def test_errors_are_shown_and_missing_help_doesnt_block(tmp_path, monkeypatch):
+    """Studio on Windows has no console: an unexpected error goes to the log and
+    studio-errors.log; missing help files don't stop an asset from showing (a release
+    without them showed no model, 2026-10-10)."""
+    import sys
+    from PySide6.QtWidgets import QApplication
+    from dr2kit import help as dhelp
+    from dr2kit.studio import app as sapp
+    from dr2kit.userdirs import cache_dir
+    root = tmp_path / "game"
+    (root / "data").mkdir(parents=True)
+    (root / "data" / "pack.big").write_bytes(make_archive(("box.big", make_scene())).to_bytes())
+    monkeypatch.setenv("DR2_CZ_DATA", str(root))
+    db = tmp_path / "i.sqlite"
+    build_index("cz", AssetTree(root), db)
+    app = QApplication.instance() or QApplication([])
+    win = sapp.MainWindow(db)
+    old = sys.excepthook
+    try:
+        sapp.install_error_hook(win)
+        try:
+            raise RuntimeError("boom")
+        except RuntimeError:
+            sys.excepthook(*sys.exc_info())
+        assert "RuntimeError: boom" in win.log.toPlainText()
+        assert "boom" in (cache_dir() / "studio-errors.log").read_text()
+    finally:
+        sys.excepthook = old
+
+    def missing(kind, lang="en"):
+        raise FileNotFoundError("the help files are missing")
+    monkeypatch.setattr(dhelp, "context", missing)
+    win.show_asset(query.get(win.con, "cz", "data/pack.big/box.big")["id"])
+    assert win.centre.currentWidget() is win.model_view
+    assert "help is missing" in win.howto.text()
+    assert win.wait_for_jobs()
+    win.close()
+    del app

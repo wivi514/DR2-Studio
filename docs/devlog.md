@@ -17,6 +17,19 @@ Entry template:
 
 ---
 
+## 2026-10-10 — Release builds had no help, so Studio showed no model
+**Done:** the user's Windows test: games found, the Library listed, but clicking a model
+left "No game data found yet" in the middle. The bundle had no `dr2kit/help/` (PyInstaller
+collected data from the source checkout, where the guides are in `docs/modding/`);
+`show_asset` raised `FileNotFoundError` from the "How to mod this" box before switching
+to the 3D view, and a windowed program shows no traceback. The Linux AppImage had the same
+fault. Fixed: the spec adds the guides; the release gate runs the bundled `dr2 help`;
+missing help no longer stops an asset; `install_error_hook` puts any unexpected error in
+the log, an error box and `studio-errors.log`. Test: `test_errors_are_shown_and_…`.
+**Learned:** my bundle checks ran `dr2` commands, never Studio's click path or `dr2 help`;
+the gate now covers the help, and errors can no longer vanish silently.
+**Docs updated:** `dev/packaging.md`, `devlog.md`.
+
 ## 2026-10-10 — Test builds for Linux and Windows
 **Done:** at the user's request, release builds to test: Linux (this machine: AppImage
 263 MB, `tar.zst` 222 MB, add-on) and, for the first time, **Windows** on the recomps'

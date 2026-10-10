@@ -257,7 +257,12 @@ def check_licences(bundle: Path) -> None:
         fail(f"the bundled dr2 doctor says: {av_line or out}")
     if "LZX decoder: native" not in out:
         fail("the bundled dr2 doesn't load its native LZX library")
-    say("licence gate passed: no GPL library, LGPL ffmpeg with XMA and Bink, native LZX")
+    # The help is the guides (dr2kit/help/en): Studio reads it for every asset it shows
+    helped = subprocess.run([str(exe), "help"], capture_output=True, text=True)
+    if helped.returncode != 0 or "Install DR2 Studio" not in helped.stdout:
+        fail(f"the bundled dr2 has no help: {(helped.stderr or helped.stdout)[-300:]}")
+    say("licence gate passed: no GPL library, LGPL ffmpeg with XMA and Bink, native LZX; "
+        "the help is inside")
 
 
 # ---- archives -------------------------------------------------------------------------
