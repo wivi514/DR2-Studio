@@ -230,6 +230,7 @@ def test_open_in_blender_script(tmp_path):
     script = BLENDER_SCRIPT.format(job=job)
     compile(script, "open_in_blender.py", "exec")
     assert "bpy.app.timers.register(run" in script and "ops.wm.read_homefile" not in script
+    assert "disable_bone_shape" in script                  # no sphere on every bone
     blender = shutil.which("blender")
     if blender is None:
         pytest.skip("Blender not installed: the script was only compiled")
@@ -237,9 +238,11 @@ def test_open_in_blender_script(tmp_path):
     probe = tmp_path / "probe.py"
     probe.write_text("import bpy, runpy, sys\nrunpy.run_path(sys.argv[-1])\n"
                      "c = bpy.data.collections['box.big']\n"
-                     "print('TYPES', sorted(o.type for o in c.objects), c['dr2_vpath'])\n")
+                     "print('TYPES', sorted(o.type for o in c.objects), c['dr2_vpath'])\n"
+                     "print('SPHERES', sum(o.name.startswith('Icosphere') for o in bpy.data.objects))\n")
     env = dict(os.environ, BLENDER_USER_RESOURCES=str(tmp_path / "bl"))
     out = subprocess.run([blender, "-b", "--factory-startup", "--python", str(probe), "--",
                           str(tmp_path / "s.py")], capture_output=True, text=True, timeout=120,
                          env=env).stdout
     assert "TYPES ['ARMATURE', 'MESH'] data/x.big/box.big" in out, out[-2000:]
+    assert "SPHERES 0" in out, out[-2000:]

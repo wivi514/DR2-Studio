@@ -206,7 +206,10 @@ app, easy packaging and installing.
   straight from `--python` in a windowed Blender, the glTF importer fails (`'Context'
   object has no attribute 'object'`) and leaves only its bone-shape Icosphere (user
   report, 2026-10-10; background runs don't show it, so the test runs the script in
-  Blender and the windowed path was checked by hand).
+  Blender and the windowed path was checked by hand). It passes `disable_bone_shape`
+  (when the importer has it), so bones aren't drawn as spheres, and sets the 3D views
+  to Material Preview so the textures show; the add-on's **Import** passes the same
+  option.
 - **Import textures…** (models): pictures exported by a texturing program (a folder,
   files, or a `.glb`) → `mods.texture_import.plan` in a worker, the plan in the log and
   a confirmation, then `apply` into the open mod.

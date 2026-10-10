@@ -17,6 +17,17 @@ Entry template:
 
 ---
 
+## 2026-10-10 — Blender: no spheres on the bones, textures shown
+**Done:** the user opened `boss_mechanic` in Blender and asked whether the balls all over
+him and the grey look were normal. The balls are Blender's glTF importer drawing every
+bone with its `Icosphere` shape; the grey is Blender's Solid view. Studio's Open in
+Blender and the add-on's Import now pass `disable_bone_shape=True` (when the importer
+has the option: Blender 4.2+), and Open in Blender switches the 3D views to Material
+Preview. Checked in a windowed Blender 5.2 on the mechanic: armature and meshes, no
+sphere, Material Preview. `test_open_in_blender_script` now also checks no Icosphere is
+made.
+**Docs updated:** `dev/studio.md`, `modding/12-troubleshooting.md`, `devlog.md`.
+
 ## 2026-10-10 — Open in Blender imported only an Icosphere
 **Done:** the user opened `cine_backpack_sc710` with Studio's **Open in Blender** and got
 only an Icosphere. The `.glb` was complete (5 meshes, 11 bones), and the same script

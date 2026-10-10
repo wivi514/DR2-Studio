@@ -153,10 +153,18 @@ def run():
     coll["dr2_game"], coll["dr2_vpath"] = job["game"], job["vpath"]
     bpy.context.view_layer.active_layer_collection = \\
         bpy.context.view_layer.layer_collection.children[coll.name]
-    bpy.ops.import_scene.gltf(filepath=job["glb"])
+    # no sphere on every bone (the importer's bone shapes): the model stays readable
+    props = bpy.ops.import_scene.gltf.get_rna_type().properties
+    extra = dict(disable_bone_shape=True) if "disable_bone_shape" in props else dict()
+    bpy.ops.import_scene.gltf(filepath=job["glb"], **extra)
     arm = next((o for o in coll.objects if o.type == "ARMATURE"), None)
     if arm is not None:
         bpy.context.view_layer.objects.active = arm
+    # show the textures: Material Preview in every 3D view (Solid view draws grey)
+    for win in bpy.context.window_manager.windows:
+        for area in win.screen.areas:
+            if area.type == "VIEW_3D":
+                area.spaces.active.shading.type = "MATERIAL"
     try:
         bpy.context.scene.dr2.game = job["game"]
         if job["mod"]:

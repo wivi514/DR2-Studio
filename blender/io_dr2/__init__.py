@@ -157,8 +157,11 @@ class DR2_OT_import(bpy.types.Operator):
         layer = context.view_layer.layer_collection.children[coll.name]
         context.view_layer.active_layer_collection = layer
         path = _temp_glb(glb)
+        # no sphere drawn on every bone (the importer's bone shapes; Blender 4.2+)
+        props = bpy.ops.import_scene.gltf.get_rna_type().properties
+        extra = {"disable_bone_shape": True} if "disable_bone_shape" in props else {}
         try:
-            bpy.ops.import_scene.gltf(filepath=path)
+            bpy.ops.import_scene.gltf(filepath=path, **extra)
         finally:
             os.unlink(path)
         arm = next((o for o in coll.objects if o.type == "ARMATURE"), None)
