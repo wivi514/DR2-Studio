@@ -51,8 +51,11 @@ are shown once; the details say where the other copies are ("also in…").
        info.txt                 where it comes from, its counts, its rig, how to open it
    ```
 
-   Open the `.glb` in Blender (*File → Import → glTF 2.0*) or Substance Painter, and use
-   the PNGs as your starting maps.
+   Open the `.glb` in Blender (*File → Import → glTF 2.0*; or **Open in Blender** in
+   Studio) or Substance Painter, and use the PNGs as your starting maps. In Blender, press
+   **`Z` → Material Preview** to see the textures, and untick **Bones** in the **Viewport
+   Overlays** dropdown to hide the skeleton
+   ([more](07-blender-setup.md#seeing-the-model-clearly-textures-and-bones)).
 
 ## Steps: export a whole group
 

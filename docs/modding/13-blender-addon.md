@@ -8,6 +8,10 @@ Blender.   **Time:** ~10 min.   **Games:** both.
 the add-on zip `io_dr2-<version>.zip` (in a DR2 Studio release, or built from the
 toolkit, below).
 
+Seeing it: press **`Z` → Material Preview** for the textures; to hide the bones, untick
+**Bones** in the 3D view's **Viewport Overlays** dropdown
+([more ways](07-blender-setup.md#seeing-the-model-clearly-textures-and-bones)).
+
 Shortcut: in DR2 Studio, select a model and click **Open in Blender**: Blender starts
 with it imported and the add-on's mod folder set to Studio's open mod.
 

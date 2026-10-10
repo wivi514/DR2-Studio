@@ -17,6 +17,20 @@ Entry template:
 
 ---
 
+## 2026-10-10 — In the help: seeing textures and hiding bones in Blender
+**Done:** at the user's request, how to see a model's textures in Blender (**`Z` →
+Material Preview**) and how to hide the bones (Viewport Overlays → untick Bones; hide
+`Armature` in the Outliner; Stick/Wire, not In Front) is now a section of
+`07-blender-setup.md` ("Seeing the model clearly: textures and bones"), with the manual
+import's *Disable Bone Shape* option. Pointed to from `08`, `13`, `16`,
+`12-troubleshooting.md` (rows for grey models, balls, bones in the way). In the app:
+the model's "How to mod this" box gives the two shortcuts with a link straight to that
+section (context steps may now carry `[text](guide.md#section)` links, opened in the
+help window), Studio's log says them when Blender starts, and the help's search finds
+them (F1). Test: `test_help.py::test_context_links_reach_a_section`.
+**Why:** the user asked for it to be documented and easy to reach from the app.
+**Docs updated:** the guides above, `context.toml`, `devlog.md`.
+
 ## 2026-10-10 — Blender: no spheres on the bones, textures shown
 **Done:** the user opened `boss_mechanic` in Blender and asked whether the balls all over
 him and the grey look were normal. The balls are Blender's glTF importer drawing every

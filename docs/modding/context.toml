@@ -1,7 +1,8 @@
 # "How to mod this": what DR2 Studio shows next to the selected asset, by kind.
 # Part of the in-app help (dr2kit/help). Keep each step one short action, naming the
 # button. A translation copies this file into docs/modding/<lang>/ and translates the
-# text (keep the keys and the guide file names).
+# text (keep the keys and the guide file names). A step can link a help section:
+# [how](07-blender-setup.md#seeing-the-model-clearly-textures-and-bones) opens it.
 
 [texture]
 title = "Change this texture"
@@ -17,7 +18,7 @@ guide = "05-first-mod-texture.md"
 title = "Change this model"
 steps = [
   "Open or create a mod (bottom bar).",
-  "Shape: click Open in Blender, edit, then in Blender's DR2 tab Check rig and Export to mod.",
+  "Shape: click Open in Blender, edit, then in Blender's DR2 tab Check rig and Export to mod. In Blender: Z → Material Preview shows the textures; Viewport Overlays → untick Bones hides the skeleton ([how](07-blender-setup.md#seeing-the-model-clearly-textures-and-bones)).",
   "Textures: Export .glb… to Substance Painter (or any texturing program), export PNGs, then Import textures… (or drop the folder here).",
   "Click Play to see it in game. Limits: Help → Limits.",
 ]

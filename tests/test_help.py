@@ -40,6 +40,21 @@ def test_every_context_entry_names_a_guide():
         assert entry["steps"], kind
 
 
+def test_context_links_reach_a_section():
+    """Links in "How to mod this" steps open a guide at a heading that exists."""
+    import tomllib
+    from dr2kit.studio.help_view import slug
+    data = tomllib.loads((DOCS / "modding" / "context.toml").read_text())
+    links = [m for e in data.values() for st in e["steps"]
+             for m in re.finditer(r"\]\(([^)#\s]+)#([^)\s]+)\)", st)]
+    assert links                                           # the Blender tips, at least
+    for m in links:
+        page, section = m.group(1), m.group(2)
+        heads = [slug(h.lstrip("#")) for h in dhelp.read(page).splitlines() if h.startswith("#")]
+        assert section in heads, (page, section)
+    assert dhelp.search("Material Preview")                 # findable from the help's search
+
+
 def test_links_between_guides_resolve():
     bad = []
     for page in (DOCS / "modding").glob("*.md"):

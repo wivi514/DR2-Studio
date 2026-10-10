@@ -10,21 +10,42 @@ to a mod from a sidebar tab: [`13-blender-addon.md`](13-blender-addon.md).)
 
 ## Steps
 
-1. Export a model: in DR2 Studio, click `data/models/npcs.big/boss_mechanic.big` and
-   **Export .glb…**; or `dr2 extract --glb data/models/npcs.big/boss_mechanic.big -o out`.
-2. In Blender: **File → Import → glTF 2.0 (.glb/.gltf)**, pick the file, keep the default
-   options, **Import glTF 2.0**.
+1. **Quickest:** in DR2 Studio, select the model (Library → Models → Characters →
+   *Mechanic (boss)*, i.e. `data/models/npcs.big/boss_mechanic.big`) and click **Open in
+   Blender**. Blender starts with the model imported, textures showing; skip to step 3.
+   *By hand:* **Export .glb…** in Studio (or `dr2 extract --glb
+   data/models/npcs.big/boss_mechanic.big -o out`), then step 2.
+2. In Blender: **File → Import → glTF 2.0 (.glb/.gltf)**, pick the file. Under **Bones &
+   Skin**, tick **Disable Bone Shape** (otherwise every bone is drawn as a ball), then
+   **Import glTF 2.0**.
 3. What you get in the Outliner: an **Armature** (98 bones for characters, named like the
    game: `dummy01.l_upperarm`), and one mesh object per game mesh (`geo_apronShape`,
    `geo_headShape` …), each with an Armature modifier and vertex groups named after the
-   bones. The materials carry the colour and normal textures. Blender also adds a small
-   `Icosphere` object: the importer's bone display shape, safe to ignore.
-4. Look around: switch the viewport to **Material Preview** (press `Z`, then pick it).
+   bones. The materials carry the colour and normal textures. (If you imported without
+   *Disable Bone Shape*, Blender also adds a small `Icosphere` object, in a
+   `glTF_not_exported` collection: the shape it draws bones with, safe to ignore.)
+4. **See the textures:** press **`Z`** in the 3D view and pick **Material Preview** (or
+   click the third sphere icon at the top right of the 3D view). The model is grey until
+   you do: Blender's default *Solid* view doesn't draw textures. Open in Blender starts
+   in Material Preview already.
    Characters stand in a T-pose, facing you when you look from Blender's **Front** view
-   (numpad `1`), at real size (metres).
+   (numpad `1`), at real size (metres). The bones are drawn over the model: to hide
+   them, see [below](#seeing-the-model-clearly-textures-and-bones).
 5. Pose it to check the skin: select the armature, switch to **Pose Mode**
    (`Ctrl+Tab`), click a bone (an upper arm) and rotate it (`R`). The mesh follows,
    fingers and face included. `Alt+R` puts the bone back.
+
+### Seeing the model clearly: textures and bones
+
+| You want to… | Do this in Blender |
+|---|---|
+| **See the textures** | In the 3D view press **`Z` → Material Preview** (or the third sphere icon at the top right of the 3D view). *Solid* view draws everything grey. |
+| **Hide the bones, keep everything else** | In the 3D view's top-right bar, open the **Viewport Overlays** dropdown (the small arrow next to the two-circles icon) and untick **Bones**. Only this 3D view changes. |
+| **Hide the whole armature** | In the Outliner (top right), click the **eye** next to `Armature`, or select it and press **`H`** (**`Alt+H`** shows it again). The mesh still follows the bones; they just aren't drawn. |
+| **Keep the bones but out of the way** | Select the armature → **Object Data Properties** (the running-man tab) → **Viewport Display**: *Display As* **Stick** or **Wire**, and untick **In Front** so the body hides the bones inside it. |
+| **No balls on every bone** | Imported by hand without *Disable Bone Shape*: re-import with it ticked (**File → Import → glTF 2.0 → Bones & Skin**). Open in Blender and the DR2 add-on's Import already do this. |
+
+Turn the bones back on the same way when you paint weights or pose the model.
 
 ### Several parts of Chuck in one scene
 
@@ -58,7 +79,10 @@ to put it back in the game, [`08-edit-a-model.md`](08-edit-a-model.md)):
 | Symptom | Cause | Fix |
 |---|---|---|
 | Only dots or lines, no mesh | You exported a skeleton file or used `--skeleton` | Expected for `data/skeleton/*.big`: they have no mesh. Export the model instead. |
-| Grey or pink surfaces | Textures weren't embedded, or the viewport is in Solid mode | Switch to Material Preview. If a texture was not found during export, run `dr2 index build` and export again. |
+| Grey surfaces | The 3D view is in *Solid* mode, which doesn't draw textures | Press **`Z` → Material Preview**. |
+| Pink surfaces | A texture wasn't found when the `.glb` was made | Run `dr2 index build` (Studio: *Build / refresh index*) and export again. |
+| Balls all over the model | Blender draws each bone with a sphere (imported without *Disable Bone Shape*) | Re-import with **Bones & Skin → Disable Bone Shape**, or use Open in Blender. |
+| Bones (spikes, pyramids) drawn over the model | That's the armature | **Viewport Overlays → untick Bones**, or hide `Armature` in the Outliner ([how](#seeing-the-model-clearly-textures-and-bones)). |
 | The model is lying down or far away | A cinematic or level piece placed in its scene | Some props and cinematic rigs sit hundreds of metres from the origin, where the game places them. Press numpad `.` to frame the selection. |
 | A few prop bones come back slightly different after export | They carry a scale in their rest pose, which Blender armatures can't store | Known limit (25 bones of 41,209 in both games, none on characters): see [`../dev/gltf-mapping.md`](../dev/gltf-mapping.md). |
 | Import is slow | Big level pieces | Characters import in seconds; whole environment chunks have hundreds of thousands of triangles. |

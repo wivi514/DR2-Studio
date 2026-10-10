@@ -282,6 +282,7 @@ class MainWindow(QMainWindow):
         self.howto.setTextFormat(Qt.RichText)
         self.howto.setStyleSheet("QLabel { background: palette(alternate-base); "
                                  "padding: 6px; border-radius: 4px; }")
+        self.howto.linkActivated.connect(self._howto_link)   # [text](guide#section) in steps
         self.howto_btn = QPushButton("Open the guide")
         self.howto_btn.clicked.connect(lambda: self.open_help(self._howto_guide))
         self._howto_guide = "README.md"
@@ -390,6 +391,10 @@ class MainWindow(QMainWindow):
             self._help = HelpWindow(self)
         self._help.show_page(page, section)
 
+    def _howto_link(self, href: str) -> None:
+        page, _, section = href.partition("#")
+        self.open_help(page, section)
+
     def _show_howto(self, kind: str | None) -> None:
         from .. import help as dhelp
         ctx = dhelp.context(kind) if kind else None
@@ -398,7 +403,7 @@ class MainWindow(QMainWindow):
                                "Press F1 for the help.")
             self._howto_guide = "README.md"
         else:
-            steps = "".join(f"<li>{s}</li>" for s in ctx.steps)
+            steps = "".join(f"<li>{_help_links(s)}</li>" for s in ctx.steps)
             self.howto.setText(f"<b>{ctx.title}</b><ol style='margin-left:-20px'>{steps}</ol>")
             self._howto_guide = ctx.guide
 
@@ -1349,7 +1354,9 @@ class MainWindow(QMainWindow):
                 return
             self.say("Blender is starting with the model. In its DR2 tab (N key → DR2): "
                      "Check rig, then Export to mod" + ("" if mod_dir else " (choose a mod "
-                                                         "folder there)") + ".")
+                                                         "folder there)") + ". "
+                     "Textures: Z → Material Preview. Hide the bones: Viewport Overlays "
+                     "(top right of the 3D view) → untick Bones. Help: F1 → Set up Blender.")
         self.run_job(work, done)
 
     def import_textures(self, sources: list[str] | None = None) -> None:
@@ -1484,6 +1491,13 @@ class MainWindow(QMainWindow):
             self.con = connect(self.db_path)
             self.set_game(self.game)
         self.run_job(work, done)
+
+
+def _help_links(step: str) -> str:
+    """A context-help step with its Markdown links (``[how](07-blender-setup.md#…)``)
+    turned into links the "How to mod this" box opens in the help window."""
+    import re
+    return re.sub(r"\[([^\]]+)\]\(([^)\s]+)\)", r'<a href="\2">\1</a>', step)
 
 
 def help_for_error(text: str) -> tuple[str, str]:

@@ -10,6 +10,10 @@ A model is made of **parts** (Blender objects such as `geo_larmShape`, the left 
 edit parts in Blender, export the whole file again, and the toolkit puts each part you
 changed back into the game's model. Parts you didn't touch stay exactly as they were.
 
+> In Blender, press **`Z` → Material Preview** to see the textures, and untick **Bones**
+> in the **Viewport Overlays** dropdown to hide the skeleton while you edit
+> ([details](07-blender-setup.md#seeing-the-model-clearly-textures-and-bones)).
+
 ## Steps
 
 1. **Export the model.** DR2 Studio: click `data/models/npcs.big/chest_young_chuck.big`
