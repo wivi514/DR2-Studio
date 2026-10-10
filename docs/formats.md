@@ -546,6 +546,23 @@ made two codes decode alike, so the encoder could not give the stored bits back
 (2026-10-08):* "clamped to −1" is gone; with the unclamped rule, every element of
 every vertex of both games re-encodes to its stored bytes (census below).
 
+### Rigid parts: vertices relative to their node ✅
+
+Found 2026-10-10 (user report: the Zombrex box's lid flap stuck out of its side). An
+unskinned shape's vertices are stored **relative to a skeleton node**, the one in word 1
+of the shape record, which is also every draw's palette start (`Scene.rigid_node`); the
+game draws it with that node's world matrix. Measured over every model: every unskinned
+shape uses one node and it is always word 1 (CZ 2,736 shapes, CW 4,498); its node is not
+at the origin for CZ 1,677 draws in 369 models and CW 5,101 draws in 665 (props,
+vehicles, cutscene props, level pieces; on skinned models every rigid draw's node is at
+the origin). Checked by drawing models both ways: placed by their node, the Zombrex lids
+close the box's end (lid nodes 12.2 cm down, vertices at height 0), the security
+camera's base joins it, the canyon vista lies flat; as stored, they don't. The exporter
+hangs such a mesh under its node in the `.glb` (positions unchanged), and the importer
+takes the node's rest pose back off (from the mesh node's own offset when it still hangs
+under its node: an inverse of the scaled sky-dome nodes adds float noise); `dr2 census
+--reimport` still gives every model's exact bytes (CZ 1,397, CW 1,495, 2026-10-10). Phase 3–8 exports before this put those parts at the model's origin.
+
 ### Skinning and the bone palette ✅
 
 Read from the game's own vertex shader `ProtoSkinnedClothRGB` (`shaders/…-vs.big/13176040.vo`,

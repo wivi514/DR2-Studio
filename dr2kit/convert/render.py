@@ -228,6 +228,10 @@ def scene_parts(scene, texture_for: Callable[[str], "np.ndarray | None"] | None 
     parts = []
     cache: dict[str, object] = {}
     baked: dict[int, object] = {}
+    try:
+        world = scene.skeleton.world_matrices() if scene.skeleton.nodes else []
+    except Exception:  # noqa: BLE001 - a broken hierarchy: draw parts where stored
+        world = []
     for mesh in scene.meshes:
         for dr in mesh.draws:
             try:
@@ -255,10 +259,18 @@ def scene_parts(scene, texture_for: Callable[[str], "np.ndarray | None"] | None 
             if not see_through and tex is not None:
                 from .material import alpha_mode
                 see_through = alpha_mode(scene.shaders.get(dr.shader, "")) == "MASK"
+            pos = np.asarray(dd.positions, dtype=np.float64)
+            nrm = np.asarray(dd.normals, dtype=np.float64) if dd.normals else None
+            rn = scene.rigid_node(mesh) if world else None
+            if rn is not None:                       # rigid part: placed by its node
+                m = np.asarray(world[rn], dtype=np.float64)
+                pos = pos @ m[:3, :3].T + m[:3, 3]
+                if nrm is not None:
+                    nrm = nrm @ m[:3, :3].T
             parts.append(Part(
-                np.asarray(dd.positions, dtype=np.float32),
+                pos.astype(np.float32),
                 np.asarray(dd.triangles, dtype=np.int32),
-                np.asarray(dd.normals, dtype=np.float32) if dd.normals else None,
+                nrm.astype(np.float32) if nrm is not None else None,
                 np.asarray(dd.uvs[0], dtype=np.float32) if dd.uvs else None,
                 tex, see_through))
     return parts

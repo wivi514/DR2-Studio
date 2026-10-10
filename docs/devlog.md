@@ -17,6 +17,26 @@ Entry template:
 
 ---
 
+## 2026-10-10 — Rigid parts placed by their node (Zombrex box, cameras, vehicles…)
+**Done:** the user saw the Zombrex box's lid flap sticking out of its side. Our bug: an
+unskinned shape's vertices are relative to its node (shape word 1, which every draw's
+palette start repeats), and the exporter, the 3D view and the Library's pictures put them
+at the model's origin. Counted first: CZ 369 and CW 665 models (props, vehicles, cutscene
+props, level pieces) have such parts on a node away from the origin. Now `.glb` exports
+hang each rigid shape under its node (`Scene.rigid_node`), the importer removes the
+node's rest pose on the way back, and the renderer places them (thumbnail version 6).
+Checked: drawn both ways, only the placed version is right (Zombrex lids close the box,
+the security camera's base joins it, the canyon vista lies flat); `dr2 census --reimport`
+on both games: every model byte-identical after export and re-import (CZ 1,397, CW
+1,495; a first version that removed the node with a matrix inverse failed 3 CW sky
+domes and a roof by float noise on their scaled nodes, so the importer now reads the
+offset from the mesh's own node when it still hangs under its game node); Blender 5.2
+puts the Zombrex lids at the box's end, parented to their nodes; unit test
+`test_rigid_part_hangs_under_its_node_…`.
+**Learned:** phase 3's capture gate compared characters (skinned), where rigid draws sit
+on nodes at the origin, so it couldn't see this. `formats.md` §Rigid parts.
+**Docs updated:** `formats.md`, `dev/gltf-mapping.md`, `devlog.md`.
+
 ## 2026-10-10 — Striped faces on Chuck's hat heads (open question)
 **Done:** investigated the user's report of green/purple bands on `head_White_Cowboy_Hat`
 (and the mohawk head). The bands are in the shipped texture (all mip levels; shared by

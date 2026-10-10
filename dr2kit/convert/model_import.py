@@ -42,7 +42,7 @@ from dataclasses import dataclass, field
 
 from ..errors import Dr2Error, FormatError
 from ..formats import vertex as vx
-from ..formats.scene import Mesh, Scene, mat_mul, trs_matrix
+from ..formats.scene import Mesh, Scene, mat_inverse_affine, mat_mul, trs_matrix
 from ..formats.scene_write import (MAX_PALETTE, DrawGeometry, SceneEditor, find_template,
                                    own_buffers, quantize_weights, split_by_palette)
 from .gltf import Glb
@@ -385,7 +385,21 @@ def _read_parts(plan: ImportPlan, glb: Glb, G, ni: int, node: dict, mesh: Mesh,
                                         f"{MAX_INFLUENCES} strongest are kept (Blender: "
                                         f"Weights → Limit Total, 4)")
         else:
-            m = _snap_identity(G[ni])
+            # a rigid shape is stored relative to its node: take the node's rest pose
+            # back off (identity for an unedited export: the bytes stay the same)
+            m = G[ni]
+            rn = plan.scene.rigid_node(mesh)
+            if rn is not None:
+                parent = next((i for i, n in enumerate(gltf.get("nodes", []))
+                               if ni in n.get("children", [])), None)
+                if parent is not None and node_map.get(parent) == rn:
+                    # still under its node (our export, Blender's re-export): its own
+                    # transform is the offset from the node, exact (sky domes carry
+                    # scaled nodes whose inverse adds float noise)
+                    m = _node_local(node)
+                else:
+                    m = mat_mul(mat_inverse_affine(plan.scene.skeleton.world_matrices()[rn]), m)
+            m = _snap_identity(m)
             if m is not IDENTITY:
                 pos = [_xform(m, p) for p in pos]
                 nrm = [_normalise(_xform_dir(m, d)) for d in nrm] if nrm else None

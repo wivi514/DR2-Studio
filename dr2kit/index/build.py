@@ -62,8 +62,8 @@ RIG_LINKS = 3             # at most this many matching skeletons per model, clos
 # Bumped when model thumbnails are drawn differently: the next build redraws them all
 # (without re-reading the archives). 2: baked zombie-clothing colours. 3: hair, opacity
 # maps and glass lenses see-through. 4: clear glass that vanished drawn solid. 5: hair
-# colour from gDiffuseColourControl.
-THUMB_VERSION = "5"
+# colour from gDiffuseColourControl. 6: rigid parts placed by their node.
+THUMB_VERSION = "6"
 POSE_TOLERANCE = 0.001    # metres: a model's bones this close to a rig's are "the same pose"
 
 _EXT_KIND = {"xma": "audio", "sfx": "sfx", "anm": "anim", "po": "shader", "vo": "shader", "pdo": "shader",

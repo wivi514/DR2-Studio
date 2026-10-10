@@ -17,7 +17,7 @@ Python with no dependency (and runs inside Blender's Python too).
 | node index, parent, flag, the record bytes | node `extras.dr2 = {index, parent, flag, record}` | `record` is the 52 bytes in hex: what makes the round trip bit-exact |
 | parent | `children` of the parent node | roots (parent −1, or itself in split rigs) go in the scene's node list |
 | the whole skeleton | one **skin**: `joints` = every node in game order, `inverseBindMatrices` = the inverse of each node's rest pose in model space | because the joints are in game order, a vertex's `JOINTS_0` value **is** the game node index. Blender builds an armature only from a skin, so skeleton files get one too |
-| shape (`<shape>` in `persistent.big`) | a mesh + a node of the same name (with `skin` when skinned) | node `extras.dr2 = {shape, words}` keeps the shape's 8 header words |
+| shape (`<shape>` in `persistent.big`) | a mesh + a node of the same name (with `skin` when skinned) | node `extras.dr2 = {shape, words}` keeps the shape's 8 header words. A **rigid** shape of a model without skinning is a **child of its skeleton node** (word 1; its vertices are relative to it, `formats.md` §Rigid parts); others sit at the scene root. Coming back, a rigid shape's positions are taken out of its node's rest pose again |
 | draw (`RenderStrip` record + command packet) | a primitive | `extras.dr2 = {draw, material, palette, shader, shader_name, declaration}` |
 | POSITION, NORMAL | `POSITION`, `NORMAL` (float) | normals normalised; a zero normal (136 CZ / 2,117 CW vertices) becomes (0, 0, 1) |
 | TEXCOORD n (FLOAT2 or SHORT2N) | `TEXCOORD_n` (float), in usage order | UV origin is the top-left in both, so nothing flips |

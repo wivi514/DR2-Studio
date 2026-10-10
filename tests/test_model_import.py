@@ -152,3 +152,25 @@ def test_mod_with_a_glb_override(tmp_path, monkeypatch):
     dest.write_bytes(make_glb(sc, extra_bone="tail_bone", joints=[(1, "extra")] * 9))
     with pytest.raises(ModError, match="tail_bone"):
         mbuild.classify([Mod.load(mod_dir)], "cz", tree)
+
+
+def test_rigid_part_hangs_under_its_node_and_comes_back_local():
+    """A rigid shape's vertices are relative to its node (the Zombrex box's lids,
+    2026-10-10): the .glb hangs the mesh under that node, and reading it back takes the
+    node off again, so an unedited export is unchanged."""
+    from dr2kit.convert.gltf import Glb, model_to_glb
+    from dr2kit.convert.model_import import plan_import
+    from dr2kit.formats.scene import Scene
+    sc = Scene.parse(make_scene(combined=True))
+    mesh = sc.meshes[0]
+    mesh.words = (mesh.words[0], 1) + tuple(mesh.words[2:])     # node 1: 1 m up
+    for d in mesh.draws:
+        d.palette_start = 1
+    assert sc.rigid_node(mesh) == 1
+    glb = model_to_glb(sc)
+    g = Glb.parse(glb).gltf
+    mesh_node = next(i for i, n in enumerate(g["nodes"]) if n.get("mesh") is not None)
+    assert mesh_node in g["nodes"][1].get("children", [])         # under node 1, not the root
+    assert mesh_node not in g["scenes"][0]["nodes"]
+    plan = plan_import(sc, glb)
+    assert plan.ok and plan.unchanged == [mesh.name], plan.issues  # positions came back local

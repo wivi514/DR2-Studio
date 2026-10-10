@@ -10,6 +10,9 @@ What goes in (docs/dev/gltf-mapping.md has the full table):
   (translation, rotation, scale) relative to its parent. Each node's ``extras.dr2``
   keeps the original index, parent, flag and the exact 52-byte record (hex), so the
   rig can be put back bit for bit (`skeleton_from_glb`).
+* **Rigid parts** (models without skinning: props, vehicles, level pieces): a shape's
+  vertices are relative to its node (`Scene.rigid_node`), so its mesh node is a child of
+  that node; positions stay exactly as stored.
 * **Meshes**: one glTF mesh per game shape, one primitive per draw call, with
   positions, normals, every UV set, vertex colours, and (for skinned draws) joints and
   weights. One glTF skin covers the whole skeleton, so ``JOINTS_0`` holds game node
@@ -425,7 +428,14 @@ def model_to_glb(scene: Scene, texture_png: Callable[[str], bytes | None] | None
                 "extras": {"dr2": {"shape": mesh.name, "words": list(mesh.words)}}}
         if skin is not None:
             node["skin"] = skin
-        b.gltf["scenes"][0]["nodes"].append(b.add("nodes", node))
+        index = b.add("nodes", node)
+        # a rigid shape's vertices are relative to its node: hang it there (no skin),
+        # so Blender and the 3D view place it as the game does
+        rigid = scene.rigid_node(mesh) if skin is None and joint_nodes else None
+        if rigid is not None:
+            b.gltf["nodes"][joint_nodes[rigid]].setdefault("children", []).append(index)
+        else:
+            b.gltf["scenes"][0]["nodes"].append(index)
         st.meshes += 1
     b.gltf["asset"]["extras"] = {"dr2": {"source": scene.source}}
     b.gltf["scenes"][0]["extras"] = {"dr2": {"source": scene.source}}   # Blender keeps this one

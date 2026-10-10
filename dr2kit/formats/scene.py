@@ -671,6 +671,22 @@ class Scene:
         return meshes
 
     # -- convenience --
+    def rigid_node(self, mesh: Mesh) -> int | None:
+        """The skeleton node a rigid (unskinned) shape hangs from, or None.
+
+        A rigid shape's vertices are stored **relative to that node** (word 1 of the
+        shape record, also every draw's palette start), and the game draws it with the
+        node's world matrix: the Zombrex box's lids sit 12 cm down, at their hinge node
+        (docs/formats.md §Rigid parts). None for a shape with a skinned draw, or when
+        the node is not in the skeleton."""
+        if not mesh.draws or any(d.skinned for d in mesh.draws):
+            return None
+        n = mesh.words[1] if len(mesh.words) > 1 else -1
+        if not (0 <= n < len(self.skeleton.nodes)) or \
+                any(d.palette_start != n for d in mesh.draws):
+            return None
+        return n
+
     @property
     def kind(self) -> str:
         return "model" if self.meshes else "skeleton"
