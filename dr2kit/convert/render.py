@@ -15,12 +15,15 @@ How it draws (no triangle-by-triangle Python loop):
   longest edge in pixels), numbered with plain numpy arrays (`_lattice`). One sort of
   packed integer keys (pixel, nearness, point) keeps the nearest point per pixel (a
   z-buffer); only those winners are shaded.
-* **Colour**: the material's colour texture sampled at the point's UV (the index's
+* **Colour**: the material's colour texture sampled at the point's UV, or for
+  materials whose colour is shader constants (zombie clothing) the colour
+  `convert.material` bakes, as the ``.glb`` export does (the index's
   128-pixel texture thumbnails are plenty for a 128-pixel picture), or grey without
   one; lit by a light from the camera's side (two-sided: a few game meshes have flipped
-  normals). Everything is opaque, like the 3D view and the exported ``.glb``: a colour
-  map's alpha is often a mask, not transparency (the zombies' ``ZombieCloth``
-  textures), and an alpha test erased their clothes.
+  normals). Only hair, opacity-map and lens materials are see-through (alpha under
+  ``ALPHA_CUTOFF`` dropped), the same rule as the ``.glb`` export
+  (`convert.material.alpha_mode`): on cloth and skin shaders a colour map's alpha is a
+  mask, and a first version that alpha-tested everything erased the zombies' clothes.
 * **Anti-aliasing**: drawn at ``SUPERSAMPLE``× the size and averaged down.
 
 Needs numpy (optional for the toolkit): `available` says whether it is there.
@@ -37,7 +40,7 @@ except ImportError:  # pragma: no cover - numpy is optional
     np = None
 
 SUPERSAMPLE = 2
-MAX_STEPS = 400                 # lattice steps per triangle edge (a frame is ≤ 256 px)
+ALPHA_CUTOFF = 0.5              # as convert.material.ALPHA_CUTOFF (the .glb's alphaCutoff)
 VIEW = (0.55, 0.35, 1.0)        # direction from the model towards the camera
 GREY = (0.62, 0.62, 0.64)
 
@@ -54,6 +57,7 @@ class Part:
     normals: "np.ndarray | None"       # (n, 3)
     uvs: "np.ndarray | None"           # (n, 2)
     texture: "np.ndarray | None"       # (h, w, 4) float32 0..1, or None (grey)
+    alpha_test: bool = False           # drop points whose texture alpha < ALPHA_CUTOFF
 
 
 def _basis():
@@ -115,6 +119,14 @@ def render(parts: list[Part], size: int = 128) -> "np.ndarray | None":
     #    winners afterwards.
     keys, kept = [], []
     offset = 0
+    # one 64-bit sort key per point: pixel | nearness | point number, each field as wide
+    # as this picture needs (a 128-px picture: 16 + 24 + 24 bits)
+    pix_bits = max(1, (big * big - 1).bit_length())
+    pt_bits = 24
+    near_bits = 64 - pix_bits - pt_bits
+    if near_bits < 12:
+        raise ValueError(f"render: {size} px is too large a picture")
+    near_max = (1 << near_bits) - 1
     for pi, (p, s) in enumerate(zip(parts, screen)):
         xy = (s[:, :2] - centre) * scale + big / 2
         xy[:, 1] = big - xy[:, 1]                               # image rows go down
@@ -124,7 +136,7 @@ def render(parts: list[Part], size: int = 128) -> "np.ndarray | None":
         a, b, c = xy[tri[:, 0]], xy[tri[:, 1]], xy[tri[:, 2]]
         edge = np.maximum.reduce([np.hypot(*(a - b).T), np.hypot(*(b - c).T),
                                   np.hypot(*(c - a).T)])
-        k = np.clip(np.ceil(edge).astype(np.int64), 1, MAX_STEPS)
+        k = np.clip(np.ceil(edge).astype(np.int64), 1, 2 * big)   # off-frame edges capped
         if int(((k + 1) * (k + 2) // 2).sum()) > 20_000_000:   # absurd geometry: skip
             continue
         ti, u, v = _lattice(k)
@@ -134,14 +146,16 @@ def render(parts: list[Part], size: int = 128) -> "np.ndarray | None":
         py = w * xy[i0, 1] + u * xy[i1, 1] + v * xy[i2, 1]
         ix, iy = px.astype(np.int64), py.astype(np.int64)
         inside = (ix >= 0) & (ix < big) & (iy >= 0) & (iy < big)
+        if p.alpha_test and p.texture is not None and p.uvs is not None \
+                and len(p.uvs) == len(p.positions):
+            inside &= _sample(p.texture, p.uvs, i0, i1, i2, u, v, w)[:, 3] >= ALPHA_CUTOFF
         sel = np.nonzero(inside)[0]
         if not len(sel):
             continue
         z = (w[sel] * s[i0[sel], 2] + u[sel] * s[i1[sel], 2] + v[sel] * s[i2[sel], 2])
-        # one sortable key per point: pixel (16 bits), nearness (24 bits), point (24 bits)
-        near = np.clip(((zlo + zspan - z) / zspan) * 0xFFFFFF, 0, 0xFFFFFF).astype(np.uint64)
+        near = np.clip(((zlo + zspan - z) / zspan) * near_max, 0, near_max).astype(np.uint64)
         pix = (iy[sel] * big + ix[sel]).astype(np.uint64)
-        keys.append((pix << np.uint64(48)) | (near << np.uint64(24))
+        keys.append((pix << np.uint64(near_bits + pt_bits)) | (near << np.uint64(pt_bits))
                     | (np.arange(len(sel), dtype=np.uint64) + np.uint64(offset)))
         kept.append((pi, tri, ti[sel], u[sel], v[sel], w[sel], offset))
         offset += len(sel)
@@ -150,7 +164,7 @@ def render(parts: list[Part], size: int = 128) -> "np.ndarray | None":
     if not keys:
         return None
     key = np.sort(np.concatenate(keys))
-    pix = key >> np.uint64(48)
+    pix = key >> np.uint64(near_bits + pt_bits)
     first = np.ones(len(key), dtype=bool)
     first[1:] = pix[1:] != pix[:-1]
     win_pix = pix[first].astype(np.int64)
@@ -201,13 +215,19 @@ def _sample(tex, uvs, i0, i1, i2, u, v, w):
 
 
 def scene_parts(scene, texture_for: Callable[[str], "np.ndarray | None"] | None = None,
-                problems: list | None = None) -> list[Part]:
+                problems: list | None = None,
+                material_colour: Callable[[object], "np.ndarray | None"] | None = None
+                ) -> list[Part]:
     """A parsed `Scene`'s draws as renderer parts (rest pose).
 
     ``texture_for(name)`` gives a colour texture as an (h, w, 4) float array, or None.
+    ``material_colour(material)``, tried first, gives the colour of a material whose
+    colour is not a texture (zombie clothing: `convert.material` bakes it from shader
+    constants, as the ``.glb`` export does), or None to use its texture.
     A draw that can't be decoded is skipped and named in ``problems``."""
     parts = []
     cache: dict[str, object] = {}
+    baked: dict[int, object] = {}
     for mesh in scene.meshes:
         for dr in mesh.draws:
             try:
@@ -219,18 +239,28 @@ def scene_parts(scene, texture_for: Callable[[str], "np.ndarray | None"] | None 
             if not dd.triangles:
                 continue
             tex = None
-            if texture_for is not None and 0 <= dr.material < len(scene.materials):
+            see_through = False
+            if material_colour is not None and 0 <= dr.material < len(scene.materials):
+                if dr.material not in baked:
+                    baked[dr.material] = material_colour(scene.materials[dr.material])
+                tex = baked[dr.material]
+                # a baked colour carries alpha only where it means opacity (lenses)
+                see_through = tex is not None and float(tex[..., 3].min()) < 1.0
+            if tex is None and texture_for is not None and 0 <= dr.material < len(scene.materials):
                 name = scene.materials[dr.material].texture("colour")
                 if name:
                     if name not in cache:
                         cache[name] = texture_for(name)
                     tex = cache[name]
+            if not see_through and tex is not None:
+                from .material import alpha_mode
+                see_through = alpha_mode(scene.shaders.get(dr.shader, "")) == "MASK"
             parts.append(Part(
                 np.asarray(dd.positions, dtype=np.float32),
                 np.asarray(dd.triangles, dtype=np.int32),
                 np.asarray(dd.normals, dtype=np.float32) if dd.normals else None,
                 np.asarray(dd.uvs[0], dtype=np.float32) if dd.uvs else None,
-                tex))
+                tex, see_through))
     return parts
 
 

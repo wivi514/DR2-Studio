@@ -17,6 +17,9 @@ What goes in (docs/dev/gltf-mapping.md has the full table):
   the draw back (material, palette, shader, vertex declaration).
 * **Materials**: one per game material, named after its colour texture, with the colour
   and normal textures embedded as PNG when a ``texture_png`` callback provides them.
+  Hair and opacity-map materials are alpha-tested (``alphaMode: MASK``), glass lenses
+  blended; every other material is opaque, because their colour maps' alpha is a mask
+  (`convert.material.alpha_mode`).
 
 Conventions: the games are Y-up, characters face +Z with their left side at +X, and
 the triangle strips give counter-clockwise front faces that agree with the stored
@@ -336,6 +339,8 @@ def model_to_glb(scene: Scene, texture_png: Callable[[str], bytes | None] | None
                 st.textures += 1
         return None if images[name] < 0 else images[name]
 
+    from .material import ALPHA_CUTOFF, alpha_mode, material_shaders
+    used_by = material_shaders(scene)
     for i, m in enumerate(scene.materials):
         colour, normal = m.texture("colour"), m.texture("normal")
         mat = {"name": f"{i:02d}_{colour or 'material'}",
@@ -353,8 +358,18 @@ def model_to_glb(scene: Scene, texture_png: Callable[[str], bytes | None] | None
             st.textures += 1
             st.baked += 1
             mat["extras"]["dr2"]["baked"] = family
+            if family == "lens":                 # glasses: opacity from the lens shader
+                mat["alphaMode"] = "BLEND"
+            elif family == "hair":               # lashes, hair cards: cut-out
+                mat["alphaMode"] = "MASK"
+                mat["alphaCutoff"] = ALPHA_CUTOFF
         else:
             t = texture(colour)
+            # hair and opacity-map shaders use the colour map's alpha as transparency;
+            # on the other shaders it is a mask and must not cut holes (convert.material)
+            if t is not None and any(alpha_mode(s) == "MASK" for s in used_by.get(i, ())):
+                mat["alphaMode"] = "MASK"
+                mat["alphaCutoff"] = ALPHA_CUTOFF
         if t is not None:
             mat["pbrMetallicRoughness"]["baseColorTexture"] = {"index": t}
         t = texture(normal)

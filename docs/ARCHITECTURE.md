@@ -185,7 +185,8 @@ one item (`copy_of`), preferring the copy outside `preload4.big`.
 Model pictures are **3D renders** (user decision, 2026-10-09) made while the index is
 built, by a numpy software renderer (`convert/render.py`) rather than Studio's 3D page:
 the index is built by the CLI too, without a window or a GPU, and the renderer needs
-~0.05 s per model, using the index's own texture thumbnails (measured: about a minute
+~0.05 s per model, using the index's own texture thumbnails (and baking zombie clothing
+colours from shader constants, like the export) (measured: about a minute
 for the ~1,400 models of a game).
 
 **Export everything at once** (`dr2kit/catalog/export.py`): one folder per model

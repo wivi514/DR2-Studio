@@ -187,7 +187,8 @@ class TextureFinder:
             img = cmat.bake(rec, self.image)
             if img is None:
                 return None
-            return f"{rec.diffuse}_baked", png.encode(img, "RGB"), rec.family
+            mode = "RGBA" if rec.family in ("lens", "hair") else "RGB"   # these keep opacity
+            return f"{rec.diffuse}_baked", png.encode(img, mode), rec.family
         return base_colour
 
 

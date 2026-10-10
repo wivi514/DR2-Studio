@@ -112,3 +112,46 @@ def test_bodypart_and_channel_bakes():
     out = baked(Recipe("channel", values, "d", None), {"d": d})
     assert out[0, 0, :3].tolist() == [128, 128, 128]           # tint only
     assert out[0, 1, :3].tolist() == [255, 0, 0]               # red layer fully on
+
+
+def test_lens_and_hair_bakes_keep_their_opacity():
+    """Glasses (gLensColour, ProtoSkinnedLens) and eyelashes/hair
+    (gDiffuseColourControl, ProtoSkinnedHair, ZombieHair): the texture is channels, not
+    a colour (formulas from 1595db80.po and ca7f0160.po)."""
+    from dr2kit.convert.material import LENS_GAIN, Recipe
+    t = image([[[0, 255, 255, 255], [0, 0, 128, 255]]])       # frame (cyan) | lens (blue)
+    out = baked(Recipe("lens", {"gLensColour": (0.25, 0.25, 0.25, 0.5)}, "t", None), {"t": t})
+    assert np.allclose(out[0, 0, :3], np.sqrt(LENS_GAIN * 0.25) * 255, atol=1)   # 1.4 b² c
+    assert out[0, 0, 3] == 128 and out[0, 1, 3] == 0                             # g² × a
+    lash = image([[[255, 4, 1, 255], [255, 0, 0, 0]]])        # Katey's red lash weights
+    values = {"gDiffuseColourControl": (0.09, 0.04, 0.01), "gHairTransparencyScale": (0.5,)}
+    out = baked(Recipe("hair", values, "t", None), {"t": lash})
+    assert out[0, 0, :3].tolist() == [77, 51, 26]             # sqrt(r² × colour): brown, not red
+    assert out[0, 0, 3] == 128 and out[0, 1, 3] == 0          # a × scale
+
+
+def test_alpha_mode_by_shader():
+    from dr2kit.convert.material import alpha_mode
+    for name in ("CM_OM_LM", "LIT_CM_OM_RMX", "ProtoSkinnedHair", "ProtoSkinnedHairRGB",
+                 "ZombieHair"):
+        assert alpha_mode(name) == "MASK", name
+    for name in ("ProtoSkinnedCloth", "ZombieCloth", "ZombieDiffuse", "CM_LM", "ZombieHairLOD2",
+                 "LIT_CM_NM_RMX_SPEC", ""):
+        assert alpha_mode(name) == "OPAQUE", name
+
+
+def test_glb_marks_hair_and_lens_materials():
+    from conftest import make_scene
+    from dr2kit.convert.gltf import Glb, model_to_glb
+    from dr2kit.formats.scene import Scene
+    sc = Scene.parse(make_scene())
+    png1 = __import__("dr2kit.convert.png", fromlist=["png"]).encode(
+        __import__("dr2kit.convert.png", fromlist=["png"]).Image(1, 1, bytes(4)))
+    sc.shaders = {k: "ProtoSkinnedHairRGB" for k in sc.shaders}
+    mat = Glb.parse(model_to_glb(sc, lambda n: png1)).gltf["materials"][0]
+    assert mat["alphaMode"] == "MASK" and mat["alphaCutoff"] == 0.5
+    sc.shaders = {k: "ProtoSkinnedClothRGB" for k in sc.shaders}
+    assert "alphaMode" not in Glb.parse(model_to_glb(sc, lambda n: png1)).gltf["materials"][0]
+    mat = Glb.parse(model_to_glb(sc, lambda n: png1,
+                                 base_colour=lambda m: ("x_baked", png1, "lens"))).gltf["materials"][0]
+    assert mat["alphaMode"] == "BLEND"

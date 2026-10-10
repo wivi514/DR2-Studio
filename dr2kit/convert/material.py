@@ -33,6 +33,26 @@ square root:
   ``g² × green.w``, then towards ``b² × blue'`` by ``b² × blue.w``, then towards
   ``r² × red'`` by ``r² × red.w`` (``d`` sampled at the mesh UV).
 
+* **Lens** (``gLensColour``, ``ProtoSkinnedLens``, ``1595db80.po``: glasses frames and
+  lenses): ``t`` is the texture, which is *not* a colour (cyan/blue/green channels);
+  ``linear = 1.4 × t.b² × gLensColour.rgb`` (before lighting and the environment
+  reflection the shader adds), opacity ``= t.g² × gLensColour.a``. The bake keeps that
+  opacity in alpha; the export marks the material as blended.
+
+* **Hair** (``gDiffuseColourControl``, ``ProtoSkinnedHair``, ``ca7f0160.po``: eyelashes,
+  some hair): the texture's red channel is a weight, not a colour (Katey's lashes are
+  pure red in the file); ``linear = t.r² × gDiffuseColourControl.rgb``, opacity
+  ``= t.a × gHairTransparencyScale``. (``ProtoSkinnedHairRGB`` uses its texture's colour.)
+
+**Which colour maps are see-through** (`alpha_mode`, measured 2026-10-09 over every
+model's colour maps in both games, docs/formats.md §Texture conventions): shaders with
+an ``OM`` (opacity map) part in their name (``CM_OM_LM``, ``LIT_CM_OM_RMX``: foliage,
+fences, decals; 65-97% see-through texels) and the hair shaders (``ProtoSkinnedHair*``,
+``ZombieHair*``: hair, eyelashes) use alpha as transparency. On cloth and skin shaders
+(``ProtoSkinnedCloth``, ``ZombieCloth``…: 85-97% "see-through" texels on clothes that
+are drawn solid) and ``ZombieDiffuse`` (far-away zombies: alpha picks the body part)
+alpha is something else, so they are opaque.
+
 Needs numpy; without it `bake` returns None and the export uses the plain texture.
 """
 
@@ -55,6 +75,27 @@ PATTERN = ("gBaseTextureColour", "gPattern1Colour", "gPattern2Colour", "gPattern
 PATTERN_SCALE = ("gBaseTextureScale", "gPattern1Scale", "gPattern2Scale", "gPattern3Scale")
 BODY = ("gBodyPart1Colour", "gBodyPart2Colour", "gBodyPart3Colour", "gBodyPart4Colour")
 LUMA = (0.2125, 0.7154, 0.0721)    # the shaders' luminance weights (literal c255.xyz)
+LENS_GAIN = 1.4                    # the lens shader's literal c255.w
+ALPHA_CUTOFF = 0.5                 # alpha-tested materials: see-through below this
+
+
+def alpha_mode(shader_name: str) -> str:
+    """``"MASK"`` when a shader uses its colour map's alpha as transparency (opacity-map
+    shaders and hair), else ``"OPAQUE"`` (see the module docstring for the measurement)."""
+    name = shader_name or ""
+    if "Hair" in name and "LOD2" not in name:
+        return "MASK"
+    return "MASK" if "OM" in name.split("_") else "OPAQUE"
+
+
+def material_shaders(scene) -> dict[int, set[str]]:
+    """Material index → names of the shaders its draws use."""
+    out: dict[int, set[str]] = {}
+    for m in scene.meshes:
+        for d in m.draws:
+            if d.material >= 0:
+                out.setdefault(d.material, set()).add(scene.shaders.get(d.shader, ""))
+    return out
 
 
 class ShaderLibrary:
@@ -129,6 +170,10 @@ def recipe(scene, material, shaders: ShaderLibrary) -> Recipe | None:
         return Recipe("bodypart", values, diffuse, mask)
     if "gRedChannelColour" in values and "gDiffuseTint" in values:
         return Recipe("channel", values, diffuse, mask)
+    if "gLensColour" in values:
+        return Recipe("lens", values, diffuse, mask)
+    if "gDiffuseColourControl" in values:
+        return Recipe("hair", values, diffuse, mask)
     return None
 
 
@@ -186,6 +231,21 @@ def bake(rec: Recipe, image) -> Image | None:
             amount = (m[..., 3:4] ** 2) * (m[..., 2:3] ** 2) * (vis[2] if len(vis) > 2 else 1.0)
             blood = list(v["gBloodColour"]) + [1.0]
             lin = lin + amount * blood[3] * (amount * np.asarray(blood[:3]) * lin - lin)
+    elif rec.family == "lens":
+        lens = (list(v["gLensColour"]) + [1.0, 1.0, 1.0, 1.0])[:4]
+        lin = LENS_GAIN * (ds[..., 2:3] ** 2) * np.asarray(lens[:3])
+        alpha = np.clip((ds[..., 1:2] ** 2) * lens[3], 0.0, 1.0)
+        out = np.sqrt(np.clip(lin, 0.0, 1.0))
+        rgba = np.concatenate([out, alpha], axis=2)
+        return Image(w, h, (rgba * 255.0 + 0.5).astype(np.uint8).tobytes())
+    elif rec.family == "hair":
+        tint = (list(v["gDiffuseColourControl"]) + [1.0, 1.0, 1.0])[:3]
+        scale = v.get("gHairTransparencyScale", (1.0,))[0]
+        lin = (ds[..., 0:1] ** 2) * np.asarray(tint)
+        alpha = np.clip(ds[..., 3:4] * scale, 0.0, 1.0)
+        out = np.sqrt(np.clip(lin, 0.0, 1.0))
+        rgba = np.concatenate([out, alpha], axis=2)
+        return Image(w, h, (rgba * 255.0 + 0.5).astype(np.uint8).tobytes())
     elif rec.family == "channel":
         def adjusted(name):
             c = list(v.get(name + "Colour", (0.0, 0.0, 0.0, 0.0))) + [0.0]

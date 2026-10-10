@@ -308,7 +308,11 @@ name → register table; `ValueSet.parse(scv)` a material's constants by registe
 `recipe(scene, material, shaders)` says whether (and how) a material must be baked;
 `bake(recipe, image)` computes the colour texture with numpy. `model.TextureFinder.baker(scene)`
 is the `base_colour` hook `gltf.model_to_glb` uses (CLI `--glb`, Studio's 3D view and
-*Export .glb…*).
+*Export .glb…*). Families: pattern, body part, channel, lens (glasses) and hair (lashes; the
+last two keep opacity in alpha). `alpha_mode(shader name)` says whether a shader uses its
+colour map's alpha as transparency (`…OM…` and hair shaders), and `material_shaders(scene)`
+which shaders each material's draws use: the `.glb`'s `alphaMode` and the Library's
+pictures both follow it.
 
 ### `dr2kit/formats/bcs.py`, `dr2kit/convert/strings.py` (phase 6)
 Read `formats.md` §Strings first.
@@ -384,6 +388,9 @@ into `Part`s (positions, triangles, normals, UVs, colour texture); `render(parts
 draws them orthographically from the front-right, rasterising every triangle with a
 lattice of points (`_lattice`) and keeping the nearest per pixel with one sort of packed
 integer keys; only the winning points are shaded. `to_png` encodes the result.
+`scene_parts` takes a `material_colour` hook, tried before the texture: the index uses it
+to bake zombie clothing (`convert.material`), as the `.glb` export does. Changing how
+pictures are drawn: bump `index.build.THUMB_VERSION`, and the next build redraws them.
 
 ### `dr2kit/catalog/` (phase 8)
 - `groups`: the Library's rules. `groups.toml` (data) lists the groups by section, each

@@ -17,6 +17,43 @@ Entry template:
 
 ---
 
+## 2026-10-09 — Model colours: zombie clothing, glasses, eyelashes, see-through hair and foliage
+**Done:** fixes from the user looking at the Library's pictures, each counted over both
+games before fixing:
+- **Zombie clothing** red/green/purple (the issue fixed earlier for the 3D view and the
+  `.glb`): the thumbnail renderer used the weight map as a colour. It now bakes such
+  materials with `convert.material`, fed with the index's 128-px thumbnails. 131 models
+  (CZ 83, CW 48).
+- **Bright green glasses**: `ProtoSkinnedLens` (21 materials) takes its colour from
+  `gLensColour`; the texture is channels. New **lens** bake (`1595db80.po` read with
+  XenosRecomp): colour `1.4·B²·gLensColour`, opacity `G²·gLensColour.a`.
+- **Katey's red eyes** were her eyelashes: pure red cards drawn opaque. The lash shader
+  `ProtoSkinnedHair` colours by `R²·gDiffuseColourControl` with opacity
+  `A·gHairTransparencyScale` (`ca7f0160.po`), and so do the zombie hair shaders. New
+  **hair** bake (66 materials).
+- **Transparency in general**: the `.glb` (so Blender and Studio's 3D view) and the
+  pictures drew every material opaque. Measured which shaders use alpha as transparency
+  over every colour map of both games: `…OM…` (opacity map) and hair shaders; cloth and
+  skin use it as a mask. Those materials now export as `alphaMode: MASK` (lenses
+  `BLEND`) and the renderer alpha-tests them; clear glass that vanished entirely
+  (20 models: shop windows, truck windows, shards) is drawn solid so it keeps a picture.
+- The renderer handled pictures only up to 128 px (16 key bits for the pixel, 400 lattice
+  steps); found while making 512-px close-ups, now sized from the picture.
+A thumbnail version (`THUMB_VERSION`, meta `thumbs:<game>`, now 5) makes a build redraw
+every picture without re-reading the archives (CZ ~140 s, CW ~200 s). Checked by
+looking at every character and zombie of both games and close-ups of Katey, the pawnshop
+owner, a pair of CW sunglasses, a tree and zombie hair.
+**Why:** the user's reports; the phase 8 contact sheets showed the first one and I missed it.
+**Learned:** a texture's look in a file says little: lens textures and lash textures are
+channel weights, and alpha is transparency only on some shaders. Read the pixel shader
+before trusting a `_cm`. Recorded in `formats.md` (§Materials: lens and hair families,
+retraction of "gLensColour / gDiffuseColourControl don't replace the colour map";
+§Texture conventions: the rule by shader).
+**Docs updated:** `formats.md`, `dev/gltf-mapping.md`, `dev/code-tour.md`,
+`dev/testing.md`, `ARCHITECTURE.md`, `devlog.md`; module docstrings of
+`convert/material.py`, `convert/render.py`, `convert/gltf.py`.
+**Next:** as before.
+
 ## 2026-10-09 — Phase 8: the Library, model pictures, rigs, export everything at once
 **Done:** DR2 Studio opens on a new **Library** tab that sorts both games by what things
 are (Models: characters, zombies, items, cutscene props, crowd, environments; Skeletons;

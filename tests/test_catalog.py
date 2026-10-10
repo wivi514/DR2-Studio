@@ -282,3 +282,46 @@ def test_cli_library_and_export(game, tmp_path, capsys):
     assert (out_dir / "cz" / "rigs" / "herofullbody" / "herofullbody.glb").is_file()
     assert main(["export", "data/notes.csv", "-o", str(out_dir), "--db", str(db), "--list"]) == 0
     assert "notes" in capsys.readouterr().out
+
+
+@pytest.mark.skipif(not render.available(), reason="numpy not installed")
+def test_baked_material_colour_wins_over_the_texture():
+    """Zombie clothing: the colour baked from shader constants is drawn, not the weight
+    map its colour texture really is (the Library's pictures, like the .glb export)."""
+    import numpy as np
+    from dr2kit.formats.scene import Scene
+    sc = Scene.parse(make_scene())
+    green = np.zeros((2, 2, 4), dtype=np.float32)
+    green[..., 1] = green[..., 3] = 1.0
+    red = np.zeros((2, 2, 4), dtype=np.float32)
+    red[..., 0] = red[..., 3] = 1.0
+    parts = render.scene_parts(sc, lambda name: red, None, lambda m: green)
+    assert parts and all(p.texture is green for p in parts)
+    parts = render.scene_parts(sc, lambda name: red, None, lambda m: None)
+    assert all(p.texture is red for p in parts)          # no bake: the texture
+
+
+def test_new_thumbnail_version_redraws_pictures(game, monkeypatch):
+    root, db, _st = game
+    st = build_index("cz", AssetTree(root), db)
+    assert st.thumbnails == 0                               # nothing changed
+    monkeypatch.setattr(ibuild, "THUMB_VERSION", "test")
+    st = build_index("cz", AssetTree(root), db)
+    assert st.thumbnails == (3 if render.available() else 0)
+
+
+@pytest.mark.skipif(not render.available(), reason="numpy not installed")
+def test_render_alpha_test_and_large_pictures():
+    import numpy as np
+    pos = np.array([(0, 0, 0), (1, 0, 0), (0, 1, 0), (1, 1, 0)], dtype=np.float32)
+    tris = np.array([(0, 1, 2), (2, 1, 3)], dtype=np.int32)
+    uv = np.array([(0, 0), (1, 0), (0, 1), (1, 1)], dtype=np.float32)
+    half = np.ones((1, 2, 4), dtype=np.float32)
+    half[0, 1, 3] = 0.0                                   # right half see-through
+    solid = render.render([render.Part(pos, tris, None, uv, half)], 32)
+    cut = render.render([render.Part(pos, tris, None, uv, half, alpha_test=True)], 32)
+    assert 0.3 < (cut[..., 3] > 0).sum() / (solid[..., 3] > 0).sum() < 0.7
+    # pictures bigger than 128 px need wider pixel numbers in the sort key: same coverage
+    small = render.render([render.Part(pos, tris, None, None, None)], 128)
+    large = render.render([render.Part(pos, tris, None, None, None)], 512)
+    assert abs(small[..., 3].mean() - large[..., 3].mean()) / 255 < 0.02     # was 0.57 off

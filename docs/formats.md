@@ -448,9 +448,14 @@ previews and `.glb`):
 | **pattern**: `gBaseTextureColour`, `gPattern1-3Colour` (+ `gBloodColour` on zombies) | 275 / 194 (zombie clothes, cutscene zombies, some NPC clothing such as `chest_default_mtl_tshirt`) | Σ colourᵢ × weightᵢ × dᵢ² over channels R G B A; weight = the colour's 4th value or `gBaseTextureScale`/`gPatternNScale`. `d` is sampled at `((u + so.z)·so.x, (v + so.w)·so.y)` (`gUVScaleOffset`; or `gUVOffset`/`gUVScale`): 35 / 31 materials tile it (10 × 20 stripes) or flatten it (scale 0). Blood: `a = mask.A²·mask.B²·gPackedBumpAmbBloodvis.z`, colour += `a·blood.w·(a·blood.rgb·colour − colour)` |
 | **body part**: `gBodyPart1-4Colour` | 18 / 18 (LOD zombies) | `d.A` picks the part: > 0.875 none, (0.75, 0.875] 1, (0.625, 0.75] 2, (0.5, 0.625] 3, ≤ 0.5 4; colour = `d.rgb²` × part colour |
 | **channel**: `gRed/Green/BlueChannelColour`, `…Saturation`, `gDiffuseTint` | 4 / 0 (Sharon's dress, Royce) | colours desaturated (`lum + (c − lum)·sat`, lum weights 0.2125/0.7154/0.0721); start `d.A²·tint`, blend to `d.G²·green` by `d.G²·green.w`, then blue, then red the same way |
+| **lens**: `gLensColour` (`ProtoSkinnedLens`, `1595db80.po`; added 2026-10-09) | 4 / 17 (glasses: frames and lenses) | the texture is channels (cyan/blue/green), not a colour: colour = `1.4·d.B²·gLensColour.rgb` (before lighting and the environment reflection/refraction the shader adds), opacity = `d.G²·gLensColour.a` (frames 1.0, lenses ~0.28) |
+| **hair**: `gDiffuseColourControl`, `gHairTransparencyScale` (`ProtoSkinnedHair` `ca7f0160.po`, `ZombieHair`, `ZombieHairLOD2`; added 2026-10-09) | 29 / 37 (eyelashes, some hair) | colour = `d.R²·gDiffuseColourControl.rgb`, opacity = `d.A·gHairTransparencyScale`. Katey's lash texture is pure red (255, 4, 1): red is a weight; in game the lashes are dark brown. The zombie hair shaders read the same two channels with the same constants (`cw b772f300.po` squares R explicitly); checked visually on every zombie |
 
-Other value-set constants (`gSelfIlluminationColour`, `gLensColour`,
-`gDiffuseColourControl`, UV and specular parameters) don't replace the colour map.
+~~Other value-set constants (`gSelfIlluminationColour`, `gLensColour`,
+`gDiffuseColourControl`, UV and specular parameters) don't replace the colour map.~~
+(Retracted 2026-10-09: `gLensColour` and `gDiffuseColourControl` do, rows above; found by
+the user, who saw bright green glasses and red eyes in the Library's pictures.)
+`gSelfIlluminationColour`, UV and specular parameters don't.
 Checked: every material of these families bakes in both games (297 / 212); visually
 on the cop (khaki shirt, olive trousers, black boots), skinny zombie, waitress, trucker,
 a cutscene zombie (striped sleeves), a LOD fat zombie and Sharon's dress. Not checked
@@ -929,6 +934,15 @@ Roles come from the name (`texture_role`).
 | mask `_mask` | DXT1 337 / 327 · DXT5 134 / 114 | separate channels (RGB, and alpha in the DXT5 ones); what each channel tints is not decoded ❓ |
 | self-illum `_si`, reflection `_rm`, opacity `_om` | DXT1 | ❓ meaning per channel |
 
+- **Which shaders use alpha as transparency** (measured 2026-10-09 over every model's
+  colour maps in both games, `convert.material.alpha_mode`): shaders whose name has an
+  **`OM`** part (opacity map: `CM_OM_LM`, `LIT_CM_OM_RMX`, `CM_OM_NM_RMX_LM`… foliage,
+  fences, decals; median 57-97% see-through texels) and the **hair** shaders
+  (`ProtoSkinnedHair`, `ProtoSkinnedHairRGB`, `ZombieHair`; 25-82%). Opaque: cloth and
+  skin (below), `ZombieDiffuse` (far-away zombies, alpha picks the body part),
+  `ZombieHairLOD2` (no see-through texels), every shader without `OM`. Lenses blend
+  (§Materials: the lens family). The `.glb` export marks these materials `MASK` (cutoff
+  0.5) / `BLEND`, and the Library's pictures use the same rule.
 - **A colour map's alpha is not always transparency** (measured 2026-10-09, CZ, every
   DXT5 colour map of `npcs.big` and `zombies.big` by the shader that draws it, from the
   index's thumbnails): with `ProtoSkinnedCloth`, `ProtoSkinnedSkin`, `ZombieCloth` and
@@ -937,8 +951,9 @@ Roles come from the name (`texture_role`).
   mask; meaning ❓). Hair shaders (`ProtoSkinnedHair` 6, `…HairRGB` 5, `ZombieHair` 1)
   have 25-82% see-through texels: transparency. Found because the Library's thumbnail
   renderer first alpha-tested every map and drew zombies without their clothes; it now
-  draws everything opaque, like the `.glb` export. Which shaders read alpha as
-  transparency should come from the shaders themselves (not decoded yet).
+  ~~draws everything opaque, like the `.glb` export. Which shaders read alpha as
+  transparency should come from the shaders themselves (not decoded yet).~~ (superseded the
+  same day: the rule by shader above, measured over both games.)
 - **Normal-map green direction.** Measured with an integrability ("curl") test: a normal
   map made from a height field has consistent slopes, the change of the x-slope down the
   rows matches the change of the y-slope across the columns, with a + sign for

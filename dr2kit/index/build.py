@@ -59,6 +59,11 @@ MAT_RECORD = 100          # bytes per MatTextureInfoArray record (formats.md)
 MAT_NAME = slice(4, 56)   # NUL-padded texture name inside a record
 MIN_RIG_BONES = 8         # models with fewer bones are not linked to a rig (link_rigs)
 RIG_LINKS = 3             # at most this many matching skeletons per model, closest first
+# Bumped when model thumbnails are drawn differently: the next build redraws them all
+# (without re-reading the archives). 2: baked zombie-clothing colours. 3: hair, opacity
+# maps and glass lenses see-through. 4: clear glass that vanished drawn solid. 5: hair
+# colour from gDiffuseColourControl.
+THUMB_VERSION = "5"
 POSE_TOLERANCE = 0.001    # metres: a model's bones this close to a rig's are "the same pose"
 
 _EXT_KIND = {"xma": "audio", "sfx": "sfx", "anm": "anim", "po": "shader", "vo": "shader", "pdo": "shader",
@@ -468,9 +473,17 @@ def scene_pass(con: sqlite3.Connection, game: str, tree: AssetTree, stats: Index
     `link_relations` found them (the texture next to the model first), and drawn from the
     index's own texture thumbnails: no texture is decoded twice. Models are visited in
     vpath order, so each archive is opened once (the tree's cache)."""
+    from ..convert import material as cmat
     from ..convert import png, render
     from ..formats.scene import Scene
     draw = thumbs and render.available()
+    key = f"thumbs:{game}"
+    old = con.execute("SELECT value FROM meta WHERE key=?", (key,)).fetchone()
+    if draw and (old[0] if old else None) != THUMB_VERSION:
+        con.execute("UPDATE scene SET rendered = 0 WHERE asset_id IN "
+                    "(SELECT id FROM asset WHERE game=? AND kind='model')", (game,))
+    if draw:
+        con.execute("INSERT OR REPLACE INTO meta VALUES (?, ?)", (key, THUMB_VERSION))
     rows = con.execute("""
         SELECT a.id, a.vpath, a.kind, s.asset_id AS known FROM asset a
         LEFT JOIN scene s ON s.asset_id = a.id
@@ -481,6 +494,7 @@ def scene_pass(con: sqlite3.Connection, game: str, tree: AssetTree, stats: Index
         return
     reader = AssetTree(tree.root, cache_size=32)
     decoded: dict[int, object] = {}
+    shaders = cmat.ShaderLibrary(reader) if draw else None
     for i, r in enumerate(rows):
         if progress and i % 100 == 0:
             progress(f"models and skeletons: {i}/{len(rows)}")
@@ -501,19 +515,34 @@ def scene_pass(con: sqlite3.Connection, game: str, tree: AssetTree, stats: Index
                     ORDER BY r.rank DESC""", (r["id"],)):
                 texs[t["name"]] = (t["asset_id"], t["thumb_png"])   # best rank wins (last)
 
-            def texture_for(name: str):
+            def image(name: str):
                 hit = texs.get(name.lower())
                 if hit is None:
                     return None
                 if hit[0] not in decoded:
                     if len(decoded) > 512:
                         decoded.clear()
-                    im = png.decode(hit[1])
-                    decoded[hit[0]] = render.rgba_to_float(im.rgba, im.width, im.height)
+                    decoded[hit[0]] = png.decode(hit[1])
                 return decoded[hit[0]]
+
+            def texture_for(name: str):
+                im = image(name)
+                return None if im is None else render.rgba_to_float(im.rgba, im.width, im.height)
+
+            def material_colour(m, sc=sc):
+                # zombie clothing etc.: colour from shader constants, baked like the .glb
+                rec = cmat.recipe(sc, m, shaders)
+                im = cmat.bake(rec, image) if rec is not None else None
+                return None if im is None else render.rgba_to_float(im.rgba, im.width, im.height)
             try:
                 bad: list[str] = []
-                img = render.render(render.scene_parts(sc, texture_for, bad))
+                parts = render.scene_parts(sc, texture_for, bad, material_colour)
+                img = render.render(parts)
+                if img is None and any(p.alpha_test for p in parts):
+                    # all see-through (clear glass): draw it solid, so it has a picture
+                    for p in parts:
+                        p.alpha_test = False
+                    img = render.render(parts)
                 thumb = render.to_png(img) if img is not None else None
                 if bad:
                     problem = f"{len(bad)} draw(s) not drawn: {bad[0]}"

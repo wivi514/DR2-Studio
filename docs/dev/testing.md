@@ -222,6 +222,7 @@ the developer's real mod library before that.
 | The `.glb` in Blender 5.2 (headless import of the single export + 3 random characters per game) | 98-bone armature, every mesh skinned, every material textured; a render shows the textured shirt | the same; Frank's jacket and camera rendered with textures |
 | Rig links (every character has one) | 66 player, 13 female, 2 large, 1 child, 9 zombie (other proportions) | 145 player, 19 female, 1 large, 1 longcloak |
 | Thumbnails looked at (contact sheets of every group) | characters, zombies, items, props, level pieces | the same |
+| Model colours in the pictures (after the user spotted red/green/purple zombies, green glasses, red eyes): every character and zombie, close-ups at 768 px | natural; Katey's lashes dark, the pawnshop owner's glasses grey with a light lens | natural; sunglasses dark; zombie hair brown |
 
 Exports re-run into the same folder skip every file (resume). 10 of the 257 character
 folders name a texture slot found nowhere in the game (`cin_zombie_james_leg_nm`, a slot
