@@ -10,7 +10,39 @@ leaving DR2 Studio to read docs**.
 Read `CLAUDE.md` first (documentation rules, and the clean-up rule), then this. What
 exists: `dev/code-tour.md`, `dev/studio.md`; what phase 6 learned: `devlog.md`.
 
-## Where we start (what is still hard today)
+## Status at the end of 2026-10-09 (read this first)
+
+Done the same day (commits `f26d08f` icon, `5fba10e` phase 7, `db5fe94` texturing):
+
+- **Help inside the app**: the guides are the help (`dr2kit/help`, packaged by
+  `setup.py`), F1 window with search, "How to mod this" per asset kind
+  (`docs/modding/context.toml`), Help button on errors, Welcome checklist, `dr2 help`.
+- **Editing**: *Edit in image editor…* (re-import on save), *Open in Blender*, drag and
+  drop, *Import textures…* for Substance Painter / Blender / any program
+  (`mods/texture_import.py`), the mod's changes listed with problems marked.
+- **Share / Install / Play**: `.dr2mod` packages (Share window with preview, readme and
+  checks; Install window), **▶ Play** / Play without mods / Deploy / Remove mods from game
+  (`mods/play.py`, `dr2 play`), deploy status in the status bar, mod sets, linked mods,
+  new mods created in the library, Game folders also sets the recomp, Blender and
+  image-editor programs.
+- **Docs**: guides 01, 05, 06, 08-11, 13 rewritten for the new buttons; new guides
+  `14-texturing-tools.md` and `15-limits.md`; `formats.md` §Texture conventions and
+  §Engine limits, measured on both games (normal maps are OpenGL-style; 16-bit indices,
+  65,536 vertices per character part; 61 bones per draw; 4 weights per vertex).
+- **Gate, scripted in game** (`tools/newcomer_gate.py`): make → share → install on an
+  empty library → Play shows the new title text and the red shirt (CZ) / jacket (CW).
+
+Still owed:
+
+1. **The gate by a person**: someone new follows only the in-app help on a clean
+   profile, without a terminal, in both games.
+2. Follow `14-texturing-tools.md` in Substance Painter itself (tested only with
+   Painter-style files).
+3. `.dr2mod` file associations (double-click opens Studio) in the release packages.
+4. The "Carried over" list below (first release on all OSes needs the GitHub remote).
+5. Unknown: what each channel of `_mask` and the lighting maps (`_si`, `_rm`, `_om`) means.
+
+## Where we started (what was hard before phase 7)
 
 - The guides are Markdown files in `docs/modding/`, outside the app; a release copies
   them into a `docs/` folder nobody opens.

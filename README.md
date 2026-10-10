@@ -11,8 +11,10 @@ Browse, preview, extract and replace assets in **Dead Rising 2: Case Zero** and
 Runs on **Windows, Linux and macOS**.
 
 **Status:** phases 1-6 done (phase 6: strings, text, movies, mod manager, Blender
-add-on, release packaging, built on Linux so far). Phase 7: making modding as easy as possible, with
-the help inside the app and one-click packaging and installing of mods. Every file of both games can be read, searched and
+add-on, release packaging, built on Linux so far). Phase 7 (mostly done): the guides
+inside the app (F1), a Welcome checklist, **▶ Play** (deploy + start the recomp), mods
+shared as one `.dr2mod` file, editing in your own image editor or Blender with automatic
+re-import, and textures from Substance Painter and other programs imported in one step. Every file of both games can be read, searched and
 extracted; every texture can be viewed and exported as PNG, and replaced by a mod that
 loads in both recomps (tested in game). Every model and skeleton can be viewed in 3D and
 exported to Blender (`.glb`) with its bones, skin weights and textures, and an edited or
@@ -37,6 +39,9 @@ dr2 mod new my_mod                          # then put PNGs / .glbs / audio unde
 dr2 mod deploy my_mod -g cz                 # build it into the recomp's game_mods/
 dr2 strings set my_mod IDS_PRESS_START "PRESS START TO SURVIVE"   # change in-game text
 dr2 mod install my_mod && dr2 mod deploy -g cz   # the mod manager: every switched-on mod
+dr2 play -g cz                              # deploy the switched-on mods and start the recomp
+dr2 mod import-textures my_mod <model vpath> painter_export/   # Substance Painter -> mod
+dr2 help 14                                 # the guides, here or in DR2 Studio (F1)
 ```
 
 Start at [`docs/README.md`](docs/README.md): modding guides (begin with
