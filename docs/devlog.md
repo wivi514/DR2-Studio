@@ -17,6 +17,22 @@ Entry template:
 
 ---
 
+## 2026-10-10 — Test builds for Linux and Windows
+**Done:** at the user's request, release builds to test: Linux (this machine: AppImage
+263 MB, `tar.zst` 222 MB, add-on) and, for the first time, **Windows** on the recomps'
+build laptop (`czwin`): `DR2Studio-windows-x86_64.zip` 276 MB. Both pass the licence gate;
+both bundles' `dr2` export a model, a sound, a CW movie, build an index with model
+pictures, pass `dr2 library --check` and export a group, on real game data.
+**Learned (Windows):** MSVC crashes compiling ffmpeg's `libavformat/cbs.c` when its table
+of bitstream readers is empty (fixed by enabling one AV1 filter for MSVC builds); an MSVC
+ffmpeg puts its `.lib` files in `bin\`; Windows Python doesn't find DLLs on `PATH`, so
+PyInstaller dropped PyAV until its ffmpeg DLLs were placed next to it (the licence gate
+caught it); a git checkout with `autocrlf` breaks bash scripts. The Linux LGPL ffmpeg
+has no x86 assembly here (no `nasm`), which changes the MP4 encoder's bitrate.
+**Docs updated:** `dev/packaging.md` (§Building one on Windows, MP4 bitrate), `devlog.md`.
+**Next:** the user tries both builds (GUI, Play, Open in Blender on Windows); a real
+release still needs the GitHub remote and CI (Ubuntu 22.04 for the glibc floor).
+
 ## 2026-10-10 — Rigid parts placed by their node (Zombrex box, cameras, vehicles…)
 **Done:** the user saw the Zombrex box's lid flap sticking out of its side. Our bug: an
 unskinned shape's vertices are relative to its node (shape word 1, which every draw's

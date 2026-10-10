@@ -99,6 +99,51 @@ model as `.glb` and a texture as PNG, show strings, and check a mod; DR2 Studio 
 (offscreen); the LGPL PyAV passes `dr2 census --audio` on both games (every sound and
 movie decodes; 9 minutes without nasm, against about 1.5 with the PyPI wheel).
 
+**MP4 bitrate.** The movie export asks ffmpeg's `mpeg4` encoder for 8 Mb/s; with x86
+assembly (PyPI's PyAV, the Windows build) it lands at ~3 Mb/s for `dr2_logo.bik`, without
+it (a Linux build where `nasm` was missing) at ~6.7 Mb/s, from the same frames. Both play;
+CI installs `nasm`, so releases match Windows.
+
+## Building one on Windows (as done 2026-10-10, on the build laptop)
+
+The recomps' Windows laptop (`ssh czwin`; their `docs/windows-build-setup.md` is the
+runbook: MSVC Build Tools, CMake, Ninja, MSYS2, `C:\cz\vc.bat` wraps `vcvars64`). The
+toolkit's tree is `C:\dr2kit\src`, cloned from a `git bundle` (no GitHub remote yet) with
+`core.autocrlf=false`: with CRLF line endings, bash can't run the ffmpeg script.
+
+```
+vc.bat cmake -S native\lzx -B native\lzx\build -G Ninja -DCMAKE_BUILD_TYPE=Release && vc.bat cmake --build native\lzx\build
+:: ffmpeg, from MSYS2's bash inside the MSVC environment (MSYS2_PATH_TYPE=inherit keeps cl.exe):
+set MSYS2_PATH_TYPE=inherit & set DR2_FFMPEG_EXTRA=--toolchain=msvc
+vc.bat C:\msys64\usr\bin\bash.exe -lc "cd /c/dr2kit/src && tools/release/build_ffmpeg_lgpl.sh /c/dr2kit/ffmpeg-lgpl"
+py -3.13 -m venv build\release-venv
+:: inside vcvars64; PyAV takes the ffmpeg folder directly (no pkg-config needed):
+build\release-venv\Scripts\python -m pip install -U pip setuptools wheel cython
+build\release-venv\Scripts\python -m pip install --no-binary av --no-build-isolation "av==19.0.1" -C"--build-option=--ffmpeg-dir=C:/dr2kit/ffmpeg-lgpl"
+build\release-venv\Scripts\python -m pip install ".[studio]" pyinstaller pillow
+set DR2_FFMPEG_PREFIX=C:\dr2kit\ffmpeg-lgpl
+build\release-venv\Scripts\python tools\build_release.py bundle
+build\release-venv\Scripts\python tools\build_release.py archive
+```
+
+What the first Windows build needed (all now in the scripts):
+
+- **MSVC crashes on ffmpeg's `libavformat/cbs.c`** (`C1001: Internal compiler error`,
+  after `C4034: sizeof returns 0`): with no AV1/APV bitstream reader enabled its table is
+  empty. `build_ffmpeg_lgpl.sh` adds `--enable-bsf=av1_frame_split` for MSVC builds.
+- **Import libraries in `bin\`**: an MSVC ffmpeg installs `avformat.lib`… next to the
+  DLLs; the script copies them to `lib\`, where PyAV's `--ffmpeg-dir` looks.
+- **Python doesn't search `PATH` for DLLs** (3.8+): `build_release.py` adds the ffmpeg
+  `bin\` to the DLL search for its PyAV check, and **copies the LGPL DLLs next to PyAV's
+  modules** before PyInstaller runs. Without that, PyInstaller couldn't import PyAV,
+  left it out, and the licence gate refused the bundle ("PyAV not installed").
+
+Result (Windows 11, Python 3.13, MSVC 19.44): `DR2Studio-windows-x86_64.zip` 276 MB;
+the licence gate passes; the unpacked release's `dr2.exe` exports a model `.glb`, a WAV, a
+CW movie as MP4, builds a CZ index with every model picture (411 s), passes `dr2 library
+--check`, and exports the Music group and a model folder. The GUI was handed to the user
+to try.
+
 **glibc floor.** A Linux bundle runs only on systems whose glibc is at least the build
 machine's. A local Fedora 44 build is for testing; releases are built by CI on Ubuntu
 22.04 (glibc 2.35), the recomps' "old base" choice.
