@@ -17,6 +17,25 @@ Entry template:
 
 ---
 
+## 2026-10-10 — Open in Blender imported only an Icosphere
+**Done:** the user opened `cine_backpack_sc710` with Studio's **Open in Blender** and got
+only an Icosphere. The `.glb` was complete (5 meshes, 11 bones), and the same script
+imported everything in background Blender, with factory settings and with the user's own.
+Run in a real Blender window, it failed: the glTF importer raised `'Context' object has
+no attribute 'object'` because the script ran from `--python` before the window was up,
+right after `read_homefile`; the importer's bone-shape Icosphere had already been
+created, the armature was left in no scene. Every model was affected, not only this one.
+The script now empties the start-up scene through `bpy.data` and imports from a
+`bpy.app.timers` callback (directly when Blender runs in the background). Checked in a
+windowed Blender 5.2 on the same file: armature + 5 meshes in the tagged collection.
+**Why:** the user's report.
+**Learned:** the phase 7 check of this script ran Blender with `-b`, which doesn't take
+the windowed path. New test `test_studio.py::test_open_in_blender_script` (compiles the
+script, checks the timer, imports a synthetic model in Blender when installed); the
+windowed path needs a display and was checked by hand.
+**Docs updated:** `dev/studio.md`, `modding/12-troubleshooting.md`, `devlog.md`.
+**Next:** as before.
+
 ## 2026-10-10 — Play started source builds without their renderer
 **Done:** the user saw Play (Studio, `dr2 play`) start the game with no picture. The CZ
 recomp's log said it: `[vk] renderer OFF (set CZ_VKDRAW=1 to enable it)`. A release ships

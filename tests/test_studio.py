@@ -210,3 +210,36 @@ def test_library_tab_shows_groups_and_exports(tmp_path, monkeypatch):
     assert (tmp_path / "many" / "cz" / "rigs" / "herofullbody" / "herofullbody.glb").is_file()
     win.close()
     del app
+
+
+def test_open_in_blender_script(tmp_path):
+    """The script Studio starts Blender with: valid Python; imports from a timer in a
+    windowed Blender (run straight from --python there, the glTF importer failed and
+    left only its Icosphere, 2026-10-10); in Blender (if installed, background) it
+    imports the model's armature and meshes into a tagged collection."""
+    import json
+    import shutil
+    import subprocess
+    from dr2kit.convert.gltf import model_to_glb
+    from dr2kit.formats.scene import Scene
+    from dr2kit.studio.edit_tools import BLENDER_SCRIPT
+    glb = tmp_path / "box.glb"
+    glb.write_bytes(model_to_glb(Scene.parse(make_scene())))
+    job = json.dumps({"game": "cz", "vpath": "data/x.big/box.big", "glb": str(glb),
+                      "name": "box.big", "mod": ""})
+    script = BLENDER_SCRIPT.format(job=job)
+    compile(script, "open_in_blender.py", "exec")
+    assert "bpy.app.timers.register(run" in script and "ops.wm.read_homefile" not in script
+    blender = shutil.which("blender")
+    if blender is None:
+        pytest.skip("Blender not installed: the script was only compiled")
+    (tmp_path / "s.py").write_text(script)
+    probe = tmp_path / "probe.py"
+    probe.write_text("import bpy, runpy, sys\nrunpy.run_path(sys.argv[-1])\n"
+                     "c = bpy.data.collections['box.big']\n"
+                     "print('TYPES', sorted(o.type for o in c.objects), c['dr2_vpath'])\n")
+    env = dict(os.environ, BLENDER_USER_RESOURCES=str(tmp_path / "bl"))
+    out = subprocess.run([blender, "-b", "--factory-startup", "--python", str(probe), "--",
+                          str(tmp_path / "s.py")], capture_output=True, text=True, timeout=120,
+                         env=env).stdout
+    assert "TYPES ['ARMATURE', 'MESH'] data/x.big/box.big" in out, out[-2000:]

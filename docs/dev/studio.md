@@ -201,7 +201,12 @@ app, easy packaging and installing.
   save into the mod's PNG (size checked) and refreshes the view, which shows the mod's
   version encoded as the build will (`replace_image`). *Open in Blender* exports the
   model (or the mod's `.glb`) and starts Blender with a generated script that imports
-  it into a collection tagged for the add-on and sets the add-on's mod folder.
+  it into a collection tagged for the add-on and sets the add-on's mod folder. The
+  script imports from a `bpy.app.timers` callback once Blender's window is up: run
+  straight from `--python` in a windowed Blender, the glTF importer fails (`'Context'
+  object has no attribute 'object'`) and leaves only its bone-shape Icosphere (user
+  report, 2026-10-10; background runs don't show it, so the test runs the script in
+  Blender and the windowed path was checked by hand).
 - **Import textures…** (models): pictures exported by a texturing program (a folder,
   files, or a `.glb`) → `mods.texture_import.plan` in a worker, the plan in the log and
   a confirmation, then `apply` into the open mod.

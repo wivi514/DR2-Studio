@@ -136,21 +136,40 @@ def find_blender() -> str | None:
 
 BLENDER_SCRIPT = '''\
 # Written by DR2 Studio: import a game model and tag it for the DR2 add-on.
+# The import runs from a timer, once Blender's window is up: run straight from
+# --python in a windowed Blender, the glTF importer fails ("'Context' object has no
+# attribute 'object'") and leaves only its bone-shape Icosphere (user report,
+# 2026-10-10). The start-up scene is emptied through bpy.data, not read_homefile,
+# which would leave this script with a stale context.
 import json, bpy
 job = json.loads({job!r})
-bpy.ops.wm.read_homefile(use_empty=True)
-coll = bpy.data.collections.new(job["name"])
-bpy.context.scene.collection.children.link(coll)
-coll["dr2_game"], coll["dr2_vpath"] = job["game"], job["vpath"]
-bpy.context.view_layer.active_layer_collection = \\
-    bpy.context.view_layer.layer_collection.children[coll.name]
-bpy.ops.import_scene.gltf(filepath=job["glb"])
-try:
-    bpy.context.scene.dr2.game = job["game"]
-    if job["mod"]:
-        bpy.context.scene.dr2.mod_folder = job["mod"]
-except AttributeError:
-    pass  # the DR2 add-on isn't enabled: the model is still imported
+
+
+def run():
+    for obj in list(bpy.data.objects):
+        bpy.data.objects.remove(obj)
+    coll = bpy.data.collections.new(job["name"])
+    bpy.context.scene.collection.children.link(coll)
+    coll["dr2_game"], coll["dr2_vpath"] = job["game"], job["vpath"]
+    bpy.context.view_layer.active_layer_collection = \\
+        bpy.context.view_layer.layer_collection.children[coll.name]
+    bpy.ops.import_scene.gltf(filepath=job["glb"])
+    arm = next((o for o in coll.objects if o.type == "ARMATURE"), None)
+    if arm is not None:
+        bpy.context.view_layer.objects.active = arm
+    try:
+        bpy.context.scene.dr2.game = job["game"]
+        if job["mod"]:
+            bpy.context.scene.dr2.mod_folder = job["mod"]
+    except AttributeError:
+        pass  # the DR2 add-on isn't enabled: the model is still imported
+    return None
+
+
+if bpy.app.background:
+    run()
+else:
+    bpy.app.timers.register(run, first_interval=0.5)
 '''
 
 
