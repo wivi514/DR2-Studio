@@ -103,6 +103,12 @@ def native_library() -> Path:
     fail(f"no {names} in native/lzx/build: build it first (docs/dev/setup.md)")
 
 
+def ffmpeg_prefix() -> Path:
+    """Where the LGPL ffmpeg is (tools/release/build_ffmpeg_lgpl.sh): $DR2_FFMPEG_PREFIX
+    or build/ffmpeg-lgpl."""
+    return Path(os.environ.get("DR2_FFMPEG_PREFIX", ROOT / "build" / "ffmpeg-lgpl"))
+
+
 def check_environment() -> None:
     import dr2kit
     here = Path(dr2kit.__file__).resolve()
@@ -110,10 +116,17 @@ def check_environment() -> None:
         fail(f"dr2kit is imported from the checkout ({here}); install it into the release "
              f"venv with `pip install .[studio]` (not -e), so the bundle doesn't depend on "
              f"this folder")
+    if sys.platform == "win32":
+        # Python on Windows doesn't look for an extension's DLLs on PATH (3.8+): point
+        # it at the LGPL ffmpeg PyAV was built against (the bundle carries them itself)
+        dlls = ffmpeg_prefix() / "bin"
+        if dlls.is_dir():
+            os.add_dll_directory(str(dlls))
     try:
         import av._core as core
-    except ImportError:
-        fail("PyAV is not installed in this venv")
+    except ImportError as e:
+        fail(f"PyAV can't be imported in this venv ({e}); install it from source against "
+             f"the LGPL ffmpeg (docs/dev/packaging.md)")
     lic = core.library_meta["libavcodec"].get("license", "")
     if "GPL" in lic and "LGPL" not in lic:
         fail(f"this PyAV's ffmpeg is {lic}")
@@ -140,8 +153,7 @@ def build_bundle() -> Path:
     # path. ffmpeg's own libraries (libavformat → libavcodec…) carry no RUNPATH, so
     # without this a system ffmpeg of the same version (Fedora's, which links x264)
     # is what gets analysed, and its GPL dependencies are collected (seen 2026-10-09).
-    ffmpeg_lib = Path(os.environ.get("DR2_FFMPEG_PREFIX", ROOT / "build" / "ffmpeg-lgpl"))
-    ffmpeg_lib = ffmpeg_lib / ("bin" if sys.platform == "win32" else "lib")
+    ffmpeg_lib = ffmpeg_prefix() / ("bin" if sys.platform == "win32" else "lib")
     var = {"win32": "PATH", "darwin": "DYLD_LIBRARY_PATH"}.get(sys.platform, "LD_LIBRARY_PATH")
     env = {**os.environ, var: os.pathsep.join(filter(None, [str(ffmpeg_lib),
                                                              os.environ.get(var, "")]))}
