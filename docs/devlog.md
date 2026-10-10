@@ -26,7 +26,9 @@ folder (files present), the Windows one from a git clone (files absent). Fixed: 
 follows the page's imports, `test_3d_view_has_all_its_files_in_git` checks they are all
 tracked, the release gate checks the bundle has them, and `viewer.html` says when a file
 is missing instead of staying at "loading…" (checked in a real web view with a copy
-missing `three.core.js`).
+missing `three.core.js`). The rebuild also showed the release venv's installed dr2kit
+can lag the checkout (PyInstaller packs the checkout, but the gate imported the old copy):
+`check_environment` now refuses a stale install.
 **Learned:** an ignore rule for the top-level build folder needs the leading `/`; a build
 from a clean clone catches files that only exist in my working folder.
 **Docs updated:** `dev/packaging.md`, `modding/12-troubleshooting.md`, this devlog.

@@ -116,6 +116,14 @@ def check_environment() -> None:
         fail(f"dr2kit is imported from the checkout ({here}); install it into the release "
              f"venv with `pip install .[studio]` (not -e), so the bundle doesn't depend on "
              f"this folder")
+    # An install older than the checkout gives a gate that checks yesterday's code
+    stale = [p.relative_to(ROOT).as_posix() for p in sorted((ROOT / "dr2kit").rglob("*.py"))
+             if "__pycache__" not in p.parts
+             and (not (here.parent / p.relative_to(ROOT / "dr2kit")).is_file()
+                  or (here.parent / p.relative_to(ROOT / "dr2kit")).read_bytes() != p.read_bytes())]
+    if stale:
+        fail(f"the release venv's dr2kit is older than the checkout ({', '.join(stale[:3])}…); "
+             f"reinstall it: `python -m pip install --no-deps --force-reinstall .`")
     if sys.platform == "win32":
         # Python on Windows doesn't look for an extension's DLLs on PATH (3.8+): point
         # it at the LGPL ffmpeg PyAV was built against (the bundle carries them itself)

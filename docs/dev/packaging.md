@@ -82,6 +82,8 @@ uv venv build/release-venv --python 3.14                 # or python -m venv
 PKG_CONFIG_PATH=$PWD/build/ffmpeg-lgpl/lib/pkgconfig LDFLAGS="-Wl,-rpath,$PWD/build/ffmpeg-lgpl/lib" \
   uv pip install --python build/release-venv/bin/python --no-binary av "av==19.0.1"
 uv pip install --python build/release-venv/bin/python ".[studio]" pyinstaller pillow
+# after every pull: uv pip install --python build/release-venv/bin/python --no-deps --reinstall .
+# (the gate refuses an installed dr2kit older than the checkout)
 build/release-venv/bin/python tools/build_release.py bundle    # ~1 min, then the gate
 build/release-venv/bin/python tools/build_release.py archive   # tar.zst (zip elsewhere)
 build/release-venv/bin/python tools/build_release.py appimage  # Linux
@@ -140,6 +142,8 @@ py -3.13 -m venv build\release-venv
 build\release-venv\Scripts\python -m pip install -U pip setuptools wheel cython
 build\release-venv\Scripts\python -m pip install --no-binary av --no-build-isolation "av==19.0.1" -C"--build-option=--ffmpeg-dir=C:/dr2kit/ffmpeg-lgpl"
 build\release-venv\Scripts\python -m pip install ".[studio]" pyinstaller pillow
+:: after every pull (the gate refuses an installed dr2kit older than the checkout):
+build\release-venv\Scripts\python -m pip install --no-deps --force-reinstall .
 set DR2_FFMPEG_PREFIX=C:\dr2kit\ffmpeg-lgpl
 build\release-venv\Scripts\python tools\build_release.py bundle
 build\release-venv\Scripts\python tools\build_release.py archive
