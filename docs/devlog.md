@@ -17,6 +17,43 @@ Entry template:
 
 ---
 
+## 2026-10-09 — Phase 8: the Library, model pictures, rigs, export everything at once
+**Done:** DR2 Studio opens on a new **Library** tab that sorts both games by what things
+are (Models: characters, zombies, items, cutscene props, crowd, environments; Skeletons;
+Sounds: music, voices, cutscene audio, ambience, footsteps, zombie sounds, effects;
+Textures by use and role; Text; Movies), from a rules file (`dr2kit/catalog/groups.toml`)
+applied when the index is built (schema 4: tables `scene` and `library_item`, relation
+`model-rig`). Every model gets a picture drawn by a new numpy software renderer
+(`convert/render.py`). A model shows its textures with pictures, the rig it matches, and
+its counts against the limits; **Export all…**, the Library's **Export…** and
+`dr2 export` write one folder per model (`.glb`, PNGs, rig, `info.txt`) or WAV / MP4 /
+JSON / PNG files, with progress, cancel and resume. `dr2 library` lists the groups;
+`--check` is the count gate.
+**Why:** the user's direction for phase 8 ("only show models with their texture, bones and
+all, and export all of this at once; just show audio, etc.").
+**Learned:**
+- The 98-bone rig families (player, female, large, child, cutscene twins) have **the same
+  bone names**; only the rest pose tells them apart (every character matched within 1 mm
+  of one family). First version matched names only and put everyone on the child rig.
+- On the cloth and skin shaders a DXT5 colour map's alpha is a mask (97% of texels under
+  0.5 on drawn-solid clothes), not transparency; only hair uses it as see-through. The
+  first thumbnails alpha-tested and drew zombies naked. `formats.md` corrected (old claim
+  struck through), `15-limits.md` now says to keep that alpha.
+- GASP voice tables: concepts named by hash, 2 of 41 resolved, no subtitle link.
+- A software renderer is fast enough: rasterising by a lattice of points per triangle
+  and one sort of packed (pixel, depth, point) keys, shading only the winners: 0.03-0.07 s
+  a model; the first version (shade every point, argsort floats) took 0.1-0.45 s.
+- A line edit matched `[names]` inside a comment of the TOML and cut the label rules; the
+  orphaned keys attached silently to the last group. The loader now refuses unknown keys.
+**Docs updated:** `modding/16-library.md` (new), `modding/README.md`, `03-browsing.md`,
+`04-extracting.md`, `12-troubleshooting.md`, `15-limits.md`, `asset-catalogue.md`,
+`formats.md` (§Rig matching, §Voice lines and the GASP tables, alpha note),
+`ARCHITECTURE.md` (§The Library, index tables, Studio), `roadmap.md`, `glossary.md`,
+`dev/code-tour.md`, `dev/studio.md`, `dev/testing.md` (§Phase 8 results),
+`phase8-kickoff.md` (§Status), `docs/README.md`, `README.md`, `CLAUDE.md`.
+**Next:** what phase 7 and 8 still owe (kickoffs' §Status); the stretch list in
+`roadmap.md` (in-game identify, animations, environments as scenes).
+
 ## 2026-10-09 — Phase 8 planned
 **Done:** wrote `phase8-kickoff.md` from the user's direction ("only show models with
 their texture, bones and all, and export all of this at once; just show audio, etc."),

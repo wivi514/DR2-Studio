@@ -7,6 +7,10 @@ WAV files any player opens, and Case West's movies as MP4. Strings: see
 **Time:** ~5 min.   **Games:** both.
 **You need:** the toolkit pointed at your game ([`02-game-data.md`](02-game-data.md)).
 
+> **A model with everything it uses, or a whole group at once** (every character, all
+> the music): **Export all…** / the Library's **Export…**, or `dr2 export`, in
+> [`16-library.md`](16-library.md). This page exports one file at a time.
+
 > Sounds and movies need PyAV (`pip install av`): it holds the XMA and Bink decoders.
 
 ## Steps

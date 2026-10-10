@@ -35,7 +35,7 @@ versions may lift them). Every number below was measured on the games' own files
 | Size | **the same as the texture you replace** (export bigger: the import resizes; same shape needed) | v1 |
 | Largest in the games | 2048×2048 | game |
 | Formats | DXT1 (no or on/off alpha), DXT5 (smooth alpha), DXN (normal maps), uncompressed for a few | game; a replacement keeps the original's format |
-| Transparency | only on textures that already have it (DXT5 colour maps: hair, lashes, mouths) | game + v1 |
+| Transparency | only on textures that already have it, and only hair (and lashes) use it as see-through. On clothes and skin a DXT5 colour map's alpha is a mask, not transparency: **keep the original alpha** when you repaint them ([`../formats.md`](../formats.md) §Texture conventions) | game + v1 |
 | Normal maps | OpenGL-style (green up) | game ([`14-texturing-tools.md`](14-texturing-tools.md)) |
 | Maps that exist | colour, normal, specular (+ masks, lighting maps); **no** roughness, metallic, height | game |
 | Edges | DXT stores 4×4-pixel blocks with 4 colours each: sharp small details and smooth gradients band a little | game |

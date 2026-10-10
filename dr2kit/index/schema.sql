@@ -99,7 +99,10 @@ CREATE INDEX IF NOT EXISTS material_slot_model ON material_slot (model_id);
 CREATE INDEX IF NOT EXISTS material_slot_name ON material_slot (lower(name));
 
 -- Links between assets, recomputed from material_slot and sound_ref after every build.
--- kinds: 'material-texture' (below), 'sfx-track' and 'script-asset' (see sound_ref).
+-- kinds: 'material-texture' (below), 'sfx-track' and 'script-asset' (see sound_ref),
+-- 'model-rig' (a model -> the skeletons whose bone names include all of the model's:
+-- rank 0 the same bones in the same rest pose, 1 the same names but other proportions,
+-- 2 the skeleton has more bones; slot = how many more; build.link_rigs).
 -- kind 'material-texture': a model's slot names a texture; every texture with that name
 -- in the same game is linked. rank 0 = the texture sits next to the model (same parent
 -- archive, or in a pack in it), 1 = elsewhere.
@@ -113,3 +116,39 @@ CREATE TABLE IF NOT EXISTS relation (
 );
 CREATE INDEX IF NOT EXISTS relation_src ON relation (src_id);
 CREATE INDEX IF NOT EXISTS relation_dst ON relation (dst_id);
+
+-- One row per model and skeleton (phase 8): what the Library shows next to it, read with
+-- dr2kit.formats.scene after the entries are indexed (build.scene_pass). `bone_names` is
+-- the skeleton's node names, lower case, one per line, in node order, and `bone_pos`
+-- their rest-pose positions: together they link a model to the rig it matches
+-- (relation kind 'model-rig'; the rig families share their bone names, not their pose). `thumb_png` is a 128-px picture
+-- drawn by dr2kit.convert.render (models only; NULL without numpy or with --no-thumbs).
+CREATE TABLE IF NOT EXISTS scene (
+    asset_id INTEGER PRIMARY KEY REFERENCES asset(id) ON DELETE CASCADE,
+    bones INTEGER NOT NULL,
+    meshes INTEGER NOT NULL,
+    draws INTEGER NOT NULL,
+    vertices INTEGER NOT NULL,       -- sum of the draws' vertex ranges
+    max_part_vertices INTEGER NOT NULL,   -- largest draw vertex range (limit: 65,536)
+    max_draw_bones INTEGER NOT NULL,      -- largest bone palette of one draw (limit: 61)
+    materials INTEGER NOT NULL,
+    bone_names TEXT NOT NULL,
+    bone_pos BLOB,                   -- rest-pose world positions, 3 float32 per bone
+    rendered INTEGER NOT NULL DEFAULT 0,  -- 1 once a thumbnail was attempted
+    thumb_png BLOB,
+    problem TEXT                     -- why it couldn't be read or drawn ('' if fine)
+);
+
+-- The Library (phase 8): the group, sub-group and friendly label of each asset it shows,
+-- from dr2kit/catalog/groups.toml (build.link_library, after every build). An asset
+-- whose bytes equal another's is listed once: `copy_of` names the one shown.
+CREATE TABLE IF NOT EXISTS library_item (
+    asset_id INTEGER PRIMARY KEY REFERENCES asset(id) ON DELETE CASCADE,
+    game TEXT NOT NULL,
+    grp TEXT NOT NULL,
+    sub TEXT NOT NULL,
+    label TEXT NOT NULL,
+    copy_of INTEGER                  -- NULL: shown; otherwise the asset shown instead
+);
+CREATE INDEX IF NOT EXISTS library_group ON library_item (game, grp, sub);
+CREATE INDEX IF NOT EXISTS library_copy ON library_item (copy_of);

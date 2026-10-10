@@ -2,9 +2,12 @@
 
 Layout (docs/dev/studio.md has the diagram):
 
-* **Left**, two tabs. *Browse*: the game's folders and archives as a tree, expanded on
-  demand from the index (`dr2kit.index.query.children`). *Search*: words matched against
-  asset names, filtered by kind; results show texture thumbnails, as a list or a grid.
+* **Left**, three tabs. *Library* (first, phase 8: `library_view.LibraryView`): the
+  assets by what they are (characters, zombies, music, rigs…), as a grid of pictures,
+  with *Export…* for a selection or a whole group. *Files*: the game's folders and
+  archives as a tree, expanded on demand from the index (`dr2kit.index.query.children`).
+  *Search*: words matched against asset names, filtered by kind; results show texture
+  thumbnails and model pictures, as a list or a grid.
 * **Centre**: a viewer for the selected asset (`viewers.TextureViewer`,
   `model_view.ModelViewer` for models and skeletons, `audio_view.AudioViewer` for sounds,
   `text_view.TextEditor` for text and `.sfx` (edit into the open mod, with a diff),
@@ -20,7 +23,9 @@ Layout (docs/dev/studio.md has the diagram):
   *Export WAV…* and *Replace with audio…* (sounds: copies a WAV/OGG/FLAC/MP3 into the
   open mod as ``<vpath>.<ext>``; the build fits it to the sound, `dr2kit.mods.build`).
   For sounds the relations list the ``.sfx`` and the scene-script events that play them.
-  *Export MP4…* for movies.
+  *Export MP4…* for movies. For a model the relations show its textures with pictures
+  (by material and role) and the rig it matches; *Export all…* writes its folder (the
+  ``.glb``, every texture as PNG, the rig, ``info.txt``: `dr2kit.catalog.export`).
 * **Bottom**: the mod bar (open/new mod folder, its overrides, *Build && deploy*) and a log.
 * **Toolbar**: game switcher, *Build / refresh index*, *Mod manager…*
   (`mod_manager.ModManager`: the mod library, load order, conflicts, deploy), *Game
@@ -57,6 +62,7 @@ from ..index.build import build_index, connect, default_db_path, format_stats
 from ..profiles import GAME_IDS, locate
 from . import model_view
 from .audio_view import AudioViewer
+from .library_view import LibraryView, run_export
 from .text_view import StringsViewer, TextEditor
 from .video_view import VideoViewer
 from .viewers import PlainViewer, TextureViewer
@@ -193,9 +199,16 @@ class MainWindow(QMainWindow):
         sl.addLayout(row)
         sl.addWidget(self.results, 1)
         sl.addWidget(self.result_count)
+        self.library_view = LibraryView(self)
+        self.library_view.selected.connect(self.show_asset)
         self.left = QTabWidget()
-        self.left.addTab(self.tree, "Browse")
+        self.left.addTab(self.library_view, "Library")
+        self.left.addTab(self.tree, "Files")
         self.left.addTab(sw, "Search")
+        self.left.setTabToolTip(0, "The games' assets by what they are: characters, music, "
+                                   "rigs… Export a whole group in one go.")
+        self.left.setTabToolTip(1, "The game's folders and archives as they are stored "
+                                   "(for advanced use)")
         self.search_box.returnPressed.connect(self.search)
         self.kind_box.currentTextChanged.connect(lambda _t: self.search())
         self.grid_btn.toggled.connect(self._grid)
@@ -220,6 +233,7 @@ class MainWindow(QMainWindow):
         # --- right: details, relations, actions
         self.details = QTextBrowser()
         self.relations = QListWidget()
+        self.relations.setIconSize(QSize(40, 40))
         self.relations.itemDoubleClicked.connect(self._jump)
         self.btn_extract = QPushButton("Extract…")
         self.btn_png = QPushButton("Export PNG…")
@@ -253,6 +267,11 @@ class MainWindow(QMainWindow):
         self.btn_mp4 = QPushButton("Export MP4…")
         self.btn_mp4.setToolTip("The movie as .mp4 (MPEG-4 video, AAC stereo sound)")
         self.btn_mp4.clicked.connect(self.export_mp4)
+        self.btn_export_all = QPushButton("Export all…")
+        self.btn_export_all.setToolTip("A folder with everything: the .glb (textures and bones "
+                                       "inside), every texture as PNG, the rig alone, and "
+                                       "info.txt — ready for Blender or Substance Painter")
+        self.btn_export_all.clicked.connect(self.export_all)
         self.btn_extract.clicked.connect(self.extract)
         self.btn_png.clicked.connect(self.export_png)
         self.btn_glb.clicked.connect(self.export_glb)
@@ -274,7 +293,8 @@ class MainWindow(QMainWindow):
         rl.addWidget(self.details, 2)
         rl.addWidget(QLabel("<b>Related</b> (double-click to open)"))
         rl.addWidget(self.relations, 1)
-        for b in (self.btn_edit_tex, self.btn_blender, self.btn_tex_in, self.btn_extract,
+        for b in (self.btn_export_all, self.btn_edit_tex, self.btn_blender, self.btn_tex_in,
+                  self.btn_extract,
                   self.btn_png,
                   self.btn_glb, self.btn_replace, self.btn_glb_in, self.btn_wav,
                   self.btn_audio_in, self.btn_mp4):
@@ -323,7 +343,7 @@ class MainWindow(QMainWindow):
         top.addWidget(self.left)
         top.addWidget(self.centre)
         top.addWidget(rw)
-        top.setSizes([430, 750, 320])
+        top.setSizes([480, 700, 320])               # the Library grid needs the room
         main = QSplitter(Qt.Vertical)
         main.addWidget(top)
         main.addWidget(bw)
@@ -417,6 +437,7 @@ class MainWindow(QMainWindow):
             self.btn_glb_in: kind == "model", self.btn_glb: kind in ("model", "skeleton"),
             self.btn_audio_in: kind == "audio", self.btn_wav: kind == "audio",
             self.btn_mp4: kind == "video",
+            self.btn_export_all: kind in ("model", "skeleton"),
         }
         for b, on in shown.items():
             b.setVisible(on)
@@ -439,6 +460,7 @@ class MainWindow(QMainWindow):
         except Dr2Error as e:
             self.say(f"{game}: {e}")
             return
+        self.library_view.set_game(game)
         rows = query.files(self.con, game)
         if not rows:
             self.say(f"{game}: not indexed yet; use “Build / refresh index”.")
@@ -502,8 +524,8 @@ class MainWindow(QMainWindow):
             item = QListWidgetItem(r["vpath"] if not self.grid_btn.isChecked() else r["name"])
             item.setData(ROLE_ID, r["id"])
             item.setToolTip(f"{r['vpath']}\n{r['kind']}, {_human(r['size'])}")
-            if r["kind"] == "texture":
-                png = query.thumbnail(self.con, r["id"])
+            if r["kind"] in ("texture", "model"):
+                png = query.picture(self.con, r["id"])
                 if png:
                     item.setIcon(QIcon(QPixmap.fromImage(QImage.fromData(png))))
             self.results.addItem(item)
@@ -605,10 +627,7 @@ class MainWindow(QMainWindow):
                 self._relation(f"same bytes: {r['game']} {r['vpath']}", r["id"] if r["game"] == self.game else None)
         elif row["kind"] in ("model", "skeleton"):
             lines += self._show_scene(row, data)
-            if row["kind"] == "model":
-                for r in query.textures_of(self.con, asset_id):
-                    self._relation(f"slot {r['slot']}: {r['dst_name']}  →  {r['vpath'] or 'not found'}",
-                                   r["id"])
+            lines += self._scene_relations(row)
         else:
             from ..census import content_kind
             self.plain_view.show_bytes(data, content_kind(data) == "text")
@@ -616,6 +635,13 @@ class MainWindow(QMainWindow):
         dup = query.same_content(self.con, asset_id)
         if dup:
             lines.append(f"identical copies elsewhere: {len(dup)}")
+        item = query.library_item(self.con, asset_id)
+        if item is not None:
+            from ..catalog.groups import catalog
+            g = catalog().group(item["grp"])
+            where = f"{g.section} › {g.title}" + (f" › {item['sub']}" if item["sub"] else "")
+            lines.insert(1, (f"<b>{item['label']}</b><br>" if item["label"] else "")
+                         + f"<small>Library: {where}</small>")
         self.details.setHtml("<br>".join(lines))
 
     def _show_scene(self, row, data: bytes) -> list[str]:
@@ -663,6 +689,55 @@ class MainWindow(QMainWindow):
             for name in missing:
                 self.say(f"{row['name']}: texture {name!r} not found")
         self.run_job(work, done)
+        return lines
+
+    def _scene_relations(self, row) -> list[str]:
+        """A model's textures (with pictures, by material and role) and rig, or the
+        models that use a skeleton, in the Related list; returns detail lines."""
+        from ..formats.scene import texture_role
+        lines = []
+        info = query.scene_info(self.con, row["id"])
+        if info is not None and row["kind"] == "model":
+            from ..catalog.export import LIMIT_DRAW_BONES, LIMIT_PART_VERTICES
+            lines.append(f"largest part: {info['max_part_vertices']:,} vertices "
+                         f"(limit {LIMIT_PART_VERTICES:,}); most bones in one draw: "
+                         f"{info['max_draw_bones']} (limit {LIMIT_DRAW_BONES})")
+        if row["kind"] == "model":
+            rigs = query.rigs_of(self.con, row["id"])
+            if rigs:
+                r = rigs[0]
+                how = {0: "same bones and pose", 1: "same bone names, other proportions"}.get(
+                    r["rank"], f"+{r['extra']} bones")
+                lines.append(f"rig: <b>{r['name']}</b> ({how})")
+                self._relation(f"rig: {r['name']}  ({how})", r["id"])
+            elif info is not None and info["bones"]:
+                lines.append("rig: its own (no skeleton file has the same bones)")
+            seen = set()
+            for r in query.textures_of(self.con, row["id"]):
+                if (r["slot"], r["dst_name"]) in seen:
+                    continue                                 # one row per slot, best first
+                seen.add((r["slot"], r["dst_name"]))
+                it = self._relation(f"{texture_role(r['dst_name'])}: {r['dst_name']}"
+                                    + ("" if r["vpath"] else "  (not found)"), r["id"])
+                png = query.picture(self.con, r["id"]) if r["id"] else None
+                if png:
+                    it.setIcon(QIcon(QPixmap.fromImage(QImage.fromData(png))))
+                if r["vpath"]:
+                    it.setToolTip(r["vpath"])
+            bank = query.search(self.con, f"fx_{row['name'].rsplit('.', 1)[0]}", game=self.game,
+                                kind="archive", limit=5)
+            for b in bank:
+                if b["name"].lower() == f"fx_{row['name'].lower()}":
+                    self._relation(f"sounds (same name): {b['name']}", b["id"])
+        else:
+            users = query.rig_users(self.con, row["id"])
+            if users:
+                lines.append(f"models on this rig: {len(users)}")
+            for r in users[:300]:
+                self._relation(f"used by {r['name']}"
+                               + ("" if r["rank"] == 0 else "  (other proportions)"), r["id"])
+        for c in query.copies(self.con, row["id"])[:20]:
+            self._relation(f"also in: {c['vpath']}", c["id"])
         return lines
 
     def _show_sound(self, row, data: bytes) -> list[str]:
@@ -802,10 +877,11 @@ class MainWindow(QMainWindow):
         self.centre.setCurrentWidget(self.strings_view)
         return [f"strings: {len(bank.strings):,}", f"language: {lang}"]
 
-    def _relation(self, text: str, asset_id) -> None:
+    def _relation(self, text: str, asset_id) -> QListWidgetItem:
         it = QListWidgetItem(text)
         it.setData(ROLE_ID, asset_id)
         self.relations.addItem(it)
+        return it
 
     # ---- actions ---------------------------------------------------------------------------
 
@@ -855,6 +931,23 @@ class MainWindow(QMainWindow):
             data, what = gltf.skeleton_to_glb(sc), f"{len(sc.skeleton)} bones"
         Path(path).write_bytes(data)
         self.say(f"exported {a['vpath']} -> {path} ({what})")
+
+    def export_all(self, folder: str | None = None) -> None:
+        """*Export all…*: the selected model's (or skeleton's) folder, with everything."""
+        a = self.current
+        if not a or a["kind"] not in ("model", "skeleton"):
+            return
+        if folder is None:
+            folder = QFileDialog.getExistingDirectory(
+                self, f"Export {a['name']} with everything into… (a folder named after it "
+                      f"is made in it)")
+        if folder:
+            self.export_rows([a], Path(folder), by_group=False)
+
+    def export_rows(self, rows: list, out: Path, *, by_group: bool, on_done=None) -> None:
+        """Export assets of this game in the background, with a progress bar and Cancel
+        (`library_view.run_export`)."""
+        run_export(self, rows, out, by_group=by_group, on_done=on_done)
 
     def replace_png(self, src: str | None = None, vpath: str | None = None,
                     quiet: bool = False) -> bool:

@@ -1,0 +1,390 @@
+# The Library's groups: how DR2 Studio's Library tab and `dr2 export` sort the games'
+# assets by what they are, not by where they are stored (dr2kit/catalog/groups.py).
+#
+# Each [[group]] takes the assets of its `kinds` whose virtual path matches one of its
+# `paths` (lower case; `*` stays within one path part, `**` crosses parts, `?` is one
+# character). Groups are tried top to bottom and an asset goes into the first that
+# matches, so specific groups come before the catch-all ones. The same rules serve both
+# games; a group with nothing in one game is not shown there.
+#
+# A group can be split into sub-groups by one of:
+#   sub_path = "regex"   run on the lower-case vpath; the capture groups, joined, name it
+#   sub_name = "regex"   the same on the asset's lower-case name
+#   sub_role = true      textures: by role (colour, normal, specular…), from the name
+# `sub_names` renames sub-groups (keys may use * and ?); `sub_default` is used when the
+# regex doesn't match.
+#
+# Counts measured on 2026-10-09 (docs/devlog.md); `dr2 library --check` recounts them.
+
+# ---- Models ---------------------------------------------------------------------------
+
+[[group]]
+id = "characters"
+section = "Models"
+title = "Characters"
+description = "People and the player's outfit parts: one model and one texture pack each. Chuck's (and Frank's) body is made of parts (chest, legs, feet, hands, head, headwear)."
+kinds = ["model"]
+paths = ["data/models/npcs.big/**"]
+sub_name = "^(chest|leg|legs|feet|hands|head|headwear|facewear|hair)_|^(srv|boss|cine|cast)_"
+sub_default = "Other characters"
+[group.sub_names]
+chest = "Outfit parts"
+leg = "Outfit parts"
+legs = "Outfit parts"
+feet = "Outfit parts"
+hands = "Outfit parts"
+head = "Outfit parts"
+headwear = "Outfit parts"
+facewear = "Outfit parts"
+hair = "Outfit parts"
+srv = "Survivors"
+boss = "Bosses"
+cine = "Cutscene characters"
+cast = "Story characters"
+
+[[group]]
+id = "zombies"
+section = "Models"
+title = "Zombies & enemies"
+description = "Zombie and enemy bodies, several variants each, and the gore pieces that fly off."
+kinds = ["model"]
+paths = ["data/models/zombies.big/**", "**/zombie_explodable_*", "**/zombie_goretech_*"]
+sub_path = "zombies\\.big/([^/.]+)"
+sub_default = "Gore pieces"
+
+[[group]]
+id = "items"
+section = "Models"
+title = "Weapons & items"
+description = "Everything Chuck can pick up, combine or break: weapons, food, furniture, doors, vehicles. Loaded on demand from streamedassets.big."
+kinds = ["model"]
+paths = ["data/streamedassets.big/**", "data/models/weapons/**", "data/models/special/**",
+         "data/dynamicprops/**", "data/preload4.big/glassbroken.big", "data/preload4.big/guide_arrow.big",
+         "data/preload4.big/missingprop.big"]
+
+[[group]]
+id = "cutscene-props"
+section = "Models"
+title = "Cutscene props"
+description = "Props the cutscenes animate: the bike and its parts, the ambulance doors, cameras…"
+kinds = ["model"]
+paths = ["data/cine_props.big/**"]
+
+[[group]]
+id = "crowd"
+section = "Models"
+title = "Crowd"
+description = "The low-detail crowd drawn in the distance."
+kinds = ["model"]
+paths = ["data/models/crowd/**"]
+
+[[group]]
+id = "environments"
+section = "Models"
+title = "Environments"
+description = "The levels, one piece per model, by area and zone. Large: export a zone, not all of them, unless you have the room."
+kinds = ["model"]
+paths = ["data/models/environment/**", "**/skybox.big", "**/fortune_exterior_sky*"]
+sub_path = "environment/((?:[^/]+/)?[^/.]+)\\.big"
+sub_default = "Sky"
+
+[[group]]
+id = "other-models"
+section = "Models"
+title = "Other models"
+description = "Models that fit none of the groups above."
+kinds = ["model"]
+paths = ["**"]
+
+# ---- Skeletons ------------------------------------------------------------------------
+
+[[group]]
+id = "rigs"
+section = "Skeletons"
+title = "Rigs"
+description = "The skeletons characters are animated with: <family>fullbody is the whole rig, root/upperbdy/hand/face are the parts animations drive, cine* the cutscene versions."
+kinds = ["skeleton"]
+paths = ["data/skeleton/**", "data/preload4.big/*"]
+
+[[group]]
+id = "other-skeletons"
+section = "Skeletons"
+title = "Other skeletons"
+description = "Skeletons of props, level pieces and the crowd."
+kinds = ["skeleton"]
+paths = ["**"]
+
+# ---- Sounds ---------------------------------------------------------------------------
+
+[[group]]
+id = "music"
+section = "Sounds"
+title = "Music"
+description = "The music tracks, stereo."
+kinds = ["audio"]
+paths = ["**/audio/music.big/*"]
+
+[[group]]
+id = "voices"
+section = "Sounds"
+title = "Voices"
+description = "Voice lines, numbered (the dialogue tables use numbers only), mono."
+kinds = ["audio"]
+paths = ["**/audio/charvocals.big/*", "**/audio/chuck.big/*", "**/audio/bossvocals.big/*"]
+sub_path = "audio/([^/.]+)\\.big"
+[group.sub_names]
+chuck = "Chuck"
+charvocals = "Other characters"
+bossvocals = "Bosses"
+
+[[group]]
+id = "cutscene-audio"
+section = "Sounds"
+title = "Cutscene audio"
+description = "The cutscenes' sound, music and voices mixed together, 5.1 surround."
+kinds = ["audio"]
+paths = ["**/audio/cinematics.big/*"]
+
+[[group]]
+id = "ambience"
+section = "Sounds"
+title = "Ambience"
+description = "Long background sounds: ambiences, crowd chants, the PA, the zombie crowd."
+kinds = ["audio"]
+paths = ["**/audio/ambience.big/*", "**/audio/streamfx.big/*", "**/zombiance*.big/*"]
+sub_path = "/(ambience|streamfx|zombiance)[^/]*\\.big/"
+[group.sub_names]
+ambience = "Ambiences"
+streamfx = "Streamed effects"
+zombiance = "Zombie crowd"
+
+[[group]]
+id = "footsteps"
+section = "Sounds"
+title = "Footsteps"
+description = "Footsteps, one bank per kind of shoe or surface."
+kinds = ["audio"]
+paths = ["**/fx_ftsp*.big/*"]
+sub_path = "/fx_ftsp([^/]*)\\.big/"
+
+[[group]]
+id = "zombie-sounds"
+section = "Sounds"
+title = "Zombie sounds"
+description = "Zombie voices and body sounds, one bank per voice set."
+kinds = ["audio"]
+paths = ["**/fx_zombie*.big/*", "**/fx_gzombie*.big/*"]
+sub_path = "/fx_([^/]*)\\.big/"
+
+[[group]]
+id = "common-sounds"
+section = "Sounds"
+title = "Common effects"
+description = "Interface beeps, hits, splats, Chuck's grunts, cloth and body foley."
+kinds = ["audio"]
+paths = ["**/fx_main.big/*", "**/fx_cfoley.big/*"]
+sub_path = "/fx_([^/]*)\\.big/"
+[group.sub_names]
+main = "Interface, hits, grunts"
+cfoley = "Cloth and body"
+
+[[group]]
+id = "effects"
+section = "Sounds"
+title = "Weapon, item & vehicle sounds"
+description = "Each weapon's, item's and vehicle's own sounds, one bank each."
+kinds = ["audio"]
+paths = ["**/fx_*.big/*"]
+sub_path = "/fx_([^/]*)\\.big/"
+
+[[group]]
+id = "other-sounds"
+section = "Sounds"
+title = "Other sounds"
+description = "Sounds that fit none of the groups above."
+kinds = ["audio"]
+paths = ["**"]
+
+# ---- Textures -------------------------------------------------------------------------
+
+[[group]]
+id = "menu-textures"
+section = "Textures"
+title = "Menus & HUD"
+description = "Menu and HUD pictures: icons, combo cards, the map, loading screens, portraits."
+kinds = ["texture"]
+paths = ["data/frontend/**", "data/preload4.big/fecmn.tex/*"]
+sub_path = "frontend/([^/.]+)\\.(?:tex|big)/"
+sub_default = "Other"
+
+[[group]]
+id = "character-textures"
+section = "Textures"
+title = "Character textures"
+description = "Textures of the characters and zombies, by role."
+kinds = ["texture"]
+paths = ["data/models/npcs.big/**", "data/models/zombies.big/**"]
+sub_role = true
+
+[[group]]
+id = "item-textures"
+section = "Textures"
+title = "Item & prop textures"
+description = "Textures of weapons, items, vehicles and cutscene props, by role."
+kinds = ["texture"]
+paths = ["data/streamedassets.big/**", "data/cine_props.big/**", "data/models/weapons/**",
+         "data/models/special/**", "data/dynamicprops/**"]
+sub_role = true
+
+[[group]]
+id = "world-textures"
+section = "Textures"
+title = "World textures"
+description = "Textures of the levels, by role (lightmaps and ambient occlusion included)."
+kinds = ["texture"]
+paths = ["data/models/environment/**"]
+sub_role = true
+
+[[group]]
+id = "other-textures"
+section = "Textures"
+title = "Other textures"
+description = "Effects, colour grading, defaults and anything else."
+kinds = ["texture"]
+paths = ["**"]
+sub_role = true
+
+# ---- Text, movies ---------------------------------------------------------------------
+
+[[group]]
+id = "strings"
+section = "Text"
+title = "On-screen text"
+description = "Every string the game shows, one bank per language (str_en is English)."
+kinds = ["strings"]
+paths = ["**"]
+
+[[group]]
+id = "game-data"
+section = "Text"
+title = "Game data"
+description = "Tables and scripts the game reads: items, combos, zombies, missions, clothing."
+kinds = ["text"]
+paths = ["data/datafile.big/*", "data/datafile/**", "data/preload4.big/*.txt", "data/preload4.big/*.csv",
+         "data/preload4.big/persistent_filecache.big/*", "data/*.csv", "data/*.txt",
+         "data/models/zombies/*.txt"]
+
+[[group]]
+id = "cutscene-scripts"
+section = "Text"
+title = "Cutscene scripts"
+description = "What each cutscene plays and when."
+kinds = ["text"]
+paths = ["data/cinematics/**", "data/preload4.big/cinematics.big/*", "data/preload4.big/permanent.big/*"]
+
+[[group]]
+id = "menu-scripts"
+section = "Text"
+title = "Menu & HUD scripts"
+description = "The menus' and HUD's layout scripts."
+kinds = ["text"]
+paths = ["data/frontend/**", "data/preload4.big/fecmn.big/*"]
+
+[[group]]
+id = "audio-scripts"
+section = "Text"
+title = "Audio scripts"
+description = "Which game events play which sounds, and the dialogue tables. Some can't be changed (the game checks them)."
+kinds = ["text"]
+paths = ["data/audio/**", "data/preload4.big/gasp.big/*"]
+
+[[group]]
+id = "settings"
+section = "Text"
+title = "Settings"
+description = "Lighting and colour settings per area, controller layout."
+kinds = ["text"]
+paths = ["data/shaders/**", "data/controls/**"]
+
+[[group]]
+id = "movies"
+section = "Movies"
+title = "Movies"
+description = "Bink movies (Case West): the intro, the logos, the security monitors."
+kinds = ["video"]
+paths = ["**"]
+
+# ---- Friendly names -------------------------------------------------------------------
+# [[label]]: a regex on the asset's name without its extension (any letter case); the
+# first rule of the asset's group that matches gives its label. In `format`, {name} is a
+# named capture group with "_" shown as spaces, {Name} the same with capitals.
+# [names.<group>]: labels for single assets of a group, by name without extension ("cz:"
+# or "cw:" in front for one game only). Assets without a label show their game name.
+
+[[label]]
+groups = ["characters"]
+pattern = "^(?P<part>chest|leg|legs|feet|hands|head|headwear|facewear|hair)_(?P<rest>.+)$"
+format = "{Rest} ({part})"
+
+[[label]]
+groups = ["characters"]
+pattern = "^srv_(?P<rest>.+)$"
+format = "{Rest} (survivor)"
+
+[[label]]
+groups = ["characters"]
+pattern = "^boss_(?P<rest>.+)$"
+format = "{Rest} (boss)"
+
+[[label]]
+groups = ["characters"]
+pattern = "^cine_(?P<rest>.+)$"
+format = "{Rest} (cutscene)"
+
+[[label]]
+groups = ["characters"]
+pattern = "^cast_(?P<rest>.+)$"
+format = "{Rest} (story)"
+
+[[label]]
+groups = ["zombies"]
+pattern = "^(?P<rest>.+)_(?P<n>\\d+)$"
+format = "{Rest}, variant {n}"
+
+[[label]]
+groups = ["environments"]
+pattern = "^_comp_(?P<rest>.+)$"
+format = "{rest}"
+
+[[label]]
+groups = ["cutscene-props"]
+pattern = "^cine_(?P<rest>.+)$"
+format = "{Rest}"
+
+[names.characters]
+chest_young_chuck = "Young Chuck's orange 04 shirt (chest)"
+chest_default = "IJIEK racing jacket (chest)"
+chest_default_frank = "Frank West's jacket (chest)"
+
+[names.music]
+"cz:pressstartprologue" = "Title music"
+"cw:pressstartdr2" = "Title music"
+
+[names.cutscene-audio]
+"cz:39694" = "The prologue (5 minutes)"
+
+[names.movies]
+800a_intro = "The opening movie"
+dr2_logo = "Dead Rising 2 logo"
+dr2_logo_b = "Dead Rising 2 logo (2)"
+dr_logo_shortloop = "Logo loop"
+
+[names.strings]
+str_en = "English"
+str_fr = "French"
+str_it = "Italian"
+str_es = "Spanish"
+str_ja = "Japanese"
+str_ko = "Korean"
+str_id = "String labels (IDS_…)"
+str_lg = "Legal and language-select text"

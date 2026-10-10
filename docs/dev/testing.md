@@ -212,6 +212,28 @@ the recomp with mods off); `test_studio.py` (only applicable buttons shown).
 Studio's dialogs and welcome window off: a phase 7 test run had linked test mods into
 the developer's real mod library before that.
 
+### Phase 8 results (2026-10-09)
+
+| Gate | Case Zero | Case West |
+|---|---|---|
+| Index build with scene facts, thumbnails, rigs, Library (`dr2 index build`, from scratch) | 183 s; 1,510 models/skeletons read, 1,397 thumbnails, 0 unparsed | 266 s; 1,639 read, 1,495 thumbnails, 0 unparsed |
+| **Count gate** (`dr2 library --check`): every model, skeleton, sound, texture, string bank and movie in a group; stored groups = the rules; copies point at shown items | 0 problems (text: 1,400 inside models not shown) | 0 problems after adding `zombie_pdv_variations.txt` to Game data (the gate found it) |
+| **From the Library only** (Studio driven headless: Library tab → Characters → a model → *Export all…*; group → *Export…*) | `chest_young_chuck`: 13 files; Music: 16 WAVs; Characters: 91 folders, 1,671 files in 97 s | `chest_default_frank`: 16 files; Music: 35 WAVs; Characters: 166 folders, 2,257 files in 176 s |
+| The `.glb` in Blender 5.2 (headless import of the single export + 3 random characters per game) | 98-bone armature, every mesh skinned, every material textured; a render shows the textured shirt | the same; Frank's jacket and camera rendered with textures |
+| Rig links (every character has one) | 66 player, 13 female, 2 large, 1 child, 9 zombie (other proportions) | 145 player, 19 female, 1 large, 1 longcloak |
+| Thumbnails looked at (contact sheets of every group) | characters, zombies, items, props, level pieces | the same |
+
+Exports re-run into the same folder skip every file (resume). 10 of the 257 character
+folders name a texture slot found nowhere in the game (`cin_zombie_james_leg_nm`, a slot
+literally named `{`): the index's known unresolved slots, listed in `info.txt`.
+
+Unit tests added: `test_catalog.py` (path globs, rules → group / sub-group / label,
+unknown keys refused, the shipped rules on known assets, the index's Library, copies,
+rig links by pose, scene facts and thumbnails, the count gate and a stale index, the
+renderer and its lattice, export layout and name clashes, a model folder, resume,
+output filters, cancel, `dr2 library` and `dr2 export`); `test_studio.py` (the Library
+tab: groups, filter, a model's rig and textures, *Export all…* and a group export).
+
 ## Writing a test for new code
 
 - One test file per module (`tests/test_<module>.py`).

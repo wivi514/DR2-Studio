@@ -3,6 +3,8 @@
 Browse, preview, extract and replace assets in **Dead Rising 2: Case Zero** and
 **Dead Rising 2: Case West** (Xbox 360), built for the two Xenon recomps.
 
+- Find things by what they are (characters, zombies, music, rigs…) with pictures, and
+  export a model with all its textures and its rig, or a whole group, in one go.
 - See every texture as a thumbnail, and which models use it.
 - Listen to any sound before extracting it.
 - Export models **and skeletons** to Blender (glTF), and put rigged models back in.
@@ -14,7 +16,10 @@ Runs on **Windows, Linux and macOS**.
 add-on, release packaging, built on Linux so far). Phase 7 (mostly done): the guides
 inside the app (F1), a Welcome checklist, **▶ Play** (deploy + start the recomp), mods
 shared as one `.dr2mod` file, editing in your own image editor or Blender with automatic
-re-import, and textures from Substance Painter and other programs imported in one step. Every file of both games can be read, searched and
+re-import, and textures from Substance Painter and other programs imported in one step.
+Phase 8 (done): a **Library** tab that shows both games by what things are, with a
+picture of every model, each model's textures and matching rig, and **Export all** for
+one model, a selection or a whole group (`dr2 library`, `dr2 export`). Every file of both games can be read, searched and
 extracted; every texture can be viewed and exported as PNG, and replaced by a mod that
 loads in both recomps (tested in game). Every model and skeleton can be viewed in 3D and
 exported to Blender (`.glb`) with its bones, skin weights and textures, and an edited or
@@ -29,7 +34,9 @@ the game's text files with a diff, Case West's movies (play, export MP4), a mod 
 
 ```
 dr2 studio                                  # the app: browse, search, view, make mods
-dr2 index build                             # the searchable catalogue (once, ~1 min/game)
+dr2 index build                             # the searchable catalogue (once, ~3-4 min/game)
+dr2 library                                 # the games by what things are: characters, music, rigs…
+dr2 export characters -g cz -o exports      # every character: .glb, textures, rig, info, one folder each
 dr2 index search young shirt --kind texture # find assets
 dr2 extract --png data/models/npcs.big/chest_young_chuck.tex/young_cr_shirt_cm -o out
 dr2 extract --glb data/models/npcs.big/boss_mechanic.big -o out   # model -> Blender

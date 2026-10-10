@@ -5,6 +5,11 @@ which models use it (and which textures a model uses).   **Time:** ~10 min.
 **Games:** both.   **You need:** the toolkit pointed at your game
 ([`02-game-data.md`](02-game-data.md)). To hear sounds: PyAV (`pip install av`).
 
+> **Looking for something by what it is?** The **Library** tab (Studio opens on it)
+> lists characters, zombies, music, rigs… with pictures, and exports whole groups:
+> [`16-library.md`](16-library.md). This guide covers the **Files** tree and **Search**,
+> for finding anything by its name or place.
+
 > Sounds: click any `.xma` to see its waveform and **Play** it; the Related list shows
 > the `.sfx` and game events that play it. Details in [`10-audio.md`](10-audio.md).
 
@@ -19,15 +24,16 @@ files change.
 
 1. Start it: `dr2 studio`.
 2. Choose the game in the **Game** box, then click **Build / refresh index**. The first
-   time takes about a minute per game; later refreshes re-read only files that changed.
-3. **Browse** tab: the game's folders and archives. Click ▸ to open an archive; nested
+   time takes a few minutes per game (it also draws a picture of every model); later
+   refreshes re-read only files that changed.
+3. **Files** tab: the game's folders and archives. Click ▸ to open an archive; nested
    archives open the same way. Compressed entries say "(compressed)": the toolkit
    unpacks them for you.
 4. **Search** tab: type words and press Enter. All words must appear in the name:
    `young shirt`, `apron _cm`. `*` and `?` are wildcards (`z_*_cm`). A word with a `/`
    searches the whole path (`npcs.big/ _cm` = colour maps inside `npcs.big`). The box
    next to it filters by kind: texture, model, skeleton, audio, text….
-   **Grid** shows texture results as a wall of thumbnails.
+   **Grid** shows texture and model results as a wall of pictures.
 5. Click a result. A texture appears in the middle: scroll to zoom, drag to move.
    - **Show**: `RGBA` (transparency over a checkerboard), `RGB`, or one channel as grey.
      Normal maps (`_nm`) store their direction in R and G; masks (`_mask`) and

@@ -9,11 +9,15 @@ Pick the section for what you want to do.
 | **Know how the toolkit is designed** | [`ARCHITECTURE.md`](ARCHITECTURE.md) |
 | **Know how a game file format works** | [`formats.md`](formats.md) |
 | **See what is planned and what is done** | [`roadmap.md`](roadmap.md) |
-| **Start the next phase of work** | [`phase8-kickoff.md`](phase8-kickoff.md) (find things by what they are, export all at once; what phase 7 still owes: [`phase7-kickoff.md`](phase7-kickoff.md) §Status; earlier handoffs, for history: [`phase6-kickoff.md`](phase6-kickoff.md), [`phase5-kickoff.md`](phase5-kickoff.md), [`phase4-kickoff.md`](phase4-kickoff.md), [`phase3-kickoff.md`](phase3-kickoff.md), [`phase2-kickoff.md`](phase2-kickoff.md), [`phase1-kickoff.md`](phase1-kickoff.md)) |
+| **Start the next phase of work** | Phases 1-8 are done; what is still owed: [`phase8-kickoff.md`](phase8-kickoff.md) §Status (the Library and export all) and [`phase7-kickoff.md`](phase7-kickoff.md) §Status; earlier handoffs, for history: [`phase6-kickoff.md`](phase6-kickoff.md), [`phase5-kickoff.md`](phase5-kickoff.md), [`phase4-kickoff.md`](phase4-kickoff.md), [`phase3-kickoff.md`](phase3-kickoff.md), [`phase2-kickoff.md`](phase2-kickoff.md), [`phase1-kickoff.md`](phase1-kickoff.md) |
 | **See what was done, when, and why** | [`devlog.md`](devlog.md) |
 | **Look up a word** (`.big`, LZX, tiling, bone palette, vpath…) | [`glossary.md`](glossary.md) |
 | **Know what tools existed before this one** | [`prior-art.md`](prior-art.md) |
 
+Phase 8 (done) added the **Library**: everything sorted by what it is, with pictures,
+and a model, a selection or a whole group exported in one go
+([`modding/16-library.md`](modding/16-library.md)). Phase 7 put the guides inside the
+app and added Play, `.dr2mod` sharing and texturing-program imports.
 Phase 6 (done) added text and translations
 ([`modding/11-text.md`](modding/11-text.md)), the mod manager
 ([`modding/06-mod-packages.md`](modding/06-mod-packages.md)), the Blender add-on

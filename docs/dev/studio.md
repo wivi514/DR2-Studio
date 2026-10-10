@@ -21,6 +21,7 @@ dr2kit/studio/
   welcome.py     Welcome: the first steps as a live checklist (phase 7)
   edit_tools.py  TextureEdit (image editor + re-import on save), open_in_blender (phase 7)
   share_dialog.py ShareDialog (details, preview, check, .dr2mod), InstallDialog (phase 7)
+  library_view.py LibraryView: the Library tab, by category, with export (phase 8)
   icon/        dr2studio.svg, the app icon (our own drawing; dev/packaging.md §The icon)
   web/         viewer.html + viewer.js, and three.js 0.186.1 (MIT) under vendor/three/
 ```
@@ -222,6 +223,30 @@ app, easy packaging and installing.
   turning: a job's thread quits through a queued signal, so a plain `wait()` deadlocks).
   `closeEvent` isn't called for a never-shown window, so tests call `wait_for_jobs()`.
 
+## The Library tab (phase 8)
+
+Studio opens on **Library** (left, first tab; the archive tree is now **Files**).
+`LibraryView` reads `query.library_counts` for a tree of sections → groups → sub-groups
+(from `catalog/groups.toml`), and `query.library_items` for the selected one, shown in a
+`QListView` backed by `LibraryModel`: pictures (`query.picture`: a model's render or a
+texture's thumbnail, both stored in the index) are read only when an item is first
+painted, so a group of 18,000 textures opens at once. A filter box narrows by label or
+name; groups of models and textures default to the grid, others to a list.
+
+Selecting an item calls the window's `show_asset`, as the other tabs do. For a model the
+details add the Library place, the largest part and bone palette against the game's
+limits, and the rig (`query.rigs_of`); the Related list shows the textures with their
+pictures and roles, the rig, a sound bank with the same name, and identical copies
+("also in"). For a skeleton it lists the models on that rig.
+
+**Export…** (Library, for the selection or the whole group) and **Export all…** (right
+panel, one model or skeleton) both go through `library_view.run_export`: the jobs are
+planned in the GUI thread (`catalog.export.plan`), then `_ExportWorker` runs
+`Exporter.run` in a `QThread` with its own index connection and `AssetTree`, reporting
+each step to a `QProgressDialog` whose *Cancel* sets a `threading.Event` checked
+between files. Results (and failures) go to the log; with `DR2_STUDIO_NO_DIALOGS` set
+(tests) there is no dialog.
+
 ## Testing
 
 `QT_QPA_PLATFORM=offscreen` runs the window without a display. A smoke test opens the
@@ -233,6 +258,9 @@ the widget (`deleteLater` + `processEvents`) before the test ends, or Qt Multime
 aborts at interpreter exit ("shared QObject was deleted directly"). The 3D view
 itself was checked offscreen too (WebGL works there through software rendering):
 `window.grab()` after the page reports the model.
+A Library test (phase 8) opens the window on a synthetic game with two characters and
+a rig, checks it opens on the Library, filters a group, selects a model (rig and
+textures in Related), and runs *Export all…* and a group *Export…* to the end.
 A second test edits a text file (CRLF kept, diff, revert), changes a string through the
 table, and switches a mod off in the mod manager, on a synthetic game.
 Grabbing the window to a PNG (`window.grab().save(...)`) is how the screenshots in the

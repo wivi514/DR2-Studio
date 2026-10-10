@@ -314,3 +314,24 @@ only. The toolkit converts a metal/roughness export for you.
 **UDIM.** Several UV tiles for one model. DR2 uses one tile (0 to 1): turn UDIM off in
 texturing programs.
 
+
+**Library (DR2 Studio, `dr2 library`).** The games' assets sorted by what they are
+(characters, zombies, music, rigs, menu pictures…) instead of where they are stored. Each
+asset is in one **group** (Characters), sometimes a **sub-group** (Outfit parts), with a
+friendlier **label** when one is known ("Young Chuck's orange 04 shirt"). The rules are a
+file anyone can extend: `dr2kit/catalog/groups.toml`. Not to be confused with the **mod
+library**, the folder where your installed mods live.
+
+**Identical copy ("also in…").** The same asset stored twice with exactly the same bytes,
+for example a skeleton in `data/skeleton/` and again in `preload4.big`. The Library shows
+it once and lists where the other copies are.
+
+**Rig match.** Which skeleton file a model was made for. Every character carries its own
+copy of its rig; the index compares its bones with the skeleton files: the same bone
+names *and* the same rest pose (where each bone sits) is a match. The names alone aren't
+enough: Chuck's, the women's, the large men's and the children's rigs all use the same 98
+bone names, with different proportions.
+
+**Export all.** One click that writes everything an asset is made of into one folder: for
+a model its `.glb` (with textures and bones), every texture as PNG, the rig alone, and
+an `info.txt`. Run again, it continues where it stopped.

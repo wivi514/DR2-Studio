@@ -428,6 +428,101 @@ def cmd_index(args) -> int:
     return 0
 
 
+# ---- library / export (phase 8) ------------------------------------------------------
+
+def cmd_library(args) -> int:
+    """The Library: groups and counts, a group's items, or the count gate (--check)."""
+    from ..catalog.groups import catalog, check
+    from ..index import query
+    con = _db(args)
+    cat = catalog()
+    games = list(GAME_IDS) if args.check and args.game is None else [args.game or "cz"]
+    if args.check:
+        bad = 0
+        for g in games:
+            if not query.library_counts(con, g):
+                print(f"== {g}: not indexed (dr2 index build {g})")
+                bad += 1
+                continue
+            report, problems = check(con, g)
+            print(f"== {g}")
+            print("\n".join(report))
+            for p in problems[:50]:
+                print(f"PROBLEM: {p}")
+            if len(problems) > 50:
+                print(f"... and {len(problems) - 50} more")
+            print(f"{len(problems)} problem(s)")
+            bad += len(problems)
+        return 1 if bad else 0
+    game = games[0]
+    counts = query.library_counts(con, game)
+    if not counts:
+        raise Dr2Error(f"{game} is not indexed yet: dr2 index build {game}")
+    if not args.group:
+        per: dict[str, dict[str, int]] = {}
+        for r in counts:
+            per.setdefault(r["grp"], {})[r["sub"]] = r["n"]
+        for section in cat.sections():
+            print(section)
+            for g in cat.groups:
+                if g.section != section or g.id not in per:
+                    continue
+                subs = per[g.id]
+                more = f"  ({len(subs)} sub-groups)" if len(subs) > 1 or "" not in subs else ""
+                print(f"  {g.id:<20} {sum(subs.values()):>6}  {g.title}{more}")
+        print("(dr2 library <group> lists one; dr2 export <group> -o <folder> exports it)",
+              file=sys.stderr)
+        return 0
+    from ..catalog.export import group_rows
+    rows = group_rows(con, game, args.group)
+    sub = None
+    for r in rows:
+        if r["sub"] != sub:
+            sub = r["sub"]
+            if sub:
+                print(f"[{sub}]")
+        label = f"{r['label']}  " if r["label"] else ""
+        print(f"  {label}{r['name']}  ({_human(r['size'])})  {r['vpath']}")
+    print(f"{len(rows)} item(s)", file=sys.stderr)
+    return 0
+
+
+def cmd_export(args) -> int:
+    """Export Library groups, sections or single assets to a folder in one go."""
+    from ..catalog import export as cx
+    from ..container.vpath import AssetTree
+    from ..index import query
+    con = _db(args)
+    rows, singles = [], []
+    for t in args.targets:
+        if "/" in t and query.get(con, args.game, t) is not None:
+            singles.append(dict(query.get(con, args.game, t)))
+        else:
+            rows += cx.group_rows(con, args.game, t)
+    jobs = cx.plan(singles, args.out, args.game, by_group=False) + \
+        cx.plan(rows, args.out, args.game, con=con)
+    outputs = {o for o in cx.OUTPUTS if getattr(args, o)} or None
+    if args.list:
+        for j in jobs:
+            print(f"{j.row['vpath']}  ->  {j.dest}")
+        print(f"{len(jobs)} asset(s)", file=sys.stderr)
+        return 0
+    ex = cx.Exporter(AssetTree(locate(args.game).root, cache_size=32), args.game, args.db,
+                     outputs)
+
+    def progress(done, total, vpath):
+        if vpath and not args.quiet:
+            print(f"[{done + 1}/{total}] {vpath}", file=sys.stderr)
+    try:
+        res = ex.run(jobs, progress=progress)
+    finally:
+        ex.close()
+    for vp, why in res.failed:
+        print(f"FAILED {vp}: {why}")
+    print(res.summary())
+    return 1 if res.failed else 0
+
+
 # ---- mods -----------------------------------------------------------------------------
 
 def cmd_mod(args) -> int:
@@ -883,6 +978,32 @@ def build_parser() -> argparse.ArgumentParser:
     for pi in isub.choices.values():
         pi.add_argument("--db", help="index file (default: the per-user cache folder)")
     p.set_defaults(func=cmd_index)
+
+    p = sub.add_parser("library", help="the games' assets by what they are (characters, "
+                       "music, rigs…): groups, counts, a group's items")
+    p.add_argument("group", nargs="?", help="a group (characters), sub-group "
+                   "(zombies/zombie_cop) or section (sounds) to list")
+    p.add_argument("-g", "--game", choices=GAME_IDS, help="which game (default: cz)")
+    p.add_argument("--check", action="store_true",
+                   help="the count gate: every asset in its group, counts match the index")
+    p.add_argument("--db", help="index file (default: the per-user cache folder)")
+    p.set_defaults(func=cmd_library)
+
+    p = sub.add_parser("export", help="export Library groups or assets in one go: models "
+                       "with textures and rig, sounds as WAV, movies as MP4…")
+    p.add_argument("targets", nargs="+", metavar="GROUP_OR_VPATH",
+                   help="a group (characters, music), sub-group (zombies/zombie_cop), section "
+                   "(sounds) or an asset's vpath")
+    p.add_argument("-o", "--out", required=True, help="folder to write into")
+    game_opt(p)
+    for o, h in (("glb", "models and rigs as .glb"), ("png", "textures as PNG"),
+                 ("wav", "sounds as WAV"), ("mp4", "movies as MP4"),
+                 ("json", "string banks as .bcs.json"), ("raw", "other files as they are")):
+        p.add_argument(f"--{o}", action="store_true", help=f"only {h} (combine several)")
+    p.add_argument("--list", action="store_true", help="only show what would go where")
+    p.add_argument("-q", "--quiet", action="store_true")
+    p.add_argument("--db", help="index file (default: the per-user cache folder)")
+    p.set_defaults(func=cmd_export)
 
     p = sub.add_parser("mod", help="create, check, build and deploy mods; the mod library")
     msub = p.add_subparsers(dest="action", required=True, metavar="ACTION")

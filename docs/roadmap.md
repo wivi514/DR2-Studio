@@ -202,8 +202,8 @@ the app, make packaging a mod and installing it in game easy. Handoff and full s
   (`tools/newcomer_gate.py`, `dev/testing.md` §Phase 7 results); the run by a person is
   still owed.
 
-## Phase 8: find things by what they are, export them in one go (user, 2026-10-09)
-Not started. Handoff and scope: `phase8-kickoff.md`.
+## Phase 8: find things by what they are, export them in one go (user, 2026-10-09) ✅
+Done 2026-10-09 (`phase8-kickoff.md` §Status, guide `modding/16-library.md`).
 - A **Library** tab (Studio opens on it; the archive tree becomes **Files**): Characters,
   Zombies, Weapons & items, Cutscene props, Environments; Music, Voices, Cutscene audio,
   Sound effects; Textures, Skeletons, Text & strings, Movies. Models with 3D-rendered

@@ -849,6 +849,20 @@ of its files are listed was not measured, so treat its scripts the same way~~ (s
 `scenegraph.txt`, `audiomixer.txt` and `curves.txt` are checked; `LivingResearch.txt`,
 `SecureLab.txt` and `StoragePens.txt` are not).
 
+### Voice lines and the GASP tables (`audio/gasp.big`) ⚠ partial
+
+Read 2026-10-09 (CZ) while looking for voice-line names for the Library. Per speaker
+set (`char`, `chuc`, `boss`, …) five block files: `*_smp` (samples, `id = 20893`: the
+numbers of the voice `.xma` entries), `*_sg` (speech groups: a list of sample ids,
+"takes" of one line), `*_bkt` (buckets: lists of speech groups), `*_snt` (concepts: a
+priority and bucket list), `*_kwd` (`<hash> = [concept ids]`); plus `stmts.txt` and
+`rules.txt` (conditions). Keywords and statements are **name hashes** (`h*33 ^ c`,
+`hashing.name_hash`): of 41 keyword and 24 statement hashes, only 2 and 1 matched any
+of 28,253 words from the game's text files and string labels (`ArmyPA`,
+`ChuckEmotePositive`, `characterNameID`). **No link to subtitles** (`IDS_SUBTITLE_*`)
+was found: samples carry `sid = #0`, `sup = #0`. So the Library lists voice lines by
+number; naming them needs the concept names (❓).
+
 ### Replacing sounds: PCM substitution ✅ (in game, both games)
 
 There is no redistributable XMA encoder, so mods don't write `.xma`. The recomps decode
@@ -909,12 +923,22 @@ Roles come from the name (`texture_role`).
 
 | Role | Formats (CZ / CW) | What it holds |
 |---|---|---|
-| colour `_cm` | DXT1 2,636 / 1,593 · DXT5 535 / 388 · A8R8G8B8 2 / 1 | RGB colour. **Alpha only in DXT5** ones: on characters every DXT5 colour map uses it (CZ 214, CW 149: hair, eyelashes, mouths, smooth transparency); DXT1 ones have none, or on/off alpha (6 / 4 character maps) |
+| colour `_cm` | DXT1 2,636 / 1,593 · DXT5 535 / 388 · A8R8G8B8 2 / 1 | RGB colour. **Alpha only in DXT5** ones: on characters every DXT5 colour map uses it (CZ 214, CW 149) ~~for hair, eyelashes, mouths, smooth transparency~~ (corrected 2026-10-09 below: only the hair and eye shaders use it as transparency); DXT1 ones have none, or on/off alpha (6 / 4 character maps) |
 | normal `_nm` | DXN 594 / 783 · DXT1 475 / 350 | tangent-space normal, X in red, Y in green (DXN stores only those two). **OpenGL-style: green = up** (below) |
 | specular `_sm` | DXT1 371 / 543 · DXT5 2 / 2 | **coloured** specular (RGB; only 2 of 22 CZ and 40 of 128 CW character maps are grey) |
 | mask `_mask` | DXT1 337 / 327 · DXT5 134 / 114 | separate channels (RGB, and alpha in the DXT5 ones); what each channel tints is not decoded ❓ |
 | self-illum `_si`, reflection `_rm`, opacity `_om` | DXT1 | ❓ meaning per channel |
 
+- **A colour map's alpha is not always transparency** (measured 2026-10-09, CZ, every
+  DXT5 colour map of `npcs.big` and `zombies.big` by the shader that draws it, from the
+  index's thumbnails): with `ProtoSkinnedCloth`, `ProtoSkinnedSkin`, `ZombieCloth` and
+  `ZombieClothLOD2` (24, 3, 47 and 32 maps) a median **97%** of texels have alpha under
+  0.5, yet those clothes are drawn solid in game, so that alpha is another channel (a
+  mask; meaning ❓). Hair shaders (`ProtoSkinnedHair` 6, `…HairRGB` 5, `ZombieHair` 1)
+  have 25-82% see-through texels: transparency. Found because the Library's thumbnail
+  renderer first alpha-tested every map and drew zombies without their clothes; it now
+  draws everything opaque, like the `.glb` export. Which shaders read alpha as
+  transparency should come from the shaders themselves (not decoded yet).
 - **Normal-map green direction.** Measured with an integrability ("curl") test: a normal
   map made from a height field has consistent slopes, the change of the x-slope down the
   rows matches the change of the y-slope across the columns, with a + sign for
@@ -931,6 +955,28 @@ Roles come from the name (`texture_role`).
 - **No PBR maps.** DR2 is a diffuse + specular engine: no roughness, metallic or height
   maps exist. A metal/roughness export converts to diffuse = BaseColor × (1 − metallic),
   specular = mix(0.04, BaseColor, metallic).
+
+## Rig matching (which skeleton file a model was made for) ✅
+
+Measured 2026-10-09 over every model of both games (`index.build.link_rigs`; listing:
+`dr2 library` and Studio's Library). A model carries its own copy of its rig, so the
+skeleton file it was made for has the same bones. Facts:
+
+- **The rig families share their bone names.** `player`, `female`, `large`, `child` and
+  their cutscene versions (`cineplayer`…) all have the same 98 names (`longcloak` 112).
+  Matching by name alone put every character on `childfullbody`; the **rest pose**
+  decides: a model's bones sit within 1 mm of their place in exactly one family.
+- **Characters (`npcs.big`), first match:** CZ 66 `playerfullbody`, 13 `femalefullbody`,
+  2 `largefullbody`, 1 `childfullbody` (Katey), 9 on `zombiefullbody` with other
+  proportions (cutscene zombies); CW 144 + 1 `playerfullbody`, 19 `femalefullbody`, 1
+  `largefullbody`, 1 `longcloakfullbody`. Every character has a match in both games.
+- **Zombies** share the 30-bone `zombiefullbody` names; most variants have their own
+  proportions (CZ 32 of 36, CW all 31 differ by more than 1 mm), so they are listed as
+  "same bone names, other proportions" (rank 1).
+- A cutscene twin (`cineplayer`) has the same pose to float precision as the full rig;
+  ties go to the `…fullbody` file. Identical files (`skeleton/` and `preload4.big`) count once.
+- Models with fewer than 8 bones (props with a door or a wheel) are not linked; props
+  and level pieces with more have their own rigs (no skeleton file matches).
 
 ## Engine limits (what the game's files can hold) ✅
 

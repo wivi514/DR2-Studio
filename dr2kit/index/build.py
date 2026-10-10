@@ -16,6 +16,11 @@ What goes in (schema: ``schema.sql``, design: docs/ARCHITECTURE.md §The asset i
 * ``audio``: channels, rate and length of every sound (phase 5, no decoding needed);
 * ``sound_ref`` + ``relation``: the recordings each `.sfx` plays, and the sounds each
   audio scene script names, with the events that trigger them (the "event names").
+* ``scene`` (phase 8): each model's and skeleton's counts, bone names and a rendered
+  thumbnail (`scene_pass`, `dr2kit.convert.render`); ``relation`` kind ``model-rig``
+  links a model to the skeletons its bone names match (`link_rigs`);
+* ``library_item`` (phase 8): the Library group, sub-group and label of each asset, with
+  identical copies folded into one (`link_library`, rules in dr2kit/catalog/groups.toml).
 
 **Incremental.** Each file on disk is recorded with its size and modification time; a
 rebuild re-reads only files that changed (and drops files that are gone). Relations are
@@ -45,12 +50,16 @@ from ..formats.bct import Bct, is_bct
 # Bumped when the tables change *or* when assets are classified differently (an index
 # only re-reads changed files, so a new rule would otherwise miss old rows).
 # 2: audio tables (phase 5). 3: string banks get kind "strings" (phase 6).
-SCHEMA_VERSION = "3"
+# 4: scene facts, thumbnails, model->rig links and the Library (phase 8).
+SCHEMA_VERSION = "4"
 THUMB_SIZE = 128
 SCENE_HEADER = "sceneheader"
 MAT_TEXTURE_INFO = "mattextureinfoarray"
 MAT_RECORD = 100          # bytes per MatTextureInfoArray record (formats.md)
 MAT_NAME = slice(4, 56)   # NUL-padded texture name inside a record
+MIN_RIG_BONES = 8         # models with fewer bones are not linked to a rig (link_rigs)
+RIG_LINKS = 3             # at most this many matching skeletons per model, closest first
+POSE_TOLERANCE = 0.001    # metres: a model's bones this close to a rig's are "the same pose"
 
 _EXT_KIND = {"xma": "audio", "sfx": "sfx", "anm": "anim", "po": "shader", "vo": "shader", "pdo": "shader",
              "vdo": "shader", "sdo": "shader", "scv": "shader", "bik": "video",
@@ -80,6 +89,10 @@ class IndexStats:
     sound_links: int = 0
     unresolved_sounds: int = 0
     unresolved_slots: int = 0
+    scenes: int = 0
+    thumbnails: int = 0
+    rig_links: int = 0
+    library: int = 0
     problems: list = field(default_factory=list)
     seconds: float = 0.0
 
@@ -288,7 +301,8 @@ def build_index(game: str, tree: AssetTree, db_path: str | Path | None = None, *
                 thumbs: bool = True, full: bool = False, progress=None) -> IndexStats:
     """Index one game. Re-reads only changed files unless ``full``.
 
-    ``progress(vpath)`` is called for each file being (re)indexed.
+    ``progress(text)`` is called for each file being (re)indexed (its vpath), and now and
+    then while models are drawn for their thumbnails.
     """
     t0 = time.time()
     stats = IndexStats(game)
@@ -341,6 +355,9 @@ def build_index(game: str, tree: AssetTree, db_path: str | Path | None = None, *
             con.execute("DELETE FROM source_file WHERE id=?", (row["id"],))
             stats.files_removed += 1
     link_relations(con, game, stats)
+    scene_pass(con, game, tree, stats, thumbs, progress)
+    link_rigs(con, game, stats)
+    link_library(con, game, stats)
     con.execute("ANALYZE")          # table statistics, so the query planner chooses well
     con.execute("INSERT OR REPLACE INTO meta VALUES (?, ?)",
                 (f"built:{game}", time.strftime("%Y-%m-%d %H:%M:%S")))
@@ -425,6 +442,180 @@ def link_sounds(con: sqlite3.Connection, game: str, stats: IndexStats) -> None:
     stats.unresolved_sounds = con.execute(q.format(""), (game,)).fetchone()[0]
 
 
+def _scene_facts(sc) -> tuple:
+    """(bones, meshes, draws, vertices, max part vertices, max draw bones, materials,
+    bone names, bone positions) of a parsed scene, without decoding any vertex."""
+    import struct
+    draws = [d for m in sc.meshes for d in m.draws]
+    part = max((sum(d.vertex_count for d in m.draws) for m in sc.meshes), default=0)
+    pal = max((d.palette_count for d in draws if d.skinned), default=0)
+    names = "\n".join(n.name.lower() for n in sc.skeleton.nodes)
+    try:
+        pos = [c for p in sc.skeleton.world_positions() for c in p] if sc.skeleton.nodes else []
+        blob = struct.pack(f"<{len(pos)}f", *pos)
+    except Exception:  # noqa: BLE001 - a broken hierarchy: no pose, names still link
+        blob = None
+    return (len(sc.skeleton), len(sc.meshes), len(draws), sum(d.vertex_count for d in draws),
+            part, pal, len(sc.materials), names, blob)
+
+
+def scene_pass(con: sqlite3.Connection, game: str, tree: AssetTree, stats: IndexStats,
+               thumbs: bool = True, progress=None) -> None:
+    """Read every model and skeleton not yet in the ``scene`` table: its counts and bone
+    names, and (``thumbs``, numpy present) a thumbnail of each model.
+
+    Runs after the relations are linked, so a model's colour textures are found the way
+    `link_relations` found them (the texture next to the model first), and drawn from the
+    index's own texture thumbnails: no texture is decoded twice. Models are visited in
+    vpath order, so each archive is opened once (the tree's cache)."""
+    from ..convert import png, render
+    from ..formats.scene import Scene
+    draw = thumbs and render.available()
+    rows = con.execute("""
+        SELECT a.id, a.vpath, a.kind, s.asset_id AS known FROM asset a
+        LEFT JOIN scene s ON s.asset_id = a.id
+        WHERE a.game = ? AND a.kind IN ('model', 'skeleton')
+          AND (s.asset_id IS NULL OR (? AND a.kind = 'model' AND s.rendered = 0))
+        ORDER BY a.vpath_lower""", (game, int(draw))).fetchall()
+    if not rows:
+        return
+    reader = AssetTree(tree.root, cache_size=32)
+    decoded: dict[int, object] = {}
+    for i, r in enumerate(rows):
+        if progress and i % 100 == 0:
+            progress(f"models and skeletons: {i}/{len(rows)}")
+        problem, thumb = "", None
+        try:
+            sc = Scene.parse(reader.resolve(r["vpath"]).data(), r["vpath"])
+            facts = _scene_facts(sc)
+        except Exception as ex:  # noqa: BLE001 - reported
+            stats.problems.append((r["vpath"], f"scene: {ex}"))
+            sc, facts = None, (0, 0, 0, 0, 0, 0, 0, "", None)
+            problem = str(ex)
+        if sc is not None and draw and r["kind"] == "model":
+            texs = {}
+            for t in con.execute("""
+                    SELECT lower(r.dst_name) AS name, t.asset_id, t.thumb_png
+                    FROM relation r JOIN texture t ON t.asset_id = r.dst_id
+                    WHERE r.src_id = ? AND r.kind = 'material-texture' AND t.thumb_png IS NOT NULL
+                    ORDER BY r.rank DESC""", (r["id"],)):
+                texs[t["name"]] = (t["asset_id"], t["thumb_png"])   # best rank wins (last)
+
+            def texture_for(name: str):
+                hit = texs.get(name.lower())
+                if hit is None:
+                    return None
+                if hit[0] not in decoded:
+                    if len(decoded) > 512:
+                        decoded.clear()
+                    im = png.decode(hit[1])
+                    decoded[hit[0]] = render.rgba_to_float(im.rgba, im.width, im.height)
+                return decoded[hit[0]]
+            try:
+                bad: list[str] = []
+                img = render.render(render.scene_parts(sc, texture_for, bad))
+                thumb = render.to_png(img) if img is not None else None
+                if bad:
+                    problem = f"{len(bad)} draw(s) not drawn: {bad[0]}"
+                if thumb is not None:
+                    stats.thumbnails += 1
+            except Exception as ex:  # noqa: BLE001 - reported
+                stats.problems.append((r["vpath"], f"thumbnail: {ex}"))
+                problem = f"thumbnail: {ex}"
+        con.execute("INSERT OR REPLACE INTO scene VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (r["id"], *facts, int(draw and r["kind"] == "model"), thumb, problem))
+        stats.scenes += 1
+        if i % 200 == 199:
+            con.commit()
+    con.commit()
+
+
+def _bones(names: str, pos: bytes | None) -> dict[str, tuple[float, float, float]]:
+    """Bone name -> rest-pose position (0, 0, 0 for all when the pose is unknown)."""
+    import struct
+    keys = names.split("\n")
+    if pos is None or len(pos) != 12 * len(keys):
+        return {k: (0.0, 0.0, 0.0) for k in keys}
+    vals = struct.unpack(f"<{3 * len(keys)}f", pos)
+    return {k: vals[3 * i:3 * i + 3] for i, k in enumerate(keys)}
+
+
+def link_rigs(con: sqlite3.Connection, game: str, stats: IndexStats) -> None:
+    """Link each model to the skeleton files it matches (relation ``model-rig``).
+
+    A model carries its own copy of its rig (docs/formats.md §Scene container); the link
+    names the skeleton file that rig is, i.e. the one its animations are made for. The
+    rig families (player, female, large, child, their cutscene versions) all have the
+    same 98 bone names, so names only narrow it down: the rest pose decides. Rank 0:
+    the same bones in the same pose (every bone within `POSE_TOLERANCE`); 1: the same
+    names, other proportions (closest pose first); 2: the skeleton also has other bones.
+    Of identical skeleton files (``skeleton/`` and the ``preload4.big`` copy) only the
+    first by path is linked; at most `RIG_LINKS` per model. Models with fewer than
+    `MIN_RIG_BONES` bones (props with a door or a wheel) are not linked: a handful of
+    names matches too many skeletons to mean anything."""
+    import math
+    con.execute("DELETE FROM relation WHERE kind='model-rig' AND src_id IN "
+                "(SELECT id FROM asset WHERE game=?)", (game,))
+    skels, seen = [], set()
+    for r in con.execute("""
+            SELECT a.id, a.name, a.sha1, s.bone_names, s.bone_pos FROM asset a
+            JOIN scene s ON s.asset_id = a.id
+            WHERE a.game = ? AND a.kind = 'skeleton' AND s.bones > 0
+            ORDER BY (a.vpath_lower LIKE '%preload4.big%'), a.depth, a.vpath_lower""", (game,)):
+        if r["sha1"] in seen:
+            continue
+        seen.add(r["sha1"])
+        skels.append((r["id"], r["name"], _bones(r["bone_names"], r["bone_pos"])))
+    rows = []
+    for m in con.execute("""
+            SELECT a.id, s.bone_names, s.bone_pos FROM asset a JOIN scene s ON s.asset_id = a.id
+            WHERE a.game = ? AND a.kind = 'model' AND s.bones >= ?""", (game, MIN_RIG_BONES)):
+        mine = _bones(m["bone_names"], m["bone_pos"])
+        hits = []
+        for sid, sname, theirs in skels:
+            if not mine.keys() <= theirs.keys():
+                continue
+            far = [math.dist(p, theirs[k]) for k, p in mine.items()]
+            worst, mean = max(far), sum(far) / len(far)
+            extra = len(theirs) - len(mine)
+            rank = 2 if extra else (0 if worst <= POSE_TOLERANCE else 1)
+            # mean rounded to 0.1 mm: identical rigs differ by float noise, and then the
+            # whole-body file (…fullbody) should win over its cutscene twin (cine…)
+            hits.append((rank, round(mean, 4), extra, "fullbody" not in sname.lower(),
+                         sname.lower(), sid, sname))
+        for rank, _mean, extra, _f, _n, sid, sname in sorted(hits)[:RIG_LINKS]:
+            rows.append((m["id"], sid, "model-rig", extra, sname, rank))
+    con.executemany("INSERT INTO relation (src_id, dst_id, kind, slot, dst_name, rank) "
+                    "VALUES (?,?,?,?,?,?)", rows)
+    stats.rig_links = len(rows)
+
+
+def link_library(con: sqlite3.Connection, game: str, stats: IndexStats) -> None:
+    """Put every asset the Library shows into its group (dr2kit/catalog/groups.toml),
+    folding identical copies into one: the copy outside ``preload4.big``, nearest the
+    top, first by path, is shown; the others get ``copy_of``."""
+    from ..catalog.groups import catalog
+    cat = catalog()
+    kinds = sorted({k for g in cat.groups for k in g.kinds})
+    con.execute("DELETE FROM library_item WHERE game=?", (game,))
+    placed = []
+    for r in con.execute(f"""
+            SELECT id, vpath, name, kind, sha1 FROM asset
+            WHERE game = ? AND kind IN ({','.join('?' * len(kinds))})
+            ORDER BY (vpath_lower LIKE '%preload4.big%'), depth, vpath_lower""", (game, *kinds)):
+        hit = cat.place(game, r["kind"], r["vpath"], r["name"])
+        if hit is not None:
+            placed.append((r, hit))
+    keeper: dict[tuple[str, str], int] = {}
+    rows = []
+    for r, (grp, sub, label) in placed:
+        key = (r["kind"], r["sha1"])
+        first = keeper.setdefault(key, r["id"])
+        rows.append((r["id"], game, grp, sub, label, None if first == r["id"] else first))
+    con.executemany("INSERT INTO library_item VALUES (?,?,?,?,?,?)", rows)
+    stats.library = sum(1 for x in rows if x[5] is None)
+
+
 def format_stats(s: IndexStats) -> str:
     lines = [
         f"== index: {s.game}",
@@ -436,6 +627,8 @@ def format_stats(s: IndexStats) -> str:
         f"{s.unresolved_slots}",
         f"sounds: {s.sounds}; .sfx/script->sound links: {s.sound_links}; names found "
         f"nowhere: {s.unresolved_sounds}",
+        f"models/skeletons read: {s.scenes} ({s.thumbnails} thumbnails drawn); "
+        f"model->rig links: {s.rig_links}; Library items: {s.library}",
         f"PROBLEMS (unparsed): {len(s.problems)}",
     ]
     lines += [f"    {vp}: {why}" for vp, why in s.problems[:40]]

@@ -10,6 +10,43 @@ groans*. Phase 8 shows the game that way and makes "give me all of it" one click
 Read `CLAUDE.md` first (documentation and clean-up rules), then `phase7-kickoff.md`
 §Status (what phase 7 left owed), then this.
 
+## Status at the end of 2026-10-09 (read this first)
+
+**Done**, gate passed in both games (`dev/testing.md` §Phase 8 results):
+
+- **Library tab** (Studio opens on it; the archive tree is **Files**): sections → groups →
+  sub-groups from a rules file (`dr2kit/catalog/groups.toml`), with counts, descriptions,
+  a filter, a grid of pictures loaded on demand; identical copies shown once ("also in…").
+  `dr2 library [group]` and `dr2 library --check` (the count gate).
+- **Model pictures**: 3D renders made while the index is built, by a numpy software
+  renderer (`convert/render.py`: ~0.05 s a model; the index build went from ~1-2 to 3-4.5
+  minutes per game). Measured first, as decided: the CLI builds the index too, so no Qt.
+- **A model with everything it uses**: textures with pictures by role, the rig it
+  matches (new relation `model-rig`, by bone names *and rest pose*: the rig families
+  share their names), its counts against the game's limits, a sound bank with the same
+  name, copies.
+- **Export all**: one model (*Export all…*), a selection or a whole group (*Export…*), or
+  `dr2 export <group|sub-group|section|vpath…>`: one folder per model (`.glb`,
+  `textures/*.png` + `textures.txt`, `skeleton.glb`, `info.txt`), WAV, MP4, `.bcs.json`,
+  PNG; progress, Cancel, resume (existing files skipped), `--wav/--png/--glb/--mp4/--json`.
+- **Friendlier names**: characters by part and role ("Young Chuck (headwear)", "Archie
+  (survivor)"), zombie variants, sound banks by what they are, single names from the
+  asset catalogue.
+
+**Not done / owed:**
+
+1. **Voice lines with their subtitle**: not possible from the data found. The GASP tables
+   link voice numbers to concepts named by hash only (2 of 41 resolved), and nothing links
+   them to `IDS_SUBTITLE_*` (`formats.md` §Voice lines and the GASP tables). Voices are
+   listed by number.
+2. The gate as written is "from the Library"; it was driven by a script through Studio's
+   own widgets, not clicked by a person.
+3. "The sounds or text that mention a model when known": only a same-name `.sfx` bank is
+   shown; no other link is known.
+4. Environments export one piece per folder; a whole zone as one scene is not done
+   (stretch: environment browsing).
+5. Everything still owed from phase 7 (`phase7-kickoff.md` §Status).
+
 ## What exists to build on
 
 - The index (`dr2kit/index`): every asset with its kind (`model`, `texture`, `audio`,

@@ -44,8 +44,10 @@ dr2kit/                 core library (pure Python; numpy optional)
   convert/              png.py ✅, dxt.py ✅, texture.py ✅ (phase 2); gltf.py ✅, model.py ✅
                         (phase 3); model_import.py ✅ (phase 4: .glb → model, rig
                         validator); audio.py ✅ (phase 5); material.py ✅; strings.py ✅,
-                        video.py ✅ (phase 6: Bink through PyAV, no format code of ours)
-  index/ ✅             schema.sql, build.py, query.py (phase 2)
+                        video.py ✅ (phase 6: Bink through PyAV, no format code of ours);
+                        render.py ✅ (phase 8: model pictures for the Library)
+  index/ ✅             schema.sql, build.py, query.py (phase 2; scene facts, rigs, Library: phase 8)
+  catalog/ ✅           groups.toml + groups.py (the Library's groups), export.py (export all) (phase 8)
   help/ ✅              the in-app help: the modding guides as pages, search, context help (phase 7)
   mods/ ✅              manifest.py, build.py, deploy.py (phase 2), audio.py (phase 5),
                         library.py (phase 6: the mod manager), play.py (phase 7: Play)
@@ -143,19 +145,22 @@ asset(id, game, vpath, archive_file, parent_id, name, name_hash, ext, kind,
 texture(asset_id, width, height, format, mips, tiled, is_cube, thumb_png)
 audio(asset_id, channels, rate, shape, samples, exact, loop_start, loop_end)   -- phase 5
 sound_ref(src_id, kind, slot, bank, name, context)   -- what a .sfx / scene script names
-model(asset_id, mesh_count, vert_count, bone_count, skeleton_guess)
-skeleton(asset_id, bone_count, root_name)
+scene(asset_id, bones, meshes, draws, vertices, max_part_vertices, max_draw_bones,
+      materials, bone_names, bone_pos, thumb_png, problem)              -- phase 8
+library_item(asset_id, game, grp, sub, label, copy_of)                   -- phase 8
 relation(src_id, dst_id, kind)   -- model→texture (material slot), .sfx→xma ('sfx-track'),
-                                  -- scene script→sound ('script-asset'); later model→skeleton,
-                                  -- cinematic→anim
+                                  -- scene script→sound ('script-asset'), model→skeleton
+                                  -- ('model-rig', phase 8); later cinematic→anim
 ```
 
 This answers the "which texture is what" questions:
 
 - Texture → which models use it, in which material slot (`_cm`/`_dm` colour, `_nm` normal, …),
   found by reading each model's `MatTextureInfoArray`.
-- Model → its textures (thumbnails in the side panel) and the skeleton it binds to,
-  matched by bone-name set against `data/skeleton/*.big`.
+- Model → its textures (thumbnails in the side panel) and the skeleton file it was made
+  for (✅ phase 8, `build.link_rigs`): the skeletons whose bone names include all of the
+  model's, ranked by rest pose, because the player, female, large and child rigs share
+  their 98 names and differ only in proportions.
 - Sound → the `.sfx` that play it and the scene-script events that trigger it, from the
   `.sfx` tracks and `data/audio/*.txt` / `scenegraph.txt` (`cAudioScene` /
   `cAudioJukebox` / `Asset = "music.big/…"`) (✅ phase 5). Voice lines (the numbered
@@ -165,10 +170,38 @@ This answers the "which texture is what" questions:
   the player is looking at (the CZ recomp's F9 census already produces this), shown
   highlighted in the browser.
 
+## The Library (phase 8)
+
+The archive tree shows the games as they are stored; the **Library** shows them by what
+they are. A rules file (`dr2kit/catalog/groups.toml`, data, not code) puts every model,
+skeleton, sound, texture, string bank, movie and game text file into one group of a
+section (Models → Characters, Zombies & enemies, Weapons & items…; Sounds → Music,
+Voices, Footsteps…), optionally a sub-group (by name prefix, by the archive it is in, by
+texture role) and a friendlier label. The index applies the rules after each build
+(`library_item`), so Studio and the CLI list a group in milliseconds and the counts can
+be checked against the index (`dr2 library --check`). Identical copies are folded into
+one item (`copy_of`), preferring the copy outside `preload4.big`.
+
+Model pictures are **3D renders** (user decision, 2026-10-09) made while the index is
+built, by a numpy software renderer (`convert/render.py`) rather than Studio's 3D page:
+the index is built by the CLI too, without a window or a GPU, and the renderer needs
+~0.05 s per model, using the index's own texture thumbnails (measured: about a minute
+for the ~1,400 models of a game).
+
+**Export everything at once** (`dr2kit/catalog/export.py`): one folder per model
+(`<name>.glb` with textures and skin, `textures/*.png` + `textures.txt`, `skeleton.glb`,
+`info.txt`), one file per sound (WAV), movie (MP4), string bank (`.bcs.json`) or texture
+(PNG) (user decision: one folder per asset). Group exports go to `<out>/<game>/<group>/
+<sub>/` so the two games never mix; files are written under a temporary name and renamed,
+and existing ones are skipped, so an export can be cancelled and resumed. Studio runs it
+in a worker thread with a progress bar; `dr2 export` is the same from the terminal.
+
 ## DR2 Studio (GUI)
 
-- **Left:** game switcher (CZ / CW / both) and a tree of archives with nested entries.
-  Search by name, hash, kind, or relation ("textures used by `chest_default`").
+- **Left:** game switcher (CZ / CW / both); the **Library** tab (first, phase 8: groups by
+  what things are, pictures, export of a selection or a whole group); **Files**, the tree
+  of archives with nested entries; **Search** by name, hash, kind, or relation ("textures
+  used by `chest_default`").
 - **Centre:** a viewer per kind.
   - Texture: zoom, alpha/RGB/single channel, mip selector, cube faces, tiled/untiled
     toggle (for debugging), format and size info.

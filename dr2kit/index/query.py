@@ -4,6 +4,11 @@ Every function takes an open connection (`dr2kit.index.build.connect`) and retur
 plain `sqlite3.Row` objects (use them like dicts: ``row["vpath"]``). DR2 Studio and
 ``dr2 index`` both go through here, so the SQL lives in one place.
 
+The Library (phase 8): `library_counts` / `library_items` list the groups of
+dr2kit/catalog/groups.toml as the index stored them, `picture` gives an item's
+thumbnail, `rigs_of` the skeletons a model's bones match, `copies` the identical
+copies folded into one item.
+
 Search syntax (`search`): words are matched against asset names, all must match
 (``mech apron`` finds ``mech_apron_cm``); ``*`` and ``?`` work as wildcards; a word
 with a ``/`` is matched against the whole vpath instead (``npcs.big/ apron``).
@@ -141,3 +146,78 @@ def sound_users(con: sqlite3.Connection, asset_id: int) -> list[sqlite3.Row]:
           AND (r.dst_id = ? OR r.dst_id IN
                (SELECT x.src_id FROM relation x WHERE x.dst_id = ? AND x.kind = 'sfx-track'))
         ORDER BY r.kind, a.vpath_lower""", (asset_id, asset_id)).fetchall()
+
+
+# ---- the Library (phase 8) -------------------------------------------------------------
+
+def library_counts(con: sqlite3.Connection, game: str) -> list[sqlite3.Row]:
+    """Shown items per group and sub-group (identical copies counted once)."""
+    return con.execute("""
+        SELECT grp, sub, count(*) AS n FROM library_item
+        WHERE game = ? AND copy_of IS NULL GROUP BY grp, sub ORDER BY grp, sub""",
+                       (game,)).fetchall()
+
+
+def library_items(con: sqlite3.Connection, game: str, grp: str, sub: str | None = None,
+                  text: str = "", limit: int | None = None) -> list[sqlite3.Row]:
+    """The items shown in a group (or one of its sub-groups), with their label and
+    sub-group, by label then name. ``text``: words that must all appear in the label or
+    the name."""
+    where, args = ["l.game = ?", "l.grp = ?", "l.copy_of IS NULL"], [game, grp]
+    if sub is not None:
+        where.append("l.sub = ?")
+        args.append(sub)
+    for word in text.lower().split():
+        where.append("(lower(l.label) LIKE ? ESCAPE '\\' OR lower(a.name) LIKE ? ESCAPE '\\')")
+        args += [_like(word)] * 2
+    sql = (f"SELECT {ASSET_COLUMNS}, l.grp, l.sub, l.label FROM library_item l "
+           f"JOIN asset a ON a.id = l.asset_id WHERE {' AND '.join(where)} "
+           f"ORDER BY l.sub, (l.label = ''), lower(l.label), lower(a.name)")
+    if limit:
+        sql += f" LIMIT {int(limit)}"
+    return con.execute(sql, args).fetchall()
+
+
+def library_item(con: sqlite3.Connection, asset_id: int) -> sqlite3.Row | None:
+    """An asset's Library row (group, sub-group, label, copy_of), or None."""
+    return con.execute("SELECT * FROM library_item WHERE asset_id=?", (asset_id,)).fetchone()
+
+
+def copies(con: sqlite3.Connection, asset_id: int) -> list[sqlite3.Row]:
+    """The identical copies the Library folds into this item ("also in…")."""
+    return con.execute(f"""
+        SELECT {ASSET_COLUMNS} FROM library_item l JOIN asset a ON a.id = l.asset_id
+        WHERE l.copy_of = ? ORDER BY a.vpath_lower""", (asset_id,)).fetchall()
+
+
+def scene_info(con: sqlite3.Connection, asset_id: int) -> sqlite3.Row | None:
+    """A model's or skeleton's counts, bone names and thumbnail (the ``scene`` table)."""
+    return con.execute("SELECT * FROM scene WHERE asset_id=?", (asset_id,)).fetchone()
+
+
+def picture(con: sqlite3.Connection, asset_id: int) -> bytes | None:
+    """The Library's picture of an asset: a texture's thumbnail or a model's render."""
+    row = con.execute("SELECT thumb_png FROM texture WHERE asset_id=? UNION ALL "
+                      "SELECT thumb_png FROM scene WHERE asset_id=?",
+                      (asset_id, asset_id)).fetchone()
+    return row[0] if row else None
+
+
+def rigs_of(con: sqlite3.Connection, model_id: int) -> list[sqlite3.Row]:
+    """The skeletons a model matches, best first as `build.link_rigs` ordered them
+    (``rank`` 0: the same bones and pose; 1: the same names, other proportions; 2: the
+    skeleton has ``extra`` more bones)."""
+    return con.execute(f"""
+        SELECT r.rank, r.slot AS extra, {ASSET_COLUMNS}
+        FROM relation r JOIN asset a ON a.id = r.dst_id
+        WHERE r.src_id = ? AND r.kind = 'model-rig' ORDER BY r.rowid""",
+                       (model_id,)).fetchall()
+
+
+def rig_users(con: sqlite3.Connection, skeleton_id: int) -> list[sqlite3.Row]:
+    """The models that match this skeleton (the reverse of `rigs_of`)."""
+    return con.execute(f"""
+        SELECT r.rank, {ASSET_COLUMNS}
+        FROM relation r JOIN asset a ON a.id = r.src_id
+        WHERE r.dst_id = ? AND r.kind = 'model-rig' ORDER BY r.rank, a.vpath_lower""",
+                       (skeleton_id,)).fetchall()

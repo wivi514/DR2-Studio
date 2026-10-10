@@ -368,6 +368,38 @@ decoding) and `sound_ref` (what each `.sfx` and audio scene script names), resol
 into `relation` rows by `link_sounds()`. The default database is in the user cache
 folder (`default_db_path()`).
 
+Phase 8 added `scene_pass()` (the `scene` table: each model's and skeleton's counts,
+bone names, rest-pose bone positions, and a thumbnail drawn by `convert.render` from the
+index's own texture thumbnails), `link_rigs()` (relation `model-rig`: the skeleton files
+whose bone names include the model's, ranked by rest pose, because the rig families share
+their 98 names) and `link_library()` (the `library_item` table from
+`catalog/groups.toml`, identical copies folded with `copy_of`). `query` gained
+`library_counts`, `library_items`, `library_item`, `copies`, `scene_info`, `picture`,
+`rigs_of` and `rig_users`. Schema version 4.
+
+### `dr2kit/convert/render.py` (phase 8)
+A numpy software renderer for the Library's model pictures, run while the index is
+built (no window or GPU needed). `scene_parts(scene, texture_for)` turns a scene's draws
+into `Part`s (positions, triangles, normals, UVs, colour texture); `render(parts, size)`
+draws them orthographically from the front-right, rasterising every triangle with a
+lattice of points (`_lattice`) and keeping the nearest per pixel with one sort of packed
+integer keys; only the winning points are shaded. `to_png` encodes the result.
+
+### `dr2kit/catalog/` (phase 8)
+- `groups`: the Library's rules. `groups.toml` (data) lists the groups by section, each
+  with the kinds and path globs it takes, how it splits into sub-groups (`sub_path` /
+  `sub_name` regex, `sub_role` for textures) and friendly labels (`[[label]]` regex
+  rules, `[names.<group>]` single names, per game with `cz:`/`cw:`). `catalog()` loads
+  it (unknown keys are an error, so a misplaced line can't be ignored), `Catalog.place()`
+  gives an asset's group, sub-group and label; `check(con, game)` is the count gate
+  behind `dr2 library --check`.
+- `export`: `plan(rows, out, game)` decides where each asset goes (`<out>/<game>/<group>/
+  <sub>/`, name clashes get the parent archive's name), `group_rows()` resolves a group,
+  sub-group or section name, `Exporter.run(jobs, progress, cancel)` writes them: a model
+  folder (`.glb`, `textures/*.png` + `textures.txt`, `skeleton.glb`, `info.txt`), WAV,
+  MP4, `.bcs.json`, PNG or the raw file. Each file is written to `*.part` and renamed, and
+  existing files are skipped, so an export resumes where it stopped.
+
 ### `dr2kit/mods/` (phase 2)
 - `manifest`: `Mod.load(folder)` reads `mod.toml`; `Mod.files()` lists `replace/`;
   `create()` makes a new mod folder.
@@ -408,7 +440,9 @@ DR2 Studio; see [`studio.md`](studio.md). `model_view.py` is the 3D view (phase 
 mixes 5.1 to stereo for listening). Phase 6: `text_view.py` (`TextEditor`: edit a text
 file into the open mod, *Changes* shows a diff; `StringsViewer`: a bank as a filterable
 table, edits go into the mod's `.bcs.json`), `video_view.py` (`VideoViewer`), and
-`mod_manager.py` (`ModManager`, the library window).
+`mod_manager.py` (`ModManager`, the library window). Phase 8: `library_view.py`
+(`LibraryView`, the Library tab; `run_export`, an export with a progress bar and Cancel
+in a worker thread).
 
 ## Tests
 

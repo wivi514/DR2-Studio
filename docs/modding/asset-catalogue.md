@@ -4,6 +4,10 @@ A map of the games' files for modders: where to look for a character, an outfit,
 texture. Paths are virtual paths ([glossary](../glossary.md)); paste them into DR2
 Studio's search or a `dr2` command. Grows with each phase; corrections welcome.
 
+**Easier:** DR2 Studio's **Library** tab and `dr2 library` sort all of this by what it is
+(characters, zombies, music, rigs…) with pictures, and export whole groups in one go
+([`16-library.md`](16-library.md)). This page says where things are on disk.
+
 Found something? `dr2 index textures-of <model>` lists a model's textures, and
 `dr2 index used-by <texture>` the models using a texture
 ([`03-browsing.md`](03-browsing.md)).
@@ -59,19 +63,21 @@ whole rig, and `…root`, `…upperbdy`, `…hand`, `…face` are the parts anim
 separately. `cine<family>.big` are the cutscene versions. Bone names are shared across
 families (`dummy01.l_upperarm`, `dummy01.r_thumb1`, `dummy01.jaw` …).
 
-| Family | Full rig | Bones | For (from the name; only `player` checked so far) |
+| Family | Full rig | Bones | For (measured 2026-10-09: each character's bones matched to the rigs, CZ / CW) |
 |---|---|---|---|
-| `player` | `playerfullbody.big` | 98 | Chuck: every outfit part uses this exact rig, and so does the mechanic boss (checked) |
-| `female` | `femalefullbody.big` | 98 | women |
-| `large` | `largefullbody.big` | 98 | big men |
-| `child` | `childfullbody.big` | 98 | children |
-| `longcloak` | `longcloakfullbody.big` | 112 | characters with long coats (14 more bones) |
-| `zombie` | `zombiefullbody.big` | 30 | crowd zombies (a light rig) |
+| `player` | `playerfullbody.big` | 98 | Chuck and Frank: every outfit part, and most men (66 / 145 characters) |
+| `female` | `femalefullbody.big` | 98 | women (13 / 19) |
+| `large` | `largefullbody.big` | 98 | big men (2 / 1) |
+| `child` | `childfullbody.big` | 98 | Katey (1 / 0) |
+| `longcloak` | `longcloakfullbody.big` | 112 | characters with long coats, 14 more bones (0 / 1) |
+| `zombie` | `zombiefullbody.big` | 30 | zombies (a light rig): every zombie variant, with its own proportions, and the cutscene zombies |
 | `tiger` | `tigerfullbody.big` | 64 | the tiger (both games ship the rig) |
 | `camera`, `stage`, `prop` | | 1 / 1 / 50 | cutscene camera, stage origin, and 50 prop slots (`prop01` …) for cutscene props |
 
 A model carries its own copy of its rig (a character `.big` lists its 98 bones too), so a
-`.glb` export is complete on its own. `dr2 info <model>` shows which bones each draw uses.
+`.glb` export is complete on its own. The families share their bone names and differ in
+proportions; DR2 Studio's details and `info.txt` (*Export all…*) name the rig a model
+matches ([`16-library.md`](16-library.md)). `dr2 info <model>` shows which bones each draw uses.
 
 ## Models
 

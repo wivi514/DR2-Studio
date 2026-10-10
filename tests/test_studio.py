@@ -161,3 +161,52 @@ def test_text_strings_and_mod_manager(tmp_path, monkeypatch):
     assert win.wait_for_jobs()
     win.close()
     del app
+
+
+def test_library_tab_shows_groups_and_exports(tmp_path, monkeypatch):
+    """Studio opens on the Library; a group lists its items with pictures; a model shows
+    its rig and textures; Export… writes the folders (phase 8)."""
+    from PySide6.QtWidgets import QApplication
+    from dr2kit.index import build as ibuild
+    from dr2kit.studio.app import MainWindow
+    from test_catalog import make_skeleton, variant
+    monkeypatch.setattr(ibuild, "MIN_RIG_BONES", 2)
+    root = tmp_path / "game"
+    (root / "data" / "models").mkdir(parents=True)
+    (root / "data" / "skeleton").mkdir()
+    npcs = make_archive(("chest_hero.big", make_scene()),
+                        ("srv_bob.big", variant(make_scene(), "bob")),
+                        ("chest_hero.tex", make_archive(("box_cm", make_bct("DXT1", 32, 32))).to_bytes()))
+    (root / "data" / "models" / "npcs.big").write_bytes(npcs.to_bytes())
+    (root / "data" / "skeleton" / "herofullbody.big").write_bytes(make_skeleton())
+    (root / "data" / "pack.big").write_bytes(make_archive(("notes.txt", b"hi")).to_bytes())
+    monkeypatch.setenv("DR2_CZ_DATA", str(root))
+    db = tmp_path / "i.sqlite"
+    build_index("cz", AssetTree(root), db)
+    app = QApplication.instance() or QApplication([])
+    win = MainWindow(db)
+    assert win.left.tabText(win.left.currentIndex()) == "Library"
+    lv = win.library_view
+    assert lv.select_group("characters")
+    assert {r["name"] for r in lv.model.rows} == {"chest_hero.big", "srv_bob.big"}
+    assert "Hero (chest)" in lv.model.data(lv.model.index(0))
+    lv.filter.setText("bob")
+    assert [r["name"] for r in lv.model.rows] == ["srv_bob.big"]
+    lv.filter.setText("")
+    assert lv.select_group("characters", "Outfit parts") and lv.model.rowCount() == 1
+    lv.items.setCurrentIndex(lv.model.index(0))                # shows the model
+    assert win.current["name"] == "chest_hero.big"
+    related = [win.relations.item(i).text() for i in range(win.relations.count())]
+    assert any(t.startswith("rig: herofullbody.big") for t in related)
+    assert any(t.startswith("colour: box_cm") for t in related)
+    assert "Library: Models › Characters › Outfit parts" in win.details.toPlainText()
+    assert not win.btn_export_all.isHidden()
+    win.export_all(str(tmp_path / "one"))
+    assert win.wait_for_jobs()
+    assert (tmp_path / "one" / "chest_hero" / "textures" / "box_cm.png").is_file()
+    assert lv.select_group("rigs")
+    lv.export(str(tmp_path / "many"))
+    assert win.wait_for_jobs()
+    assert (tmp_path / "many" / "cz" / "rigs" / "herofullbody" / "herofullbody.glb").is_file()
+    win.close()
+    del app

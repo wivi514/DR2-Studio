@@ -118,6 +118,18 @@ AppImage, unsigned programs, game folders) and
 [`13-blender-addon.md`](13-blender-addon.md#if-something-went-wrong) ("Toolkit not
 found", no index, rig check failures).
 
+## The Library and exporting everything (phase 8)
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| The Library tab says "Nothing here yet" | No index, or one built by an older toolkit (it is rebuilt when the toolkit changes it) | **Build / refresh index** (`dr2 index build`) |
+| Models have no picture in the Library | numpy missing, or the index was built with `--no-thumbs` | `pip install numpy`, rebuild the index |
+| `dr2 export`: `no such Library group` | A typo in the group name | `dr2 library` lists the group names (`characters`, `music`, `rigs`…) and sections (`models`, `sounds`…) |
+| An export wrote nothing | Its files were already in that folder: exports continue where they stopped | Delete the old folder, or export into another |
+| `dr2 library --check` reports problems | The index was built with other grouping rules | Rebuild the index |
+
+More in [`16-library.md`](16-library.md#if-something-went-wrong).
+
 ## Texturing programs and limits (phase 7)
 
 See the tables in [`14-texturing-tools.md`](14-texturing-tools.md#if-something-went-wrong)
