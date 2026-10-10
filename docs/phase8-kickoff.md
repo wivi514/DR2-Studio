@@ -1,0 +1,78 @@
+# Phase 8 kickoff: find things by what they are, and take them out in one go
+
+**Direction (user, 2026-10-09):** "make it easier to get stuff, like only show models
+with their texture, bones and all, and can export all of this at once. Just show audio,
+etc." Today DR2 Studio shows the game the way it is stored: folders, archives inside
+archives, texture packs next to models, sounds in banks. A modder thinks in things:
+*Chuck's shirt* (a model, its textures, its skeleton), *the title music*, *the zombie
+groans*. Phase 8 shows the game that way and makes "give me all of it" one click.
+
+Read `CLAUDE.md` first (documentation and clean-up rules), then `phase7-kickoff.md`
+§Status (what phase 7 left owed), then this.
+
+## What exists to build on
+
+- The index (`dr2kit/index`): every asset with its kind (`model`, `texture`, `audio`,
+  `skeleton`, `strings`, `text`, `video`…), texture thumbnails, model → texture links
+  (`material-texture` relations, by slot), sound → `.sfx` / script-event links.
+- Exports: `.glb` with textures embedded (`convert/model.export_glb`), skeleton `.glb`,
+  PNG, WAV, MP4, strings JSON; Studio's Search tab filters by kind.
+- Not there yet: a model → skeleton link (which rig a model uses), categories, friendly
+  names, batch export.
+
+## Scope
+
+1. **Categories instead of folders.** A new first tab in Studio, **Library** (the
+   archive tree stays as **Files**, for advanced use), with groups measured from the
+   paths (2026-10-09):
+   - *Models*: Characters (`models/npcs.big`: CZ 91, CW 166), Zombies
+     (`models/zombies.big`), Weapons & items (`models/weapons`, `models/special`,
+     `dynamicprops`), Cutscene props (`cine_props.big`), Crowd, Environments
+     (`models/environment`, by area: ~930 / ~970);
+   - *Sounds*: Music (`audio/music.big`), Voices (`charvocals`, `chuck`, `bossvocals`),
+     Cutscene audio (`cinematics.big`), Sound effects (`streamedassets.big/fx_*`, by bank:
+     footsteps, zombies, weapons, vehicles…), Ambience;
+   - *Textures* (by role: colour, normal…), *Skeletons* (the rigs), *Text & strings*,
+     *Movies* (CW).
+   Each group a grid or list with thumbnails and a short description; identical copies
+   (same bytes in several archives) shown once, with "also in…".
+2. **A model shown with everything it uses.** Selecting a model shows, next to the 3D
+   view: its **textures** (thumbnails, by role and material), the **skeleton/rig** it
+   matches (new index link: model → rig by bone names), its parts and counts, and the
+   sounds or text that mention it when known.
+3. **Export everything at once.**
+   - For one model: **Export all…** writes a folder: `<model>.glb` (meshes, skeleton,
+     skin, textures embedded), `textures/*.png` (every texture, named as in the game,
+     plus a note of which is colour/normal/specular), `skeleton.glb` (the rig alone),
+     `info.txt` (paths, sizes, rig, limits), ready for Blender or Substance Painter.
+   - For a selection or a whole group: the same for every item, sounds as WAV, movies as
+     MP4, strings as JSON; a progress bar, *Cancel*, existing files skipped.
+   - CLI: `dr2 export <group or vpath…> -o folder` (e.g. `dr2 export characters`,
+     `dr2 export music --wav`).
+4. **Friendlier names** where the data gives them: characters and outfits from the asset
+   catalogue's table, sound-effect banks by what they are, voice lines with their
+   subtitle when the GASP tables link them (carried over from phase 5).
+
+## Decisions (user, 2026-10-09)
+
+- **Model thumbnails: 3D renders**, made while the index is built (a few more minutes
+  for the first build per game; Studio's 3D page rendered offscreen, or a small
+  software renderer if that proves too slow: measure first).
+- **Exports: one folder per asset** (`chest_young_chuck/` holding the `.glb`,
+  `textures/*.png`, `skeleton.glb`, `info.txt`; sounds as `music/HB_Indemnify.wav`…).
+- **Studio opens on the Library**; the archive tree stays as a **Files** tab.
+
+## Gate
+
+From the Library, without the Files tab: export one character with everything
+(the `.glb` opens in Blender with textures and bones; the PNGs and rig are there), and a
+whole group in one go (every sound of the music bank as WAV; every character as a
+folder), in both games; every category count matches the index.
+
+## Facts to keep in mind
+
+- The index is a cache: a schema change bumps `SCHEMA_VERSION` and forces a rebuild.
+- Big exports: characters ~1-7 MB each as `.glb`; environments are large (hundreds of
+  them, tens of MB); the export must be cancellable and resumable.
+- Tests use their own user folders (conftest); Studio dialogs are off in tests.
+- Clean up after yourself (CLAUDE.md); recomp runs as in `dev/recomp-integration.md`.

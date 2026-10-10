@@ -202,7 +202,22 @@ the app, make packaging a mod and installing it in game easy. Handoff and full s
   (`tools/newcomer_gate.py`, `dev/testing.md` §Phase 7 results); the run by a person is
   still owed.
 
-## Stretch (phase 8 or later)
+## Phase 8: find things by what they are, export them in one go (user, 2026-10-09)
+Not started. Handoff and scope: `phase8-kickoff.md`.
+- A **Library** tab (Studio opens on it; the archive tree becomes **Files**): Characters,
+  Zombies, Weapons & items, Cutscene props, Environments; Music, Voices, Cutscene audio,
+  Sound effects; Textures, Skeletons, Text & strings, Movies. Models with 3D-rendered
+  thumbnails (user decision), duplicates shown once.
+- A model shown with everything it uses: textures by role, the rig it matches (new
+  model → skeleton link), parts and counts.
+- **Export all…**: one model, a selection or a whole group, one folder per asset (user
+  decision): `.glb`, `textures/*.png`, `skeleton.glb`, `info.txt`; sounds as WAV, movies
+  as MP4, strings as JSON; progress, cancel, resume. `dr2 export <group|vpath…>`.
+- Friendlier names where the data gives them (characters, sound banks, voice lines).
+- **Gate:** from the Library alone, one character exported with everything (opens in
+  Blender with textures and bones) and whole groups exported in one go, in both games.
+
+## Stretch (phase 9 or later)
 - In-game "identify": the recomp sends the textures/models under the crosshair to Studio.
 - Animation export (and later import); environment/zone browsing and editing.
 - PC DR2/OTR read support.

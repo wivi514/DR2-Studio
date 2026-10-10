@@ -17,13 +17,16 @@ and Install windows, Play (`mods/play.py`, `dr2 play`), mod sets, the app icon; 
 make→share→install→Play chain passed in game in CZ and CW (`tools/newcomer_gate.py`).
 Owed: the gate run by a person, `.dr2mod` file associations, the carried-over items in
 `docs/phase7-kickoff.md`. Also added: texturing-program imports (`mods/texture_import.py`,
-guide 14) and the measured engine limits (guide 15, `formats.md` §Engine limits).** Read these before writing code:
+guide 14) and the measured engine limits (guide 15, `formats.md` §Engine limits).
+Next: phase 8 (user-set 2026-10-09): a Library view by category, models with their
+textures and rig, export everything at once; start from `docs/phase8-kickoff.md`.** Read these before writing code:
 
 | Doc | What it holds |
 |---|---|
 | `docs/ARCHITECTURE.md` | Components, data flow, the asset index, the mod package format, stack choices |
 | `docs/formats.md` | Everything known about every file format, with a status per format (cracked / partial / unknown) |
-| `docs/phase7-kickoff.md` | Phase 7 handoff: easiest modding, help inside the app, packaging/installing mods, open questions, facts to keep in mind |
+| `docs/phase8-kickoff.md` | **Next:** phase 8 (find things by what they are, export everything at once), its decisions and gate |
+| `docs/phase7-kickoff.md` | Phase 7 handoff and §Status: what phase 7 did and still owes |
 | `docs/dev/packaging.md` | Release builds: the bundle, the LGPL ffmpeg and licence gate, AppImage, CI |
 | `docs/dev/blender-addon.md` | The GPL Blender add-on and why it doesn't contain dr2kit |
 | `docs/dev/code-tour.md` | Every module of `dr2kit` and how a read flows through them |

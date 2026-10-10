@@ -17,6 +17,18 @@ Entry template:
 
 ---
 
+## 2026-10-09 — Phase 8 planned
+**Done:** wrote `phase8-kickoff.md` from the user's direction ("only show models with
+their texture, bones and all, and export all of this at once; just show audio, etc."),
+with categories measured from the index paths, and recorded the user's three decisions:
+3D-rendered model thumbnails, exports as one folder per asset, Studio opening on the new
+Library tab.
+
+**Docs updated:** `phase8-kickoff.md` (new), `roadmap.md`, `docs/README.md`,
+`CLAUDE.md`.
+
+**Next:** phase 8.
+
 ## 2026-10-09 — Texturing programs (Substance Painter…) and the game's limits
 **Done:** at the user's request, a guide for texturing in Substance Painter and other
 programs and exporting back (`14-texturing-tools.md`), a limits page (`15-limits.md`),
