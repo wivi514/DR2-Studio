@@ -97,8 +97,10 @@ zombie-spawn seed), and how a colour set is chosen per zombie.
   can be **grouped in the Library as one item with choices**.
 - Buildings (`models/environment`): pieces are separate files per zone; 65 have `lod` in
   their names (lower-detail copies of other pieces), and a few have `_black` (burnt)
-  shapes. Which ones the user means by "building variants" needs one example from the
-  user, or a look in Studio together.
+  shapes. The user isn't sure buildings have variants (2026-10-10), so buildings are
+  **not a goal of this phase**. The census in step 1 covers every model anyway, and
+  reports environment pieces with variant-like shapes (overlapping alternatives, burnt or
+  damaged copies). Anything real it finds becomes a follow-up, not part of the gate.
 
 ### Formats and tools
 
