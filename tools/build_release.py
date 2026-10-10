@@ -131,6 +131,18 @@ def check_environment() -> None:
     if "GPL" in lic and "LGPL" not in lic:
         fail(f"this PyAV's ffmpeg is {lic}")
     import av
+    if sys.platform == "win32":
+        # PyInstaller analyses PyAV by importing it in a fresh process, where the DLL
+        # directory above doesn't apply; without this it leaves PyAV out (the bundled
+        # `dr2 doctor` then says "PyAV not installed", seen 2026-10-10). A DLL next to
+        # the .pyd is always found, and PyInstaller collects it with the package, as a
+        # delvewheel-repaired wheel would. Only the LGPL build's DLLs are copied.
+        pkg = Path(av.__file__).parent
+        for dll in (ffmpeg_prefix() / "bin").glob("*.dll"):
+            if not (pkg / dll.name).is_file() or \
+                    (pkg / dll.name).stat().st_size != dll.stat().st_size:
+                shutil.copy2(dll, pkg / dll.name)
+        say(f"ffmpeg DLLs next to PyAV: {', '.join(sorted(p.name for p in pkg.glob('*.dll')))}")
     libs = Path(av.__file__).parent.parent / "av.libs"
     bad = [p.name for p in libs.glob("*")] if libs.is_dir() else []
     bad = [n for n in bad if GPL_LIBS.search(n)]
