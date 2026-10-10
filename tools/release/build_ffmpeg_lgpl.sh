@@ -54,6 +54,15 @@ else
     ASM="--disable-x86asm"
 fi
 
+# MSVC (Windows): libavformat/cbs.c, built for the mp4 muxer, holds a table of the AV1
+# and APV bitstream readers; with neither enabled it is an empty array, and cl 19.44
+# crashes on it ("fatal error C1001: Internal compiler error", after "C4034: sizeof
+# returns 0"; gcc and clang compile it). One small AV1 bitstream filter fills the table.
+case "${DR2_FFMPEG_EXTRA:-}" in
+    *msvc*) MSVC_FIX="--enable-bsf=av1_frame_split" ;;
+    *) MSVC_FIX="" ;;
+esac
+
 BUILD=$WORK/build
 rm -rf "$BUILD" && mkdir -p "$BUILD"
 cd "$BUILD"
@@ -71,7 +80,7 @@ cd "$BUILD"
     --enable-muxer=mp4,mov,wav \
     --enable-filter=aresample,aformat,anull,format,scale,null \
     --enable-protocol=file \
-    ${DR2_FFMPEG_EXTRA:-}
+    $MSVC_FIX ${DR2_FFMPEG_EXTRA:-}
 
 grep -q '^#define CONFIG_GPL 0' config.h || { echo "FAIL: this ffmpeg is not LGPL" >&2; exit 1; }
 grep -q '^#define CONFIG_NONFREE 0' config.h || { echo "FAIL: nonfree enabled" >&2; exit 1; }
