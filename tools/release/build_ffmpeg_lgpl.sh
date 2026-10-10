@@ -86,4 +86,9 @@ grep -q '^#define CONFIG_GPL 0' config.h || { echo "FAIL: this ffmpeg is not LGP
 grep -q '^#define CONFIG_NONFREE 0' config.h || { echo "FAIL: nonfree enabled" >&2; exit 1; }
 make -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
 make install
+# MSVC: ffmpeg installs the import libraries (avformat.lib…) next to the DLLs in bin/;
+# PyAV's --ffmpeg-dir looks for them in lib/
+if [ -n "$MSVC_FIX" ]; then
+    cp "$PREFIX"/bin/*.lib "$PREFIX/lib/"
+fi
 echo "==> LGPL ffmpeg $VERSION in $PREFIX ($(sed -n 's/^#define FFMPEG_LICENSE "\(.*\)"/\1/p' config.h))"
