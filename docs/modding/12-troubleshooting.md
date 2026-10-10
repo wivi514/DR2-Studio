@@ -118,6 +118,12 @@ AppImage, unsigned programs, game folders) and
 [`13-blender-addon.md`](13-blender-addon.md#if-something-went-wrong) ("Toolkit not
 found", no index, rig check failures).
 
+## Playing (Play button, `dr2 play`)
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| The game window opens but stays blank (the title bar counts frames) | The recomp was started without its renderer: a **source build** of the recomp has it off unless `CZ_VKDRAW=1` / `CW_VKDRAW=1` is set (releases set it in `cz_defaults.env` / `cw_defaults.env`). Toolkits before 2026-10-10 didn't set it | Update the toolkit (Play now sets it for source builds), or point Play at a release build (Studio: **Game folders…**, or `dr2 games set-recomp cz <program>`). The recomp's log, `cz_runtime.log` / `cw_runtime.log` next to it, says `renderer OFF` in this case |
+
 ## The Library and exporting everything (phase 8)
 
 | Symptom | Cause | Fix |

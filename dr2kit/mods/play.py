@@ -21,6 +21,12 @@ in the recomp's folder (the folder holding ``assets/game``): a release has it ne
 ``assets/``; among source builds (``runtime/build``, ``runtime/build-release``) the
 newest wins, because an old build may predate the ``game_mods/`` layer (on 2026-10-09
 the CZ recomp's ``build-release`` was a month older than ``build``).
+
+**The renderer.** A release ships ``<game>_defaults.env`` next to its program
+(``CZ_VKDRAW=1``…); a source build doesn't and starts with the renderer off (the
+recomps' default for headless test runs), which showed a blank window when Play
+started one (user report, 2026-10-10). `launch_env` adds the profile's
+``play_defaults`` when that file is missing; a variable already set wins.
 """
 
 from __future__ import annotations
@@ -138,10 +144,22 @@ def deploy_library(game: str, library: ModLibrary | None = None, progress=None) 
     return written, res
 
 
+def launch_env(game: str, exe: Path, base: dict | None = None) -> dict:
+    """The environment Play starts ``exe`` with: ours, plus the profile's
+    ``play_defaults`` (the renderer on) when ``exe`` has no ``<game>_defaults.env``
+    beside it, i.e. a source build rather than a release. A variable already set wins,
+    as it does in the recomp's own defaults loader."""
+    env = dict(os.environ if base is None else base)
+    if not (Path(exe).parent / f"{game}_defaults.env").is_file():
+        for key, value in load_profile(game).play_defaults.items():
+            env.setdefault(key, value)
+    return env
+
+
 def launch(game: str, mods: bool = True, extra_env: dict | None = None) -> subprocess.Popen:
     """Start the recomp (not waiting for it). ``mods=False`` runs it with mods off."""
     exe = find_recomp(game)
-    env = dict(os.environ)
+    env = launch_env(game, exe)
     if not mods:
         env[load_profile(game).no_mods_env] = "1"
     env.update(extra_env or {})

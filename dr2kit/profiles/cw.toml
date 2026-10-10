@@ -19,6 +19,11 @@ recomp_executables = ["cw_runtime", "cw_runtime.exe", "CaseWestRecomp-linux-x86_
                       "runtime/build/Release/cw_runtime.exe"]
 # The variable that turns mods off for one run (Play without mods).
 no_mods_env = "CW_NO_MODS"
+# What a release build sets in its cw_defaults.env (next to the program) for playing.
+# Source builds have no such file and start with the renderer OFF (the recomp's default
+# for headless test runs: "[vk] renderer OFF (set CW_VKDRAW=1 to enable it)"), so Play
+# sets these when the program has no defaults file beside it; your own environment wins.
+play_defaults = { CW_VKDRAW = "1" }
 
 # Files the executable checks against a SHA-1 digest: an edited copy crashes the game.
 # Read from the XEX's Digest resource (6 entries; tools/xex_digests.py, 2026-10-09,

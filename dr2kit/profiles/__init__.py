@@ -43,6 +43,7 @@ class Profile:
     digest_checked: tuple[str, ...] = ()     # vpaths the executable checks (no mods)
     recomp_executables: tuple[str, ...] = ()  # the recomp program, relative to its folder
     no_mods_env: str = ""                     # env var that turns mods off for a run
+    play_defaults: dict = field(default_factory=dict)  # env for Play when no <id>_defaults.env
     census: dict = field(default_factory=dict)
 
 
@@ -59,6 +60,7 @@ def load_profile(game: str) -> Profile:
                    digest_checked=tuple(raw.get("digest_checked", ())),
                    recomp_executables=tuple(raw.get("recomp_executables", ())),
                    no_mods_env=str(raw.get("no_mods_env", "")),
+                   play_defaults={str(k): str(v) for k, v in raw.get("play_defaults", {}).items()},
                    census=dict(raw.get("census", {})))
 
 

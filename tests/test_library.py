@@ -185,12 +185,19 @@ def test_play_deploy_status_and_launch(tmp_path, monkeypatch):
     exe.parent.mkdir(parents=True)
     out = tmp_path / "ran.txt"
     exe.write_text(f"#!{sys.executable}\nimport os\nopen({str(out)!r}, 'w').write("
-                   f"os.environ.get('CZ_NO_MODS', '-') + ' ' + os.getcwd())\n")
+                   f"os.environ.get('CZ_NO_MODS', '-') + ' ' + os.getcwd() + ' ' + "
+                   f"os.environ.get('CZ_VKDRAW', '-'))\n")
     exe.chmod(0o755)
     if sys.platform == "win32":
         pytest.skip("launch test uses a script as the program")
     assert play.find_recomp("cz") == exe
+    monkeypatch.delenv("CZ_VKDRAW", raising=False)
     play.launch("cz", mods=False).wait(10)
-    assert out.read_text() == f"1 {exe.parent}"
+    # a source build has no cz_defaults.env: Play turns the renderer on as a release does
+    assert out.read_text() == f"1 {exe.parent} 1"
+    (exe.parent / "cz_defaults.env").write_text("CZ_VKDRAW=1\n")
+    assert "CZ_VKDRAW" not in play.launch_env("cz", exe, {})     # a release: its own file
+    (exe.parent / "cz_defaults.env").unlink()
+    assert play.launch_env("cz", exe, {"CZ_VKDRAW": "0"})["CZ_VKDRAW"] == "0"   # yours wins
     with pytest.raises(Exception, match="no such file"):
         play.set_recomp("cz", tmp_path / "nope")

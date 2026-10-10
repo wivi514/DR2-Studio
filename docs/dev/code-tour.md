@@ -115,7 +115,9 @@ a built package (copied there by `setup.py`), `docs/modding/` (English) or
 `assets/`, else the newest source build from the profile's `recomp_executables`),
 `set_recomp`, `deploy_library(game, library)` (build + deploy the switched-on mods, or
 remove the deploy when none is on), `launch(game, mods=True, extra_env)` (detached, in
-the program's folder; mods off through the profile's `no_mods_env`), `deployed(game)` /
+the program's folder; mods off through the profile's `no_mods_env`; `launch_env` adds the
+profile's `play_defaults`, the renderer switch, when the program is a source build with no
+`<game>_defaults.env` beside it), `deployed(game)` /
 `undeploy_all(game)`. Used by `dr2 play`, `dr2 mod status` and Studio's Play buttons.
 
 ### `dr2kit/mods/texture_import.py` (phase 7)

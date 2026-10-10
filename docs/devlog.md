@@ -17,6 +17,23 @@ Entry template:
 
 ---
 
+## 2026-10-10 — Play started source builds without their renderer
+**Done:** the user saw Play (Studio, `dr2 play`) start the game with no picture. The CZ
+recomp's log said it: `[vk] renderer OFF (set CZ_VKDRAW=1 to enable it)`. A release ships
+`cz_defaults.env` / `cw_defaults.env` next to its program with `CZ_VKDRAW=1` /
+`CW_VKDRAW=1`; a source build (`runtime/build/cz_runtime`, which Play picks when there is
+no release beside `assets/`) has none, and the recomps keep the renderer off by default
+for headless test runs. Play now adds the profile's new `play_defaults` (the renderer
+switch) when the program has no defaults file beside it; a variable already set wins,
+like the recomp's own loader. Test: `test_library.py` (source build gets it, a release's
+file and the user's own setting are respected).
+**Why:** the user's report.
+**Learned:** the phase 7 Play gate (`tools/newcomer_gate.py`) set `CZ_VKDRAW=1` itself
+for its frame dumps, so it never saw Play's own environment.
+**Docs updated:** `modding/12-troubleshooting.md` (§Playing), `dev/code-tour.md`,
+`devlog.md`; profile comments.
+**Next:** as before.
+
 ## 2026-10-09 — Model colours: zombie clothing, glasses, eyelashes, see-through hair and foliage
 **Done:** fixes from the user looking at the Library's pictures, each counted over both
 games before fixing:
