@@ -252,6 +252,8 @@ rest pose), `hierarchy`, `materials` (`Material` with its `TextureSlot`s), `shad
 (already resolved from its id), bone palette, vertex declaration, which buffer each stream
 reads and from where, index range. `Scene.draw_data(draw)` decodes it to a `DrawData`
 (positions, normals, UV sets, colours, joints as node indices, weights, triangles).
+`Scene.rigid_node(mesh)` is the node an unskinned shape's vertices are relative to
+(`formats.md` §Rigid parts; the `.glb` export, the importer and the renderer use it).
 `vertex.py` holds the 360 `D3DDECLTYPE` table and one decoder per packing. Read
 `formats.md` §Scene container first; both docstrings list the facts the code trusts.
 

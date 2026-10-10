@@ -224,6 +224,11 @@ the developer's real mod library before that.
 | Thumbnails looked at (contact sheets of every group) | characters, zombies, items, props, level pieces | the same |
 | Model colours in the pictures (after the user spotted red/green/purple zombies, green glasses, red eyes): every character and zombie, close-ups at 768 px | natural; Katey's lashes dark, the pawnshop owner's glasses grey with a light lens | natural; sunglasses dark; zombie hair brown |
 
+After the gate (2026-10-10): `dr2 census --reimport` on both games after rigid parts
+moved under their nodes: every model byte-identical (CZ 1,397, CW 1,495). Open in
+Blender checked in a windowed Blender 5.2 (the background run used by the tests takes
+another path: the first version imported only an Icosphere in a window).
+
 Exports re-run into the same folder skip every file (resume). 10 of the 257 character
 folders name a texture slot found nowhere in the game (`cin_zombie_james_leg_nm`, a slot
 literally named `{`): the index's known unresolved slots, listed in `info.txt`.

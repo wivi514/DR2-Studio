@@ -33,6 +33,19 @@ Read `CLAUDE.md` first (documentation and clean-up rules), then `phase7-kickoff.
   (survivor)"), zombie variants, sound banks by what they are, single names from the
   asset catalogue.
 
+**Fixed after the gate (2026-10-10, from the user testing Studio; `devlog.md` has each):**
+
+- Model colours: zombie clothing baked in the pictures; glasses (`gLensColour`) and
+  eyelashes / hair (`gDiffuseColourControl`) baked from their shaders; hair and
+  opacity-map materials see-through (`.glb` `alphaMode`), cloth and skin opaque.
+- Rigid parts (props, vehicles, level pieces: ~1,000 models) placed by their node in the
+  `.glb`, the 3D view and the pictures; re-import still byte-identical for every model.
+- Play: source builds of the recomps started without their renderer (`play_defaults`).
+- Open in Blender: imported only an Icosphere in a windowed Blender (now imports from a
+  timer); bones no longer drawn as spheres; opens in Material Preview. How to see
+  textures and hide bones is in `07-blender-setup.md` and the model's "How to mod this".
+- The renderer handles pictures bigger than 128 px.
+
 **Not done / owed:**
 
 1. **Voice lines with their subtitle**: not possible from the data found. The GASP tables
@@ -46,6 +59,12 @@ Read `CLAUDE.md` first (documentation and clean-up rules), then `phase7-kickoff.
 4. Environments export one piece per folder; a whole zone as one scene is not done
    (stretch: environment browsing).
 5. Everything still owed from phase 7 (`phase7-kickoff.md` §Status).
+6. **Striped faces** on Chuck's hat and mohawk heads (`formats.md` §Striped head
+   textures): the shipped texture has the bands; how the game shows these heads is not
+   known. Check in game (wear the mohawk) and, if the game binds another texture, show
+   that one.
+7. Play and Open in Blender were fixed from the user's tests, not re-run end to end by a
+   gate script (Play: the environment was checked, the game not started by us).
 
 ## What exists to build on
 

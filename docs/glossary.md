@@ -335,3 +335,8 @@ bone names, with different proportions.
 **Export all.** One click that writes everything an asset is made of into one folder: for
 a model its `.glb` (with textures and bones), every texture as PNG, the rig alone, and
 an `info.txt`. Run again, it continues where it stopped.
+
+**Rigid part.** A piece of a model that moves as one block with a single node (a bone),
+instead of bending with several: a box's lid, a door, a car's wheel, a gun. The game
+stores its shape relative to that node; the toolkit places it there (in Blender it is
+parented to the node, so rotating the node moves the part).

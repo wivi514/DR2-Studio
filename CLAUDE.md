@@ -22,7 +22,9 @@ Phase 8 (user-set 2026-10-09) done the same day: the **Library** (Studio's first
 `dr2kit/catalog/groups.toml`, `dr2 library`), model pictures rendered while indexing
 (`convert/render.py`), model → rig links by bone names and rest pose, and export
 everything at once (`catalog/export.py`, *Export all…*, `dr2 export`); gate passed in both
-games. Owed: `docs/phase8-kickoff.md` §Status and `phase7-kickoff.md` §Status.** Read these before writing code:
+games. Fixed 2026-10-10 from the user's tests: model colours (shader bakes, see-through
+hair/opacity maps), rigid parts placed by their node, Play's renderer for source builds,
+Open in Blender. Owed: `docs/phase8-kickoff.md` §Status and `phase7-kickoff.md` §Status.** Read these before writing code:
 
 | Doc | What it holds |
 |---|---|
