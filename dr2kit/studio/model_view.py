@@ -12,6 +12,12 @@ run before the QApplication exists) is served by `_SchemeHandler` from the packa
 memory. A custom scheme rather than ``file://`` because Chromium refuses ES modules from
 ``file://`` pages.
 
+The page needs every module it imports (`viewer_files` follows the imports). A missing
+one leaves the page at "loading…" with no error from Chromium, so `viewer.html` says so
+itself, a test checks that git tracks them all, and the release gate checks the bundle
+(a ``.gitignore`` rule once kept three.js's ``build/`` folder out of git, so a release
+built from a clone had no 3D view).
+
 If QtWebEngine is missing (it is a separate PySide6 add-on on some platforms) or the
 environment variable ``DR2_STUDIO_NO_3D`` is set, `ModelViewer` shows a note instead and
 the rest of Studio works as before; *Export .glb…* still gives the file for Blender.
@@ -20,6 +26,7 @@ the rest of Studio works as before; *Export .glb…* still gives the file for Bl
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 
 from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QUrl, Signal
@@ -32,6 +39,44 @@ MODEL_PATH = "/model.glb"
 
 MIME = {".html": b"text/html", ".js": b"text/javascript", ".glb": b"model/gltf-binary",
         ".json": b"application/json", "": b"application/octet-stream"}
+
+# `import … from './x.js'`, `import './x.js'`, `<script src="./x.js">`
+_IMPORT = re.compile(r"\b(?:import|from)\s*['\"]([^'\"]+)['\"]|\bsrc=\"([^\"]+)\"")
+
+
+def viewer_files(web_dir: Path = WEB_DIR) -> tuple[list[Path], list[str]]:
+    """The files the 3D page loads, found by following its imports from ``viewer.html``
+    (the import map's ``three`` included): ``(found, missing)``, paths relative to
+    ``web_dir`` in ``missing``."""
+    html = (web_dir / "viewer.html").read_text(encoding="utf-8")
+    bare = dict(re.findall(r'"([\w/-]+)"\s*:\s*"([^"]+)"', html.split("importmap", 1)[-1]
+                           .split("</script>", 1)[0]))
+    found: list[Path] = []
+    missing: list[str] = []
+    todo = [(web_dir / "viewer.html", html)]
+    seen = {web_dir / "viewer.html"}
+    while todo:
+        here, text = todo.pop()
+        found.append(here)
+        for m in _IMPORT.finditer(text):
+            spec = next(g for g in m.groups() if g)
+            if spec in bare:
+                target = web_dir / bare[spec]
+            elif spec.startswith("."):
+                target = here.parent / spec
+            else:
+                continue                       # a comment's example (three/addons/…)
+            target = Path(os.path.normpath(target))
+            if target in seen:
+                continue
+            seen.add(target)
+            if target.is_file():
+                todo.append((target, target.read_text(encoding="utf-8")
+                             if target.suffix == ".js" else ""))
+            else:
+                missing.append(target.relative_to(web_dir).as_posix())
+    return found, missing
+
 
 try:
     if os.environ.get("DR2_STUDIO_NO_3D"):

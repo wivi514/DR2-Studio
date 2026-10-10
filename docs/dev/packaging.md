@@ -59,7 +59,8 @@ toolkit:
    or reports a GPL ffmpeg, and after PyInstaller it **refuses the bundle** if any file
    is named like a GPL library (x264, x265, xvid, postproc, vvenc…) or if the bundled
    `dr2 doctor` doesn't report an LGPL ffmpeg with the XMA and Bink decoders and the
-   native LZX library, or if the bundled `dr2 help` can't show the guides (the help).
+   native LZX library, or if the bundled `dr2 help` can't show the guides (the help), or if the 3D view's page
+   or any module it imports (three.js) is missing (`model_view.viewer_files`).
 
 Development installs keep using the PyPI wheel (`pip install av`): nothing is
 redistributed there. Qt Multimedia brings its own ffmpeg (LGPL 2.1+, inside PySide6);
@@ -107,6 +108,15 @@ first test builds (2026-10-10) had no help, and Studio then showed no asset at a
 The spec now adds the guides itself, the gate runs the bundled `dr2 help`, and Studio
 reports unexpected errors in its log, an error box and `studio-errors.log` in the cache
 folder.
+
+**three.js was not in git.** The root `.gitignore` said `build/`, which also matched
+`dr2kit/studio/web/vendor/three/build/` (`three.module.js`, `three.core.js`). Linux builds
+come from the working folder, which had the files, so they worked; the Windows build comes
+from a git clone, and its 3D view stayed at "loading…" (a module that can't be fetched
+gives no error). The rule is now `/build/`, the files are committed, a test checks git
+tracks every module the page imports, the gate checks the bundle, and the page itself
+says when its files are missing. After a `.gitignore` change, check `git status --ignored`
+for package files.
 
 **MP4 bitrate.** The movie export asks ffmpeg's `mpeg4` encoder for 8 Mb/s; with x86
 assembly (PyPI's PyAV, the Windows build) it lands at ~3 Mb/s for `dr2_logo.bik`, without

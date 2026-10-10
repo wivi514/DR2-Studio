@@ -16,6 +16,8 @@
 </head>
 <body>
 <div id="status">loading…</div>
-<script type="module" src="./viewer.js"></script>
+<!-- A module that can't be fetched gives no message of its own: say so (model_view.py) -->
+<script type="module" src="./viewer.js"
+  onerror="document.getElementById('status').textContent = 'the 3D view could not start: some of its files are missing (reinstall DR2 Studio; Export .glb… still works)'; console.log('dr2:' + document.getElementById('status').textContent)"></script>
 </body>
 </html>

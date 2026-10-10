@@ -46,6 +46,7 @@ one guide. Search the page for the error text you see.
 | `… is not a model or skeleton (no SceneHeader)` | `--glb` was given a texture pack, a sound bank or a folder | Give the model's `.big` (e.g. `data/models/npcs.big/boss_mechanic.big`). |
 | `note: texture '…' not found` | The texture lives in an archive the model doesn't sit in | `dr2 index build` once; exports then search the whole game. |
 | Studio's 3D view says it needs QtWebEngine | Your PySide6 lacks the WebEngine add-on (or `DR2_STUDIO_NO_3D` is set) | `pip install PySide6-Addons`, or use **Export .glb…** and Blender. |
+| Studio's 3D view stays at "loading…" or says some of its files are missing | The install is incomplete (a 2026-10-10 Windows test build lacked three.js) | Reinstall DR2 Studio from a newer release; **Export .glb…** and Blender still work. |
 | Studio's 3D view says "no WebGL here" | No GPU/OpenGL for the web view (some virtual machines, remote desktops) | Use **Export .glb…** and Blender. |
 | A mesh has the wrong texture | A bug the toolkit had before 2026-10-08 (materials picked by position, not id) | Update the toolkit and export again. If it still happens, report the model's vpath. |
 | In Blender, only bones and no mesh | A skeleton file (`data/skeleton/`), or `--skeleton` | Expected: export the model itself for meshes. |

@@ -10,7 +10,8 @@
 *.anm
 extracted/
 out/
-build/
+# only the top-level build folder: three.js ships its own build/ inside the package
+/build/
 mods/*/replace/
 *.sqlite
 *.db

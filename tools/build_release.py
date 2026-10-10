@@ -261,8 +261,13 @@ def check_licences(bundle: Path) -> None:
     helped = subprocess.run([str(exe), "help"], capture_output=True, text=True)
     if helped.returncode != 0 or "Install DR2 Studio" not in helped.stdout:
         fail(f"the bundled dr2 has no help: {(helped.stderr or helped.stdout)[-300:]}")
+    # The 3D view's page and every module it imports (three.js)
+    from dr2kit.studio.model_view import viewer_files
+    web = next((p.parent for p in bundle.rglob("viewer.html") if p.parent.name == "web"), None)
+    if web is None or viewer_files(web)[1]:
+        fail(f"the bundle's 3D view is missing files: {viewer_files(web)[1] if web else 'web/'}")
     say("licence gate passed: no GPL library, LGPL ffmpeg with XMA and Bink, native LZX; "
-        "the help is inside")
+        "the help and the 3D view's files are inside")
 
 
 # ---- archives -------------------------------------------------------------------------

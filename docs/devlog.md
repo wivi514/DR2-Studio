@@ -17,6 +17,21 @@ Entry template:
 
 ---
 
+## 2026-10-10 — The Windows build's 3D view stayed at "loading…"
+**Done:** the user's next Windows test: clicking a model now got as far as the 3D view,
+which said "loading…" forever. three.js's `vendor/three/build/` had never been committed:
+the root `.gitignore` rule `build/` matched it. The Linux release is built from the working
+folder (files present), the Windows one from a git clone (files absent). Fixed: the rule is
+`/build/`, `three.module.js` and `three.core.js` are committed; `model_view.viewer_files`
+follows the page's imports, `test_3d_view_has_all_its_files_in_git` checks they are all
+tracked, the release gate checks the bundle has them, and `viewer.html` says when a file
+is missing instead of staying at "loading…" (checked in a real web view with a copy
+missing `three.core.js`).
+**Learned:** an ignore rule for the top-level build folder needs the leading `/`; a build
+from a clean clone catches files that only exist in my working folder.
+**Docs updated:** `dev/packaging.md`, `modding/12-troubleshooting.md`, this devlog.
+**Next:** the user retests the rebuilt Windows release.
+
 ## 2026-10-10 — Release builds had no help, so Studio showed no model
 **Done:** the user's Windows test: games found, the Library listed, but clicking a model
 left "No game data found yet" in the middle. The bundle had no `dr2kit/help/` (PyInstaller

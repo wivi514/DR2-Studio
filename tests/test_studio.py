@@ -73,6 +73,31 @@ def test_3d_view_serves_only_its_own_files():
     assert resource("/nope.js", None) is None
 
 
+def test_3d_view_has_all_its_files_in_git(tmp_path):
+    """Every module the page imports exists and is tracked by git (a `.gitignore` rule
+    once kept three.js out, so builds from a clone stayed at "loading…")."""
+    import shutil
+    import subprocess
+    from dr2kit.studio.model_view import WEB_DIR, viewer_files
+    found, missing = viewer_files()
+    assert not missing
+    names = {p.relative_to(WEB_DIR).as_posix() for p in found}
+    assert {"viewer.js", "vendor/three/build/three.module.js", "vendor/three/build/three.core.js",
+            "vendor/three/examples/jsm/loaders/GLTFLoader.js"} <= names
+    git = shutil.which("git")
+    root = WEB_DIR.parents[2]
+    if git is None or not (root / ".git").exists():
+        pytest.skip("not a git checkout")
+    tracked = subprocess.run([git, "ls-files", "--", *[str(p) for p in found]], cwd=root,
+                             capture_output=True, text=True).stdout.split()
+    assert len(tracked) == len(found), set(names) - {Path(t).relative_to(
+        WEB_DIR.relative_to(root)).as_posix() for t in tracked}
+    # and a copy without one of them is reported
+    shutil.copytree(WEB_DIR, tmp_path / "web")
+    (tmp_path / "web/vendor/three/build/three.core.js").unlink()
+    assert viewer_files(tmp_path / "web")[1] == ["vendor/three/build/three.core.js"]
+
+
 def test_audio_view_shows_a_sound():
     np = pytest.importorskip("numpy")
     from PySide6.QtWidgets import QApplication
