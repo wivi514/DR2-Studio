@@ -1,0 +1,210 @@
+# Phase 9 kickoff: variants (choose what a model wears, see it, export it that way)
+
+**Direction (user, 2026-10-10):** "multiple zombies, items and buildings got variants and
+for now a zombie got all his variants of clothing at the same time. Is there a way to
+change that so we apply what we want on it and export it how we want, or can export with
+all, and can show in viewer with some things or just with all. Whatever is best. Prepare a
+phase for this and do your research first."
+
+The research (2026-10-10) is below, then the plan. The facts are also in
+[`formats.md`](formats.md) §Variants, with how each was found.
+
+## What the research found
+
+Today the toolkit draws **every shape of a model at once**. For a zombie that means
+every head, every shirt, every pair of trousers, the burnt version, and the wound caps
+the game only shows when a limb comes off, all on top of each other. The game never
+does that. Five separate things are called "variants" in this data:
+
+| Kind | Where | Example | How the game picks |
+|---|---|---|---|
+| **1. Clothing / body choices inside one model** | Shape names, plus a table in the game's code | `zombie_skinny_2`: `head1…4`, `shirt1…4`, `pants1…3`, `headwear2/3`, a burnt `_black` set | A 64-bit mask per zombie: one bit per group (below) |
+| **2. Colour choices for a material** | `zombie_pdv_variations.txt` + value sets (`.scv`) in the shader bank | `zombie_skinny_mtl_jersey.pdv` → `jersey1…5.pdv` | One alternative value set per material |
+| **3. Detail levels** (LOD) | Separate models `_2` (high), `_3` (medium), `_4` (low) | `zombie_cop_2/3/4.big` (214 / 102 / 19 KB) | By distance. **The Library wrongly calls them "variant 2/3/4"** |
+| **4. States of a prop** | Shape names inside one model, or separate files | slot machine: `slot_logo` / `slot_logo_dmg`, `slot_screen_staticWin/Off`, `LOD_slot_machine`; `cashregister_dmg.big`, `military_hummwv_stage2/3.big` | By game events (damaged, won, off) |
+| **5. Look-alike models** | Separate files with a number | `chair_1…9`, `pottedplant_1…7`, `garbagecan_1…4` | Placed by the level files |
+
+Chuck's clothes are a sixth, already-understood system: `outfits.csv` lists which part
+model goes in each slot for each outfit (`OUTFIT_BOWLING_SHIRT_JEANS` → chest
+`Bowling_Shirt_Jeans`…), and `clothingdatabase.csv` says which body slots a part covers.
+
+### 1. The shape-group table (in the game's code, both games)
+
+The executable holds a table of **shape-name patterns, each with one bit of a 64-bit
+mask** (CZ `0x829DF720`, CW at the same layout; read from the recomps'
+`assets/game/default_image.bin`). Shapes whose name matches a pattern belong to that
+group. The groups:
+
+| Bits | Group | Patterns (abridged) |
+|---|---|---|
+| `0x2`…`0x100` | **Body regions** (for cutting limbs off) | `head*`, `chest*`, `pants_*`, `larm_*`, `rarm_*`, `lleg_*`, `rleg_*` (each with its `cap_…` wound caps) |
+| `0x4` | All wound caps | `cap_*` |
+| `0x200`…`0x1000` | Accessories | `headwear*`, `eyewear_acc*`, `chest_acc*`, `chest_acc_bkpc` |
+| `0x4000` | Bare arms | `larm_arm*,rarm_arm*` |
+| `0x8000` | Gas look (CW) | `head_gas*`, `chestupper_gas*`… |
+| `0x10000` | Burnt look | `head_black*`, `pants_black*`… |
+| `0x20000`…`0x200000` | **Head 1-5** | `head1_*,chestupper_neck1*,cap_neckchest1,cap_chestneck1` |
+| `0x400000`…`0x2000000` | Head tumours 1-4 (CW gas zombie) | `head1_head_tumour1*`… |
+| `0x4000000`…`0x40000000` | **Headwear 1-5** | `headwear1*,geo_head1*` |
+| `0x80000000`…`0x1000000000` | **Shirt 1-6** | `chest_shirt1*,rarm_shirt1*,larm_shirt1*,chest_tshirt1*,…,cap_chestrarm1…` |
+| `0x2000000000` | Shirt tumours | `chest_shirt1_tumour1*`… |
+| `0x4000000000`…`0x100000000000` | **Trousers 1-7** | `pants_pants1*,rleg_pants1*,lleg_pants1*,…` |
+| `0x200000000000` | Skirt | `skirt_skirt1*`… |
+| `0x400000000000`…`0x10000000000000` | **Feet 1-7** | `lleg_lfoot1*,rleg_rfoot1*` |
+| ? | Tall boots | `lleg_tallboot1*,rleg_tallboot1*` (its mask word didn't read cleanly ❓) |
+
+Shapes in no numbered group (`head_eyes`, `head_mouth`, `rarm_arm`) are always drawn.
+The groups and the shape names agree on every zombie of both games: `zombie_cop_2` has
+heads 1-3, `zombie_skinny_2` heads 1-4, shirts 1-4, trousers 1-3 and the burnt set;
+CW's `zombie_fat_female_2` names its pieces `shirt5_loose`, `pants4_pantskhakis`…
+
+**Not known yet:** how a number is picked for each slot (random? weighted? the same
+number for head and shirt?), and when the burnt and gas sets are used. The loader is
+`sub_825B3670` (CZ); the code that sets the mask is still to find. The detail levels
+`_3` keep the same groups; `_4` keeps only the clothing groups (`chest_shirt1…4`,
+`pants_pants1…3`, `headwear1…3`) or is a single shape (`zombie_cop_4`: `geo_lod4`).
+
+### 2. Colour variants
+
+- **CZ:** `data/datafile.big/zombie_pdv_variations.txt` lists 8 models, 36 materials and
+  **129 colour choices**, for example
+  `zombie_skinny_mtl_jersey.pdv=zombie_skinny_mtl_jersey1.pdv,…jersey5.pdv`.
+  The material's own value set carries the base name inside it; the choices are value
+  sets in `shaders/deadrisingprologue-sc.big` (149 `.scv` there, the same 149 in
+  `preload4.big`), found by the name each carries. **All 129 are found.**
+- **CW:** the list file is **empty** (0 bytes), yet `shaders/deadrisingepilogue-sc.big`
+  carries 265 value sets, 490 zombie-named in all, including DR2 types (`zombie_showgirl_mtl_caps1…4`).
+  The executable still names the list (`data/datafile/tofix/zombie_pdv_variations.txt`)
+  and has `shaderconstantvariationmap.cpp`. The names follow a rule that reproduces CZ's
+  list (`<base>.pdv` → `<base>1.pdv…`, `<base>_var1.pdv…`), so CW probably picks by
+  name, or not at all. **To check in game.**
+- A colour choice only changes shader constants, so it re-uses the bakes we already do
+  (`convert/material.py`): no new shading code.
+
+### 3-5. Detail levels, prop states, look-alikes
+
+- Detail levels are whole files. The Library should show **one zombie with a Detail
+  choice** (high / medium / low), not three "variants".
+- Props: across both games, 70 models have on/off/win/open-style shape names, 11 have
+  damaged/broken shapes, 9 have `LOD_` shapes. They need a small rule list by name
+  (`_dmg`, `LOD_`, `Off`/`Win`), shown off by default, each a switch.
+- Look-alikes and damaged copies in separate files (`chair_1…9`, `cashregister_dmg`)
+  can be **grouped in the Library as one item with choices**.
+- Buildings (`models/environment`): pieces are separate files per zone; 65 have `lod` in
+  their names (lower-detail copies of other pieces), and a few have `_black` (burnt)
+  shapes. Which ones the user means by "building variants" needs one example from the
+  user, or a look in Studio together.
+
+### Formats and tools
+
+- **glTF colour variants:** `KHR_materials_variants` is the standard. Blender reads it
+  (since 3.3; checked in Blender 5.2's `io_scene_gltf2`: `imp/material.py`,
+  `imp/mesh.py`) and shows a **glTF Variants** tab to switch.
+- **glTF hidden parts:** `KHR_node_visibility` exists, but Blender 5.2 doesn't read it
+  (checked: no mention in its glTF add-on). Instead each shape node gets
+  `extras` (`{"dr2_group": "Head 2", "dr2_shown": false}`); Blender keeps extras as
+  custom properties, and our **Open in Blender** script and the `io_dr2` add-on put the
+  parts in collections (*Head 1, Head 2…*) with the unchosen ones hidden. Other
+  programs (Painter) get the "as shown" export, which has only the chosen parts.
+- **three.js** (Studio's 3D view) has no built-in variant switch; the page toggles
+  `visible` per node by group (instant) and asks Python for a re-baked `.glb` when a
+  colour choice changes.
+
+## Plan
+
+### 0. Before building: confirm in game (both games)
+
+- Find the code that fills the zombie's mask (from the table's users and the loader
+  `sub_825B3670`), and write down how each slot's number is picked.
+- Capture a frame with several zombies in the CZ and CW recomps (`tools/capture_gate.py`
+  procedure, `dev/recomp-integration.md`): each zombie's drawn shapes must be one
+  choice per slot, no caps, and its clothing constants must equal one listed colour
+  choice. In CW, this tells whether colour choices are used at all.
+- Note which prop states a placed prop shows (slot machine, cash register).
+
+### 1. The variant model (`dr2kit/convert/variants.py`, profile data)
+
+- The group table as **data in the game profiles** (`cz.toml`, `cw.toml`): patterns,
+  slots and bits, as read from the executable. The toolkit never needs the executable.
+- `variants(scene)` → the slots a model really has (`Head: 1 2 3`, `Shirt: 1 2`,
+  `Burnt: off/on`), each shape's group, the always-drawn shapes, the caps; and the
+  colour choices per material (CZ from the list, CW by the name rule if step 0 says so).
+- A **choice** is plain text: `head=2 shirt=1 pants=3 headwear=none colour.jersey=4`.
+  The **default** is what the game would show (the first of each slot until step 0 says
+  otherwise, no caps, not burnt), never "everything".
+- Prop states by name rules (`groups.toml`-style rules file), off by default.
+- A census: every shape of every model in both games is in a group, always drawn, or a
+  cap; every listed colour choice is found; detail levels agree on their slots.
+
+### 2. Studio: see it
+
+- A **Variants** panel beside the 3D view for any model with choices: one drop-down per
+  slot, colour choices per material with a swatch, **Random** (like the game), **Game
+  default**, and **Show everything** (today's view, for looking at all the parts).
+- The 3D view hides and shows parts instantly; colour changes re-bake in the background.
+- Library pictures use the game default (fixes "all clothes at once" in the grid).
+- The Library shows a zombie **once**, with a **Detail** choice (high/medium/low) instead
+  of three "variant" items; look-alike files (`chair_1…9`) as one item with choices.
+
+### 3. Export it how you want
+
+- **As shown**: only the chosen parts and colours. For Substance Painter, a quick look,
+  or a mod based on one look.
+- **Everything, organized** (default for *Export all* and groups): every part, grouped
+  and named, the unchosen ones marked hidden; colour choices as
+  `KHR_materials_variants`. In Blender (Open in Blender or the add-on), parts land in
+  collections per slot with the chosen ones visible, and the glTF Variants tab switches
+  colours.
+- `textures/` also gets each colour choice's baked colour map
+  (`zombie_skinny_mtl_jersey_3.png`), and `info.txt` lists the slots and the choice used.
+- CLI: `dr2 variants <model>` lists slots and colour choices; `dr2 extract --glb` and
+  `dr2 export` take `--variant head=2,shirt=1` and `--variants shown|all`.
+
+### 4. Put it back (mods)
+
+- Re-importing an "Everything, organized" `.glb` keeps every shape by name, so the game's
+  groups still work (a check in `dr2 model check`: a new shape whose name matches no
+  group is always drawn; warn when that's probably not meant).
+- A guide: adding a new shirt as `chest_shirt5`, and what the game will do with it
+  (after step 0 says how numbers are picked).
+- **Colour choice mods** (change `jersey3`'s colours) are a small step from here, since
+  value sets are read already: a stretch goal, decided after step 0.
+
+### 5. Chuck's outfits (if time allows, or phase 10)
+
+- An **Outfits** group in the Library from `outfits.csv`: Chuck wearing a whole outfit
+  (its part models assembled on one rig), exported as one `.glb` or part by part.
+
+## Proposed decisions (the user said "whatever is best"; change any)
+
+- **Default view and pictures: the game's default look**, one choice per slot, no
+  caps, not burnt. "Show everything" stays one click away.
+- **Default export from the viewer: as shown. Default for Export all and groups:
+  everything, organized** (nothing lost, nothing on top of each other in Blender).
+- **Detail levels shown as one item** with a Detail choice, high by default.
+- The group table lives in the profiles as data, copied from the executable once, with
+  the address it came from.
+
+## Gate
+
+In both games:
+
+- From the Library: choose a zombie's head, shirt, trousers and a colour; the 3D view
+  and the picture show only those; **Export (as shown)** opens in Blender with only those
+  parts and colours; **Export all (everything, organized)** opens in Blender with every
+  part in its slot collection, only the chosen ones visible, and the glTF Variants tab
+  switching colours.
+- Census: every shape of every model is grouped, always drawn or a cap; every colour
+  choice is found.
+- In game: a captured frame's zombies each draw one choice per slot, matching the model
+  (step 0).
+
+## Facts to keep in mind
+
+- Shape names are cut to 31 characters (`cap_black_chestneckShapeDeforme`) and some end
+  in `ShapeDeformed`; the patterns are prefix wildcards, so they still match.
+- The index is a cache: new variant data bumps `SCHEMA_VERSION`; the pictures redraw
+  (`THUMB_VERSION`).
+- The executable's table is a fact to copy (names and bits), not code to ship.
+- Clean up after yourself (CLAUDE.md); recomp captures go on disk, with a copy of the
+  save and `CZ_BUG_REPORTS=0` (`dev/recomp-integration.md`).

@@ -1003,6 +1003,62 @@ weight map that the bake already handles). So the game probably binds another te
 (Chuck's normal face?) to these heads at run time. **Not verified in game.** Until it is,
 the toolkit shows and exports the file as it is.
 
+## Variants: which parts and colours a model shows 🟡
+
+Found 2026-10-10 (research for phase 9, [`phase9-kickoff.md`](phase9-kickoff.md)). A model
+can hold several looks at once; the game draws only some shapes and may swap a
+material's value set. Tools that draw every shape (the toolkit before phase 9) show a
+zombie wearing all its clothes at once.
+
+**Shape groups (in the executable, both games).** A table of `{u32 pattern string,
+u32 0, u64 mask}` records, 16 bytes each, at CZ `0x829DF720` (read from the CZ recomp's
+`assets/game/default_image.bin`; CW has the same records, pointer at image offset
+`0x9F26D8`). Each pattern is a comma list of shape-name wildcards; a shape matching it
+belongs to that bit. Bits: `0x2…0x100` body regions for dismemberment (`head*`,
+`chest*`, `pants_*,skirt_*`, `larm_*`, `rarm_*`, `lleg_*`, `rleg_*`, each with its
+`cap_…` caps; CW adds `cap_lfoot*`/`cap_rfoot*`), `0x4` all caps, `0x200…0x1000`
+accessories, `0x4000` bare arms, `0x8000` gas look, `0x10000` burnt look (`*_black*`),
+`0x20000…0x200000` heads 1-5 (`head1_*,chestupper_neck1*,cap_neckchest1,cap_chestneck1`),
+`0x400000…0x2000000` head tumours 1-4, `0x4000000…0x40000000` headwear 1-5,
+`0x80000000…0x1000000000` shirts 1-6, `0x2000000000` shirt tumours,
+`0x4000000000…0x100000000000` trousers 1-7, `0x200000000000` skirt,
+`0x400000000000…0x10000000000000` feet 1-7; `lleg_tallboot1*,rleg_tallboot1*` follows,
+but the words after it read as floats (3.0, 0.3), so its mask is not known ❓.
+Shapes matching no numbered group (`head_eyes`, `rarm_arm`) are always drawn; `cap_*`
+shapes are the wound caps shown when a limb comes off. Checked: the numbered shapes of
+every zombie `_2` model in both games fit these groups. ❓ How the game picks a number
+per slot (the mask is set in code not yet read; the loader is CZ `sub_825B3670`).
+
+**Detail levels.** `<zombie>_2.big`, `_3.big`, `_4.big` are high, medium and low detail
+(CZ `zombie_cop`: 214, 102, 19 KB). `_3` keeps the same groups; `_4` keeps the clothing
+groups only, or is one shape (`zombie_cop_4`: `geo_lod4`).
+
+**Colour variants.** A value set (`.scv`) carries its `.pdv` name inside. CZ's
+`data/datafile.big/zombie_pdv_variations.txt` maps, per model section (`[zombie_skinny_2]`),
+a material's own `.pdv` to its alternatives:
+`zombie_skinny_mtl_jersey.pdv=zombie_skinny_mtl_jersey1.pdv,…jersey5.pdv,` (8 models,
+36 materials, 129 alternatives). The alternatives are value sets in
+`shaders/deadrisingprologue-sc.big` (149; the same 149 in `preload4.big`), found by
+their embedded names: **all 129 found** (2026-10-10). CW's list
+(`data/preload4.big/zombie_pdv_variations.txt`) is **empty**, yet
+`shaders/deadrisingepilogue-sc.big` holds 265 value sets (zombie-named alternatives such
+as `zombie_showgirl_mtl_caps1…4`). The executables name the list
+(`data/datafile/tofix/zombie_pdv_variations.txt`) and `shaderconstantvariationmap.cpp`.
+The names follow `<base>N.pdv` / `<base>_varN.pdv`, which reproduces CZ's list ❓ (does CW
+pick by name, or not at all?).
+
+**Prop states.** Some props keep states as shapes (slot machines: `slot_logo` /
+`slot_logo_dmg`, `slot_screen_staticWin`, `slot_screen_staticOff`, `LOD_slot_machine`),
+others as files (`cashregister_dmg.big`, `military_hummwv_hummwv_stage2/3.big`,
+`chair_1…9.big`). Counts by name over both games: 70 models with on/off/win/open-style
+shape names, 11 with damaged or broken shapes, 9 with `LOD_` shapes.
+
+**Chuck's outfits.** `data/datafile.big/outfits.csv` (`outfit_name, headwear_piece, head,
+facewear, chest_piece, hands, leg_piece, feet_piece`) lists the part model per slot
+(`OUTFIT_BOWLING_SHIRT_JEANS,NONE,naked,NONE,Bowling_Shirt_Jeans,naked,…`);
+`clothingdatabase.csv` marks which body slots each part covers (`Hair, Head, Facewear,
+Shoulders, Chest, Arms…`).
+
 ## Rig matching (which skeleton file a model was made for) ✅
 
 Measured 2026-10-09 over every model of both games (`index.build.link_rigs`; listing:

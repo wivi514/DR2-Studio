@@ -326,6 +326,17 @@ library**, the folder where your installed mods live.
 for example a skeleton in `data/skeleton/` and again in `preload4.big`. The Library shows
 it once and lists where the other copies are.
 
+**Variant.** One of several looks a model can have. A zombie model holds several heads,
+shirts and trousers at once, and the game shows one of each (a **shape group** per
+choice); a material can also swap its colours (a **colour variant**, another value set).
+Not to be confused with detail levels. Phase 9 ([`phase9-kickoff.md`](phase9-kickoff.md)).
+
+**Detail level (LOD).** A simpler copy of a model the game draws when it is far away.
+Zombies come as `_2` (high), `_3` (medium) and `_4` (low detail).
+
+**Wound cap (`cap_*`).** A small shape that closes the hole where a zombie's limb or head
+came off. The game hides caps until that happens.
+
 **Rig match.** Which skeleton file a model was made for. Every character carries its own
 copy of its rig; the index compares its bones with the skeleton files: the same bone
 names *and* the same rest pose (where each bone sits) is a match. The names alone aren't

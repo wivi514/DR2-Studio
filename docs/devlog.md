@@ -17,6 +17,20 @@ Entry template:
 
 ---
 
+## 2026-10-10 — Research for phase 9: variants
+**Done:** the user asked for a phase so zombies (and items, buildings) show one look
+instead of every part at once, with export as shown or with everything. Researched and
+wrote `phase9-kickoff.md`. Not built yet.
+**Learned:** the zombie part groups are a 64-bit mask table of shape-name patterns in the
+executable (heads 1-5, shirts 1-6, trousers 1-7, feet 1-7, headwear 1-5, burnt, gas,
+tumours, wound caps), the same in CW. CZ's `zombie_pdv_variations.txt` lists 129 colour
+choices, all found by name in `shaders/deadrisingprologue-sc.big`; CW's list is empty but
+265 such value sets ship. The Library's "variant 2/3/4" are detail levels. Blender reads
+`KHR_materials_variants` but not `KHR_node_visibility` (checked in 5.2's add-on).
+**Docs updated:** `phase9-kickoff.md` (new), `formats.md` §Variants, `roadmap.md`,
+`glossary.md` (variant, detail level, wound cap), `docs/README.md`, `CLAUDE.md`, this devlog.
+**Next:** phase 9 step 0, confirming the choice rules in game.
+
 ## 2026-10-10 — The Windows build's 3D view stayed at "loading…"
 **Done:** the user's next Windows test: clicking a model now got as far as the 3D view,
 which said "loading…" forever. three.js's `vendor/three/build/` had never been committed:

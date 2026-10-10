@@ -217,7 +217,22 @@ Done 2026-10-09 (`phase8-kickoff.md` §Status, guide `modding/16-library.md`).
 - **Gate:** from the Library alone, one character exported with everything (opens in
   Blender with textures and bones) and whole groups exported in one go, in both games.
 
-## Stretch (phase 9 or later)
+## Phase 9: variants: choose what a model wears, see it, export it that way (user, 2026-10-10) 📋
+Planned; research done (`phase9-kickoff.md`, `formats.md` §Variants).
+- Confirm in game how zombies pick their parts and colours (both games).
+- The variant model: the executable's shape-group table as profile data, colour choices
+  from `zombie_pdv_variations.txt` and the shader banks, prop states by name rules.
+- Studio: a Variants panel (one choice per slot, colours, Random, Game default, Show
+  everything); pictures and the 3D view show the game's default look; one Library item
+  per zombie with a Detail choice.
+- Export **as shown**, or **everything, organized** (slot collections in Blender, colour
+  choices as `KHR_materials_variants`); `dr2 variants`, `--variant`.
+- Re-import keeps the groups; a guide to adding a shirt. Stretch: colour-choice mods,
+  Chuck's outfits assembled from `outfits.csv`.
+- **Gate:** a chosen look shows and exports as chosen, the organized export switches in
+  Blender, every shape is grouped (census), and captured zombies match (in game).
+
+## Stretch (phase 10 or later)
 - In-game "identify": the recomp sends the textures/models under the crosshair to Studio.
 - Animation export (and later import); environment/zone browsing and editing.
 - PC DR2/OTR read support.

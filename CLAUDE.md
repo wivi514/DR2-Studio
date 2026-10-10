@@ -24,12 +24,14 @@ Phase 8 (user-set 2026-10-09) done the same day: the **Library** (Studio's first
 everything at once (`catalog/export.py`, *Export all…*, `dr2 export`); gate passed in both
 games. Fixed 2026-10-10 from the user's tests: model colours (shader bakes, see-through
 hair/opacity maps), rigid parts placed by their node, Play's renderer for source builds,
-Open in Blender. Owed: `docs/phase8-kickoff.md` §Status and `phase7-kickoff.md` §Status.** Read these before writing code:
+Open in Blender. Owed: `docs/phase8-kickoff.md` §Status and `phase7-kickoff.md` §Status.
+Phase 9 (user-set 2026-10-10, variants) researched and planned: `docs/phase9-kickoff.md`.** Read these before writing code:
 
 | Doc | What it holds |
 |---|---|
 | `docs/ARCHITECTURE.md` | Components, data flow, the asset index, the mod package format, stack choices |
 | `docs/formats.md` | Everything known about every file format, with a status per format (cracked / partial / unknown) |
+| `docs/phase9-kickoff.md` | Phase 9 (variants: one look per model, export as shown or organized): research, plan, gate. Planned, not started |
 | `docs/phase8-kickoff.md` | Phase 8 (the Library, export everything at once): decisions, gate, and §Status (what it still owes) |
 | `docs/phase7-kickoff.md` | Phase 7 handoff and §Status: what phase 7 did and still owes |
 | `docs/dev/packaging.md` | Release builds: the bundle, the LGPL ffmpeg and licence gate, AppImage, CI |
