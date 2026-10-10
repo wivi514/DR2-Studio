@@ -9,6 +9,36 @@ phase for this and do your research first."
 The research (2026-10-10) is below, then the plan. The facts are also in
 [`formats.md`](formats.md) §Variants, with how each was found.
 
+## Start here (handoff, 2026-10-10)
+
+Status: **planned, nothing built.** The user starts phase 9 in a fresh conversation.
+
+- Read this file, then `formats.md` §Variants (the table, the hide mask, colour choices,
+  the misplaced-digit meshes), then `dev/code-tour.md` for `convert/gltf.py`,
+  `convert/model.py`, `convert/material.py`, `catalog/` and `studio/model_view.py`.
+- **Decisions made:** the defaults under §Proposed decisions (user: "whatever is best",
+  not objected to); buildings are not a goal (user unsure they have variants; the census
+  only reports them).
+- **How the research was done** (the throwaway scripts were deleted; redo them like this):
+  - *Shape names of every model:* the index's `scene` table lists the model vpaths
+    (`meshes > 0`); `Scene.parse(tree.resolve(vp).data(), vp).meshes` gives each shape's
+    `name` (both games, ~10 s).
+  - *Value sets and their `.pdv` names:* walk every `.big` (nested too) for `.scv`
+    entries; the name is `u32 n` then `n` bytes at the start (`formats.md` §Materials:
+    value sets).
+  - *The executable's table:* the recomps' `assets/game/default_image.bin` is the image
+    mapped at `0x82000000` (file offset = address − `0x82000000`). Find the string
+    `head1_*,chestupper_neck1*`, then its address as a big-endian u32: the 16-byte records
+    `{pattern, 0, mask hi, mask lo}` sit around it (CZ `0x829DF720…`, CW pointer at file
+    offset `0x9F26D8`). The game's per-mesh bits are the masks shifted right by one.
+  - *Game code:* the recomps' `ppc/ppc_recomp.*.cpp` keep the PowerPC instructions as
+    comments (`// lis r11,-32248` + `// addi r3,r11,28364`); addresses are split that way.
+    The CZ recomp's `runtime/cpu/zombie_variant_names.cpp` documents the classifier and
+    the hide mask.
+- The recomps are read-only references for this phase (CLAUDE.md). The CW
+  `zombie_security_2` misplaced-digit meshes are a finding for the CW recomp, not ours to
+  fix; tell the user if it matters.
+
 ## What the research found
 
 Today the toolkit draws **every shape of a model at once**. For a zombie that means

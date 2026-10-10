@@ -34,6 +34,10 @@ The user then shared the CZ recomp's measurements: mesh names become variant bit
 64-bit hide mask from its spawn record, and misplaced digits in names lose the bit (CZ
 `zombie_soldier_3`; also CW `zombie_security_2`, found in the shape census here). Added to
 `formats.md` §Variants and the phase plan.
+Buildings dropped from the goals (the user isn't sure they have variants); the census only
+reports them. Wrote phase 9's handoff (§Start here: how the research was done, since the
+scripts were deleted) for a fresh conversation; release test builds listed as owed in
+`phase8-kickoff.md` §Status.
 **Next:** phase 9 step 0: what writes the mask (the per-slot roll) and picks the colours.
 
 ## 2026-10-10 — The Windows build's 3D view stayed at "loading…"
