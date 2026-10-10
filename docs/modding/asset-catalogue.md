@@ -46,6 +46,12 @@ The other outfits you can find in game have their own sets: `chest_Hunting_Jacke
 `chest_Bowling_Shirt_Jeans`, `chest_Greasy_Overall_Plaid_Shirt`, `chest_Diner_Waitress_Outfit`,
 `chest_Plaid_Suit_Brown_Shirt_Tie`, hats under `headwear_*`, shoes under `feet_*`.
 
+The heads worn with the cowboy hats and the mohawk (`head_White_Cowboy_Hat`,
+`head_Black_Cowboy_Hat`, `head_Mohawk_Hair`) look striped green and purple across the
+face in DR2 Studio and Blender: their texture really is like that in the game files. How
+the game shows them is not known yet ([`../formats.md`](../formats.md) §Striped head
+textures); don't base a face mod on that texture, use `head_young_chuck`'s.
+
 `chest_default.tex/cr_jacket_cm` is the **yellow IJIEK racing jacket**, Chuck's outfit in
 Dead Rising 2 and Case West. Case Zero ships it too, but its Chuck doesn't start in it.
 

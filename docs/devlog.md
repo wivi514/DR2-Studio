@@ -17,6 +17,15 @@ Entry template:
 
 ---
 
+## 2026-10-10 — Striped faces on Chuck's hat heads (open question)
+**Done:** investigated the user's report of green/purple bands on `head_White_Cowboy_Hat`
+(and the mohawk head). The bands are in the shipped texture (all mip levels; shared by
+both cowboy-hat heads and the mohawk head), the headwear doesn't cover them (rendered
+together), the shader doesn't replace them, and no other head of either game has them.
+Recorded as ❓ in `formats.md` and in the asset catalogue; nothing changed in the code.
+**Next:** check in game what Chuck's face looks like with the mohawk or a cowboy hat
+(and which texture the recomp binds for that draw).
+
 ## 2026-10-10 — In the help: seeing textures and hiding bones in Blender
 **Done:** at the user's request, how to see a model's textures in Blender (**`Z` →
 Material Preview**) and how to hide the bones (Viewport Overlays → untick Bones; hide

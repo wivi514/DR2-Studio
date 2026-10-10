@@ -971,6 +971,21 @@ Roles come from the name (`texture_role`).
   maps exist. A metal/roughness export converts to diffuse = BaseColor × (1 − metallic),
   specular = mix(0.04, BaseColor, metallic).
 
+## Striped head textures of Chuck's hat heads ❓
+
+Found 2026-10-10 by the user in DR2 Studio. `head_White_Cowboy_Hat`, `head_Black_Cowboy_Hat`
+and `head_Mohawk_Hair` (Case Zero; the "Head" item worn with the matching `headwear_*`,
+`datafile.big/clothingdatabase.csv`) share one colour map (same SHA-1 `27232c74…`) whose
+forehead and eye rows are horizontal purple/green bands, as is their `_mask` in the same
+rows. Checked: every one of the 9 mip levels has the bands (so the file holds them, not
+our decoder); the matching headwear covers only the scalp (`headcapshape`, hair or hat),
+not the eyes and nose; the skin shader `1175e4e0.po` draws the colour map unchanged
+(samplers: masks .x, diffuse, normal); the slots' bind hashes are their own. A census of
+all 93 head colour maps of both games finds only these three (and Royce's, a channel
+weight map that the bake already handles). So the game probably binds another texture
+(Chuck's normal face?) to these heads at run time. **Not verified in game.** Until it is,
+the toolkit shows and exports the file as it is.
+
 ## Rig matching (which skeleton file a model was made for) ✅
 
 Measured 2026-10-09 over every model of both games (`index.build.link_rigs`; listing:
