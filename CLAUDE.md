@@ -34,12 +34,13 @@ game picks a look, and the user's own test of Studio (started 2026-10-11)
 (`docs/phase9-kickoff.md` §Status). Phase 10 (user-set 2026-10-11, Maps: levels in 3D,
 extract them, mods shown without the game) is researched, planned and approved in
 `docs/phase10-kickoff.md`; nothing built. Editing levels (zombie spawns, moving/adding
-objects) is a possible phase 11.** Read these before writing code:
+objects) is a potential phase 11, researched in `docs/phase11-kickoff.md`, not approved.** Read these before writing code:
 
 | Doc | What it holds |
 |---|---|
 | `docs/ARCHITECTURE.md` | Components, data flow, the asset index, the mod package format, stack choices |
 | `docs/formats.md` | Everything known about every file format, with a status per format (cracked / partial / unknown) |
+| `docs/phase11-kickoff.md` | Potential phase 11 (edit levels: zombie spawns, objects, saved as `.edits.json` mods): research, plan, gate. **Not approved; after phase 10** |
 | `docs/phase10-kickoff.md` | Phase 10 (Maps: see a whole level, extract it, see your mods in it without the game): research, plan, gate. **Approved, not built** |
 | `docs/phase9-kickoff.md` | Phase 9 (variants: one look per model, export as shown or organized): research, plan, gate, and §Status (what it still owes) |
 | `docs/phase8-kickoff.md` | Phase 8 (the Library, export everything at once): decisions, gate, and §Status (what it still owes) |

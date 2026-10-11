@@ -370,6 +370,11 @@ sign, a row of lights. The Library lists them under *Environments*.
 scale. Pieces are placed by `ZONE_ORGANIZATION.big`, items and doors by the level's
 `.txt` file (`cItemPlacement`).
 
+**Zombie factory / zombie area.** How the game fills a place with a crowd: a *zombie
+area* (`cZombieWarehouse`, in the level file) is a set of floor shapes; a *factory*
+(`cMissionZombieFactory`, in `missions.txt`) says how many zombies of which types to put
+there. Single zombies at an exact spot are `cMissionSpawnZombie`.
+
 **Navigation mesh.** An invisible floor plan of where zombies and survivors can walk
 (`nm_<level>.txt`).
 

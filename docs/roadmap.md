@@ -253,11 +253,19 @@ called it much bigger than phase 9: built in steps, each usable on its own.
   Studio; a texture and a model mod show in Studio exactly as deployed and as in game.
 - Stretch: collision; time of day.
 
-## Phase 11 (maybe): edit levels (user, 2026-10-11)
-Not planned yet; the user "will add later" if wanted: modify zombie spawns, move placed
-objects, add more objects, saved as mods (the level text files are not digest-checked).
-Phase 10 shows spawns and placements as layers and reads the text files so they can be
-written back.
+## Phase 11 (potential): edit levels, saved as mods (user, 2026-10-11)
+Researched and planned 2026-10-11, **not approved** (the user decides after phase 10);
+`phase11-kickoff.md`. Phase 10 shows spawns and placements; phase 11 changes them.
+- Mods that hold only their level edits, by block name (`.edits.json`, like `.bcs.json`
+  strings), applied over the shipped or the recomp's patched file, so CZ's co-op edits to
+  `missions.txt` survive and mods merge.
+- Maps tab: move, turn, add, delete, change placed items and doors; undo; snap to floor.
+- Zombie spawns (in `missions.txt`): crowds in areas (types, amounts, area shape), single
+  zombies (type, item), respawns; the level's zombie load set and its budget.
+- Stretch: level pieces (binary placements). In-game proof of each edit, and the limits
+  (items per level, zombies, load budget) measured.
+- **Gate:** every level text file round-trips byte-identical; each edit kind made in
+  Studio, checked by `dr2 mod check`, and seen in the recomp in both games.
 
 ## Stretch (phase 11 or later)
 - In-game "identify": the recomp sends the textures/models under the crosshair to Studio.

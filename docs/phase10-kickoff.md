@@ -234,7 +234,7 @@ Each step ends usable and committed with its docs.
 - Time of day from the lighting table; the sky and backdrop.
 - Zombies standing in their spawn areas (phase 9 looks).
 
-### Not in phase 10: editing levels (a possible phase 11, user 2026-10-11)
+### Not in phase 10: editing levels (a possible phase 11, user 2026-10-11; prepared in [`phase11-kickoff.md`](phase11-kickoff.md))
 
 The user may add later: modify zombie spawns, move placed objects, add more objects
 ("phase 11 if we do it"). Phase 10 keeps the way open: zombie spawn areas and

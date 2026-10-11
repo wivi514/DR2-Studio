@@ -1243,6 +1243,20 @@ map only (§Materials).
 | `prologue.csv`, CW `epilogue_*.csv` | light by hour: 24 columns of spherical-harmonic matrices (`mSHRenderMatrixRed.00`…) |
 | `zombiesets.txt` | zombie types and counts per level and time of day |
 
+**Zombie spawns are in `missions.txt`**, not the level files (researched for phase 11,
+2026-10-11): inside each `cMissionDefinition` → `cMissionLevelReady`,
+`cMissionZombieFactory` (CZ 33 / CW 72: `ZombieWarehouseName`, `Type0…`/`Amount0…`,
+clumping), `cMissionSpawnZombie` (137 / 155: `SpawnPoint`, one-angle `Rotation`,
+`ZombieType`, `SpawnWithItem`), `cMissionSpawnZombieCrate` (23 / 60: respawns),
+`cMissionZombieRemoval` (44 / 29), `cMissionAdjustZombieTuning` (2 / 7:
+`MaxNumUpdatingZombies` = 120 in CZ's street). A factory's area is a `cZombieWarehouse`
+of the level file (all of CZ's exist; CW names one undefined, `ArenaStairs`).
+`zombiesets.txt` (generated, "do not edit by hand") lists the zombie types each level
+loads, by time of day, with a memory cost per type. The text files use CRLF, tabs and
+alphabetically sorted keys. **The CZ recomp's `game_patched/data/datafile.big` differs
+from the shipped one in `missions.txt` and `outfits.csv`** (its co-op edits); CW's recomp
+has no `game_patched`.
+
 CZ's levels in these files are `LEVEL_PROLOGUE`, `_SAFEHOUSE`, `_BOWLING`, `_DEPARTMENT`,
 `_MENU`: several share the `prologue` geometry.
 

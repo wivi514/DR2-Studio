@@ -17,6 +17,23 @@ Entry template:
 
 ---
 
+## 2026-10-11 — Research for a potential phase 11: edit levels
+**Done:** the user asked to prepare the potential phase 11 (see, modify zombie spawns;
+move and add objects). Researched and wrote `phase11-kickoff.md`. Not approved, not built.
+**Learned:**
+- Zombie spawns live in `missions.txt`, per mission and level: crowds
+  (`cMissionZombieFactory` into named `cZombieWarehouse` areas of the level file), single
+  zombies (`cMissionSpawnZombie`, with type and held item), respawns, removals, limits.
+- `zombiesets.txt` decides which zombie types a level loads, with a memory cost: a new
+  type in a level probably needs adding there.
+- The CZ recomp's `game_patched` `datafile.big` already changes `missions.txt` and
+  `outfits.csv` (co-op), so level edits must be mods of changes by block name
+  (`.edits.json`), applied over that copy, not whole-file replacements.
+**Docs updated:** `phase11-kickoff.md` (new), `formats.md` §Levels (zombie spawns, text
+style, the recomp's edits), `roadmap.md`, `glossary.md` (zombie factory / area),
+`phase10-kickoff.md`, `docs/README.md`, `CLAUDE.md`.
+**Next:** phase 10 (fresh conversation); phase 11 only if the user decides after it.
+
 ## 2026-10-11 — Phase 10 plan approved; editing levels set aside for phase 11
 **Done:** the user approved the phase 10 plan and its decisions, asking that the
 switched-on mods be shown with an easy switch to see without them. Editing levels
