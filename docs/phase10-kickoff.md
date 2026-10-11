@@ -20,14 +20,18 @@ So, three goals:
 The research (2026-10-11) is below, then the plan. The facts are also in
 [`formats.md`](formats.md) §Levels, with how each was found.
 
-## Status (2026-10-11): planned, nothing built
+## Status (2026-10-11): planned and approved, nothing built
+
+The user approved the plan and every decision below (2026-10-11), stressing: show the
+switched-on mods, and make switching to **without mods** easy. Editing levels moves to a
+possible **phase 11** (below); phase 10 only shows and extracts.
 
 ## Start here (handoff, 2026-10-11)
 
 - Read this file, then `formats.md` §Levels, then `dev/code-tour.md` for
   `convert/model.py`, `convert/gltf.py`, `mods/build.py` and `studio/model_view.py`
   (the three.js viewer the Maps tab builds on).
-- **Decisions:** the defaults under §Proposed decisions, unless the user changes them.
+- **Decisions:** §Decisions, approved by the user on 2026-10-11.
   The user called this phase "much bigger" than phase 9: build it in the steps below,
   each one usable on its own and committed with its docs.
 - **How the research was done** (the throwaway scripts were deleted; redo them like this):
@@ -207,26 +211,35 @@ Each step ends usable and committed with its docs.
 - A mod that fails its checks (`dr2 mod check`) is drawn as the original, with the
   error shown, not as a broken model.
 
-### 6. Stretch (if time allows, or phase 11)
+### 6. Stretch (if time allows)
 
-- Move items, doors and spawn points in the Maps tab and save the change as a mod (the
-  level `.txt` files are whole-file overrides and not digest-checked).
 - The collision mesh (`MERGED_COLLISION`) as a layer.
 - Time of day from the lighting table; the sky and backdrop.
 - Zombies standing in their spawn areas (phase 9 looks).
 
-## Proposed decisions (the user can change any)
+### Not in phase 10: editing levels (a possible phase 11, user 2026-10-11)
+
+The user may add later: modify zombie spawns, move placed objects, add more objects
+("phase 11 if we do it"). Phase 10 keeps the way open: zombie spawn areas and
+placements are **shown** as layers that can be switched on and off (step 2, step 3),
+and the level text reader (step 2) should be able to write a file back byte-identical
+when nothing changed, so a phase 11 editor can save changes as a whole-file mod (the
+level `.txt` files are not digest-checked).
+
+## Decisions (approved by the user, 2026-10-11)
 
 - **Tab name "Maps"** (the user's word), the second tab after the Library.
 - **Load by zone, near the camera first**, with the game's own small textures far away;
   never the whole level at full resolution at once.
 - **Mods shown = Play's mods** (the mod library's switched-on mods, in their order), so
-  "what I see is what Play deploys". One switch turns them off to compare.
+  "what I see is what Play deploys". **Switching to "without mods" must be one click**
+  (a toolbar switch, also a keyboard shortcut) and works in every view (user, 2026-10-11).
 - **Exact bytes, not a shortcut**: a modded texture is shown as the game will get it
   (after DXT compression and tiling), so compression artefacts show up in Studio first.
   Slower on the first view of a big texture; cached after that.
 - **Extract per zone by default**, a whole level on request.
-- **Editing the level (moving things) is a stretch**, not the phase's goal.
+- **Editing the level** (zombie spawns, moving or adding objects) is **not** in phase 10:
+  a possible phase 11.
 
 ## Gate
 

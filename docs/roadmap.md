@@ -235,7 +235,8 @@ they are different objects); colour-choice mods and Chuck's outfits are not star
   Blender, every shape is grouped (census), and captured zombies match (in game).
 
 ## Phase 10: Maps: see a whole level, extract it, see your mods in it (user, 2026-10-11)
-Planned 2026-10-11, nothing built (`phase10-kickoff.md`: research, plan, gate). The user
+Planned 2026-10-11 and approved by the user, nothing built (`phase10-kickoff.md`: research,
+plan, gate). The user
 called it much bigger than phase 9: built in steps, each usable on its own.
 - Read levels: zone lists, piece placements (`ZONE_ORGANIZATION.big`), `dr2 level`,
   `census --levels`.
@@ -246,11 +247,17 @@ called it much bigger than phase 9: built in steps, each usable on its own.
 - Extract a zone or a level as `.glb` (pieces placed, collections per zone and layer),
   `dr2 export <level>`.
 - **See your mods without the game**, Studio-wide: a `ModdedTree` that draws the bytes
-  Play would deploy; a "With my mods" switch and Compare.
+  Play would deploy (the switched-on mods); one click to see it without mods, and Compare.
 - **Gate:** CZ `prologue` and CW `living_research` assembled and compared with recomp
   frames; every placement and level file parsed (census); a zone opens in Blender as in
   Studio; a texture and a model mod show in Studio exactly as deployed and as in game.
-- Stretch: move items and spawn points and save it as a mod; collision; time of day.
+- Stretch: collision; time of day.
+
+## Phase 11 (maybe): edit levels (user, 2026-10-11)
+Not planned yet; the user "will add later" if wanted: modify zombie spawns, move placed
+objects, add more objects, saved as mods (the level text files are not digest-checked).
+Phase 10 shows spawns and placements as layers and reads the text files so they can be
+written back.
 
 ## Stretch (phase 11 or later)
 - In-game "identify": the recomp sends the textures/models under the crosshair to Studio.

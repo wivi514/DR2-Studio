@@ -17,6 +17,16 @@ Entry template:
 
 ---
 
+## 2026-10-11 — Phase 10 plan approved; editing levels set aside for phase 11
+**Done:** the user approved the phase 10 plan and its decisions, asking that the
+switched-on mods be shown with an easy switch to see without them. Editing levels
+(zombie spawns, moving and adding objects) is a possible phase 11.
+**Why:** keep phase 10 about seeing and extracting; leave a clean path to editing.
+**Learned:** nothing new about the games.
+**Docs updated:** `phase10-kickoff.md` (§Status, §Decisions, phase 11 note),
+`roadmap.md` (phase 11), `CLAUDE.md`.
+**Next:** phase 10 step 1 when the user says go.
+
 ## 2026-10-11 — Research for phase 10: Maps
 **Done:** the user asked for a much bigger phase: a tab to see the game's maps (levels)
 in 3D, extract them, and see them with the player's mods applied without launching the
