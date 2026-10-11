@@ -413,7 +413,8 @@ places pieces, and `level.zone_of(position, zones)` says which zone a thing is i
 Step 3: `convert.mapdata.MapCache(tree, game)` builds and keeps a zone's `pieces(level,
 zone, detail)` and `items(level, zone, script, detail)` files on disk (named by
 `stamp`: `MAP_VERSION`, the source files' sizes and dates, the tree's own `stamp()` when
-it has one), and `overview(cache, level, script)` is the JSON a level opens with. In
+it has one), and `overview(cache, level, script)` is the JSON a level opens with
+(`map_picture`: the in-game map and the world rectangle it covers, from `map_rects`). In
 `convert.gltf`, `lightmap_slots(scene)` and `blend_slots(scene)` say which materials
 carry a lightmap (occlusion texture on its UV set) or a two-texture blend (extras).
 `studio/maps_view.py` holds `MapsList` (left tab), `MapsView` (page + side panel) and

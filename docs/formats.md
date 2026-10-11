@@ -1290,6 +1290,13 @@ at all (searched every archive). *Fixed 2026-10-11:* before phase 10, a level pi
 before `<piece>.tex`, and the finder didn't see `<piece>.tex` as the piece's own pack
 because the scene is `_COMP_<piece>.big`). `TextureFinder` now ranks `_LOD` packs last.
 
+**The in-game map picture** ✅ (step 5, 2026-10-11): `frontend/map.tex/map_prologue.bct`
+(CZ) and `map_all.bct` (CW), 1,480 × 1,200, span exactly their level's `fe_map_points`
+rectangle, x to the right and z downwards. Checked on CZ by the map areas' centres (the
+bowling alley, the department store, the theatre within 20 px) and on CW by a top-down
+render of `living_research` over the same rectangle (its outline is the blueprint's
+lower block). `map_2f` / `map_b1` are the upper floor and basement (not placed yet ❓).
+
 **Which copy of a texture the game uses** ✅ (in game, 2026-10-11). A texture name
 often sits in several packs of one zone, always with the same bytes (CZ 457 names, 660
 extra copies; CW 1,217 and 1,803). The game takes the name from the **first pack of the
@@ -1420,7 +1427,8 @@ What the classes hold (counts: CZ `prologue` / CW `living_research`):
 * `nm_<x>.txt`: `Vertices { "x,y,z" … }`, `Polyhedrons { PolyhedronEdges { mask = "3"
   "12" "13" … } … }` (each a polygon of vertex numbers, all in range), `Connections { }`
   (empty everywhere). CZ `prologue` 729 polygons, CW `living_research` 690.
-* `fe_map*.csv`: map rectangles per `LEVEL_*` (`fe_map_points*.csv`), room rows
+* `fe_map*.csv`: map rectangles per `LEVEL_*` (`fe_map_points*.csv`: `min_x, max_x,
+  min_z, max_z` in columns 4-7, then the basement / second-floor heights), room rows
   (`pr101, 1709, …`: string ids), and **points**: `workbench_1, -186.4, 3.4, -114.2,
   LEVEL_PROLOGUE` (workbenches, save points, the safehouse).
 

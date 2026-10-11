@@ -60,6 +60,10 @@ game, not like grey boxes.
    textures, *Export all…* and the other actions; needs the index), **Open in Blender**
    starts Blender with it, **Export .glb…** saves it for Blender.
 
+**The in-game map** sits in the top-left corner (Case Zero's Fortune City map, Case
+West's Phenotrans blueprint) with a red arrow where you are and the way you look. Click
+on it to jump there. Untick *In-game map* in Layers to hide it.
+
 **Copy camera position** puts the camera's x, y, z on the clipboard (handy for notes, or
 to tell someone where something is).
 

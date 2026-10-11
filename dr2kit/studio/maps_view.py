@@ -55,7 +55,8 @@ LAYER_ORDER = [("pieces", "Buildings (level pieces)", True),
                ("navmesh", "Navigation mesh", False),
                ("light_area", "Lighting areas", False),
                ("sound_area", "Sound areas", False),
-               ("acoustics", "Acoustics points", False)]
+               ("acoustics", "Acoustics points", False),
+               ("overview", "In-game map (corner; click to go there)", True)]
 
 
 class MapsList(QWidget):
@@ -341,11 +342,29 @@ class MapsView(QWidget):
                            f"spawn points")
         self._handler.files.clear() if self.view else None
         meta = dict(self.meta, generation=self._gen.value)
+        if meta.get("map") and self.view is not None:
+            png = self._map_png(meta["map"]["vpath"])
+            if png:
+                url = f"/maps/overview-{self.game}.png"
+                self._handler.files[url] = png
+                meta["map"] = dict(meta["map"], url=f"dr2://studio{url}")
         self._js(f"dr2.openLevel({json.dumps(meta)}, {str(keep_camera and same).lower()})")
         for kind, box in self.layer_boxes.items():
             self._js(f"dr2.setLayer({json.dumps(kind)}, {str(box.isChecked()).lower()})")
         if zone:
             self.go_to_zone(zone)
+
+    def _map_png(self, vpath: str) -> bytes | None:
+        """The in-game map picture as PNG (made once per game and mod state)."""
+        cache = self.__dict__.setdefault("_map_pngs", {})
+        key = (self.game, vpath, id(self.tree))
+        if key not in cache:
+            try:
+                from ..convert.model import texture_png
+                cache[key] = texture_png(self.tree.resolve(vpath).data(), vpath, 1)
+            except Dr2Error:
+                cache[key] = None
+        return cache[key]
 
     def go_to_zone(self, zone: str) -> None:
         if not self.meta:

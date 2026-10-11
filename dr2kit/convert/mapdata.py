@@ -168,6 +168,59 @@ def scripts_of(tree: AssetTree, level: str) -> list[str]:
     return placed.scripts_for_level(level, placed.script_names(tree), levels)
 
 
+MAP_PICTURES = "data/frontend/map.tex"
+_NOT_MAPS = ("blur", "2f", "b1", "infobrochure", "pegboard", "tile", "icon", "hud", "colourize")
+
+
+def map_rects(tree: AssetTree) -> dict[str, tuple[float, float, float, float]]:
+    """``LEVEL_<NAME>`` → (min x, max x, min z, max z): the world rectangle the in-game
+    map picture covers (``fe_map_points*.csv`` of ``datafile.big``)."""
+    out = {}
+    try:
+        arc = tree.open_archive(placed.DATAFILE)
+    except Exception:  # noqa: BLE001 - no map then
+        return out
+    for e in arc.entries:
+        if not (e.name.lower().startswith("fe_map_points") and e.name.lower().endswith(".csv")):
+            continue
+        for line in e.data().decode("latin-1").splitlines():
+            if line.lstrip().startswith("#"):
+                continue
+            cells = [c.strip() for c in line.split(",") if c.strip()]
+            if len(cells) >= 7 and cells[0].upper().startswith("LEVEL_"):
+                try:
+                    out[cells[0].upper()] = tuple(float(c) for c in cells[3:7])
+                except ValueError:
+                    continue
+    return out
+
+
+def map_picture(tree: AssetTree, script: str | None) -> dict | None:
+    """The in-game map for a level script: the game's main map picture
+    (``frontend/map.tex``: CZ ``map_prologue``, CW ``map_all``) and the world rectangle it
+    covers, ``{"vpath", "rect": [min x, max x, min z, max z]}``, or None. Checked on CZ:
+    the picture spans the rectangle exactly, x to the right, z downwards (the bowling
+    alley, the department store and the theatre land within 20 px of 1,480)."""
+    rects = map_rects(tree)
+    if not rects:
+        return None
+    rect = rects.get(f"LEVEL_{(script or '').upper()}") or next(iter(rects.values()))
+    try:
+        arc = tree.open_archive(MAP_PICTURES)
+    except Exception:  # noqa: BLE001
+        return None
+    best = None
+    for e in arc.entries:
+        low = e.name.lower()
+        if not low.startswith("map_") or any(k in low for k in _NOT_MAPS):
+            continue
+        if best is None or e.size2 > best.size2:
+            best = e
+    if best is None:
+        return None
+    return {"vpath": f"{MAP_PICTURES}/{best.name}", "rect": list(rect)}
+
+
 def overview(cache: MapCache, level: str, script: str | None = None) -> dict:
     """The JSON document the Maps page opens a level with (module docstring)."""
     L = cache.level(level)
@@ -194,6 +247,7 @@ def overview(cache: MapCache, level: str, script: str | None = None) -> dict:
         if start is not None and start.position:
             out["start"] = {"position": start.position, "rotation": start.rotation,
                             "name": start.name}
+    out["map"] = map_picture(cache.tree, script)
     if out["start"] is None:
         main = [z for z in L.zones if z.radius <= BACKDROP_RADIUS] or L.zones
         z = min(main, key=lambda z: z.radius) if len(main) == 1 else main[0]

@@ -11,6 +11,8 @@
             font: 12px sans-serif; pointer-events: none; }
   #help { position: absolute; right: 8px; bottom: 6px; color: #fff; text-shadow: 0 0 3px #000;
           font: 11px sans-serif; pointer-events: none; text-align: right; }
+  #overview { position: absolute; left: 8px; top: 8px; border: 1px solid #000a;
+              box-shadow: 0 0 6px #0008; cursor: crosshair; display: none; }
 </style>
 <script type="importmap">
   { "imports": { "three": "./vendor/three/build/three.module.js" } }
@@ -18,6 +20,7 @@
 </head>
 <body>
 <div id="status">loading…</div>
+<canvas id="overview" width="296" height="240" title="The in-game map: click to go there"></canvas>
 <div id="help">drag: look · right-drag: turn around the clicked point · W A S D: move · Q / E: down / up · Shift: faster · wheel: speed · click: what is it</div>
 <!-- A module that can't be fetched gives no message of its own: say so (model_view.py) -->
 <script type="module" src="./maps.js"

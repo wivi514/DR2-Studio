@@ -16,6 +16,9 @@
 //   dr2.reload()                   drop every loaded zone and ask again (mods changed)
 //   dr2.setView(eye, fwd, up, fovY) an exact camera (a recomp capture's, for comparing)
 //   dr2.pickAt(x, y)               what a click at page pixel x, y would pick (tests)
+// The in-game map (meta.map: a picture and the world rectangle it covers, convert/
+// mapdata.py map_picture) is drawn in the top-left corner with the camera on it (layer
+// "overview"); a click there flies to that spot.
 //
 // Zones load nearest first: every zone with the small textures ("lod"), and the zones
 // within NEAR metres of the camera at full size, swapped in place as the camera moves.
@@ -236,6 +239,49 @@ function buildMarkers() {
   }
 }
 
+// --- the in-game map in the corner -----------------------------------------------------
+const ov = document.getElementById('overview');
+const ovCtx = ov.getContext('2d');
+let ovImg = null;
+function setOverview() {
+  ovImg = null;
+  ov.style.display = 'none';
+  if (!meta || !meta.map || !meta.map.url) return;
+  const img = new Image();
+  img.onload = () => {
+    ovImg = img;
+    ov.height = Math.round(ov.width * img.height / img.width);
+    ov.style.display = layerOn('overview') ? 'block' : 'none';
+  };
+  img.src = meta.map.url;
+}
+function drawOverview() {
+  if (!ovImg || ov.style.display === 'none') return;
+  const [x0, x1, z0, z1] = meta.map.rect;
+  ovCtx.drawImage(ovImg, 0, 0, ov.width, ov.height);
+  const px = (camera.position.x - x0) / (x1 - x0) * ov.width;
+  const py = (camera.position.z - z0) / (z1 - z0) * ov.height;
+  const dir = new THREE.Vector3(0, 0, -1).applyEuler(camera.rotation);
+  ovCtx.save();
+  ovCtx.translate(px, py);
+  ovCtx.rotate(Math.atan2(dir.x, -dir.z));
+  ovCtx.fillStyle = '#ff2020';
+  ovCtx.strokeStyle = '#fff';
+  ovCtx.beginPath();
+  ovCtx.moveTo(0, -9); ovCtx.lineTo(6, 6); ovCtx.lineTo(0, 3); ovCtx.lineTo(-6, 6);
+  ovCtx.closePath(); ovCtx.fill(); ovCtx.stroke();
+  ovCtx.restore();
+}
+ov.addEventListener('click', e => {
+  if (!meta || !meta.map) return;
+  const [x0, x1, z0, z1] = meta.map.rect;
+  const r = ov.getBoundingClientRect();
+  const x = x0 + (e.clientX - r.left) / r.width * (x1 - x0);
+  const z = z0 + (e.clientY - r.top) / r.height * (z1 - z0);
+  camera.position.set(x, camera.position.y, z);
+  schedule();
+});
+
 // --- zones --------------------------------------------------------------------------
 function zoneDistance(z) { return z.box.distanceToPoint(camera.position); }
 
@@ -301,6 +347,7 @@ window.dr2 = {
       zones.set(zm.name, { meta: zm, box, pieces: slot(), items: slot() });
     }
     buildMarkers();
+    setOverview();
     if (!keep && m.start) {
       const p = m.start.position;
       let y = 0;
@@ -348,7 +395,8 @@ window.dr2 = {
   },
   setLayer(kind, on) {
     layers[kind] = !!on;
-    if (kind === 'pieces') piecesRoot.visible = !!on;
+    if (kind === 'overview') ov.style.display = on && ovImg ? 'block' : 'none';
+    else if (kind === 'pieces') piecesRoot.visible = !!on;
     else if (kind === 'items') { itemsRoot.visible = !!on; schedule(); }
     else if (markerGroups[kind]) markerGroups[kind].visible = !!on;
   },
@@ -506,6 +554,7 @@ renderer.setAnimationLoop(() => {
     s.visible = tmp.distanceTo(camera.position) < LABEL_RANGE;
   }
   renderer.render(scene, camera);
+  drawOverview();
 });
 applyLook();
 say('ready');
