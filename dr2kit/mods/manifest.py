@@ -18,6 +18,11 @@ What counts as an override, under ``replace/``:
   only the strings it lists, by id (``"3"``) or label (``"IDS_START_DEMO"``), change
   (`dr2kit.formats.bcs`). Several mods can change one bank; only an id that two of
   them change is a conflict, decided by priority.
+* ``<file>.txt.edits.json`` where ``<file>.txt`` is one of the engine's block text files
+  (``data/datafile.big/prologue.txt``, ``missions.txt``…): only the blocks and keys it
+  names change, applied over whatever copy is underneath (the recomp's own edits stay;
+  `dr2kit.formats.leveledits`, phase 11). Several mods can edit one file; only the same
+  key of the same block changed by two of them is a conflict, decided by priority.
 * ``<vpath>`` exactly (any other file): its bytes replace the asset as they are, e.g. an
   edited ``datafile.big/zombie_effects.txt``. The toolkit re-compresses it if the
   original entry was compressed.
@@ -39,6 +44,7 @@ MANIFEST = "mod.toml"
 REPLACE_DIR = "replace"
 AUDIO_EXTS = (".wav", ".ogg", ".flac", ".mp3")   # what can replace a sound
 STRINGS_EXT = ".bcs.json"                         # string changes for a string bank
+EDITS_EXT = ".edits.json"                         # block changes for a level text file
 _ID = re.compile(r"^[a-z0-9][a-z0-9_.-]{0,63}$")
 
 TEMPLATE = '''# A DR2 Case Zero / Case West mod. Reference: docs/modding/06-mod-packages.md
@@ -63,7 +69,7 @@ class Override:
     """One file of a mod: ``vpath`` is the asset it replaces, ``kind`` how."""
     vpath: str            # as written under replace/ (minus .png / .glb)
     source: Path
-    kind: str             # "texture-png", "model-glb", "audio", "strings" or "raw"
+    kind: str             # "texture-png", "model-glb", "audio", "strings", "edits" or "raw"
 
 
 @dataclass

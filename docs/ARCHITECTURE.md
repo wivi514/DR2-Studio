@@ -258,6 +258,7 @@ my_mod/
     data/models/npcs.big/chest_default.big.glb
     data/audio/music.big/HB_Indemnify.xma.wav  # or .ogg/.flac/.mp3; played by the recomp
     data/frontend/str_en.bcs.json            # string overrides, by id
+    data/datafile.big/prologue.txt.edits.json  # level / mission edits, by block (phase 11)
   add/                        # new entries (later phase; needs loader/manifest support)
 ```
 
@@ -292,6 +293,18 @@ recomp (found beside its game folder; user decision 2026-10-09: Studio may start
 (`mod.toml`, `replace/`, `preview.png`, `README.md`; never game data), made by *Share…*
 / `dr2 mod pack` after a check against each game it names. Mod sets save which mods are
 on.
+
+**Level edits (phase 11).** The engine's block text files (`prologue.txt`,
+`missions.txt`…) are changed by **`.edits.json`** files that hold only a mod's changes,
+by block path (`formats/leveledits.py`). *Decision (user, 2026-10-11):* edits by block,
+not whole `.txt` replacements, because the CZ recomp edits `missions.txt` itself (its
+co-op changes in `game_patched`) and two mods each moving one zombie must not replace each
+other's file. The build applies them over the copy underneath, merges several mods
+(conflict only on the same key of the same block), and checks their meaning
+(`convert/levelcheck.py`); a whole `.txt` still works but the build warns that it drops
+the recomp's changes, and `dr2 level diff` turns one into an `.edits.json`. Editing
+tools hold the edited file and save its difference from the game's (`mods/leveledit.py`),
+so the mod always holds exactly its changes.
 
 **Files mods can't touch.** The executables digest-check a few data files (CZ 1, CW 6;
 `formats.md` §Digest-checked files). Each game profile lists them (`digest_checked`) and

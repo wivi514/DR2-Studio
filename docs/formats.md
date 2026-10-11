@@ -1440,7 +1440,38 @@ detail `_2`/`_3`/`_4`) and its area in both games: CZ `prologue` 22 crowds, CW
 `living_research` 32 (9 types).
 `zombiesets.txt` (generated, "do not edit by hand") lists the zombie types each level
 loads, by time of day, with a memory cost per type. The text files use CRLF, tabs and
-alphabetically sorted keys. **The CZ recomp's `game_patched/data/datafile.big` differs
+alphabetically sorted keys.
+
+**Writing blocks in the tool's style** (phase 11 step 1, 2026-10-11; measured on every
+block-format `.txt` of both games, `levelscript.render`): one tab per nesting level,
+`Key = "value"` (one space each side of `=`), keys sorted **ignoring case**
+(`REMOVE_BEFORE_SHIP` before `ShowInDebugMenu`; plain ASCII order would put it first and
+fails on 399 CZ `items.txt` blocks), properties before child blocks, no blank line between
+the last key and the first child, one blank line after each child (also after the last,
+before the parent's `}`), one blank line between top-level blocks (two between
+`missions.txt`'s missions; `prologue_menu.txt` mixes 1 and 2). No block name holds a `/`
+or a space, so a block is addressed by its **path** `cls name/cls name/…`; a path names
+one block except in nav meshes (unnamed `PolyhedronEdges`) and the hand-written
+`sgraph.txt` / `animated_postfx_events.txt`. `render` writes back every block of the
+files a mod can edit (the scripts' three files, `missions.txt`, `items.txt`) exactly as
+shipped, **except** CZ `items.txt` `cBikeItem BrokenBike` (one key out of order) and the
+hand-written `zombiesets.txt` (its own key order and `// cost` comments): CZ 5,468 blocks
+written back / 11 not, CW 7,447 / 29 (`dr2 census --levels`). Those blocks are only ever
+changed key by key, and a changed value keeps the line's `// comment`.
+
+**Level edits as mods** ✅ (phase 11 step 1, 2026-10-11; `formats/leveledits.py`): a mod's
+`replace/data/datafile.big/<file>.txt.edits.json` holds `set` (path → keys; `null`
+removes a key), `add` (path → keys, nested objects are child blocks, `@after` places it)
+and `remove` (paths). The build applies every mod's edits over the copy underneath (the
+recomp's `game_patched` one when it has the file, so the CZ co-op changes to
+`missions.txt` stay; checked on a real build 2026-10-11), lowest priority first; the same
+key of the same block in two mods at one priority is a conflict. Gate (census):
+for 30 blocks spread over each editable file, an edit that changes a key, removes the
+block, adds a key and removes a key, each applied and then reversed with `diff`, gives
+the original: CZ 1,003 byte for byte + 37 the same apart from blank lines, CW 1,476 + 84,
+0 different. `convert/levelcheck.py` checks what the edits mean (an `ItemName` of
+`items.txt`, a zombie type of `zombies.big`, a factory's area in the level file, a type
+not in the level's load set → warning, quaternions of length 1…). **The CZ recomp's `game_patched/data/datafile.big` differs
 from the shipped one in `missions.txt` and `outfits.csv`** (its co-op edits); CW's recomp
 has no `game_patched`.
 

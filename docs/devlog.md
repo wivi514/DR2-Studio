@@ -17,6 +17,32 @@ Entry template:
 
 ---
 
+## 2026-10-11 — Phase 11 step 1: level edits as mods (`.edits.json`)
+**Done:** asked the phase's open decisions (the user took every proposed default;
+`phase11-kickoff.md` §Status). Built the base everything else stands on:
+`levelscript.Document` finds blocks by path and adds / removes blocks and keys;
+`formats/leveledits.py` holds a mod's changes to a text file by block (`set`, `add`,
+`remove`; apply, diff, merge); `mods/build.py` builds the new `edits` kind over the
+recomp's copy, merging several mods (several merged overrides of one entry inside an
+archive now all reach it: before, the last one alone would have); `convert/levelcheck.py`
+checks what edits mean; `mods/leveledit.py` is the editing session the Maps tab will use;
+`dr2 level show|edit|diff`; the census gate `check_level_edits`; tests.
+**Why:** the CZ recomp changes `missions.txt` itself, and two mods must be able to change
+one level file; a mod holding only its changes, by block, does both.
+**Learned:** the game's tool sorts keys **ignoring case** (plain order fails on 399 CZ
+`items.txt` blocks); its block layout is regular enough that `render` writes back every
+shipped block of the editable files except one `items.txt` block and the hand-written
+`zombiesets.txt`, whose `// cost` comments a changed value must keep (a bug in phase
+10's `set`, fixed). Shipped files mix gap sizes between blocks (`prologue_menu.txt`), so a
+re-added block can't always get its old blank lines back; the gate counts those
+separately. On a real build, `zombie_fat` added to the main menu's crowd gets the warning
+that `LEVEL_PROLOGUE_MENU` doesn't load it.
+**Docs updated:** `formats.md` §Levels, `ARCHITECTURE.md` (mod format), `roadmap.md`,
+`phase11-kickoff.md`, `dev/code-tour.md`, `glossary.md`, guide `19-edit-a-level.md`
+(new, CLI part), `modding/README.md`, `mods/manifest.py` docstring.
+**Next:** the early in-game tests (added save point, added weapon, blocking item, added
+pack), then the Maps tab editor.
+
 ## 2026-10-11 — Phase 11 plan: add your own things from prefabs
 **Done:** added to `phase11-kickoff.md` (user: add our own stuff to the map, a usable
 item, a save point, zombies to a spawner, a building, a road…, each behaving like the

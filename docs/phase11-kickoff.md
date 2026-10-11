@@ -24,7 +24,24 @@ Phase 10 already *shows* zombie spawn areas and placed objects; phase 11 lets a 
 The research (2026-10-11) is below, then the plan. Facts also in
 [`formats.md`](formats.md) §Levels.
 
-## Status (2026-10-11): researched, re-checked against phase 10, prefabs added; nothing built
+## Status (2026-10-11): started; step 1 done
+
+**Decisions taken (user, 2026-10-11): every proposed default** under §Decisions to take
+(edits by block; zombies per mission; new zombie types allowed with a warning; a "mod
+being edited" picked in the Maps tab; prefabs as data plus `.dr2prefab`; own models as
+static items first, pieces without collision only until the collision test; new files
+only after the in-game test).
+
+**Step 1 done** (2026-10-11): `levelscript.Document` finds blocks by path, adds and
+removes blocks and keys in the tool's style (`render`, checked against every shipped
+block); `formats/leveledits.py` (`.edits.json`: apply, diff, merge); the `edits` kind in
+`mods/build.py` (merged by block over the recomp's copy; checked on a real CZ build: the
+co-op lines of `missions.txt` stay); `convert/levelcheck.py` (what edits mean);
+`mods/leveledit.py` (a mod's edits of one file, undo, saved as the diff); `dr2 level
+show|edit|diff`; census gate `check_level_edits` (0 failures in either game); guide 19
+(CLI part). Still to do: steps 2-7 (in-game tests first, then the Maps tab editor).
+
+### Earlier status: researched, re-checked against phase 10, prefabs added
 
 The user will start this phase **in a fresh conversation** (2026-10-11). Phase 10 is
 done (stretch items included, `phase10-kickoff.md` §Status); this file was re-checked

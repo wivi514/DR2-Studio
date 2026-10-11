@@ -254,9 +254,16 @@ called it much bigger than phase 9: built in steps, each usable on its own.
 - Stretch (done 2026-10-11): upper floor / basement map pictures; zombies in their areas;
   time of day and the sky; the collision mesh.
 
-## Phase 11 (next): edit levels and add your own things, saved as mods (user, 2026-10-11)
-Researched and planned 2026-10-11; the user will start it in a fresh conversation
-(its decisions still open); `phase11-kickoff.md`, re-checked against what phase 10 built (its §What phase
+## Phase 11 (in progress): edit levels and add your own things, saved as mods (user, 2026-10-11)
+Started 2026-10-11. **Decisions (user, 2026-10-11, all the proposed defaults):** edits as
+`.edits.json` by block; zombie editing per mission (the street's main mission first); a
+zombie type the level doesn't load allowed with a warning and the measured budget; edits
+saved into a "mod being edited" picked in the Maps tab; prefabs as data plus the
+modder's `.dr2prefab` files; own models as static items first, piece edits limited to
+pieces without collision until the in-game test says more; the build adds new files only
+after an in-game test that the engine finds them. **Step 1 done** (2026-10-11): the
+`.edits.json` mod kind, block add / remove, `dr2 level show|edit|diff`, the meaning checks
+and the census gate. `phase11-kickoff.md`, re-checked against what phase 10 built (its §What phase
 10 gives: the lossless text reader, item nodes, the collision mesh for snapping, the mods
 preview; missing: block add/remove, single zombies / respawns / load sets, a move gizmo,
 a "mod being edited", the `.edits.json` build kind). Phase 10 shows spawns and

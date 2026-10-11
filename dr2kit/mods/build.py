@@ -10,8 +10,11 @@ it. The build does that and nothing else:
    first); a ``.wav``/``.ogg``/``.flac``/``.mp3`` next to a sound's vpath is played by
    the recomp instead of that sound (`dr2kit.mods.audio`: no game file changes, the
    build writes ``dr2kit_audio/``); a ``.bcs.json`` next to a string bank changes the
-   strings it lists (`dr2kit.formats.bcs`; several mods merge by string id); any other
-   file replaces the asset with the same vpath, byte for byte. Unknown paths, wrong
+   strings it lists (`dr2kit.formats.bcs`; several mods merge by string id); a
+   ``.edits.json`` next to a level text file changes the blocks it names
+   (`dr2kit.formats.leveledits`; several mods merge by block and key, applied over the
+   recomp's copy when there is one); any other file replaces the asset with the same
+   vpath, byte for byte. Unknown paths, wrong
    sizes, files the game digest-checks and conflicts between mods at the same priority
    are errors, reported all at once. Between different priorities the higher one wins,
    and `plan_mods` lists what lost (``ModPlan.shadowed``) for the mod manager.
@@ -40,7 +43,9 @@ from ..container.vpath import AssetTree, entry_component, find_entry, join, spli
 from ..container.vpath import entry_components as entry_components_of
 from ..errors import Dr2Error
 from ..formats.bct import Bct, is_bct
-from .manifest import AUDIO_EXTS, STRINGS_EXT, Mod, ModError, Override
+from .manifest import AUDIO_EXTS, EDITS_EXT, STRINGS_EXT, Mod, ModError, Override
+
+MERGED = ("strings", "edits")     # kinds that several mods apply to one file together
 
 BUILD_INFO = "dr2kit-build.json"
 
@@ -53,6 +58,7 @@ class Planned:
     vpath: str            # real letter case, as the game spells it
     disk_parts: int       # how many leading vpath components are folders/file on disk
     strings: dict | None = None   # kind "strings": id -> text, read from the .bcs.json
+    edits: object = None          # kind "edits": a leveledits.Edits, read from the .edits.json
 
 
 @dataclass
@@ -104,6 +110,8 @@ def _kind_of(rel: str) -> tuple[str, str]:
         return "model-glb", rel[:-4]
     if low.endswith(STRINGS_EXT):
         return "strings", rel[:-len(".json")]
+    if low.endswith(EDITS_EXT):
+        return "edits", rel[:-len(EDITS_EXT)]
     if low.endswith(AUDIO_EXTS) and rel.rsplit(".", 1)[0].lower().endswith(".xma"):
         return "audio", rel.rsplit(".", 1)[0]
     return "raw", rel
@@ -162,7 +170,7 @@ def plan_mods(mods: list[Mod], game: str, tree: AssetTree) -> ModPlan:
                 if problem:
                     problems.append(f"{mod.id}: replace/{rel}: {problem}")
                     continue
-            strings = None
+            strings = edits = None
             if kind == "strings":
                 try:
                     strings = _read_strings(tree, node, src)
@@ -170,6 +178,13 @@ def plan_mods(mods: list[Mod], game: str, tree: AssetTree) -> ModPlan:
                     problems.append(f"{mod.id}: replace/{rel}: {e}")
                     continue
                 key = f"{low}|strings|{mod.id}"
+            elif kind == "edits":
+                try:
+                    edits = _read_edits(node, src)
+                except Dr2Error as e:
+                    problems.append(f"{mod.id}: replace/{rel}: {e}")
+                    continue
+                key = f"{low}|edits|{mod.id}"
             else:
                 key = low
             if key in plan and plan[key].mod.priority == mod.priority:
@@ -179,7 +194,7 @@ def plan_mods(mods: list[Mod], game: str, tree: AssetTree) -> ModPlan:
             if key in plan:
                 shadowed.append((node.vpath, plan[key].mod.id, mod.id))
             plan[key] = Planned(Override(node.vpath, src, kind), mod, node.vpath,
-                                _disk_parts(tree, node.vpath), strings)
+                                _disk_parts(tree, node.vpath), strings, edits)
     # Level textures: the game takes a name from the first pack of the zone that has it,
     # whichever piece uses it, so a PNG must reach every identical copy in the zone
     # (docs/formats.md §Levels; the shed/garage wall test of 2026-10-11)
@@ -221,6 +236,36 @@ def plan_mods(mods: list[Mod], game: str, tree: AssetTree) -> ModPlan:
                 elif i in owner:
                     shadowed.append((f"{p.vpath} id {i}", owner[i].mod.id, p.mod.id))
                 owner[i] = p
+    texts: dict[str, list[Planned]] = {}
+    for k in keys:
+        if plan[k].override.kind == "edits":
+            texts.setdefault(plan[k].vpath.lower(), []).append(plan[k])
+    from ..formats import leveledits
+    facts = None
+    for low, items in texts.items():
+        if low in plan:
+            problems.append(f"{plan[low].mod.id} replaces {plan[low].vpath} as a whole and "
+                            f"{items[0].mod.id} edits blocks in it; use an .edits.json for "
+                            f"both (dr2 level diff turns a whole file into one)")
+            continue
+        sh, pr = leveledits.merge([_layer(p) for p in items])
+        shadowed += [(f"{items[0].vpath}: {w}", a, b) for w, a, b in sh]
+        problems += [f"{items[0].vpath}: {x}" for x in pr]
+        if not pr:
+            try:          # applies over the shipped copy (the build: over the recomp's)
+                out, n = _apply_edits(items, tree.resolve(items[0].vpath).data())
+                notes += n
+            except Dr2Error as e:
+                problems.append(str(e))
+                continue
+            from ..convert import levelcheck
+            from ..formats.levelscript import Document
+            facts = facts or levelcheck.GameFacts(tree)
+            doc = Document.parse(out, items[0].vpath)
+            for p in items:
+                for f in levelcheck.check(facts, p.vpath, doc, p.edits):
+                    (problems if f.error else notes).append(
+                        f"{p.mod.id}: {p.vpath.rsplit('/', 1)[-1]}: {f}")
     if problems:
         raise ModError("the mod set can't be built:\n  " + "\n  ".join(problems))
     planned = [plan[k] for k in keys]
@@ -281,6 +326,37 @@ def _read_strings(tree: AssetTree, node, src: Path) -> dict[int, str]:
     return bcs.from_json(src.read_text("utf-8-sig"), src.name, by_label)
 
 
+def _read_edits(node, src: Path):
+    """A ``.edits.json`` override, its target checked to be a block text file."""
+    from ..formats import leveledits
+    from ..formats.levelscript import Document
+    Document.parse(node.data(), node.vpath)
+    return leveledits.from_json(src.read_text("utf-8-sig"), src.name)
+
+
+def _layer(p: Planned):
+    from ..formats.leveledits import Layer
+    return Layer(p.mod.id, p.mod.priority, p.edits)
+
+
+def _apply_edits(items: list[Planned], original: bytes) -> tuple[bytes, list[str]]:
+    """The text file ``original`` with every ``.edits.json`` in ``items`` applied, lowest
+    priority first (so the highest wins)."""
+    from ..formats.leveledits import apply_all
+    return apply_all(original, [_layer(p) for p in items], items[0].vpath)
+
+
+def merged_bytes(items: list[Planned], original: bytes) -> bytes:
+    """The bytes of one asset that several overrides of a merged kind change together
+    (strings by id, level edits by block), or the one override's bytes."""
+    kind = items[0].override.kind
+    if kind == "strings":
+        return _apply_strings(items, original)
+    if kind == "edits":
+        return _apply_edits(items, original)[0]
+    return new_bytes(items[-1], original)
+
+
 def _apply_strings(items: list[Planned], original: bytes, notes: list | None = None) -> bytes:
     """The bank ``original`` with every string override in ``items`` applied, lowest
     priority first (so the highest wins)."""
@@ -314,8 +390,8 @@ def new_bytes(p: Planned, original: bytes) -> bytes:
     """The replacement bytes for one override, given the asset's current bytes."""
     if p.override.kind == "raw":
         return p.override.source.read_bytes()
-    if p.override.kind == "strings":
-        return _apply_strings([p], original)
+    if p.override.kind in MERGED:
+        return merged_bytes([p], original)
     if p.override.kind == "model-glb":
         from ..convert.model_import import import_glb
         from ..formats.scene import Scene
@@ -342,7 +418,8 @@ def patch_archive(data: bytes, vpath: str, edits: dict) -> bytes:
     """Apply ``edits`` to the archive ``data`` and return the new archive bytes.
 
     ``edits`` maps a vpath component to either a nested dict (edit inside that entry,
-    which must be an archive) or a `Planned` leaf. Compressed entries are re-compressed.
+    which must be an archive) or a list of `Planned` leaves (several when they merge:
+    strings, level edits). Compressed entries are re-compressed.
     """
     arc = BigArchive.parse(data, vpath)
     for comp, sub in edits.items():
@@ -354,7 +431,7 @@ def patch_archive(data: bytes, vpath: str, edits: dict) -> bytes:
                 raise ModError(f"{evp}: not an archive, nothing can be replaced inside it")
             updated = patch_archive(current, evp, sub)
         else:
-            updated = new_bytes(sub, current)
+            updated = merged_bytes(sub, current)
         entry.set_data(updated)
     return arc.to_bytes()
 
@@ -388,12 +465,21 @@ def build(mods: list[Mod], game: str, tree: AssetTree, out_dir: str | Path,
         if base is not None:
             src = base.joinpath(*split(file_vp))
             res.base_used[file_vp] = str(base)
+            for p in items:                         # a whole replacement wipes its edits
+                if p.override.kind == "raw" and p.disk_parts < len(split(p.vpath)):
+                    try:
+                        if AssetTree(base).resolve(p.vpath).data() != \
+                                tree.resolve(p.vpath).data():
+                            res.warnings.append(
+                                f"{p.mod.id}: replaces {p.vpath} as a whole, so the "
+                                f"recomp's own changes to it are lost; an .edits.json "
+                                f"keeps them (dr2 level diff makes one)")
+                    except Dr2Error:
+                        pass
         data = src.read_bytes()
         whole = [p for p in items if p.disk_parts == len(split(p.vpath))]
-        if whole and whole[0].override.kind == "strings":   # merged by string id
-            data = _apply_strings(whole, data)
-        elif whole:                                # the file itself is replaced
-            data = new_bytes(whole[0], data)
+        if whole:                                  # the file itself (merged kinds: all)
+            data = merged_bytes(whole, data)
         else:
             edits: dict = {}
             for p in items:
@@ -401,7 +487,7 @@ def build(mods: list[Mod], game: str, tree: AssetTree, out_dir: str | Path,
                 node = edits
                 for c in comps[:-1]:
                     node = node.setdefault(c, {})
-                node[comps[-1]] = p
+                node.setdefault(comps[-1], []).append(p)
             data = patch_archive(data, file_vp, edits)
         dest = out.joinpath(*split(file_vp))
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -436,6 +522,14 @@ def verify(res: BuildResult, tree: AssetTree, base_dirs=()) -> None:
     for p in res.overrides:
         if p.override.kind == "strings":
             banks.setdefault(p.vpath.lower(), []).append(p)
+    texts: dict[str, list[Planned]] = {}
+    for p in res.overrides:
+        if p.override.kind == "edits":
+            texts.setdefault(p.vpath.lower(), []).append(p)
+    for items in texts.values():
+        got = built.resolve(items[0].vpath).data()
+        if got != _apply_edits(items, _original(tree, base_dirs, items[0]))[0]:
+            raise ModError(f"build check failed: {items[0].vpath} reads back differently")
     for items in banks.values():
         got = built.resolve(items[0].vpath).data()
         if got != _apply_strings(items, _original(tree, base_dirs, items[0])):
@@ -448,7 +542,7 @@ def verify(res: BuildResult, tree: AssetTree, base_dirs=()) -> None:
         if any(final.get(i) != t for i, t in winner.items()):
             raise ModError(f"build check failed: {items[0].vpath} lost a string")
     for p in res.overrides:
-        if p.override.kind in ("audio", "strings"):   # audio: checked by build_audio
+        if p.override.kind in ("audio", *MERGED):     # audio: checked by build_audio
             continue
         got = built.resolve(p.vpath).data()
         if p.override.kind == "raw":

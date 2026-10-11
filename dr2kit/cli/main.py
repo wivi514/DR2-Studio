@@ -279,6 +279,8 @@ def cmd_level(args) -> int:
         return 0
     if args.action == "things":
         return _level_things(args, tree)
+    if args.action in ("show", "edit", "diff"):
+        return _level_text(args, tree)
     L = clevel.Level.open(tree, args.level)
     if not args.zone:
         print(f"{L.name}: {len(L.zones)} zones ({L.vpath})")
@@ -304,6 +306,73 @@ def cmd_level(args) -> int:
         scale = "" if p.scale == (1.0, 1.0, 1.0) else f"  scale {' '.join(f'{c:.3f}' for c in p.scale)}"
         flags = f"  flags {p.flags:#x}" if p.flags else ""
         print(f"  {p.index:>3} {p.piece:<32} at {x:8.2f} {y:7.2f} {z:8.2f}{rot}{scale}{flags}")
+    return 0
+
+
+def _level_text(args, tree) -> int:
+    """``dr2 level show / edit / diff``: the level text files, and level edits in a mod
+    (phase 11; `dr2kit.mods.leveledit`, guide 19)."""
+    from ..container.vpath import join
+    from ..convert import placed
+    from ..formats import leveledits as le
+    from ..formats.levelscript import Document
+    from ..mods import leveledit
+    from ..mods.deploy import recomp_folders
+    file = args.file if args.file.lower().endswith(".txt") else args.file + ".txt"
+    patched = recomp_folders(tree.root)["patched"]
+    base = [patched] if patched.is_dir() else []
+    if args.action == "show":
+        doc = Document.parse(leveledit.game_bytes(tree, file, base), file)
+        if not args.path:
+            for b in doc.blocks:
+                print(f"{b.cls} {b.name}".rstrip())
+            return 0
+        b = doc.find(args.path)
+        print(doc.text(b), end="")
+        return 0
+    if args.action == "diff":
+        edited = Document.parse(Path(args.edited).read_bytes(), args.edited)
+        original = Document.parse(leveledit.game_bytes(tree, file, base), file)
+        e = le.diff(original, edited)
+        text = le.to_json(e, join(placed.DATAFILE, file))
+        if args.mod:
+            from ..mods.manifest import Mod
+            dest = leveledit.edits_path(Mod.load(args.mod).root, file)
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(text, "utf-8")
+            print(f"wrote {dest} ({e.count()} change{'s' if e.count() != 1 else ''})")
+        else:
+            print(text, end="")
+        return 0
+    # edit
+    from ..mods.manifest import Mod
+    mod = Mod.load(args.mod)
+    session = leveledit.TextEdits(mod.root, file, tree, base)
+    doc = session.doc
+    if args.op == "remove":
+        doc.remove(doc.find(args.path))
+    elif args.op == "set":
+        b = doc.find(args.path)
+        for k, v in leveledit.parse_assignments(args.values).items():
+            if v is None:
+                doc.unset(b, k)
+            else:
+                doc.set(b, k, v)
+    elif args.op == "add":
+        from ..formats.levelscript import split_path
+        parts = split_path(args.path)
+        parent = doc.find("/".join(parts[:-1])) if len(parts) > 1 else None
+        cls, _, name = parts[-1].partition(" ")
+        props = {k: v for k, v in leveledit.parse_assignments(args.values).items() if v}
+        if args.like:
+            src = doc.find(args.like)
+            props = {**{p.key: p.value for p in src.props}, **props}
+        doc.add(parent, cls, name, props)
+    f = session.save()
+    n = session.edits().count()
+    print(f"{f}: {n} change{'s' if n != 1 else ''} to {file}")
+    for note in session.notes:
+        print(f"note: {note}", file=sys.stderr)
     return 0
 
 
@@ -1131,6 +1200,28 @@ def build_parser() -> argparse.ArgumentParser:
                     "prologue_safehouse (Case Zero), living_research (Case West)")
     pl.add_argument("--kind", choices=sorted(k for k in placed_kinds if k != "navmesh"), help="only this kind")
     pl.add_argument("--models", action="store_true", help="show each item's model")
+    game_opt(pl)
+    pl = lsub.add_parser("show", help="a level text file's blocks, or one block's text "
+                         "(as the game has it)")
+    pl.add_argument("file", help="a text file of datafile.big: prologue, waypoint_prologue, "
+                    "missions, items, zombiesets…")
+    pl.add_argument("path", nargs="?", help='a block path: "cItemPlacement Scissors1", '
+                    '"cMissionDefinition X/cMissionLevelReady Y/…"')
+    game_opt(pl)
+    pl = lsub.add_parser("edit", help="change a level text file in a mod: set keys, add or "
+                         "remove a block (saved as the mod's .edits.json)")
+    pl.add_argument("mod", help="the mod folder")
+    pl.add_argument("file", help="the text file (prologue, missions…)")
+    pl.add_argument("op", choices=("set", "add", "remove"))
+    pl.add_argument("path", help="the block path (for add: the new block's)")
+    pl.add_argument("values", nargs="*", help="KEY=VALUE (set, add); KEY= removes a key")
+    pl.add_argument("--like", help="add: copy the keys of this block first")
+    game_opt(pl)
+    pl = lsub.add_parser("diff", help="turn a whole edited text file into an .edits.json "
+                         "(only the changes)")
+    pl.add_argument("file", help="which game file it is (prologue, missions…)")
+    pl.add_argument("edited", help="your edited copy of it")
+    pl.add_argument("--mod", help="write it into this mod folder (else print it)")
     game_opt(pl)
     pl = lsub.add_parser("info", help="a level's zones, or one zone's placements")
     pl.add_argument("level", help="a level, e.g. prologue (Case Zero) or living_research (Case West)")

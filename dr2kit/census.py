@@ -82,7 +82,16 @@ Phase 10 adds levels (``levels=True``, `check_levels`; `dr2kit.formats.level`):
   script's ``.txt``, ``waypoint_`` and ``nm_`` files, ``items.txt`` and ``missions.txt``
   parse and write back to the same bytes; classes the toolkit doesn't know are named;
   every placed item and door finds its model and that model's scene parses; every
-  navigation-mesh polygon names existing vertices.
+  navigation-mesh polygon names existing vertices;
+* **level edits** (phase 11, `check_level_edits`; `dr2kit.formats.leveledits`): in every
+  file a mod can edit (the scripts' files, ``missions.txt``, ``items.txt``,
+  ``zombiesets.txt``), every block is written back by ``levelscript.render`` exactly as
+  shipped (those that aren't, hand-edited, are named); and for a sample of blocks spread
+  over each file, an ``.edits.json`` that changes a key, and (blocks in the tool's style)
+  one that removes the block, one that adds a key and one that removes a key, each
+  applied and then **reversed** (`leveledits.diff`), give the original file (byte for
+  byte, or the same lines apart from blank ones where a file mixes gap sizes; both
+  counted).
 
 Results for both games are recorded in docs/formats.md. Run it with ``dr2 census``.
 """
@@ -613,12 +622,79 @@ def check_level_scripts(rep: CensusReport, tree: AssetTree) -> None:
             lc["navigation polygons"] += len(ls.navmesh.polygons)
 
 
+def check_level_edits(rep: CensusReport, tree: AssetTree, sample: int = 30) -> None:
+    """The level-edit gate (module docstring); counts in ``rep.level_counts``."""
+    from .convert import placed
+    from .formats import leveledits as le
+    from .formats.levelscript import Document, render_block
+    lc = rep.level_counts
+    names = ["missions.txt", "items.txt", "zombiesets.txt"]
+    for s in placed.script_names(tree):
+        names += [f"{s}.txt", f"waypoint_{s}.txt", f"nm_{s}.txt"]
+
+    def same(a: bytes, b: bytes) -> str:
+        if a == b:
+            return "identical"
+        strip = [ln for ln in a.splitlines() if ln.strip()], \
+            [ln for ln in b.splitlines() if ln.strip()]
+        return "same apart from blank lines" if strip[0] == strip[1] else "differs"
+
+    for name in names:
+        vp = f"{placed.DATAFILE}/{name}"
+        try:
+            raw = tree.resolve(vp).data()
+        except Exception:  # noqa: BLE001 - a script without that file
+            continue
+        doc = Document.parse(raw, name)
+        blocks = list(doc.walk())
+        styled = set()
+        for b in blocks:
+            depth = len(doc.lines[b.line]) - len(doc.lines[b.line].lstrip("\t"))
+            if "".join(render_block(b, depth, doc.newline)) == doc.text(b):
+                lc["blocks written back by render"] += 1
+                styled.add(id(b))
+            else:
+                lc["blocks not in the tool's style (hand-edited)"] += 1
+                rep.level_notes.append(f"{name}: {doc.path(b)} is not in the tool's style "
+                                       f"(written back as is unless edited)")
+        step = max(1, len(blocks) // sample)
+        for b in blocks[::step]:
+            path = doc.path(b)
+            if doc.get(path) is not b:                 # not addressable (a repeated path)
+                lc["sampled blocks with a repeated path (skipped)"] += 1
+                continue
+            # a hand-edited block is changed key by key only: removed and added back it
+            # would come back in the tool's style
+            tries = [le.Edits(set={path: {b.props[0].key: b.props[0].value + "1"}})] \
+                if b.props else []
+            if id(b) in styled:
+                tries.append(le.Edits(remove=[path]))
+                tries.append(le.Edits(set={path: {"Dr2kitGateKey": "1"}}))
+                if b.props:
+                    tries.append(le.Edits(set={path: {b.props[0].key: None}}))
+            for e in tries:
+                try:
+                    d = Document.parse(raw, name)
+                    le.apply(d, e)
+                    edited = d.to_bytes()
+                    d2 = Document.parse(edited, name)
+                    le.apply(d2, le.diff(d2, doc))
+                    verdict = same(d2.to_bytes(), raw)
+                except Exception as ex:  # noqa: BLE001 - reported
+                    verdict = "differs"
+                    rep.problems.append((vp, f"level edit of {path}: {ex}"))
+                lc[f"level edits applied and reversed: {verdict}"] += 1
+                if verdict == "differs":
+                    rep.problems.append((vp, f"level edit of {path}: reversed, it differs"))
+
+
 def check_levels(rep: CensusReport, tree: AssetTree, game: str) -> None:
     """The phase 10 level census (module docstring); results in ``rep.levels``."""
     from .convert import level as clevel
     check_level_scripts(rep, tree)
     from .convert.model import TextureFinder, read_scene
     from .formats import level as lvlfmt
+    check_level_edits(rep, tree)
     lc = rep.level_counts
     for L in clevel.list_levels(tree):
         info = rep.levels.setdefault(L.name, Counter())

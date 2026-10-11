@@ -411,6 +411,21 @@ area* (`cZombieWarehouse`, in the level file) is a set of floor shapes; a *facto
 (`cMissionZombieFactory`, in `missions.txt`) says how many zombies of which types to put
 there. Single zombies at an exact spot are `cMissionSpawnZombie`.
 
+**Block / block path.** The game's text files are made of *blocks*: a class and a
+name (`cItemPlacement Scissors1`), then `{`, its settings (`Location = "…"`) and blocks
+inside it, then `}`. A *block path* names one block by the blocks around it, joined with
+`/`: `cMissionDefinition PrologueZombies/cMissionLevelReady Ready/cMissionZombieFactory
+x2009`. It's needed because a name like `x2009` is used in many missions.
+
+**Level edits (`.edits.json`).** How a mod changes a level or mission text file: a small
+file that lists only what it changes, by block path (move this item, add that zombie,
+remove this box), instead of a whole copy of the file. Several mods can change one file
+this way, and the recomp's own changes to it stay.
+
+**Load set.** The zombie types a level loads into memory, by time of day
+(`zombiesets.txt`). A zombie of a type the level doesn't load probably doesn't appear,
+so adding a new type to a level means adding it to the load set too.
+
 **Navigation mesh.** An invisible floor plan of where zombies and survivors can walk
 (`nm_<level>.txt`).
 

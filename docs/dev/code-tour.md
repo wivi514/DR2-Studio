@@ -29,7 +29,9 @@ dr2kit/
     shader.py          shader constant tables (.po) and material value sets (.scv)
     bcs.py             string banks (str_<lang>.bcs): read, write, JSON, apply changes (phase 6)
     level.py           levels: the zone list and each zone's placement table (phase 10)
-    levelscript.py     the block text files (level, items, missions), kept byte for byte (phase 10)
+    levelscript.py     the block text files (level, items, missions), kept byte for byte (phase 10);
+                       block paths, add / remove blocks and keys in the tool's style (phase 11)
+    leveledits.py      .edits.json: a mod's changes to a text file by block path; apply, diff, merge (phase 11)
     collision.py       a zone's collision: Havok triangle meshes in MERGED_COLLISION.big (phase 10)
   convert/
     png.py             pure-Python PNG reader/writer (Pillow used when present)
@@ -46,6 +48,7 @@ dr2kit/
     level.py           levels: list them, read a zone, put its pieces in place → .glb (phase 10)
     placed.py          what the level text files place: items (→ models), doors, markers (phase 10)
     zombies.py         zombie crowds from missions.txt, spread over their areas (phase 10)
+    levelcheck.py      what level edits mean: items, zombie types, load sets, areas, triggers (phase 11)
     mapdata.py         the Maps tab's data: zone files cached on disk, a level's markers as JSON (phase 10)
     video.py           Bink movies (Case West): probe, frames, sound, .mp4 export (phase 6)
   index/
@@ -61,6 +64,7 @@ dr2kit/
                        linked mods, new mods, mod sets, .dr2mod, update summaries (phase 7)
     play.py            Play: deploy the switched-on mods, start the recomp, what is deployed (phase 7)
     preview.py         see the switched-on mods without the game: a ModdedTree for every view (phase 10)
+    leveledit.py       one mod's edits of one text file: edit, undo, save as the diff (phase 11)
     texture_import.py  exports from Substance Painter / Blender / any program → the model's textures (phase 7)
   studio/
     app.py, viewers.py DR2 Studio (PySide6): tree, search, texture viewer, mod bar
@@ -441,6 +445,24 @@ carry a lightmap (occlusion texture on its UV set) or a two-texture blend (extra
 `studio/maps_view.py` holds `MapsList` (left tab), `MapsView` (page + side panel) and
 `_Builder` threads; `web/maps.js` the page (zone streaming, fly / orbit camera, markers,
 picking) and `web/levelmaterials.js` the level materials, shared with `viewer.js`.
+
+### `dr2kit/formats/leveledits.py`, `convert/levelcheck.py`, `mods/leveledit.py` (phase 11)
+Level edits as mods ([`formats.md`](../formats.md) §Levels, "Level edits as mods").
+`levelscript.Document` gained `find(path)` / `get` / `path(block)` / `parent`, `set`
+(a new key goes where the tool sorts it; a changed value keeps its `// comment`), `unset`,
+`remove(block)` and `add(parent, cls, name, props, children, index)`, all keeping the line
+numbers of every other block right (`_insert` / `_delete`), and `render(...)`, which writes
+a block as the game's tool did. `leveledits` reads and writes `.edits.json` (`Edits`:
+`set`, `add`, `remove`), `apply(doc, edits)` (adds, then sets, then removes; every missing
+path named at once), `diff(before, after)` (the edits between two versions, adds with
+`@after`), `merge(layers)` (conflicts and what lost, by priority) and `apply_all(bytes,
+layers)`. In `mods/build.py` the kind `edits` is planned like `strings`: grouped by file,
+merged, dry-run over the shipped file and checked by `levelcheck.check` (errors stop the
+build, warnings become notes); several overrides of one entry inside an archive now reach
+`patch_archive` as a list (`merged_bytes`). `mods/leveledit.TextEdits(mod, file, tree,
+base_dirs)` opens a file as the game has it with the mod's edits on top, keeps text
+snapshots for undo / redo, and `save()` writes `diff(game file, edited)`. The CLI is `dr2
+level show|edit|diff`; the census gate is `census.check_level_edits`.
 
 ### `dr2kit/convert/variants.py` (phase 9)
 What a model can show, the way the game decides it ([`formats.md`](../formats.md)

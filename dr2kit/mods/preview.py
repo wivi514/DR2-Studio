@@ -12,7 +12,7 @@ texture finder does) and the Maps tab's zone builder, with no change to them.
 
 **Exact bytes** (decision 2026-10-11): a replacement is built by the build's own
 `mods.build.new_bytes` (a PNG encoded to DXT and tiled as the game's texture, a ``.glb``
-rebuilt into the model, strings merged by id), so what Studio shows is what Play writes,
+rebuilt into the model, strings merged by id, level edits merged by block), so what Studio shows is what Play writes,
 compression artefacts included; a test compares them byte for byte. Only the archives
 *around* an override are written back uncompressed here (readers don't care; Play
 re-compresses them for the game). Built replacements are cached in memory and on disk
@@ -159,10 +159,7 @@ class Preview:
         if path.is_file():
             data = path.read_bytes()
         else:
-            if items[0].override.kind == "strings":
-                data = mbuild._apply_strings(items, original)
-            else:
-                data = mbuild.new_bytes(items[-1], original)
+            data = mbuild.merged_bytes(items, original)
             try:
                 self.cache_dir.mkdir(parents=True, exist_ok=True)
                 tmp = path.with_suffix(".part")
