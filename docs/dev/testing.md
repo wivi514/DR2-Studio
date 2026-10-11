@@ -267,6 +267,17 @@ one choice per slot in the default look of 7 zombies, CZ's list = the name rule,
 and one-look exports import back byte-identical); `test_studio.py` (the Variants panel);
 `test_catalog.py` (labels, detail rules).
 
+### Phase 10 results (2026-10-11)
+
+| Gate | Case Zero | Case West |
+|---|---|---|
+| **Level census** (`dr2 census --levels`): zones, placements written back, placement maths, pieces, level text files written back, items' models | 17 zones, 922 placements (909 within 0.8 mm, 12 loose shape bounds, 1 named), 12 text files identical, 1,060 items and doors with their model; 0 problems | 45 zones, 972 placements (959 within 8 mm, 11 loose, 2 named), 24 text files, 1,835 items and doors; 0 problems |
+| Vertex re-encode (`census --models`, after the `SHORT2N` fix) | 6,954 / 6,954 draws | 10,548 / 10,548 |
+| **Maps vs the game** (Studio from the camera of a recomp capture, `c0`–`c3` of Chuck's VS dump) | safehouse bathroom: same walls, door and framing; lightmap shading matches once `SHORT2N` was fixed; game warmer (exposure, time of day) | **owed** (no vertex dump in the CW recomp) |
+| Blender (`tools/blender_addon_gate.py`, Import zone) | `prologue_z05`: 19 pieces in place, 113 items, markers by kind, 66 lightmaps wired | — |
+| **Mods** (`tests/test_preview.py`, the deployed files, in game) | texture + model mod: Studio = Play byte for byte; in game the bottle showed at once, the wall only on the zone's first copy (now automatic) | not run |
+| Full tests | 372 passed (slow and game-data included) | |
+
 ## Writing a test for new code
 
 - One test file per module (`tests/test_<module>.py`).

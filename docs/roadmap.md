@@ -235,8 +235,8 @@ they are different objects); colour-choice mods and Chuck's outfits are not star
   Blender, every shape is grouped (census), and captured zombies match (in game).
 
 ## Phase 10: Maps: see a whole level, extract it, see your mods in it (user, 2026-10-11)
-Planned 2026-10-11 and approved by the user, nothing built (`phase10-kickoff.md`: research,
-plan, gate). The user
+Planned and approved 2026-10-11, **built the same day** (`phase10-kickoff.md`: research,
+plan, gate, §Status). Owed: the Case West frame comparison, the user's test. The user
 called it much bigger than phase 9: built in steps, each usable on its own.
 - Read levels: zone lists, piece placements (`ZONE_ORGANIZATION.big`), `dr2 level`,
   `census --levels`.

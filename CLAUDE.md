@@ -31,17 +31,23 @@ default-look pictures, detail levels folded in the Library, as-shown / organised
 (Blender collections, `KHR_materials_variants`), `dr2 variants`, `census --variants`; gate
 passed in Studio and Blender in both games. Owed: the in-game zombie capture and how the
 game picks a look, and the user's own test of Studio (started 2026-10-11)
-(`docs/phase9-kickoff.md` §Status). Phase 10 (user-set 2026-10-11, Maps: levels in 3D,
-extract them, mods shown without the game) is researched, planned and approved in
-`docs/phase10-kickoff.md`; nothing built. Editing levels (zombie spawns, moving/adding
-objects) is a potential phase 11, researched in `docs/phase11-kickoff.md`, not approved.** Read these before writing code:
+(`docs/phase9-kickoff.md` §Status). Phase 10 (user-set 2026-10-11, Maps) done the same day: levels read and assembled
+(`formats/level.py`, `convert/level.py`, `census --levels`), the level text files kept byte
+for byte and every placed item's model found (`formats/levelscript.py`, `convert/placed.py`),
+Studio's **Maps** tab (`studio/maps_view.py`, `web/maps.js`, lightmaps and blends as the
+shaders draw them), level export (`catalog/level_export.py`, `dr2 export <level>`, the
+add-on's Import zone), and **With my mods** (`mods/preview.py`, Ctrl+M). Fixed on the way:
+`SHORT2N` decoded transposed, lightmaps taken for normal maps, level pieces using their
+`_LOD` textures, a zone's first texture copy rule (checked in game). Owed: the Case West
+frame comparison and the user's own test (`docs/phase10-kickoff.md` §Status). Editing
+levels is a potential phase 11, researched in `docs/phase11-kickoff.md`, not approved.** Read these before writing code:
 
 | Doc | What it holds |
 |---|---|
 | `docs/ARCHITECTURE.md` | Components, data flow, the asset index, the mod package format, stack choices |
 | `docs/formats.md` | Everything known about every file format, with a status per format (cracked / partial / unknown) |
 | `docs/phase11-kickoff.md` | Potential phase 11 (edit levels: zombie spawns, objects, saved as `.edits.json` mods): research, plan, gate. **Not approved; after phase 10** |
-| `docs/phase10-kickoff.md` | Phase 10 (Maps: see a whole level, extract it, see your mods in it without the game): research, plan, gate. **Approved, not built** |
+| `docs/phase10-kickoff.md` | Phase 10 (Maps: see a whole level, extract it, see your mods in it without the game): research, plan, gate, and §Status (what it still owes) |
 | `docs/phase9-kickoff.md` | Phase 9 (variants: one look per model, export as shown or organized): research, plan, gate, and §Status (what it still owes) |
 | `docs/phase8-kickoff.md` | Phase 8 (the Library, export everything at once): decisions, gate, and §Status (what it still owes) |
 | `docs/phase7-kickoff.md` | Phase 7 handoff and §Status: what phase 7 did and still owes |
@@ -175,6 +181,9 @@ dr2 extract --glb --variant "head=2" --variants shown|all <model> -o out
 dr2 census --variants                     # classify every model's parts as the game does (~30 / ~50 s)
 python tools/variant_table.py <recomp>/assets/game/default_image.bin --check cz   # table = exe?
 python tools/blender_variants_gate.py     # phase 9 gate in Blender (~20 s)
+dr2 level list|info|things -g cz          # levels: zones, placements, what the text files place
+dr2 census --levels                       # every zone, placement, level text file, item model (~50 s / game)
+dr2 export prologue [--zone z05] [--whole] -g cz -o out   # a level for Blender (phase 10)
 dr2 studio                                # the GUI (pip install -e ".[studio]")
 dr2 help [page] / dr2 help --search <words>          # the guides (= Studio's help)
 dr2 play -g cz [--no-mods] [--deploy-only]           # deploy switched-on mods, start the recomp
