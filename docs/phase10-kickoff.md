@@ -47,6 +47,23 @@ possible **phase 11** (below); phase 10 only shows and extracts.
     `re.findall(r"^(c[A-Z]\w+) ", text, re.M)`.
   - *Item → model:* `items.txt` blocks name the model in `AssetFilename` (or CW's
     `MergedFilename`); the file is `<basename>.big` in `data/streamedassets.big`.
+- **Pitfalls met during the research:**
+  - `dr2 extract <zone>/ZONE_ORGANIZATION.big` writes the nested archive as one file, not
+    its entries: read entries in Python with `tree.resolve(vpath).data()`.
+  - `read_scene` on `<piece>.big` fails ("no SceneHeader"): the scene is the inner
+    `_COMP_<piece>.big` entry.
+  - `model_glb(..., stats=)` takes a `convert.gltf.ExportStats`, not a dict.
+  - `read_scene` on `MERGED_COLLISION.big` returns no meshes: the collision geometry is
+    not in the form the scene reader knows (❓, stretch).
+- **First task (step 1):** `formats/level.py` reading `zonelist.big` and
+  `ZONE_ORGANIZATION.big`; assemble CZ `prologue_z05` (the bowling alley) into one `.glb`
+  with the existing piece export, open it, and look at whether the pieces meet. That
+  settles the placement maths (`world = rotation × (scale × local) + position`) before
+  anything else is built on it.
+- **Still owed from phase 9 (not part of this phase):** the user started testing the
+  Variants panel in Studio on 2026-10-11 and has not reported findings yet; ask. The
+  in-game zombie capture also needs a Case Zero save outside the safehouse, the same
+  save phase 10's gate needs for recomp frames of the street.
 
 ## What the research found
 
