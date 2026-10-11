@@ -388,3 +388,49 @@ def test_level_materials_in_the_glb(game_root):
     assert blend["textures"] == ["gravel_dirty_gray_cm", "page_grass_patch_mask_cm"]
     assert (blend["overlay_uv"], blend["mask_uv"], blend["by"]) == (1, 2, "mask.g²")
     assert ground["occlusionTexture"]["texCoord"] == 3
+
+
+# --- step 4: exporting a level ---------------------------------------------------------------
+
+def test_export_level_groups_zone_layers_and_markers(tmp_path):
+    from dr2kit.catalog.level_export import export_level
+    root = tmp_path / "game"
+    root.mkdir()
+    tree = make_datafile(root)
+    make_level(root)
+    res = export_level(tree, "cz", "town", tmp_path / "out", markers=("spawn", "zombie_area",
+                                                                      "map_point", "navmesh"))
+    folder = tmp_path / "out" / "cz" / "town"
+    assert res.folder == folder and not res.failed
+    assert {p.name for p in res.files} >= {"town_z01.glb", "town.txt", "nm_town.txt",
+                                           "fe_map_f1.csv", "info.txt"}
+    g = gltf.Glb.parse((folder / "town_z01.glb").read_bytes())
+    nodes = g.gltf["nodes"]
+    layers = {n["name"]: n["extras"]["dr2_layer"] for n in nodes
+              if "dr2_layer" in n.get("extras", {})}
+    assert layers["town_z01"] == "zone" and layers["Buildings"] == "pieces"
+    assert layers["Items and doors"] == "items" and layers["Markers"] == "markers"
+    assert layers["Spawn points"] == "spawn" and layers["Navigation mesh"] == "navmesh"
+    start = next(n for n in nodes if n["name"] == "Start")
+    assert "mesh" not in start and start["translation"] == [1.0, 0.0, 1.0]   # an Empty
+    roof = next(n for n in nodes if n["name"] == "Roof/Ground")
+    prim = g.gltf["meshes"][roof["mesh"]]["primitives"][0]
+    assert prim["mode"] == 2                                                # an outline
+    assert res.items == 2 and res.markers >= 4
+    # a second run skips what is there (resumable)
+    again = export_level(tree, "cz", "town", tmp_path / "out")
+    assert folder / "town_z01.glb" in again.skipped
+
+
+def test_dr2_export_a_level(tmp_path, monkeypatch, capsys):
+    from dr2kit.cli.main import main
+    root = tmp_path / "game"
+    root.mkdir()
+    make_datafile(root)
+    make_level(root)
+    monkeypatch.setenv("DR2_CZ_DATA", str(root))
+    out = tmp_path / "out"
+    assert main(["export", "town", "--whole", "--markers", "none", "-g", "cz", "-o",
+                 str(out), "-q"]) == 0
+    assert (out / "cz" / "town" / "town.glb").is_file()
+    assert main(["export", "town", "--zone", "z99", "-g", "cz", "-o", str(out)]) == 1

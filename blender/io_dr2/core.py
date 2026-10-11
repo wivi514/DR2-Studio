@@ -125,3 +125,39 @@ def write_to_mod(mod_folder: str, game: str, vpath: str, glb: bytes) -> Path:
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_bytes(glb)
     return dest
+
+
+# ---- levels (dr2kit phase 10) ------------------------------------------------------------
+
+def levels(game: str) -> list[tuple[str, list[str]]]:
+    """The game's levels and their zones: ``[("prologue", ["prologue_z01", …]), …]``."""
+    from dr2kit.convert.level import list_levels
+    return [(L.name, L.zone_names()) for L in list_levels(tree(game))]
+
+
+def level_scripts(game: str, level: str) -> list[str]:
+    """The item sets of a level (its own first): ``["prologue", "prologue_safehouse"]``."""
+    from dr2kit.convert.mapdata import scripts_of
+    return scripts_of(tree(game), level)
+
+
+def export_level_zone(game: str, level: str, zone: str, script: str = "",
+                      items: bool = True, markers: bool = True,
+                      lod: bool = False) -> tuple[bytes, str, list[str]]:
+    """One zone as ``.glb`` bytes (pieces, items, markers: dr2kit's ``dr2 export <level>
+    --zone``), a summary and notes (what could not be exported)."""
+    from dr2kit.catalog.level_export import DEFAULT_MARKERS, LevelExport, level_glb
+    from dr2kit.convert import mapdata, placed
+    from dr2kit.convert.level import Level
+    t = tree(game)
+    L = Level.open(t, level)
+    scripts = mapdata.scripts_of(t, L.name)
+    script = script or (scripts[0] if scripts else "")
+    ls = placed.read_script(t, script, placed.ItemModels(t), mapdata._strings(t)) \
+        if script and (items or markers) else None
+    res = LevelExport(Path("."))
+    data = level_glb(t, game, L, [L.find_zone(zone)], ls, items=items,
+                     markers=DEFAULT_MARKERS if markers else (), lod=lod, result=res)
+    summary = (f"{res.pieces} pieces, {res.items} items and doors, {res.markers} markers, "
+               f"{res.triangles:,} triangles")
+    return data, summary, [f"{a}: {b}" for a, b in res.failed]

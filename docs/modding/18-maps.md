@@ -1,8 +1,8 @@
 # See the game's levels in 3D: the Maps tab
 
 **You will:** open a level (Case Zero's Fortune City street, Case West's labs…), fly
-through it, switch on spawn points, zombie areas, map areas and more, and click anything
-to see what it is and where it comes from.   **Time:** ~5 min.   **Games:** both.
+through it, switch on spawn points, zombie areas, map areas and more, click anything to
+see what it is and where it comes from, and export a zone or a whole level for Blender.   **Time:** ~5 min.   **Games:** both.
 **You need:** DR2 Studio ([`01-install.md`](01-install.md)) with your game folders set.
 A built index helps (*Open in Library* needs it), but the Maps tab works without one.
 
@@ -63,6 +63,24 @@ game, not like grey boxes.
 **Copy camera position** puts the camera's x, y, z on the clipboard (handy for notes, or
 to tell someone where something is).
 
+## Steps: export a zone or the whole level
+
+9. Fly into the zone you want (the status line names the zones shown) and click **Export
+   zone…** in the right panel, or **Export level…** for every zone; pick a folder.
+   DR2 Studio writes `<folder>/cz/prologue/`:
+   - `prologue_z05.glb`: the zone for Blender, with its buildings placed, the items and
+     doors (if *Items and doors* is ticked) and the markers whose layers are ticked;
+   - `text/`: the level's own files as the game has them (`prologue.txt`,
+     `waypoint_prologue.txt`, `nm_prologue.txt`, the map's `fe_map_*.csv`, the lighting
+     `prologue.csv`);
+   - `info.txt`: what is in it, and how to open it.
+   A zone takes a few seconds to a minute; the log at the bottom says when it is done.
+   Files that are already there are skipped, so an interrupted export can be run again.
+10. In Blender, open a zone with **File → Import → glTF 2.0**, or better with the DR2
+    add-on's **Import zone** ([`13-blender-addon.md`](13-blender-addon.md)), which sorts it
+    into collections (Buildings, Items and doors, Markers by kind) and wires the
+    lightmaps in. With the plain importer, Blender shows each surface's colour map only.
+
 ## The same in the terminal
 
 ```
@@ -72,6 +90,11 @@ dr2 level info prologue z05 -g cz             # one zone: every piece and where 
 dr2 level things -g cz                        # the item sets (level scripts)
 dr2 level things prologue --kind spawn -g cz  # what a level places, by kind
 dr2 level things living_research --kind door --models -g cw   # with each model's file
+dr2 export prologue --zone z05 -g cz -o out   # one zone (repeat --zone for more)
+dr2 export prologue -g cz -o out              # every zone, one .glb each
+dr2 export prologue --whole --lod -g cz -o out   # one .glb, small textures
+dr2 export prologue --markers all --script prologue_safehouse -g cz -o out
+dr2 export living_research --no-items --markers none -g cw -o out   # buildings only
 ```
 
 ## Check it worked

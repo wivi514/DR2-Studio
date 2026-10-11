@@ -142,6 +142,11 @@ purpose (placeholders).
 | `note: texture 'x' not found` | The texture lives in another archive | Run `dr2 index build` once; the export then searches the whole game. The model is still exported, without that texture. |
 | The 3D view says it needs QtWebEngine | Your PySide6 install lacks it | `pip install PySide6-Addons`, or use **Export .glb…** and Blender. |
 
+## Levels
+
+A whole level (its buildings placed, items, spawn points…) exports zone by zone from the
+**Maps** tab or with `dr2 export prologue -g cz -o out`: [`18-maps.md`](18-maps.md).
+
 ## Going further
 
 - Edit one and put it back: [`05-first-mod-texture.md`](05-first-mod-texture.md).

@@ -716,6 +716,72 @@ class Assembler:
             out.append(ti)
         return out
 
+    # -- markers (level exports): empties, outlines and plain meshes ------------------
+
+    def empty(self, name: str, parent: int | None = None, translation=None, rotation=None,
+              extras: dict | None = None) -> int:
+        """A node with no mesh (an Empty in Blender): a spawn point, a map point."""
+        node: dict = {"name": name}
+        if translation is not None:
+            node["translation"] = [float(c) for c in translation]
+        if rotation is not None:
+            node["rotation"] = [float(c) for c in rotation]
+        if extras:
+            node["extras"] = extras
+        i = self.b.add("nodes", node)
+        self._attach(i, parent)
+        return i
+
+    def _flat_material(self, colour, alpha: float = 1.0) -> int:
+        key = ("flat", tuple(round(c, 3) for c in colour), round(alpha, 3))
+        cache = self.__dict__.setdefault("_flat", {})
+        if key not in cache:
+            mat = {"name": "dr2_marker_%02x%02x%02x" % tuple(int(c * 255) for c in colour),
+                   "pbrMetallicRoughness": {"baseColorFactor": [*colour, alpha],
+                                            "metallicFactor": 0.0, "roughnessFactor": 1.0},
+                   "doubleSided": True}
+            if alpha < 1.0:
+                mat["alphaMode"] = "BLEND"
+            cache[key] = self.b.add("materials", mat)
+        return cache[key]
+
+    def lines(self, name: str, loops: list[list], parent: int | None = None,
+              colour=(1.0, 1.0, 1.0), extras: dict | None = None) -> int:
+        """Closed outlines (glTF LINE_LOOP primitives: edges in Blender), one per loop of
+        (x, y, z) points: an area's floor shape."""
+        prims = []
+        for loop in loops:
+            if len(loop) < 2:
+                continue
+            pos = self.b.accessor([tuple(map(float, p)) for p in loop], "VEC3", minmax=True)
+            prims.append({"attributes": {"POSITION": pos}, "mode": 2,
+                          "material": self._flat_material(colour)})
+        node: dict = {"name": name}
+        if prims:
+            node["mesh"] = self.b.add("meshes", {"name": name, "primitives": prims})
+        if extras:
+            node["extras"] = extras
+        i = self.b.add("nodes", node)
+        self._attach(i, parent)
+        return i
+
+    def mesh(self, name: str, vertices: list, triangles: list, parent: int | None = None,
+             colour=(1.0, 1.0, 1.0), alpha: float = 1.0, extras: dict | None = None) -> int:
+        """A plain coloured triangle mesh (the navigation mesh)."""
+        pos = self.b.accessor([tuple(map(float, v)) for v in vertices], "VEC3", minmax=True)
+        flat = [int(i) for t in triangles for i in t]
+        ctype = USHORT if len(vertices) <= 0xFFFF else UINT
+        idx = self.b.accessor(flat, "SCALAR", ctype, target=ELEMENT_ARRAY_BUFFER)
+        prim = {"attributes": {"POSITION": pos}, "indices": idx,
+                "material": self._flat_material(colour, alpha)}
+        node: dict = {"name": name, "mesh": self.b.add("meshes", {"name": name,
+                                                                  "primitives": [prim]})}
+        if extras:
+            node["extras"] = extras
+        i = self.b.add("nodes", node)
+        self._attach(i, parent)
+        return i
+
     def to_bytes(self) -> bytes:
         if self.extras:
             self.b.gltf["asset"]["extras"] = {"dr2": self.extras}

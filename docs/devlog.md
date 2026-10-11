@@ -17,6 +17,22 @@ Entry template:
 
 ---
 
+## 2026-10-11 — Phase 10 step 4: exporting levels
+**Done:** `catalog/level_export.py`: a level as one `.glb` per zone (or one for all),
+buildings placed, items and doors, markers (spawn and map points as empties, areas and
+triggers as outlines, the navigation mesh as a mesh), each group tagged by layer; the
+level's text files and an `info.txt`. `dr2 export <level>`, *Export zone… / Export
+level…* in the Maps tab, and the Blender add-on's **Import zone**: collections per zone
+and layer, the lightmaps multiplied into the colours.
+**Why:** the phase's second goal: take a level to Blender as the game builds it.
+**Learned:** Blender evaluates an `EnumProperty`'s `items` lambda outside the module's
+scope (a `NameError`), and in a fresh session the callback runs before anything has
+loaded dr2kit: the callbacks are module functions that load the toolkit first.
+**Docs updated:** `modding/18-maps.md` (export), `modding/13-blender-addon.md` (Import
+zone), `modding/04-extracting.md`, `dev/blender-addon.md`, `dev/code-tour.md`,
+`phase10-kickoff.md`, this entry.
+**Next:** step 5, seeing the switched-on mods in every view.
+
 ## 2026-10-11 — Phase 10 step 3: the Maps tab
 **Done:** DR2 Studio's **Maps** tab: the levels on the left; a three.js page that streams
 a level zone by zone (nearest first, the game's small textures far away; each zone built

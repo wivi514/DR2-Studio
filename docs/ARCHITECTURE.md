@@ -225,7 +225,9 @@ in a worker thread with a progress bar; `dr2 export` is the same from the termin
   Markers (spawn points, areas, triggers, the nav mesh) come as JSON and are drawn by the
   page. Level materials (lightmaps, two-texture blends) travel in the `.glb` as the
   occlusion texture and material extras and are drawn by `web/levelmaterials.js` the way
-  the level shaders do (both 3D views use it).
+  the level shaders do (both 3D views use it). *Export zone / level* writes
+  `catalog/level_export.py`'s folder (one `.glb` per zone, grouped by layer; the add-on's
+  *Import zone* turns the groups into collections).
 - **Help inside the app** (✅ phase 7): the modding guides are the help (`dr2kit/help`,
   copied into packages by `setup.py`; English, one folder per language for
   translations, user decision 2026-10-09), shown in a searchable window (F1), a "How to

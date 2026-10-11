@@ -491,6 +491,15 @@ pictures are drawn: bump `index.build.THUMB_VERSION`, and the next build redraws
   `Exporter` takes a look (`variant`) and a `mode`; models get every part organised by
   default, `textures/colours/` holds each colour choice baked, and `info.txt` lists the
   detail levels and the variants.
+- `level_export` (phase 10): `export_level(tree, game, level, out, zones=, script=,
+  items=, markers=, whole=, lod=)` writes `<out>/<game>/<level>/`: one `.glb` per zone
+  (or one for all, `whole`), `text/` (the level's text files) and `info.txt`; resumable
+  like `export`. `level_glb(tree, game, L, zones, ls)` is one file in memory (the
+  Blender add-on's *Import zone* uses it): per zone a group (`extras.dr2_layer = "zone"`)
+  holding Buildings (`level.zone_glb`), Items and doors (`level.things_glb`) and Markers
+  (`add_markers`: spawn and map points as empties, areas / triggers / sound boxes as
+  outlines, the nav mesh as a mesh, each group with its `dr2_layer`). `gltf.Assembler`
+  gained `empty`, `lines` (LINE_LOOP primitives) and `mesh` for them.
 
 ### `dr2kit/mods/` (phase 2)
 - `manifest`: `Mod.load(folder)` reads `mod.toml`; `Mod.files()` lists `replace/`;

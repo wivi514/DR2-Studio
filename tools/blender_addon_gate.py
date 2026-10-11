@@ -14,7 +14,10 @@ push both arms out 2 cm, **Check rig** again (must still pass: the shapes are re
 and **Export to mod** into ``out_mod``. Phase 9 adds a zombie with variants
 (``zombie_skinny_2``): **Import** must sort its parts into group collections with the
 parts of other looks hidden; after a visible shirt is pushed out 2 cm, **Check rig** must
-pass (the hidden parts are left as they are) and **Export to mod** must write it. Each step prints a ``DR2GATE`` line; the script
+pass (the hidden parts are left as they are) and **Export to mod** must write it. Phase
+10 adds **Import zone**: Case Zero's bowling alley zone must arrive in collections by
+zone and layer, its 19 pieces where the game places them, its 113 items and its markers
+in their collections, with the lightmaps wired in. Each step prints a ``DR2GATE`` line; the script
 exits non-zero on the first failure. Afterwards ``dr2 mod check out_mod -g cz`` must
 accept the mod (docs/dev/testing.md §Phase 6 results).
 """
@@ -115,6 +118,46 @@ def zombie(s):
     if bpy.ops.dr2.export_to_mod() != {"FINISHED"}:
         fail("zombie export to mod")
     print("DR2GATE zombie exported", flush=True)
+    level(s)
+
+
+def level(s):
+    """Phase 10: Import zone puts Case Zero's bowling alley zone in collections by zone
+    and layer, each piece where the game places it, items and markers in their own
+    collections, and the lightmaps wired into the materials."""
+    s.game = "cz"
+    s.level = "prologue"
+    s.zone = "prologue_z05"
+    s.level_items = s.level_markers = s.level_lightmaps = True
+    if bpy.ops.dr2.import_level() != {"FINISHED"}:
+        fail("level import")
+    top = next(c for c in bpy.data.collections if c.get("dr2_zone") == "prologue_z05")
+    zone = next((c for c in top.children if c.name.startswith("prologue_z05")), None)
+    if zone is None:
+        fail(f"no zone collection in {[c.name for c in top.children]}")
+    layers = {c.name.split(".")[0] for c in zone.children}
+    if not {"Buildings", "Items and doors", "Markers"} <= layers:
+        fail(f"zone layers {sorted(layers)}")
+    build = next(c for c in zone.children if c.name.startswith("Buildings"))
+    pieces = [o for o in build.all_objects if o.get("dr2_piece")]
+    if len(pieces) != 19:
+        fail(f"{len(pieces)} placed pieces, expected 19")
+    struc = next(o for o in pieces if o.get("dr2_piece") == "z05_bowling_struc")
+    # the game puts it at (-162.119, 7.207, -34.418), Y up; Blender is Z up: (x, -z, y)
+    w = struc.matrix_world.translation
+    if max(abs(a - b) for a, b in zip(w, (-162.119, 34.418, 7.207))) > 0.01:
+        fail(f"z05_bowling_struc at {tuple(w)}")
+    items = next(c for c in zone.children if c.name.startswith("Items"))
+    placed = [o for o in items.all_objects if o.get("dr2_item")]
+    markers = next(c for c in zone.children if c.name.startswith("Markers"))
+    kinds = {c.name.split(".")[0] for c in markers.children}
+    wired = sum(1 for m in bpy.data.materials if m.use_nodes and any(
+        n.type == "MIX" and n.blend_type == "MULTIPLY" for n in m.node_tree.nodes))
+    if len(placed) != 113 or not kinds or wired == 0:
+        fail(f"{len(placed)} items, marker kinds {kinds}, {wired} lightmaps wired")
+    print("DR2GATE level import", len(pieces), "pieces placed,", len(placed), "items,",
+          "markers:", ", ".join(sorted(kinds)), ",", wired, "materials with lightmaps",
+          flush=True)
 
 
 main()

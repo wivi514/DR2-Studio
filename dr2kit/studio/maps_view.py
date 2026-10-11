@@ -238,6 +238,18 @@ class MapsView(QWidget):
         self.btn_export.setToolTip("This piece or item alone, as glTF for Blender")
         self.btn_export.clicked.connect(self._export_glb)
         sl.addWidget(self.btn_export)
+        row = QHBoxLayout()
+        self.btn_export_zone = QPushButton("Export zone…")
+        self.btn_export_zone.setToolTip("The zone you stand in as .glb for Blender: buildings "
+                                        "placed, items and doors, markers; and the level's "
+                                        "text files")
+        self.btn_export_zone.clicked.connect(lambda: self.export(whole_level=False))
+        self.btn_export_level = QPushButton("Export level…")
+        self.btn_export_level.setToolTip("Every zone of the level, one .glb each")
+        self.btn_export_level.clicked.connect(lambda: self.export(whole_level=True))
+        row.addWidget(self.btn_export_zone)
+        row.addWidget(self.btn_export_level)
+        sl.addLayout(row)
         self.btn_help = QPushButton("How to use Maps")
         self.btn_help.clicked.connect(lambda: self.window.open_help("18-maps.md")
                                       if hasattr(self.window, "open_help") else None)
@@ -496,6 +508,65 @@ class MapsView(QWidget):
             self.status.emit(str(e))
             return
         self.status.emit(f"Blender is starting with {vp}")
+
+    def current_zone(self) -> str | None:
+        """The zone the camera is in (the smallest holding it), or None."""
+        if not (self.level and self.camera and self._ui_cache):
+            return None
+        from ..convert import level as clevel
+        L = self._ui_cache.level(self.level)
+        z = clevel.zone_of(self.camera["position"], L.zones)
+        return z.zone if z else None
+
+    def export(self, whole_level: bool, folder: str | None = None) -> None:
+        """*Export zone… / Export level…*: `catalog.level_export` into a folder, in the
+        background (the log says what is written)."""
+        if not self.level:
+            return
+        zone = None if whole_level else self.current_zone()
+        if not whole_level and zone is None:
+            self.status.emit("Maps: fly into a zone first (or use Export level…)")
+            return
+        if folder is None:
+            folder = QFileDialog.getExistingDirectory(self, "Export the level into")
+            if not folder:
+                return
+        game, level, root = self.game, self.level, self.tree.root
+        script = self.script_box.currentData()
+        layers = {k for k, b in self.layer_boxes.items() if b.isChecked()}
+        from ..catalog.level_export import DEFAULT_MARKERS
+        markers = tuple(k for k in DEFAULT_MARKERS + ("light_area", "sound_area")
+                        if k in layers)
+        items = "items" in layers
+
+        def work(progress):
+            from ..catalog.level_export import export_level
+            return export_level(AssetTree(root, cache_size=32), game, level, folder,
+                                zones=[zone] if zone else None, script=script,
+                                items=items, markers=markers,
+                                progress=lambda d, t, w: progress(f"export {level}: "
+                                                                  f"[{d + 1}/{t}] {w}"))
+
+        def done(res, err):
+            if err:
+                self.status.emit(f"export failed: {err.splitlines()[-1]}")
+                if hasattr(self.window, "error"):
+                    self.window.error(err)
+                return
+            self.status.emit(f"exported {len(res.files)} files to {res.folder}")
+            if hasattr(self.window, "say"):
+                self.window.say(f"Maps: exported {level} ({zone or 'every zone'}): "
+                                f"{len(res.files)} files, {res.pieces} pieces, {res.items} "
+                                f"items, {res.markers} markers -> {res.folder}")
+                for a, b in res.failed:
+                    self.window.say(f"  not exported: {a}: {b}")
+        if hasattr(self.window, "run_job"):
+            self.window.run_job(work, done)
+        else:                                     # no window (tests): right away
+            try:
+                done(work(lambda _t: None), None)
+            except Dr2Error as e:
+                done(None, str(e))
 
     def _copy_position(self) -> None:
         from PySide6.QtWidgets import QApplication

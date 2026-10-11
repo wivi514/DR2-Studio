@@ -603,6 +603,16 @@ def cmd_export(args) -> int:
     from ..catalog import export as cx
     from ..container.vpath import AssetTree
     from ..index import query
+    from ..convert.level import list_levels
+    tree0 = AssetTree(locate(args.game).root, cache_size=32)
+    levels = {L.name.lower(): L.name for L in list_levels(tree0)}
+    lv = [t for t in args.targets if t.lower() in levels]
+    if lv:                                                    # levels (phase 10)
+        if len(lv) != len(args.targets):
+            raise Dr2Error("export levels and Library groups in separate commands")
+        return _export_levels(args, tree0, [levels[t.lower()] for t in lv])
+    if args.zone or args.whole:
+        raise Dr2Error("--zone and --whole are for levels (dr2 level list)")
     con = _db(args)
     rows, singles = [], []
     for t in args.targets:
@@ -632,6 +642,42 @@ def cmd_export(args) -> int:
         print(f"FAILED {vp}: {why}")
     print(res.summary())
     return 1 if res.failed else 0
+
+
+def _export_levels(args, tree, names: list[str]) -> int:
+    """``dr2 export <level>``: zones as .glb with items and markers, the text files."""
+    from ..catalog.level_export import DEFAULT_MARKERS, export_level
+    from ..convert.placed import LAYERS
+    if args.markers in (None, "default"):
+        markers = DEFAULT_MARKERS
+    elif args.markers == "none":
+        markers = ()
+    elif args.markers == "all":
+        markers = tuple(k for k in LAYERS if k not in ("item", "door"))
+    else:
+        markers = tuple(args.markers.split(","))
+        bad = [m for m in markers if m not in LAYERS]
+        if bad:
+            raise Dr2Error(f"unknown marker kind(s) {', '.join(bad)} (known: "
+                           f"{', '.join(k for k in LAYERS if k not in ('item', 'door'))})")
+    failed = 0
+    for name in names:
+        def progress(done, total, what, name=name):
+            if not args.quiet:
+                print(f"[{done + 1}/{total}] {name}: {what}", file=sys.stderr)
+        res = export_level(tree, args.game, name, args.out, zones=args.zone or None,
+                           script=args.script, items=not args.no_items, markers=markers,
+                           whole=args.whole, lod=args.lod, db_path=args.db,
+                           progress=progress, dry_run=args.list)
+        for p in res.files:
+            print(("would write " if args.list else "") + str(p))
+        for a, b in res.failed:
+            print(f"FAILED {a}: {b}")
+        failed += len(res.failed)
+        print(f"{name}: {len(res.files)} files ({len(res.skipped)} already there), "
+              f"{res.pieces} pieces, {res.items} items and doors, {res.markers} markers, "
+              f"{res.triangles:,} triangles -> {res.folder}", file=sys.stderr)
+    return 1 if failed else 0
 
 
 # ---- mods -----------------------------------------------------------------------------
@@ -1143,7 +1189,7 @@ def build_parser() -> argparse.ArgumentParser:
                        "with textures and rig, sounds as WAV, movies as MP4…")
     p.add_argument("targets", nargs="+", metavar="GROUP_OR_VPATH",
                    help="a group (characters, music), sub-group (zombies/zombie_cop), section "
-                   "(sounds) or an asset's vpath")
+                   "(sounds), an asset's vpath, or a level (prologue, living_research)")
     p.add_argument("-o", "--out", required=True, help="folder to write into")
     game_opt(p)
     for o, h in (("glb", "models and rigs as .glb"), ("png", "textures as PNG"),
@@ -1151,6 +1197,17 @@ def build_parser() -> argparse.ArgumentParser:
                  ("json", "string banks as .bcs.json"), ("raw", "other files as they are")):
         p.add_argument(f"--{o}", action="store_true", help=f"only {h} (combine several)")
     p.add_argument("--list", action="store_true", help="only show what would go where")
+    lg = p.add_argument_group("levels (a target that names a level: dr2 level list)")
+    lg.add_argument("--zone", action="append", metavar="ZONE",
+                    help="only this zone, e.g. z05 (repeat for several; default: all)")
+    lg.add_argument("--whole", action="store_true", help="one .glb for all the zones")
+    lg.add_argument("--no-items", action="store_true", help="leave the items and doors out")
+    lg.add_argument("--markers", metavar="KINDS",
+                    help="marker kinds: spawn,zombie_area,map_area,map_point,trigger,navmesh "
+                         "(the default), 'all' or 'none'")
+    lg.add_argument("--script", help="the item set, e.g. prologue_safehouse (default: the "
+                    "level's own)")
+    lg.add_argument("--lod", action="store_true", help="the game's small textures (smaller files)")
     variant_opts(p)
     p.add_argument("-q", "--quiet", action="store_true")
     p.add_argument("--db", help="index file (default: the per-user cache folder)")

@@ -393,6 +393,14 @@ def test_maps_tab_on_a_synthetic_level(tmp_path, monkeypatch):
                                       "vpath": "data/streamedassets.big/HotDog.big/hotdog.big",
                                       "file": "town.txt", "line": 1}))
     assert "HotDog" in mv.info.toPlainText() and mv.btn_library.isEnabled()
+    # Export zone… (step 4): the zone the camera stands in, into a folder
+    mv._message("camera " + json.dumps({"position": [0, 1, 0], "yaw": 0}))
+    assert mv.current_zone() == "town_z01"
+    mv.export(whole_level=False, folder=str(tmp_path / "out"))
+    assert win.wait_for_jobs()
+    out = tmp_path / "out" / "cz" / "town"
+    assert (out / "town_z01.glb").is_file() and (out / "info.txt").is_file()
+    assert (out / "text" / "town.txt").is_file()
     win.left.setCurrentWidget(win.library_view)
     assert not win.right_panel.isHidden() and win.centre.currentWidget() is not mv
     assert win.wait_for_jobs()

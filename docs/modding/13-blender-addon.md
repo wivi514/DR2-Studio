@@ -52,6 +52,32 @@ the toolkit: it uses the copy you already have, from the folder you give it.
    ([`17-variants.md`](17-variants.md)). **Export to mod** sends the visible parts; the
    hidden ones stay as they are in the game.
 
+### Import a level zone
+
+Levels (Case Zero's street, Case West's labs) come zone by zone: a zone is the part of a
+level the game loads at once ([`18-maps.md`](18-maps.md) shows them in DR2 Studio).
+
+1. In the **DR2** tab's **Levels** box, pick the **Level** (`prologue`, `living_research`…)
+   and the **Zone** (`prologue_z05` is Case Zero's bowling alley).
+2. Leave **Items** (the items and doors placed in it), **Markers** (spawn points,
+   zombie areas, map areas, triggers, the navigation mesh) and **Lightmaps** on, and
+   click **Import zone**. It takes a few seconds to a minute for a big zone.
+3. The zone arrives in a collection `prologue prologue_z05`, sorted like the game sorts
+   it: the zone, then **Buildings**, **Items and doors** and **Markers** (one collection
+   per kind: *Spawn points*, *Zombie areas*…). Every piece and item is where the game
+   puts it (Blender's Z up). Spawn points and map points are Empties (the arrow is the
+   way the player faces); areas and triggers are outlines; the **Navigation mesh** is
+   hidden at first (it lies over every floor: click its eye in the Outliner). Each marker
+   keeps the level file's settings as custom properties (`dr2_…`, Object properties →
+   Custom Properties).
+4. **Lightmaps** multiplies each surface's baked light into its colour, as the game does:
+   switch the viewport to **Material Preview** (Z key) to see it. The scene's own
+   lights still add to it, so a level can look darker or brighter than in the game.
+
+Changing a level and putting it back in the game is not possible yet (a possible
+phase 11); the import is for looking, measuring, and making renders or new models that
+fit the game's places.
+
 ### Edit, check, export to a mod
 
 6. Edit the meshes as in [`08-edit-a-model.md`](08-edit-a-model.md) or

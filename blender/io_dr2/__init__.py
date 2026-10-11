@@ -15,6 +15,10 @@ A sidebar tab (**View3D > Sidebar > DR2**) over the DR2 toolkit:
   editor (``DR2 rig check``).
 * **Export to mod**: the same check, and when it passes, the ``.glb`` goes into a mod
   folder as ``replace/<model vpath>.glb``, ready for ``dr2 mod deploy`` or DR2 Studio.
+* **Import level** (dr2kit phase 10): one zone of a level with its pieces placed, its
+  items and doors and its markers (spawn points, areas, the navigation mesh), sorted into
+  collections (the zone, then Buildings, Items and doors, Markers by kind); *Lightmaps*
+  multiplies each level material's baked light into its colour, as the game draws it.
 
 Licence: this add-on is GPL-3.0-or-later (``LICENSE``). It does **not** include dr2kit,
 which has its own licence; `toolkit.load` imports it from the folder set in the
@@ -72,6 +76,37 @@ class DR2Result(bpy.types.PropertyGroup):
     size: IntProperty()
 
 
+_LEVELS: dict[str, list] = {}       # game -> [(level, [zones])]: Blender keeps enum strings
+
+
+def _levels(game: str) -> list:
+    if game not in _LEVELS:
+        try:
+            dr2(bpy.context)                      # puts dr2kit on the path first
+            from . import core
+            _LEVELS[game] = core.levels(game)
+        except Exception:  # noqa: BLE001 - no toolkit or no game: an empty list
+            return []
+    return _LEVELS[game]
+
+
+def _level_items(s, context=None):
+    out = [(n, n, f"{len(z)} zones") for n, z in _levels(s.game)]
+    _LEVEL_ENUM[s.game] = out or [("", "(no levels: set the toolkit and game)", "")]
+    return _LEVEL_ENUM[s.game]
+
+
+def _zone_items(s, context=None):
+    zones = next((z for n, z in _levels(s.game) if n == s.level), [])
+    key = (s.game, s.level)
+    _ZONE_ENUM[key] = [(z, z, "") for z in zones] or [("", "(pick a level)", "")]
+    return _ZONE_ENUM[key]
+
+
+_LEVEL_ENUM: dict = {}
+_ZONE_ENUM: dict = {}
+
+
 class DR2Settings(bpy.types.PropertyGroup):
     game: EnumProperty(name="Game", items=GAMES, default="cz")
     query: StringProperty(name="Search", description="Words of the name; * and ? work",
@@ -89,6 +124,19 @@ class DR2Settings(bpy.types.PropertyGroup):
                                description="Where Export to mod writes (a mod folder, "
                                            "made if it has no mod.toml)")
     last: StringProperty(name="Last check", default="")
+    level: EnumProperty(name="Level", items=_level_items,
+                        description="A level of the game (its buildings are its zones)")
+    zone: EnumProperty(name="Zone", items=_zone_items,
+                       description="A zone: the part of the level the game loads at once")
+    level_items: BoolProperty(name="Items", default=True,
+                              description="The items and doors placed in the zone")
+    level_markers: BoolProperty(name="Markers", default=True,
+                                description="Spawn points, areas, triggers, the navigation mesh")
+    level_lightmaps: BoolProperty(name="Lightmaps", default=True,
+                                  description="Multiply each level material's baked light "
+                                              "(its lightmap) into its colour, as the game does")
+
+
 
 
 def dr2_collection(context):
@@ -175,6 +223,120 @@ class DR2_OT_import(bpy.types.Operator):
             self.report({"WARNING"}, n)
         self.report({"INFO"}, f"imported {r.vpath}: {summary}")
         return {"FINISHED"}
+
+
+class DR2_OT_import_level(bpy.types.Operator):
+    bl_idname = "dr2.import_level"
+    bl_label = "Import zone"
+    bl_description = ("Build the chosen zone with the toolkit (pieces placed, items, markers) "
+                      "and import it into collections by zone and layer")
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        s = context.scene.dr2
+        if not s.level or not s.zone:
+            self.report({"ERROR"}, "Pick a level and a zone first")
+            return {"CANCELLED"}
+        try:
+            dr2(context)
+            from . import core
+            glb, summary, notes = core.export_level_zone(
+                s.game, s.level, s.zone, items=s.level_items, markers=s.level_markers)
+        except Exception as e:  # noqa: BLE001 - dr2kit errors, shown to the user
+            self.report({"ERROR"}, f"{s.level} {s.zone}: {e}")
+            return {"CANCELLED"}
+        coll = bpy.data.collections.new(f"{s.level} {s.zone}")
+        context.scene.collection.children.link(coll)
+        coll["dr2_game"], coll["dr2_level"], coll["dr2_zone"] = s.game, s.level, s.zone
+        layer = context.view_layer.layer_collection.children[coll.name]
+        context.view_layer.active_layer_collection = layer
+        path = _temp_glb(glb)
+        try:
+            bpy.ops.import_scene.gltf(filepath=path)
+        finally:
+            os.unlink(path)
+        n = organise_level(coll)
+        wired = wire_lightmaps(coll) if s.level_lightmaps else 0
+        for note in notes[:10]:
+            self.report({"WARNING"}, note)
+        self.report({"INFO"}, f"imported {s.level} {s.zone}: {summary}; {n} collections, "
+                              f"{wired} materials with their lightmap")
+        return {"FINISHED"}
+
+
+def organise_level(coll) -> int:
+    """Levels (dr2kit phase 10): the zone's group objects say what they hold
+    (``dr2_layer``: zone, pieces, items, markers, or a marker kind); make one collection
+    per group, nested like the groups, and put every object in the collection of its
+    nearest group. Parenting is kept, so everything stays where the game puts it. The
+    navigation mesh starts hidden (it lies over every floor). Returns how many
+    collections were made."""
+    made = {}
+
+    def coll_of(obj):
+        if obj is None:
+            return coll
+        if obj.name in made:
+            return made[obj.name]
+        if obj.get("dr2_layer") is not None:
+            parent = coll_of(obj.parent)
+            c = bpy.data.collections.new(obj.name)
+            parent.children.link(c)
+            made[obj.name] = c
+            return c
+        return coll_of(obj.parent)
+    for obj in list(coll.objects):
+        target = coll_of(obj)
+        if target is not coll:
+            target.objects.link(obj)
+            coll.objects.unlink(obj)
+        if obj.get("dr2_kind") == "navmesh":     # it covers every floor: hidden at first
+            obj.hide_set(True)
+            obj.hide_render = True
+    return len(made)
+
+
+def wire_lightmaps(coll) -> int:
+    """Multiply each level material's lightmap (the importer puts it on the glTF
+    occlusion socket, on its own UV map) into the base colour, read as sRGB like the
+    game's shaders do (docs/formats.md §Levels, materials). Returns materials changed."""
+    done, seen = 0, set()
+    for obj in coll.all_objects:
+        for slot in getattr(obj, "material_slots", []):
+            mat = slot.material
+            if mat is None or mat.name in seen or not mat.use_nodes:
+                continue
+            seen.add(mat.name)
+            nt = mat.node_tree
+            bsdf = next((n for n in nt.nodes if n.type == "BSDF_PRINCIPLED"), None)
+            occ = None
+            for n in nt.nodes:
+                if n.type == "GROUP" and "Occlusion" in n.inputs and n.inputs["Occlusion"].is_linked:
+                    occ = n.inputs["Occlusion"].links[0].from_node
+                    break
+            if bsdf is None or occ is None:
+                continue
+            while occ.type == "SEPARATE_COLOR" or occ.type == "SEPRGB":   # the R channel split
+                occ = occ.inputs[0].links[0].from_node if occ.inputs[0].is_linked else None
+                if occ is None:
+                    break
+            if occ is None or occ.type != "TEX_IMAGE" or occ.image is None:
+                continue
+            occ.image.colorspace_settings.name = "sRGB"
+            mix = nt.nodes.new("ShaderNodeMix")
+            mix.data_type = "RGBA"
+            mix.blend_type = "MULTIPLY"
+            mix.inputs["Factor"].default_value = 1.0
+            base = bsdf.inputs["Base Color"]
+            if base.is_linked:
+                nt.links.new(base.links[0].from_socket, mix.inputs[6])
+            else:
+                mix.inputs[6].default_value = base.default_value
+            nt.links.new(occ.outputs["Color"], mix.inputs[7])
+            nt.links.new(mix.outputs[2], base)
+            mix.location = (bsdf.location.x - 200, bsdf.location.y + 200)
+            done += 1
+    return done
 
 
 def organise_variants(coll) -> int:
@@ -348,6 +510,16 @@ class DR2_PT_main(bpy.types.Panel):
         box.prop(s, "mod_folder")
         box.operator(DR2_OT_export_mod.bl_idname, icon="EXPORT")
 
+        box = lay.box()
+        box.label(text="Levels", icon="WORLD")
+        box.prop(s, "level")
+        box.prop(s, "zone")
+        row = box.row(align=True)
+        row.prop(s, "level_items")
+        row.prop(s, "level_markers")
+        row.prop(s, "level_lightmaps")
+        box.operator(DR2_OT_import_level.bl_idname, icon="IMPORT")
+
 
 def _wrap(text: str, width: int) -> list[str]:
     out, line = [], ""
@@ -361,6 +533,7 @@ def _wrap(text: str, width: int) -> list[str]:
 
 
 CLASSES = (DR2Preferences, DR2Result, DR2Settings, DR2_OT_search, DR2_OT_import,
+           DR2_OT_import_level,
            DR2_OT_check, DR2_OT_export_mod, DR2_UL_results, DR2_PT_main)
 
 
