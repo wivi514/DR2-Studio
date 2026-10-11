@@ -58,6 +58,7 @@ dr2kit/
     library.py         the mod manager: a library folder, load order, on/off, install, pack (phase 6);
                        linked mods, new mods, mod sets, .dr2mod, update summaries (phase 7)
     play.py            Play: deploy the switched-on mods, start the recomp, what is deployed (phase 7)
+    preview.py         see the switched-on mods without the game: a ModdedTree for every view (phase 10)
     texture_import.py  exports from Substance Painter / Blender / any program → the model's textures (phase 7)
   studio/
     app.py, viewers.py DR2 Studio (PySide6): tree, search, texture viewer, mod bar
@@ -534,6 +535,17 @@ pictures are drawn: bump `index.build.THUMB_VERSION`, and the next build redraws
 - `deploy`: `deploy(build, target)` copies files and records them in
   `dr2kit-deployed.json`; `undeploy(target)` removes exactly those. `recomp_folders()`
   names `game_mods` / `game_patched` / `game_kbm` / `game_bootskip` next to a game root.
+
+- `preview` (phase 10): `Preview(game, root, mods, base_dirs=)` (or
+  `Preview.for_play(game)`: the mod library's switched-on mods over the recomp's
+  `game_patched` copies, like Play) plans the mods once, drops the ones that fail their
+  check (`problems`), and makes the replacement bytes with `build.new_bytes` (cached in
+  memory and in `<cache>/preview/`). `Preview.tree()` is a `ModdedTree`: an `AssetTree`
+  whose archives are patched as they are opened (overridden entries get the replacement,
+  archives holding overrides get their nested archives patched, stored), so every reader
+  sees the mods. `changed(vpath)` names the mods that change an asset, `stamp(vpaths)`
+  keys the Maps tab's zone files. `build.level_texture_copies` (same phase): the other
+  identical copies of a level texture in its zone, which `plan_mods` changes too.
 
 ### `dr2kit/studio/` (phases 2-3)
 DR2 Studio; see [`studio.md`](studio.md). `model_view.py` is the 3D view (phase 3),

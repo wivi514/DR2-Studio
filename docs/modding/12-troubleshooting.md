@@ -37,6 +37,8 @@ one guide. Search the page for the error text you see.
 | `replaced by both a and b at the same priority` | Two mods change the same asset | Raise one mod's `priority`. |
 | Mod deployed but nothing changes in game | The outfit/object on screen uses another texture, `CZ_NO_MODS`/`CW_NO_MODS` is set, or the recomp predates `game_mods/` | Check the recomp log for `served from the MODS overlay`; check which texture the model uses (`dr2 index textures-of`). |
 | `warning: … the recomp's game_kbm layer also has this file` | Your mod and a recomp option layer change the same file | While the mod is installed, the mod's copy wins (keyboard prompts or the logo skip may revert for that file). |
+| A level texture (a wall, a floor) doesn't change in game | Before phase 10: the zone has the same texture in several packs and the game uses the **first**; a PNG on another copy did nothing | The build now puts it on every identical copy in the zone (it says so in its notes); rebuild and Play again. |
+| DR2 Studio doesn't show my mod | *With my mods* is off (Ctrl+M), the mod isn't switched on in the mod library, or it fails its check (the log says `not shown (it fails its check)`) | Switch it on in the Mod manager; fix what the log names. |
 | The game crashes or hangs after deploying | Possibly an archive the game reads at boot (`preload4.big`) rejecting a re-compressed entry; not yet proven safe | `dr2 mod undeploy -g cz`, then report it with the mod and the recomp log. Textures in model packs (`npcs.big`) are tested and work. |
 
 ## Models and Blender (phase 3)

@@ -300,7 +300,11 @@ class MapsView(QWidget):
             return
         self._gen.value += 1
         for _th, b, _r in self._workers:
-            b.cache.tree = make_tree(b.cache.tree.root)
+            b.cache = type(b.cache)(make_tree(b.cache.tree.root), self.game,
+                                    db_path=b.cache.db_path)
+        self.tree = make_tree(self.tree.root)
+        self._ui_cache = type(self._ui_cache)(self.tree, self.game,
+                                              db_path=self._ui_cache.db_path)
         self.reload()
 
     def reload(self) -> None:
@@ -466,6 +470,12 @@ class MapsView(QWidget):
             for k, v in (info.get("props") or {}).items():
                 if not k.startswith("Vertex"):
                     rows.append((k, v))
+        pv = getattr(self.window, "preview", None)
+        if pv is not None and info.get("vpath"):
+            by = pv.changed(info["vpath"])
+            if by:
+                rows.insert(1, ("Changed by mod", ", ".join(by) + (
+                    "" if self.window.mods_action.isChecked() else " (not shown: Ctrl+M)")))
         if info.get("point"):
             rows.append(("Clicked at", " ".join(f"{c:.2f}" for c in info["point"])))
         self.info.setHtml("<table>" + "".join(

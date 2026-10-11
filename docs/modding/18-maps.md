@@ -81,6 +81,18 @@ to tell someone where something is).
     into collections (Buildings, Items and doors, Markers by kind) and wires the
     lightmaps in. With the plain importer, Blender shows each surface's colour map only.
 
+## Your mods in the map
+
+When mods are switched on, the Maps tab draws the level **with them**, as Play would put
+them in the game: a recoloured wall, a new model of an item. **Ctrl+M** (or *With my
+mods* in the toolbar) shows the level without them, and again with them; the camera
+stays where it is. Clicking a piece or an item a mod changes says *Changed by mod: …*.
+Only the zones a mod touches are built again.
+
+A level texture often sits in several packs of one zone (the same wall on the garage and
+the shed). The game uses the first copy in the zone for every piece, so the mod build
+puts your PNG on every identical copy, whichever one you replaced.
+
 ## The same in the terminal
 
 ```

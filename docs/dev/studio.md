@@ -283,6 +283,21 @@ Checking it: a scratch driver opens the window in a real display, drives the pag
 camera of a recomp capture (`c0`–`c3` of a vertex shader dump, row 1 divided by the
 widescreen factor) goes into `setView` and the two pictures are compared.
 
+## With my mods (phase 10)
+
+`MainWindow.refresh_mods` builds a `mods.preview.Preview` of Play's mods for the game
+(on a game switch, when the mod manager closes, and one second after a watched mod file
+changes: `QFileSystemWatcher` on every library mod's folders and `replace/` files and the
+library's `modlist.toml`). The toolbar's checkable **With my mods** (Ctrl+M; on by
+default when a mod is on; remembered per game) picks the tree: `asset_tree()` (GUI
+thread) and `worker_tree()` (a new one per worker) give a `ModdedTree` or the plain game;
+`plain_tree()` is always the game (mod checks, texture import plans). Switching clears
+the trees, gives the Maps view new trees (`MapsView.use_tree`), and shows the current
+asset again keeping the 3D camera (`_keep_view_once`). The details say *changed by mod:
+…*; the Library puts ✎ before changed items (`LibraryModel.changed_by`); the Maps
+panel says *Changed by mod* for a clicked piece or item. The Library's pictures stay
+the game's (they are in the index).
+
 ## Testing
 
 `QT_QPA_PLATFORM=offscreen` runs the window without a display. A smoke test opens the

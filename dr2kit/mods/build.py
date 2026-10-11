@@ -37,6 +37,7 @@ from pathlib import Path
 
 from ..container.big import BigArchive, is_big
 from ..container.vpath import AssetTree, entry_component, find_entry, join, split
+from ..container.vpath import entry_components as entry_components_of
 from ..errors import Dr2Error
 from ..formats.bct import Bct, is_bct
 from .manifest import AUDIO_EXTS, STRINGS_EXT, Mod, ModError, Override
@@ -179,6 +180,22 @@ def plan_mods(mods: list[Mod], game: str, tree: AssetTree) -> ModPlan:
                 shadowed.append((node.vpath, plan[key].mod.id, mod.id))
             plan[key] = Planned(Override(node.vpath, src, kind), mod, node.vpath,
                                 _disk_parts(tree, node.vpath), strings)
+    # Level textures: the game takes a name from the first pack of the zone that has it,
+    # whichever piece uses it, so a PNG must reach every identical copy in the zone
+    # (docs/formats.md §Levels; the shed/garage wall test of 2026-10-11)
+    for key in list(plan):
+        p = plan[key]
+        if p.override.kind != "texture-png":
+            continue
+        for vp in level_texture_copies(tree, p.vpath):
+            low = vp.lower()
+            if low in plan:
+                continue
+            plan[low] = Planned(Override(vp, p.override.source, "texture-png"), p.mod, vp,
+                                _disk_parts(tree, vp))
+            notes.append(f"{p.mod.id}: {p.vpath.rsplit('/', 2)[-1]} is also in "
+                         f"{vp.rsplit('/', 2)[-2]} of the same zone: changed there too (the "
+                         f"game uses the first copy in the zone)")
     keys = sorted(plan)
     for a in keys:
         for b in keys:
@@ -213,6 +230,41 @@ def plan_mods(mods: list[Mod], game: str, tree: AssetTree) -> ModPlan:
         except Dr2Error as e:
             raise ModError(f"the mod set can't be built:\n  {e}") from None
     return ModPlan(planned, shadowed, notes)
+
+
+def level_texture_copies(tree: AssetTree, vpath: str) -> list[str]:
+    """Other full-size copies of a level texture in its zone: the same name (with or
+    without ``.bct``) in another ``.tex`` pack of the same zone archive, with the same
+    bytes. Empty for anything that isn't a texture in a zone's pack."""
+    parts = split(vpath)
+    low = [x.lower() for x in parts]
+    if "environment" not in low:
+        return []
+    i = low.index("environment")
+    z = i + 3                                     # environment/<level>/<zone>.big
+    if len(parts) != z + 2 or not low[z - 1].endswith(".big") or \
+            not low[z].endswith(".tex") or low[z].endswith("_lod.tex"):
+        return []
+    zone_vp = join(*parts[:z])
+    name = low[-1].removesuffix(".bct")
+    try:
+        mine = tree.resolve(vpath).data()
+        zone = tree.open_archive(zone_vp)
+    except Dr2Error:
+        return []
+    out = []
+    for comp, e in zip(entry_components_of(zone), zone.entries):
+        lc = comp.lower()
+        if not lc.endswith(".tex") or lc.endswith("_lod.tex") or lc == low[z]:
+            continue
+        data = e.data()
+        if not is_big(data):
+            continue
+        pack = BigArchive.parse(data, join(zone_vp, comp))
+        for t in pack.entries:
+            if t.name.lower().removesuffix(".bct") == name and t.data() == mine:
+                out.append(join(zone_vp, comp, t.name))
+    return out
 
 
 def _read_strings(tree: AssetTree, node, src: Path) -> dict[int, str]:

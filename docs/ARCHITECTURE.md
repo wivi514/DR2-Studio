@@ -228,6 +228,12 @@ in a worker thread with a progress bar; `dr2 export` is the same from the termin
   the level shaders do (both 3D views use it). *Export zone / level* writes
   `catalog/level_export.py`'s folder (one `.glb` per zone, grouped by layer; the add-on's
   *Import zone* turns the groups into collections).
+- **With my mods** (✅ phase 10, `mods/preview.py`, toolbar switch, Ctrl+M): every view
+  (assets, Library marks, Maps, exports) reads a `ModdedTree`: the game with the mod
+  library's switched-on mods applied the way Play builds them (the same bytes), so a
+  change is seen without the game; off, the game as shipped. Mod folders are watched:
+  a saved file redraws. Checks of a mod against the game (rig check, mod plans) keep
+  reading the game itself.
 - **Help inside the app** (✅ phase 7): the modding guides are the help (`dr2kit/help`,
   copied into packages by `setup.py`; English, one folder per language for
   translations, user decision 2026-10-09), shown in a searchable window (F1), a "How to

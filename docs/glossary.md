@@ -366,6 +366,10 @@ pieces, their textures, and the list of where each piece goes.
 **Piece (level piece).** One model a level is built from: a wall section, a floor, a
 sign, a row of lights. The Library lists them under *Environments*.
 
+**With my mods (preview).** DR2 Studio's switch (Ctrl+M) that shows the game's assets
+with your switched-on mods applied, exactly as Play will put them in the game, or as
+shipped. Lets you see a change without starting the game.
+
 **Lightmap.** A texture of light painted in advance ("baked") over a level piece: where
 shadows fall, where light pools. The game multiplies the colour map by it, so a wall
 looks lit without computing light while you play. Case Zero names them `AO_<piece>`,

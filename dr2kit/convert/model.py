@@ -12,7 +12,10 @@ need the game data around it:
   come last:** ``<name>_LOD.tex`` packs hold the same names at a quarter of the size
   (the game's textures for far away); before phase 10 they were found first for level
   pieces, which exported blurry. ``lod=True`` asks for them first (the Maps tab's far
-  zones).
+  zones). **In a level zone** the game takes a texture by name from the first pack of
+  the zone that has it, whichever piece uses it (checked in game 2026-10-11: a mod on
+  the shed's copy of a shared wall texture didn't show, on the earlier garage pack's
+  copy it did), so there the finder goes by archive order, not own pack first.
 * `export_glb` / `export_skeleton_glb` read a vpath and return the ``.glb`` bytes.
 * `model_glb` (phase 9) is the one place a model becomes a ``.glb`` in a **look**
   (`convert.variants`): every part sorted into groups (``mode="all"``) or only the
@@ -74,12 +77,14 @@ class TextureFinder:
             return self._scanned
         self._scanned = []
         stem = self._stem()
+        zone_vp = self.zone_archive()
         small: list[dict] = []                   # _LOD packs: after everything else
         for cvp in self._containers():
             try:
                 arc = self.tree.open_archive(cvp)
             except Dr2Error:
                 continue
+            zone = zone_vp is not None and cvp.lower() == zone_vp.lower()
             own: dict[str, tuple[str, bytes]] = {}
             own_lod: dict[str, tuple[str, bytes]] = {}
             other: dict[str, tuple[str, bytes]] = {}
@@ -92,7 +97,10 @@ class TextureFinder:
                         continue
                     pstem = lname[:-4]
                     is_lod = pstem.endswith("_lod")
-                    mine = pstem.removesuffix("_lod") == stem
+                    # a level zone: the game takes a name from the FIRST pack of the zone
+                    # that has it, whichever piece uses it (checked in game, phase 10):
+                    # no own-pack priority there, archive order decides
+                    mine = pstem.removesuffix("_lod") == stem and not zone
                     target = ((own_lod if mine else other_lod) if is_lod
                               else (own if mine else other))
                     for t in pack.entries:
@@ -116,6 +124,17 @@ class TextureFinder:
             data = entry.data()
             packs[key] = BigArchive.parse(data, vpath) if is_big(data) else None
         return packs[key]
+
+    def zone_archive(self) -> str | None:
+        """The level zone archive holding this model (``…/environment/<level>/<zone>.big``),
+        or None."""
+        parts = split(self.vpath)
+        low = [p.lower() for p in parts]
+        if "environment" in low:
+            i = low.index("environment")
+            if len(parts) > i + 3 and low[i + 2].endswith(".big"):
+                return join(*parts[:i + 3])
+        return None
 
     def _stem(self) -> str:
         """The model's name as its own texture pack is named: ``chest_default`` for

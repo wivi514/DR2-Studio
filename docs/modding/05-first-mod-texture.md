@@ -62,6 +62,13 @@ how the toolkit knows which texture your PNG replaces.
 
 ## Check it worked
 
+- **Without the game first** (phase 10): when your mod is switched on in the mod
+  library (a mod you create or open in DR2 Studio is), Studio shows every asset **with
+  your mods**: the texture view, the 3D view, the Library (a ✎ before what a mod
+  changes) and the Maps tab. It is the exact texture the game will get (compressed and
+  tiled as Play does it). Press **Ctrl+M** (or the toolbar's *With my mods* button) to
+  flip between your version and the original; the 3D view keeps its camera, so it is a
+  side-by-side in time. Saving the PNG again redraws it within a second.
 - In game, Chuck's shirt has your colours.
 - The recomp's log has one line per file it loaded from your mod:
   `VFS: 'game:\data\models\npcs.big' served from the MODS overlay -> …/game_mods/…`.

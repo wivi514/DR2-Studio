@@ -17,6 +17,25 @@ Entry template:
 
 ---
 
+## 2026-10-11 — Phase 10 step 5: see your mods without the game
+**Done:** `mods/preview.py`: the mod library's switched-on mods (Play's set and order,
+over the recomp's `game_patched`) applied to a view of the game, `ModdedTree`, with the
+build's own bytes. DR2 Studio's **With my mods** switch (Ctrl+M) puts every view on it
+or back on the game; the Library marks changed items with ✎, the details and the Maps
+panel name the mod; saving a mod's file redraws.
+**Why:** the phase's third goal, and the user's: make "without mods" one click.
+**Learned:** a level texture often sits in several packs of a zone, and the game uses
+the **first** copy for every piece. A blue wall texture on the shed's own copy didn't
+show in game; on the garage pack's copy (earlier in the zone), the user saw blue walls.
+The texture finder now goes by archive order in a zone, and the build puts a level
+texture on every identical copy (CZ 457, CW 1,217 shared names). Also: `COMMON_TEXTURE.tex`
+isn't empty in 31 zones, and `.bct` name endings aren't a small-pack trait (retractions).
+**Docs updated:** `formats.md` §Levels, `modding/05`, `12`, `18`, `dev/studio.md`,
+`dev/code-tour.md`, `ARCHITECTURE.md`, `glossary.md`, `phase10-kickoff.md`, this entry;
+memory: the user prefers to look in game themselves.
+**Next:** the remaining gate items: Case West frames, the Maps overview picture, the index
+rebuild; then hand over for the user's test.
+
 ## 2026-10-11 — Phase 10 step 4: exporting levels
 **Done:** `catalog/level_export.py`: a level as one `.glb` per zone (or one for all),
 buildings placed, items and doors, markers (spawn and map points as empties, areas and

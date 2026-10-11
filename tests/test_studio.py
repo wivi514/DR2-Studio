@@ -405,3 +405,42 @@ def test_maps_tab_on_a_synthetic_level(tmp_path, monkeypatch):
     assert not win.right_panel.isHidden() and win.centre.currentWidget() is not mv
     assert win.wait_for_jobs()
     win.close()
+
+
+def test_with_my_mods_switch(tmp_path, monkeypatch):
+    """Phase 10: a switched-on texture mod shows in the texture view, with a note naming
+    the mod; Ctrl+M (the toolbar switch) shows the game's own texture again."""
+    from PySide6.QtWidgets import QApplication
+    from dr2kit.convert import png
+    from dr2kit.mods.library import ModLibrary
+    from dr2kit.mods.manifest import create
+    from dr2kit.studio.app import MainWindow
+    root = tmp_path / "game"
+    (root / "data").mkdir(parents=True)
+    pack = make_archive(("hero_cm", make_bct("DXT1", 32, 32, 3)))
+    (root / "data" / "pack.big").write_bytes(pack.to_bytes())
+    monkeypatch.setenv("DR2_CZ_DATA", str(root))
+    mod = create(tmp_path / "redmod", "redmod")
+    out = mod / "replace" / "data" / "pack.big" / "hero_cm.png"
+    out.parent.mkdir(parents=True)
+    png.write(out, png.Image(32, 32, bytes((255, 0, 0, 255)) * 32 * 32))
+    ModLibrary().link(mod)
+    db = tmp_path / "i.sqlite"
+    build_index("cz", AssetTree(root), db, thumbs=False)
+    app = QApplication.instance() or QApplication([])
+    win = MainWindow(db)
+    assert win.mods_action.isEnabled() and win.mods_action.isChecked()   # on by default
+    tex = query.get(win.con, "cz", "data/pack.big/hero_cm")
+    win.show_asset(tex["id"])
+    modded = win.tex_view.tex.to_bytes()
+    assert "changed by mod: redmod" in win.details.toPlainText()
+    win.mods_action.trigger()                                           # Ctrl+M
+    assert not win.mods_action.isChecked()
+    original = win.tex_view.tex.to_bytes()
+    assert original == AssetTree(root).resolve("data/pack.big/hero_cm").data()
+    assert modded != original
+    assert "shown without" in win.details.toPlainText()
+    win.mods_action.trigger()
+    assert win.tex_view.tex.to_bytes() == modded
+    assert win.wait_for_jobs()
+    win.close()

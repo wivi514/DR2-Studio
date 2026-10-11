@@ -434,3 +434,27 @@ def test_dr2_export_a_level(tmp_path, monkeypatch, capsys):
                  str(out), "-q"]) == 0
     assert (out / "cz" / "town" / "town.glb").is_file()
     assert main(["export", "town", "--zone", "z99", "-g", "cz", "-o", str(out)]) == 1
+
+
+def test_a_level_texture_mod_reaches_every_copy_in_the_zone(tmp_path):
+    """The game takes a level texture from the first pack of the zone that has it, so a
+    PNG on any copy goes to every identical copy; the finder picks the first (phase 10,
+    checked in game)."""
+    from dr2kit.convert import png
+    from dr2kit.convert.model import TextureFinder
+    from dr2kit.mods.build import plan_mods
+    from dr2kit.mods.manifest import Mod, create
+    root = tmp_path / "game"
+    root.mkdir()
+    tree = make_level(root, pieces=("box", "crate"), lod=False)
+    zone = "data/models/environment/town/town_z01.big"
+    f = TextureFinder(tree, f"{zone}/crate.big/_COMP_crate.big")
+    assert f.bct("box_cm")[0] == f"{zone}/box.tex/box_cm"          # first in the zone
+    mod = create(tmp_path / "m", "m")
+    out = mod / "replace" / zone / "crate.tex" / "box_cm.png"
+    out.parent.mkdir(parents=True)
+    png.write(out, png.Image(8, 8, bytes((0, 0, 255, 255)) * 64))
+    plan = plan_mods([Mod.load(mod)], "cz", tree)
+    assert {p.vpath for p in plan.planned} == {f"{zone}/crate.tex/box_cm",
+                                                f"{zone}/box.tex/box_cm"}
+    assert any("box.tex" in n for n in plan.notes)

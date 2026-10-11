@@ -1208,9 +1208,15 @@ every zone of both games. The level text files are still research only (step 2).
 archive per **zone** `<level>_zNN.big` (CZ `prologue` z01-z11, CW levels z00-z09). A zone
 holds, per piece, `<piece>.big` (one entry, `_COMP_<piece>.big`, an ordinary scene that
 `convert.model.read_scene` reads), `<piece>.tex` and `<piece>_LOD.tex` (its textures
-full size and small: the same names, a quarter of the size, `.bct` added to the names in
-the small pack); plus `ZONE_ORGANIZATION.big`, `MERGED_COLLISION.big` and
-`ZONE_ORGANIZATION(_LOD).tex` / `MERGED_COLLISION(_LOD).tex` (not archives).
+full size and small: the same names, a quarter of the size); plus
+`ZONE_ORGANIZATION.big`, `MERGED_COLLISION.big`, `ZONE_ORGANIZATION(_LOD).tex` /
+`MERGED_COLLISION(_LOD).tex` (not archives) and `COMMON_TEXTURE.tex`: textures several
+pieces of the zone share, in 31 zones (CZ 8, CW 23; up to 52 textures, CW
+`living_research_z01`), empty in the others. *Retraction (step 5, 2026-10-11):* the
+research called `COMMON_TEXTURE.tex` "empty in every zone checked", and step 1 said the
+small packs add `.bct` to the names; names end in `.bct` in every small pack but also in
+many full-size ones (CZ 1,125 of 3,835, CW 7,662 of 9,030 names), so the ending says
+nothing about the size. The texture finder ignores it.
 
 Levels found (`dr2 level list`): CZ `prologue` (11 zones), `prologue_menu` (5: the title
 screen's street, its zone archives named `prologue_z01`… like the street's),
@@ -1283,6 +1289,16 @@ at all (searched every archive). *Fixed 2026-10-11:* before phase 10, a level pi
 `.glb` took its textures from the **small** `_LOD` pack (the zone lists `<piece>_LOD.tex`
 before `<piece>.tex`, and the finder didn't see `<piece>.tex` as the piece's own pack
 because the scene is `_COMP_<piece>.big`). `TextureFinder` now ranks `_LOD` packs last.
+
+**Which copy of a texture the game uses** ✅ (in game, 2026-10-11). A texture name
+often sits in several packs of one zone, always with the same bytes (CZ 457 names, 660
+extra copies; CW 1,217 and 1,803). The game takes the name from the **first pack of the
+zone that has it**, whichever piece uses it: a blue `metal_corrugated_gray_cm` in
+`pro_z02_shed_floor.tex` left the shed's (the safehouse bathroom's) walls grey in a recomp
+capture; the same PNG in `pro_z02_garage_walls.tex`, earlier in the zone archive, turned
+them blue (seen by the user in game). So the toolkit's texture finder goes by archive
+order in a zone, and the mod build puts a level texture on every identical copy in the
+zone (`mods.build.level_texture_copies`).
 
 `MERGED_COLLISION.big` parses as a scene but has no drawable mesh (the collision
 geometry is in its `persistent.big` in a form not read ❓).

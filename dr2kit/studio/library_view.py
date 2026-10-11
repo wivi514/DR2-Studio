@@ -51,6 +51,8 @@ class LibraryModel(QAbstractListModel):
             "skeleton": style.standardIcon(QStyle.SP_DirIcon),
         }
         self._file_icon = style.standardIcon(QStyle.SP_FileIcon)
+        # phase 10: which switched-on mods change an item (✎ before its name)
+        self.changed_by = lambda vpath: []
 
     def set_rows(self, rows) -> None:
         self.beginResetModel()
@@ -66,9 +68,12 @@ class LibraryModel(QAbstractListModel):
             return None
         r = self.rows[index.row()]
         if role == Qt.DisplayRole:
-            return f"{r['label']}\n{r['name']}" if r["label"] else r["name"]
+            text = f"{r['label']}\n{r['name']}" if r["label"] else r["name"]
+            return ("✎ " + text) if self.changed_by(r["vpath"]) else text
         if role == Qt.ToolTipRole:
-            return f"{r['label'] or r['name']}\n{r['vpath']}\n{r['kind']}, {r['size']:,} bytes"
+            by = self.changed_by(r["vpath"])
+            return (f"{r['label'] or r['name']}\n{r['vpath']}\n{r['kind']}, {r['size']:,} bytes"
+                    + (f"\n✎ changed by mod: {', '.join(by)}" if by else ""))
         if role == Qt.DecorationRole:
             return self._icon(r)
         if role == ROLE_ID:
@@ -92,18 +97,19 @@ class _ExportWorker(QObject):
     finished = Signal(object, object)          # Result, error text
 
     def __init__(self, game, root, db_path, jobs, cancel: threading.Event,
-                 variant: str | None = None):
+                 variant: str | None = None, make_tree=None):
         super().__init__()
         self.game, self.root, self.db_path, self.jobs, self.cancel = game, root, db_path, jobs, cancel
         self.variant = variant
+        self.make_tree = make_tree          # the window's: with the shown mods (phase 10)
 
     @Slot()
     def run(self):
         from ..catalog.export import Exporter
         from ..container.vpath import AssetTree
         try:
-            ex = Exporter(AssetTree(self.root, cache_size=32), self.game, self.db_path,
-                          variant=self.variant)
+            tree = self.make_tree() if self.make_tree else AssetTree(self.root, cache_size=32)
+            ex = Exporter(tree, self.game, self.db_path, variant=self.variant)
             try:
                 res = ex.run(self.jobs, progress=self.step.emit, cancel=self.cancel.is_set)
             finally:
@@ -138,6 +144,8 @@ class LibraryView(QWidget):
         self.grid_btn.setChecked(True)
         self.grid_btn.toggled.connect(self._grid)
         self.model = LibraryModel(lambda: self.window.con, self)
+        self.model.changed_by = lambda vp: (self.window.preview.changed(vp)
+                                            if getattr(self.window, "preview", None) else [])
         self.items = QListView()
         self.items.setModel(self.model)
         self.items.setSelectionMode(QAbstractItemView.ExtendedSelection)
@@ -309,7 +317,8 @@ def run_export(window, rows: list, out: Path, *, by_group: bool, on_done=None,
         dlg.setMinimumDuration(300)
         dlg.canceled.connect(cancel.set)
     th = QThread(window)
-    worker = _ExportWorker(game, locate(game).root, window.db_path, jobs, cancel, variant)
+    worker = _ExportWorker(game, locate(game).root, window.db_path, jobs, cancel, variant,
+                           getattr(window, "worker_tree", None))
     worker.moveToThread(th)
     relay = _Relay(window, dlg, out, on_done, th)
     th.started.connect(worker.run)

@@ -193,6 +193,17 @@ class MainWindow(QMainWindow):
         act = QAction("Play without mods", self)
         act.triggered.connect(lambda: self.play(mods=False))
         tb.addAction(act)
+        # phase 10: see the switched-on mods (Play's) in every view, one click to compare
+        self.mods_action = QAction("With my mods", self)
+        self.mods_action.setCheckable(True)
+        self.mods_action.setShortcut("Ctrl+M")
+        self.mods_action.setToolTip("Show every asset, the Library and the Maps with the "
+                                    "switched-on mods (what Play puts in the game). "
+                                    "Off: the game as shipped. Ctrl+M switches, to compare.")
+        self.mods_action.toggled.connect(self._mods_toggled)
+        tb.addAction(self.mods_action)
+        self.preview = None                # mods.preview.Preview of the switched-on mods
+        self._mods_wanted: dict[str, bool] = {}    # per game: the user's choice
         tb.addSeparator()
         act = QAction("Mod manager…", self)
         act.triggered.connect(self.open_mod_manager)
@@ -466,9 +477,27 @@ class MainWindow(QMainWindow):
             self._howto_guide = ctx.guide
 
     def asset_tree(self) -> AssetTree:
-        if self.game not in self.trees:
-            self.trees[self.game] = AssetTree(locate(self.game).root, cache_size=16)
-        return self.trees[self.game]
+        """The tree every view and export reads (GUI thread): the game with the
+        switched-on mods when *With my mods* is on (`mods.preview`), else the game."""
+        modded = self.preview is not None and self.mods_action.isChecked()
+        key = (self.game, modded)
+        if key not in self.trees:
+            self.trees[key] = self.preview.tree() if modded else \
+                AssetTree(locate(self.game).root, cache_size=16)
+        return self.trees[key]
+
+    def plain_tree(self) -> AssetTree:
+        """The game as shipped (checks of a mod against the game read this)."""
+        key = (self.game, False)
+        if key not in self.trees:
+            self.trees[key] = AssetTree(locate(self.game).root, cache_size=16)
+        return self.trees[key]
+
+    def worker_tree(self) -> AssetTree:
+        """A new tree like `asset_tree` for a worker thread (trees aren't shared)."""
+        if self.preview is not None and self.mods_action.isChecked():
+            return self.preview.tree()
+        return AssetTree(locate(self.game).root)
 
     def run_job(self, fn, on_done) -> None:
         """Run ``fn(progress)`` in a worker thread; ``on_done(result, error)`` runs in the
@@ -529,6 +558,7 @@ class MainWindow(QMainWindow):
                                                               self.db_path))
         except Dr2Error as e:
             self.say(f"{game}: the Maps tab can't list the levels: {e}")
+        self.refresh_mods(reshow=False)
         rows = query.files(self.con, game)
         if not rows:
             self.say(f"{game}: not indexed yet; use “Build / refresh index”.")
@@ -642,6 +672,12 @@ class MainWindow(QMainWindow):
             lines.append(f"stored: {row['stored_size']:,} bytes"
                          + (" (LZX-compressed)" if row["compressed"] else ""))
             lines.append(f"index flags: {row['flags']:#x}")
+        if self.preview is not None:
+            by = self.preview.changed(row["vpath"])
+            if by:
+                state = ("shown with" if self.mods_action.isChecked() else
+                         "shown without (Ctrl+M shows it)")
+                lines.insert(2, f"<b>changed by mod: {', '.join(by)}</b> ({state})")
         self.relations.clear()
         if self.centre.currentWidget() is self.audio_view:
             self.audio_view.stop()
@@ -676,7 +712,10 @@ class MainWindow(QMainWindow):
                       f"mip levels: {h.levels}" + ("; cube map, 6 faces" if h.is_cube else ""),
                       f"header flags: {h.flags:#04x}"]
             mine = self.mod_dir / "replace" / (row["vpath"] + ".png") if self.mod_dir else None
-            if mine is not None and mine.is_file():
+            shown_mods = {m.root.resolve() for m in self.preview.mods} \
+                if self.preview is not None and self.mods_action.isChecked() else set()
+            if mine is not None and mine.is_file() and self.mods_action.isChecked() and \
+                    self.mod_dir.resolve() not in shown_mods:
                 # Show what the game will get from the open mod (encoded as the build does).
                 from ..convert import png
                 from ..convert.texture import replace_image
@@ -735,7 +774,8 @@ class MainWindow(QMainWindow):
         self.model_view.set_title(f"{row['name']}: exporting…")
         self.model_view.variants.hide()
         self._variants = None
-        self._load_model(row, sc)
+        keep, self._keep_view_once = getattr(self, "_keep_view_once", False), False
+        self._load_model(row, sc, keep_view=keep)
         return lines
 
     def look(self, vpath: str | None = None) -> str | None:
@@ -749,12 +789,13 @@ class MainWindow(QMainWindow):
         game, vpath, db = self.game, row["vpath"], self.db_path
         look = self.looks.get((game, vpath))
         levels = [dict(r) for r in query.detail_levels(self.con, row["id"])]
+        worker_tree = self.worker_tree
 
         def work(progress):
             from ..convert import gltf
             from ..convert import variants as cvar
             from ..convert.model import TextureFinder, model_glb
-            tree = AssetTree(locate(game).root)      # the worker's own (not thread-shared)
+            tree = worker_tree()                     # the worker's own (not thread-shared)
             if not sc.meshes:
                 return gltf.skeleton_to_glb(sc), [], None, None, {}
             st = gltf.ExportStats()
@@ -1293,7 +1334,7 @@ class MainWindow(QMainWindow):
         def work(progress):
             from ..mods.build import plan_mods
             try:
-                plan_mods([Mod.load(folder)], game, self.asset_tree())
+                plan_mods([Mod.load(folder)], game, self.plain_tree())
                 return []
             except Dr2Error as e:
                 return str(e).splitlines()[1:]
@@ -1512,7 +1553,7 @@ class MainWindow(QMainWindow):
         self.say(f"matching {len(sources)} source(s) to {a['name']}'s textures…")
 
         def work(progress):
-            return ti.plan(self.asset_tree(), vpath, sources, game)
+            return ti.plan(self.plain_tree(), vpath, sources, game)
 
         def done(tp, err):
             if err:
@@ -1591,6 +1632,94 @@ class MainWindow(QMainWindow):
         self.maps_view.shutdown()
         super().closeEvent(ev)
 
+    # ---- seeing the mods (phase 10) -------------------------------------------------------
+
+    def refresh_mods(self, reshow: bool = True) -> None:
+        """Plan the switched-on mods again (the mod library changed, a mod's file was
+        saved, another game) and show everything with or without them."""
+        from ..mods.preview import Preview
+        try:
+            self.preview = Preview.for_play(self.game)
+        except Dr2Error as e:
+            self.preview = None
+            self.say(f"{self.game}: the mods can't be shown: {e}")
+        for p in (self.preview.problems if self.preview else []):
+            self.say(f"not shown (it fails its check): {p}")
+        has = self.preview is not None and self.preview.active
+        want = self._mods_wanted.get(self.game, True)
+        self.mods_action.blockSignals(True)
+        self.mods_action.setChecked(has and want)
+        self.mods_action.setEnabled(has)
+        self.mods_action.blockSignals(False)
+        self._mods_label()
+        self.trees = {}
+        self._watch_mods()
+        self.maps_view.use_tree(self._maps_tree)
+        self.library_view.items.viewport().update()          # the ✎ marks
+        if reshow:
+            self._reshow()
+
+    def _maps_tree(self, root):
+        if self.preview is not None and self.mods_action.isChecked():
+            return self.preview.tree(24)
+        return AssetTree(root, cache_size=24)
+
+    def _mods_label(self) -> None:
+        n = len(self.preview.mods) if self.preview else 0
+        if not self.mods_action.isEnabled():
+            self.mods_action.setText("With my mods (none on)")
+        elif self.mods_action.isChecked():
+            self.mods_action.setText(f"With my mods ({n}) ✓")
+        else:
+            self.mods_action.setText("Without mods (Ctrl+M: with)")
+
+    def _mods_toggled(self, on: bool) -> None:
+        self._mods_wanted[self.game] = on
+        self._mods_label()
+        self.trees = {}
+        self.maps_view.use_tree(self._maps_tree)
+        self.say("showing the game " + ("with the switched-on mods" if on else
+                                        "without mods (as shipped)"))
+        self._reshow()
+
+    def _reshow(self) -> None:
+        """Show the current asset again (the 3D view keeps its camera: a compare)."""
+        if self.current is not None and self.centre.currentWidget() is not self.maps_view:
+            self._keep_view_once = True
+            self.show_asset(self.current["id"])
+
+    def _watch_mods(self) -> None:
+        """Watch the shown mods' files: a saved PNG or Blender export redraws (after
+        a second of quiet, so a program writing a file in steps is seen once)."""
+        from PySide6.QtCore import QFileSystemWatcher
+        if getattr(self, "_watcher", None) is None:
+            self._watcher = QFileSystemWatcher(self)
+            self._watch_timer = QTimer(self)
+            self._watch_timer.setSingleShot(True)
+            self._watch_timer.setInterval(1000)
+            self._watch_timer.timeout.connect(lambda: self.refresh_mods())
+            self._watcher.fileChanged.connect(lambda _p: self._watch_timer.start())
+            self._watcher.directoryChanged.connect(lambda _p: self._watch_timer.start())
+        old = self._watcher.files() + self._watcher.directories()
+        if old:
+            self._watcher.removePaths(old)
+        paths = []
+        from ..mods.library import ModLibrary
+        try:
+            lib = ModLibrary()
+            mods = [e.mod for e in lib.entries() if self.game in e.mod.games]
+            paths += [str(lib.folder), str(lib.folder / "modlist.toml")]
+        except Dr2Error:
+            mods = []
+        for m in mods:
+            for d in [m.root] + [p for p in m.root.rglob("*") if p.is_dir()]:
+                paths.append(str(d))
+            paths += [str(p) for p in (m.root / "replace").rglob("*") if p.is_file()]
+            paths.append(str(m.root / "mod.toml"))
+        paths = [p for p in paths if Path(p).exists()][:4000]
+        if paths:
+            self._watcher.addPaths(paths)
+
     # ---- the Maps tab (phase 10) ---------------------------------------------------------
 
     def _left_tab_changed(self, index: int) -> None:
@@ -1632,7 +1761,9 @@ class MainWindow(QMainWindow):
 
     def open_mod_manager(self) -> None:
         from .mod_manager import ModManager
-        ModManager(self).show()
+        dlg = ModManager(self)
+        dlg.finished.connect(lambda _r: self.refresh_mods())   # on/off, order: redraw
+        dlg.show()
 
     # ---- index --------------------------------------------------------------------------
 

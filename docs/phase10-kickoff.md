@@ -32,7 +32,7 @@ possible **phase 11** (below); phase 10 only shows and extracts.
 | 2. Placed things | ✅ 2026-10-11: `formats/levelscript.py` (lossless: every level file, `items.txt`, `missions.txt` written back byte for byte), `convert/placed.py` (items, doors, spawn points, zombie / map / lighting areas, triggers, sound areas, map points, nav mesh; 0 unknown classes), every item and door of both games finds its model (CZ 1,060, CW 1,835: the research's 482 "missing" were a wrong lookup), `level.things_glb`, `dr2 level things`. Items checked in pictures (bowling alley) |
 | 3. Maps tab | ✅ 2026-10-11: `studio/maps_view.py`, `web/maps.js`, `convert/mapdata.py` (zones streamed nearest first, small textures far away, cached on disk, three builders), layers, Go to, fly + orbit camera, click → what is it / Open in Library / Blender / Export. Level materials: lightmaps and blends from the shaders (`web/levelmaterials.js`). CZ `prologue` checked against a recomp frame from the same camera (safehouse bathroom); CW `living_research` opened. Fixed on the way: `SHORT2N` UVs were decoded transposed (lightmaps landed wrong), lightmaps were taken for normal maps, a search jumped to the Files tab. Guide 18. **Not done:** the in-game map picture (CW `frontend/map.tex`) as a corner overview |
 | 4. Extract | ✅ 2026-10-11: `catalog/level_export.py` (one `.glb` per zone or `--whole`, groups per zone and layer, markers as empties / outlines / a mesh, the text files, `info.txt`, resumable), `dr2 export <level> [--zone] [--whole] [--no-items] [--markers] [--script] [--lod]`, *Export zone… / Export level…* in the Maps tab, the add-on's **Import zone** (collections per zone and layer, lightmaps wired; `tools/blender_addon_gate.py` passes). Instead of *Export as level* in the Library's Environments group (its pieces belong to many levels and zones), the Maps tab's export is the way |
-| 5. See your mods | — |
+| 5. See your mods | ✅ 2026-10-11: `mods/preview.py` (`Preview`, `ModdedTree`: Play's mods, the same bytes, failing mods dropped and named), Studio's **With my mods** switch (Ctrl+M, keeps the 3D camera: the compare), ✎ marks in the Library, *Changed by mod* in details and Maps, mod folders watched. Gate: a texture and a model mod shown in the Maps tab, switched off and on; Studio's bytes = `dr2 play --deploy-only`'s (tests, and on the deployed files); in game the bottle was bigger, and the walls turned blue only once the texture was on the zone's first copy, which led to: the finder and the build now follow the game's first-copy rule (checked in game by the user) |
 
 ## Start here (handoff, 2026-10-11)
 
@@ -101,7 +101,7 @@ each one alone, at the origin. What is missing is putting them **in their places
 | `ZONE_ORGANIZATION.big/ModelInstanceArray` | **Where each piece goes**: 208-byte records: name, scale, rotation (quaternion), position, bounds, a draw distance | ✅ mostly (layout below) |
 | `ZONE_ORGANIZATION.big/_ZONEINFO_` | The zone's bounds (10 floats) | ⚠ |
 | `MERGED_COLLISION.big` | The zone's collision (walls the player can't pass): a scene with no drawable meshes; its geometry is in a form we don't read | ❓ |
-| `COMMON_TEXTURE.tex` | Empty in every zone checked | — |
+| `COMMON_TEXTURE.tex` | Empty in every zone checked (*retracted 2026-10-11: shared textures in 31 zones; formats.md §Levels*) | — |
 
 `zonelist.big/ZoneList` gives each zone its name, bounds, centre and radius (132-byte
 records), so a viewer can load the zones near the camera first.
