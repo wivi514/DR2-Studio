@@ -288,3 +288,103 @@ def test_every_placed_item_finds_its_model(game_root):
                     assert t.model, (game, s, t.name, models.why.get(t.item.lower()))
                     n += 1
         assert n == {"cz": 1060, "cw": 1835}[game]
+
+
+# --- step 3: the Maps tab's data, level materials -------------------------------------------
+
+def test_lightmaps_have_their_own_role():
+    from dr2kit.formats.scene import texture_role
+    # the endings used to make these normal / self-illumination / detail maps
+    for name in ("LM_z01_ash_tree_NE", "AO_z01_sheriff_si", "LM_z04_machine_05_det",
+                 "AO_z05_bowling_struc"):
+        assert texture_role(name) == "lightmap"
+    assert texture_role("wall_concrete_badirty_red_cm") == "colour"
+
+
+def test_assembler_keeps_blend_textures():
+    """A blend's textures are named by number in the material's extras: the assembler
+    must renumber them like the standard slots."""
+    b = gltf.GlbBuilder()
+    img = b.add("images", {"mimeType": "image/png", "bufferView": b.view(b"\x89PNG-a")})
+    img2 = b.add("images", {"mimeType": "image/png", "bufferView": b.view(b"\x89PNG-b")})
+    t0 = b.add("textures", {"source": img})
+    t1 = b.add("textures", {"source": img2})
+    b.add("materials", {"pbrMetallicRoughness": {"baseColorTexture": {"index": t0}},
+                        "extras": {"dr2": {"blend": {"overlay": t1, "mask": None}}}})
+    b.gltf["scenes"][0]["nodes"].append(b.add("nodes", {"name": "n"}))
+    data = b.to_bytes()
+    other = gltf.GlbBuilder()                 # something else first, so numbers shift
+    other.add("images", {"mimeType": "image/png", "bufferView": other.view(b"\x89PNG-c")})
+    other.add("textures", {"source": 0})
+    other.gltf["scenes"][0]["nodes"].append(other.add("nodes", {"name": "x"}))
+    asm = gltf.Assembler()
+    asm.add(other.to_bytes(), [{"name": "x"}])
+    asm.add(data, [{"name": "n"}])
+    g = gltf.Glb.parse(asm.to_bytes())
+    mat = g.gltf["materials"][-1]
+    base = mat["pbrMetallicRoughness"]["baseColorTexture"]["index"]
+    over = mat["extras"]["dr2"]["blend"]["overlay"]
+    assert (base, over) == (1, 2)
+    src = g.gltf["images"][g.gltf["textures"][over]["source"]]
+    view = g.gltf["bufferViews"][src["bufferView"]]
+    assert g.bin[view["byteOffset"]:view["byteOffset"] + view["byteLength"]] == b"\x89PNG-b"
+
+
+def test_map_cache_builds_once_and_rebuilds_when_the_game_changes(tmp_path):
+    import os
+    import time
+    from dr2kit.convert import mapdata
+    root = tmp_path / "game"
+    root.mkdir()
+    tree = make_level(root)
+    cache = mapdata.MapCache(tree, "cz", root=tmp_path / "cache")
+    p1 = cache.pieces("town", "z01")
+    assert p1.is_file() and gltf.Glb.parse(p1.read_bytes()).gltf["nodes"]
+    stamp = p1.stat().st_mtime_ns
+    assert cache.pieces("town", "z01") == p1 and p1.stat().st_mtime_ns == stamp   # cached
+    zone_file = root / "data/models/environment/town/town_z01.big"
+    os.utime(zone_file, ns=(time.time_ns(), time.time_ns() + 10**9))
+    p2 = mapdata.MapCache(AssetTree(root), "cz", root=tmp_path / "cache").pieces("town", "z01")
+    assert p2 != p1 and p2.is_file() and not p1.exists()       # the old build is gone
+    assert mapdata.MapCache(tree, "cz", root=tmp_path / "cache").pieces(
+        "town", "z01", mapdata.LOD).name.startswith("town_z01-lod-")
+
+
+def test_map_overview(tmp_path):
+    from dr2kit.convert import mapdata
+    tree = make_datafile(tmp_path)
+    make_level(tmp_path)
+    cache = mapdata.MapCache(tree, "cz", root=tmp_path / "cache")
+    ov = mapdata.overview(cache, "town")
+    assert ov["scripts"] == ["town"] and ov["script"] == "town"
+    assert [z["name"] for z in ov["zones"]] == ["town_z01"]
+    assert ov["start"]["name"] == "Start"                     # the Start spawn point
+    kinds = {m["kind"] for m in ov["markers"]}
+    assert {"spawn", "zombie_area", "map_area", "map_point"} <= kinds
+    assert "item" not in kinds and len(ov["items"]) == 2      # items come as zone files
+    assert len(ov["navmesh"]["triangles"]) == 6
+    things = cache.zone_things("town", "z01", "town")
+    assert {t.name for t in things} == {"HotDog3", "Soda"}
+    assert cache.items("town", "z01", "town").is_file()
+    json_doc = mapdata.overview_json(cache, "town")
+    assert json_doc.startswith(b"{")
+
+
+@pytest.mark.gamedata
+def test_level_materials_in_the_glb(game_root):
+    """The bowling alley's outside: lightmaps on the occlusion slot of the 2nd UV set,
+    and the ground's two colour maps blended by a mask (CM2DDU_LM)."""
+    from dr2kit.convert.model import export_glb
+    tree = AssetTree(game_root("cz"))
+    vp = ("data/models/environment/prologue/prologue_z05.big/z05_bowling_struc.big/"
+          "_COMP_z05_bowling_struc.big")
+    g = gltf.Glb.parse(export_glb(tree, vp, game="cz"))
+    mats = {m["name"]: m for m in g.gltf["materials"]}
+    wall = next(m for n, m in mats.items() if "wall_concrete_badirty_red_cm" in n)
+    assert wall["occlusionTexture"]["texCoord"] == 1
+    assert wall["extras"]["dr2"]["lightmap"] == "AO_z05_bowling_struc"
+    ground = next(m for n, m in mats.items() if "sand_pebbles_brown_cm" in n)
+    blend = ground["extras"]["dr2"]["blend"]
+    assert blend["textures"] == ["gravel_dirty_gray_cm", "page_grass_patch_mask_cm"]
+    assert (blend["overlay_uv"], blend["mask_uv"], blend["by"]) == (1, 2, "mask.g²")
+    assert ground["occlusionTexture"]["texCoord"] == 3

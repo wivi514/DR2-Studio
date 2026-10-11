@@ -222,6 +222,9 @@ _HEX_TAG = re.compile(r"^(cm|dm|nm|sm|rm|si|om)[0-9a-f]{2,6}$")
 # Textures that are never a material's colour, even when nothing else is: lightmaps and
 # ambient occlusion (LM_*, AO_*) and the shared reflection maps (reflection_*).
 _NOT_COLOUR = re.compile(r"^(lm_|ao_|reflection_)", re.IGNORECASE)
+# Level lightmaps: baked light, multiplied with the colour map on the draw's last UV set
+# by the level shaders whose name has "LM" (docs/formats.md §Levels, materials).
+_LIGHTMAP = re.compile(r"^(lm|ao)_", re.IGNORECASE)
 
 
 def texture_role(name: str) -> str:
@@ -229,7 +232,12 @@ def texture_role(name: str) -> str:
     map", and a hex tag: ``glass_cmda77``, ``Metal_oldred_02_CM4c73``), ``_nm`` normal, …
 
     Measured over every material slot of both games (docs/formats.md §Materials).
+    ``LM_*`` / ``AO_*`` are level **lightmaps** whatever they end with (phase 10: 639
+    slots such as ``LM_z01_ash_tree_NE`` used to read as normal, specular, detail or
+    self-illumination maps by their ending).
     """
+    if _LIGHTMAP.match(name):
+        return "lightmap"
     m = re.search(r"_([a-z0-9]+)$", name.lower())
     if not m:
         return "other"

@@ -52,6 +52,7 @@ from dataclasses import dataclass
 
 from ..errors import FormatError
 from ..formats.scene import Node, Scene, Skeleton, mat_inverse_affine
+from ..formats.vertex import TEXCOORD as USAGE_TEXCOORD
 
 GLB_MAGIC = 0x46546C67      # "glTF"
 CHUNK_JSON = 0x4E4F534A     # "JSON"
@@ -306,6 +307,51 @@ def _safe_normal(n) -> tuple[float, float, float]:
     return (0.0, 0.0, 1.0) if length < 1e-6 else tuple(c / length for c in n)
 
 
+def lightmap_slots(scene: Scene) -> dict[int, tuple[str, int]]:
+    """Material index → (lightmap texture, glTF UV set) for the level materials whose
+    draws use a lightmap: the material names an ``LM_``/``AO_`` texture and a draw with
+    it runs a shader with "LM" in its name, which reads the lightmap with the draw's
+    last UV set (measured on every level draw of both games, docs/formats.md §Levels)."""
+    out: dict[int, tuple[str, int]] = {}
+    for mesh in scene.meshes:
+        for d in mesh.draws:
+            if d.material < 0 or d.material >= len(scene.materials) or d.material in out:
+                continue
+            if "LM" not in scene.shaders.get(d.shader, "").split("_"):
+                continue
+            m = scene.materials[d.material]
+            name = m.texture("lightmap")
+            uvs = sorted(e.usage_index for e in d.declaration if e.usage == USAGE_TEXCOORD)
+            if name and uvs:
+                out[d.material] = (name, len(uvs) - 1)
+    return out
+
+
+def blend_slots(scene: Scene) -> dict[int, dict]:
+    """Material index → how its two colour maps blend, for the level shaders that do it
+    (read from the shaders, docs/formats.md §Levels): ``CM2DDU…`` mixes the base map
+    (UV 0) and the overlay (2nd texture, UV 1) by the mask's green channel squared (3rd
+    texture, UV 2); ``CM2DDX…`` by the overlay's own alpha."""
+    out: dict[int, dict] = {}
+    for mesh in scene.meshes:
+        for d in mesh.draws:
+            if d.material < 0 or d.material >= len(scene.materials) or d.material in out:
+                continue
+            name = scene.shaders.get(d.shader, "")
+            kind = name.split("_", 1)[0]
+            if kind not in ("CM2DDU", "CM2DDX"):
+                continue
+            names = [sl.name for sl in scene.materials[d.material].slots if not sl.engine]
+            uvs = sum(1 for e in d.declaration if e.usage == USAGE_TEXCOORD)
+            if kind == "CM2DDU" and len(names) >= 3 and uvs >= 3:
+                out[d.material] = {"overlay": names[1], "overlay_uv": 1, "mask": names[2],
+                                   "mask_uv": 2, "by": "mask.g²"}
+            elif kind == "CM2DDX" and len(names) >= 2 and uvs >= 2:
+                out[d.material] = {"overlay": names[1], "overlay_uv": 1, "mask": None,
+                                   "by": "overlay.a"}
+    return out
+
+
 @dataclass
 class ExportStats:
     meshes: int = 0
@@ -364,6 +410,8 @@ def model_to_glb(scene: Scene, texture_png: Callable[[str], bytes | None] | None
 
     from .material import ALPHA_CUTOFF, alpha_mode, material_shaders
     used_by = material_shaders(scene)
+    lightmaps = lightmap_slots(scene)
+    blends = blend_slots(scene)
     used = None if include is None else {d.material for k, mesh in enumerate(scene.meshes)
                                          if k in include for d in mesh.draws}
     for i, m in enumerate(scene.materials):
@@ -403,6 +451,25 @@ def model_to_glb(scene: Scene, texture_png: Callable[[str], bytes | None] | None
         t = texture(normal)
         if t is not None:
             mat["normalTexture"] = {"index": t}
+        bl = blends.get(i)
+        if bl is not None:
+            # two colour maps blended (level floors): glTF can't say it; the extras give
+            # the textures and UV sets, Studio's views blend them as the game does
+            over = texture(bl["overlay"])
+            mask = texture(bl["mask"]) if bl.get("mask") else None
+            if over is not None and (mask is not None or not bl.get("mask")):
+                mat["extras"]["dr2"]["blend"] = {
+                    "overlay": over, "overlay_uv": bl["overlay_uv"], "mask": mask,
+                    "mask_uv": bl.get("mask_uv"), "by": bl["by"],
+                    "textures": [bl["overlay"]] + ([bl["mask"]] if bl.get("mask") else [])}
+        lm = lightmaps.get(i)
+        if lm is not None:
+            t = texture(lm[0])
+            if t is not None:
+                # glTF has no lightmap: the occlusion slot on the lightmap's UV set is the
+                # nearest; extras say what it is (Studio's views multiply it in, as the game)
+                mat["occlusionTexture"] = {"index": t, "texCoord": lm[1]}
+                mat["extras"]["dr2"]["lightmap"] = lm[0]
         b.add("materials", mat)
 
     # colour choices: one material copy per (choice, material), mapped per primitive
@@ -590,6 +657,11 @@ class Assembler:
                 holder = m.get(outer, {}) if outer else m
                 if slot in holder:
                     holder[slot]["index"] = texs[holder[slot]["index"]]
+            blend = ((m.get("extras") or {}).get("dr2") or {}).get("blend")
+            if blend:                                # texture numbers in the extras too
+                for k in ("overlay", "mask"):
+                    if blend.get(k) is not None:
+                        blend[k] = texs[blend[k]]
             mats.append(b.add("materials", m))
         meshes = []
         for me in js.get("meshes", []):

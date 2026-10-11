@@ -63,6 +63,7 @@ from ..profiles import GAME_IDS, locate
 from . import model_view
 from .audio_view import AudioViewer
 from .library_view import LibraryView, run_export
+from .maps_view import MapsList, MapsView
 from .text_view import StringsViewer, TextEditor
 from .video_view import VideoViewer
 from .viewers import PlainViewer, TextureViewer
@@ -239,13 +240,18 @@ class MainWindow(QMainWindow):
         sl.addWidget(self.result_count)
         self.library_view = LibraryView(self)
         self.library_view.selected.connect(self.show_asset)
+        self.maps_list = MapsList()
         self.left = QTabWidget()
         self.left.addTab(self.library_view, "Library")
+        self.left.addTab(self.maps_list, "Maps")
         self.left.addTab(self.tree, "Files")
         self.left.addTab(sw, "Search")
+        self.search_tab = sw
         self.left.setTabToolTip(0, "The games' assets by what they are: characters, music, "
                                    "rigs… Export a whole group in one go.")
-        self.left.setTabToolTip(1, "The game's folders and archives as they are stored "
+        self.left.setTabToolTip(1, "The game's levels in 3D: buildings, items, doors, spawn "
+                                   "points; fly around, click to see what is what")
+        self.left.setTabToolTip(2, "The game's folders and archives as they are stored "
                                    "(for advanced use)")
         self.search_box.returnPressed.connect(self.search)
         self.kind_box.currentTextChanged.connect(lambda _t: self.search())
@@ -262,13 +268,18 @@ class MainWindow(QMainWindow):
         self.model_view.status.connect(lambda t: self.say(f"3D view: {t}"))
         self.model_view.variants.changed.connect(self._look_changed)
         self.model_view.variants.detail.connect(self._detail_chosen)
+        self.maps_view = MapsView(self)
+        self.maps_view.status.connect(lambda t: self.statusBar().showMessage(t, 8000))
+        self.maps_view.open_asset.connect(self._open_from_map)
+        self.maps_list.chosen.connect(self._map_chosen)
         self.empty = QLabel("Select an asset on the left.\n\nNo index yet? Use “Build / refresh "
                             "index” (about a minute per game).")
         self.empty.setAlignment(Qt.AlignCenter)
         self.centre = QStackedWidget()
         for w in (self.empty, self.tex_view, self.plain_view, self.model_view, self.audio_view,
-                  self.text_view, self.strings_view, self.video_view):
+                  self.text_view, self.strings_view, self.video_view, self.maps_view):
             self.centre.addWidget(w)
+        self._centre_before = self.empty
 
         # --- right: details, relations, actions
         self.details = QTextBrowser()
@@ -380,6 +391,8 @@ class MainWindow(QMainWindow):
         brow.addWidget(self.log, 2)
         bl.addLayout(brow)
 
+        self.right_panel = rw
+        self.left.currentChanged.connect(self._left_tab_changed)
         top = QSplitter(Qt.Horizontal)
         top.addWidget(self.left)
         top.addWidget(self.centre)
@@ -511,6 +524,11 @@ class MainWindow(QMainWindow):
             self.say(f"{game}: {e}")
             return
         self.library_view.set_game(game)
+        try:
+            self.maps_list.set_levels(self.maps_view.set_game(game, locate(game).root,
+                                                              self.db_path))
+        except Dr2Error as e:
+            self.say(f"{game}: the Maps tab can't list the levels: {e}")
         rows = query.files(self.con, game)
         if not rows:
             self.say(f"{game}: not indexed yet; use “Build / refresh index”.")
@@ -581,7 +599,7 @@ class MainWindow(QMainWindow):
             self.results.addItem(item)
         self.result_count.setText(f"{len(rows)} result{'s' if len(rows) != 1 else ''}"
                                   + (" (first 2000)" if len(rows) == 2000 else ""))
-        self.left.setCurrentIndex(1)
+        self.left.setCurrentWidget(self.search_tab)
 
     def _grid(self, on: bool) -> None:
         self.results.setViewMode(QListView.IconMode if on else QListView.ListMode)
@@ -1570,7 +1588,39 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, ev):
         self.wait_for_jobs()
+        self.maps_view.shutdown()
         super().closeEvent(ev)
+
+    # ---- the Maps tab (phase 10) ---------------------------------------------------------
+
+    def _left_tab_changed(self, index: int) -> None:
+        """The Maps tab owns the centre and has its own side panel; the other tabs get
+        back the viewer they showed."""
+        if self.left.widget(index) is self.maps_list:
+            if self.centre.currentWidget() is not self.maps_view:
+                self._centre_before = self.centre.currentWidget()
+            self.centre.setCurrentWidget(self.maps_view)
+            self.right_panel.hide()
+        else:
+            self.right_panel.show()
+            if self.centre.currentWidget() is self.maps_view:
+                self.centre.setCurrentWidget(self._centre_before)
+
+    def _map_chosen(self, level: str, zone: str) -> None:
+        if self.maps_view.level == level and zone:
+            self.maps_view.go_to_zone(zone)
+        else:
+            self.say(f"Maps: opening {level}" + (f", zone {zone}" if zone else ""))
+            self.maps_view.open_level(level, zone)
+
+    def _open_from_map(self, vpath: str) -> None:
+        """*Open in Library* on a clicked piece or item: show it in the model viewer."""
+        row = query.get(self.con, self.game, vpath)
+        if row is None:
+            self.error(f"{vpath} is not in the index yet: use “Build / refresh index”.")
+            return
+        self.left.setCurrentWidget(self.library_view)
+        self.show_asset(row["id"])
 
     def open_welcome(self) -> None:
         from .welcome import Welcome

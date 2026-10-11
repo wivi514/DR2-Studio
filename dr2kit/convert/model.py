@@ -31,24 +31,28 @@ from ..formats.scene import Scene
 from . import gltf
 
 
-def texture_png(data: bytes, source: str = "<bct>") -> bytes:
-    """A texture's level 0 as PNG bytes (RGB, or RGBA when it has alpha)."""
+def texture_png(data: bytes, source: str = "<bct>", level: int = 6) -> bytes:
+    """A texture's level 0 as PNG bytes (RGB, or RGBA when it has alpha). ``level`` is
+    the zlib level: 6 for files people keep, 1 for the Maps tab's cache (3× faster)."""
     from ..formats.bct import Bct
     from . import png
     from .texture import png_mode, to_image
     tex = Bct.parse(data, source)
     img = to_image(tex, 0)
-    return png.encode(img, png_mode(tex, img))
+    return png.encode(img, png_mode(tex, img), level)
 
 
 class TextureFinder:
     """``finder(name)`` → PNG bytes of the texture called ``name``, or None."""
 
     def __init__(self, tree: AssetTree, model_vpath: str, game: str | None = None,
-                 db_path=None, lod: bool = False):
+                 db_path=None, lod: bool = False, shared: dict | None = None):
         self.tree, self.game, self.db_path = tree, game, db_path
         self.vpath = model_vpath
         self.lod = lod                           # the small _LOD copies first
+        # `shared`: one dict handed to every finder of a batch (a level's pieces share
+        # their wall and floor textures): parsed packs and PNGs, made once per batch
+        self.shared = shared if shared is not None else {}
         self.found: dict[str, str] = {}          # name -> vpath it was read from
         self._scanned: list[dict[str, tuple[str, bytes]]] | None = None
         self._shaders = None                     # convert.material.ShaderLibrary, on demand
@@ -83,10 +87,9 @@ class TextureFinder:
             for e in arc.entries:
                 lname = e.name.lower()
                 if lname.endswith(".tex"):
-                    data = e.data()
-                    if not is_big(data):
+                    pack = self._pack(join(cvp, e.name), e)
+                    if pack is None:
                         continue
-                    pack = BigArchive.parse(data, join(cvp, e.name))
                     pstem = lname[:-4]
                     is_lod = pstem.endswith("_lod")
                     mine = pstem.removesuffix("_lod") == stem
@@ -104,6 +107,15 @@ class TextureFinder:
                 small += [d for d in (own_lod, other_lod) if d]
         self._scanned += self._scan_folder(stem) + small
         return self._scanned
+
+    def _pack(self, vpath: str, entry) -> BigArchive | None:
+        """A ``.tex`` pack entry parsed (once per batch, `shared`), or None."""
+        packs = self.shared.setdefault("packs", {})
+        key = vpath.lower()
+        if key not in packs:
+            data = entry.data()
+            packs[key] = BigArchive.parse(data, vpath) if is_big(data) else None
+        return packs[key]
 
     def _stem(self) -> str:
         """The model's name as its own texture pack is named: ``chest_default`` for
@@ -209,7 +221,13 @@ class TextureFinder:
 
     def __call__(self, name: str) -> bytes | None:
         hit = self.bct(name)
-        return None if hit is None else texture_png(hit[1], hit[0])
+        if hit is None:
+            return None
+        pngs = self.shared.setdefault("png", {})
+        key = hit[0].lower()
+        if key not in pngs:
+            pngs[key] = texture_png(hit[1], hit[0], self.shared.get("png_level", 6))
+        return pngs[key]
 
     def baker(self, scene: Scene, colours: dict | None = None):
         """The ``base_colour`` hook for `gltf.model_to_glb`: bakes materials whose colour

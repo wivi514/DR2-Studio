@@ -272,8 +272,10 @@ def check_licences(bundle: Path) -> None:
     # The 3D view's page and every module it imports (three.js)
     from dr2kit.studio.model_view import viewer_files
     web = next((p.parent for p in bundle.rglob("viewer.html") if p.parent.name == "web"), None)
-    if web is None or viewer_files(web)[1]:
-        fail(f"the bundle's 3D view is missing files: {viewer_files(web)[1] if web else 'web/'}")
+    for page in ("viewer.html", "maps.html"):          # the 3D view, the Maps tab
+        if web is None or viewer_files(web, page)[1]:
+            fail(f"the bundle's {page} is missing files: "
+                 f"{viewer_files(web, page)[1] if web else 'web/'}")
     say("licence gate passed: no GPL library, LGPL ffmpeg with XMA and Bink, native LZX; "
         "the help and the 3D view's files are inside")
 

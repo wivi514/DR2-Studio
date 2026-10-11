@@ -29,7 +29,7 @@ from ..formats.scene import texture_role
 ROLE_TITLES = {"colour": "Colour", "normal": "Normal maps", "specular": "Specular",
                "mask": "Masks", "detail": "Detail", "reflection": "Reflection",
                "self-illum": "Self-illumination", "opacity": "Opacity", "glow": "Glow",
-               "other": "Other"}
+               "lightmap": "Lightmaps (levels)", "other": "Other"}
 
 
 def glob_regex(pattern: str) -> re.Pattern:

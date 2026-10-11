@@ -1,0 +1,26 @@
+<!doctype html>
+<!-- DR2 Studio's Maps view (dr2kit/studio/maps_view.py serves this page over the dr2:
+     scheme): a level in 3D, zone by zone, with its items and markers (maps.js). -->
+<html>
+<head>
+<meta charset="utf-8">
+<title>DR2 Studio Maps</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #87a0b4; }
+  #status { position: absolute; left: 8px; bottom: 6px; color: #fff; text-shadow: 0 0 3px #000;
+            font: 12px sans-serif; pointer-events: none; }
+  #help { position: absolute; right: 8px; bottom: 6px; color: #fff; text-shadow: 0 0 3px #000;
+          font: 11px sans-serif; pointer-events: none; text-align: right; }
+</style>
+<script type="importmap">
+  { "imports": { "three": "./vendor/three/build/three.module.js" } }
+</script>
+</head>
+<body>
+<div id="status">loading…</div>
+<div id="help">drag: look · right-drag: turn around the clicked point · W A S D: move · Q / E: down / up · Shift: faster · wheel: speed · click: what is it</div>
+<!-- A module that can't be fetched gives no message of its own: say so (model_view.py) -->
+<script type="module" src="./maps.js"
+  onerror="document.getElementById('status').textContent = 'the Maps view could not start: some of its files are missing (reinstall DR2 Studio)'; console.log('dr2:' + document.getElementById('status').textContent)"></script>
+</body>
+</html>

@@ -17,6 +17,34 @@ Entry template:
 
 ---
 
+## 2026-10-11 — Phase 10 step 3: the Maps tab
+**Done:** DR2 Studio's **Maps** tab: the levels on the left; a three.js page that streams
+a level zone by zone (nearest first, the game's small textures far away; each zone built
+once into a `.glb` and kept on disk, three builder threads); layers for spawn points,
+zombie / map / lighting areas, triggers, sound areas, map points and the navigation
+mesh; Go to; fly and orbit camera; click anything to see what it is, with Open in
+Library / Blender and Export. Level materials drawn as the game's shaders do: lightmaps
+and two-texture blends. Guide 18.
+**Why:** the phase's first goal: see a whole level, as the game shows it.
+**Learned:**
+- **A decoding bug since phase 3:** `SHORT2N` vertex elements (only the level
+  lightmap UVs) have x in the *high* half of the word, not the low half. The Xbox's
+  vertex fetch transposes 16-bit pairs and the game's shaders swap them back; the CZ
+  recomp's notes describe exactly this. Found by drawing CZ's safehouse bathroom from a
+  recomp capture's own camera: blocky shadows across the door, gone once swapped.
+- 639 lightmap slots (`LM_…_NE`, `AO_…_si`…) were taken for normal / self-illumination
+  / detail / specular maps by their ending: fixed (`texture_role` → `lightmap`).
+- How the level shaders combine their textures (read with XenosRecomp): the lightmap is
+  the lighting (`colour² × lightmap²`), on the draw's last UV set; floors mix two colour
+  maps by a mask's green channel (`CM2DDU`) or the overlay's alpha (`CM2DDX`).
+- The camera of a recomp capture can be rebuilt exactly from the dumped view-projection
+  (`c0`–`c3`, row 1 ÷ 9W/16H): Studio and the game frame line up to the pixel.
+- A search had sent Studio to the Files tab since phase 8 (by tab number): fixed.
+**Docs updated:** `modding/18-maps.md` (new), `modding/README.md`, `formats.md` (§Levels
+materials, §Vertex declarations with a retraction), `ARCHITECTURE.md`, `dev/studio.md`,
+`dev/code-tour.md`, `glossary.md` (lightmap), `phase10-kickoff.md`, this entry.
+**Next:** step 4, exporting zones and levels.
+
 ## 2026-10-11 — Phase 10 step 2: what the level text files place
 **Done:** `formats/levelscript.py` reads the engine's block text files keeping every
 line (so they write back byte for byte, and a later editor changes only the lines it

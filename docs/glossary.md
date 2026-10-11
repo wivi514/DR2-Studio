@@ -366,6 +366,11 @@ pieces, their textures, and the list of where each piece goes.
 **Piece (level piece).** One model a level is built from: a wall section, a floor, a
 sign, a row of lights. The Library lists them under *Environments*.
 
+**Lightmap.** A texture of light painted in advance ("baked") over a level piece: where
+shadows fall, where light pools. The game multiplies the colour map by it, so a wall
+looks lit without computing light while you play. Case Zero names them `AO_<piece>`,
+Case West `LM_<piece>`.
+
 **LOD textures (`_LOD.tex`).** Small copies of a model's textures (a quarter of the
 size) that the game uses when the model is far away. "LOD" means *level of detail*.
 DR2 Studio's Maps tab uses them for zones far from the camera, so a whole level fits in

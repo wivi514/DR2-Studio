@@ -46,17 +46,18 @@ MIME = {".html": b"text/html", ".js": b"text/javascript", ".glb": b"model/gltf-b
 _IMPORT = re.compile(r"\b(?:import|from)\s*['\"]([^'\"]+)['\"]|\bsrc=\"([^\"]+)\"")
 
 
-def viewer_files(web_dir: Path = WEB_DIR) -> tuple[list[Path], list[str]]:
-    """The files the 3D page loads, found by following its imports from ``viewer.html``
-    (the import map's ``three`` included): ``(found, missing)``, paths relative to
-    ``web_dir`` in ``missing``."""
-    html = (web_dir / "viewer.html").read_text(encoding="utf-8")
+def viewer_files(web_dir: Path = WEB_DIR, page: str = "viewer.html"
+                 ) -> tuple[list[Path], list[str]]:
+    """The files a page loads (``viewer.html``, the 3D view; ``maps.html``, the Maps
+    tab), found by following its imports (the import map's ``three`` included):
+    ``(found, missing)``, paths relative to ``web_dir`` in ``missing``."""
+    html = (web_dir / page).read_text(encoding="utf-8")
     bare = dict(re.findall(r'"([\w/-]+)"\s*:\s*"([^"]+)"', html.split("importmap", 1)[-1]
                            .split("</script>", 1)[0]))
     found: list[Path] = []
     missing: list[str] = []
-    todo = [(web_dir / "viewer.html", html)]
-    seen = {web_dir / "viewer.html"}
+    todo = [(web_dir / page, html)]
+    seen = {web_dir / page}
     while todo:
         here, text = todo.pop()
         found.append(here)
@@ -119,14 +120,23 @@ def register_scheme() -> bool:
     return True
 
 
-def resource(path: str, model: bytes | None) -> tuple[bytes, bytes] | None:
+def resource(path: str, model: bytes | None,
+             files: dict | None = None) -> tuple[bytes, bytes] | None:
     """What the ``dr2:`` scheme serves for a URL path: (MIME type, bytes), or None.
 
-    ``/model.glb`` is the current model; anything else is a file under ``web/``
-    (never outside it).
+    ``/model.glb`` is the current model; ``files`` maps other paths to bytes or to a
+    file on disk (the Maps tab's zone files, `maps_view`); anything else is a file under
+    ``web/`` (never outside it).
     """
     if path == MODEL_PATH:
         return (MIME[".glb"], model) if model is not None else None
+    if files and path in files:
+        src = files[path]
+        try:
+            data = src if isinstance(src, bytes) else Path(src).read_bytes()
+        except OSError:
+            return None
+        return MIME.get(Path(path).suffix, MIME[""]), data
     target = (WEB_DIR / path.lstrip("/")).resolve()
     if WEB_DIR.resolve() not in target.parents or not target.is_file():
         return None
@@ -138,9 +148,10 @@ if WEB_ENGINE:
         def __init__(self, parent=None):
             super().__init__(parent)
             self.model: bytes | None = None
+            self.files: dict = {}                 # extra paths (the Maps tab)
 
         def requestStarted(self, job):  # noqa: N802 - Qt's name
-            found = resource(job.requestUrl().path(), self.model)
+            found = resource(job.requestUrl().path(), self.model, self.files)
             if found is None:
                 job.fail(job.Error.UrlNotFound)
                 return

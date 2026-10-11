@@ -217,6 +217,15 @@ in a worker thread with a progress bar; `dr2 export` is the same from the termin
     strings: a filterable table whose edits go into the mod's `.bcs.json` (✅ phase 6,
     `studio/text_view.py`; no syntax highlighting yet).
   - Bink (CW): play through ffmpeg, pictures and sound (✅ phase 6, `studio/video_view.py`).
+- **Maps** (✅ phase 10, `studio/maps_view.py`, `web/maps.js`): the second left tab
+  lists the levels; the centre is a three.js page that streams a level zone by zone
+  (nearest the camera first, the game's small `_LOD` textures far away), each zone built
+  once into a `.glb` on disk (`convert/mapdata.py`'s `MapCache`, named by what it was built
+  from, so a changed game file or mod is never shown stale) by three builder threads.
+  Markers (spawn points, areas, triggers, the nav mesh) come as JSON and are drawn by the
+  page. Level materials (lightmaps, two-texture blends) travel in the `.glb` as the
+  occlusion texture and material extras and are drawn by `web/levelmaterials.js` the way
+  the level shaders do (both 3D views use it).
 - **Help inside the app** (✅ phase 7): the modding guides are the help (`dr2kit/help`,
   copied into packages by `setup.py`; English, one folder per language for
   translations, user decision 2026-10-09), shown in a searchable window (F1), a "How to

@@ -78,11 +78,15 @@ def test_3d_view_has_all_its_files_in_git(tmp_path):
     once kept three.js out, so builds from a clone stayed at "loading…")."""
     import shutil
     import subprocess
+    from pathlib import Path
     from dr2kit.studio.model_view import WEB_DIR, viewer_files
     found, missing = viewer_files()
-    assert not missing
+    maps, maps_missing = viewer_files(page="maps.html")          # the Maps tab (phase 10)
+    assert not missing and not maps_missing
+    found = list(dict.fromkeys(found + maps))
     names = {p.relative_to(WEB_DIR).as_posix() for p in found}
-    assert {"viewer.js", "vendor/three/build/three.module.js", "vendor/three/build/three.core.js",
+    assert {"viewer.js", "maps.js", "levelmaterials.js", "vendor/three/build/three.module.js",
+            "vendor/three/build/three.core.js",
             "vendor/three/examples/jsm/loaders/GLTFLoader.js"} <= names
     git = shutil.which("git")
     root = WEB_DIR.parents[2]
@@ -342,3 +346,54 @@ def test_variant_panel_edits_a_choice():
     assert seen[-1][0].slots["head"] == 1
     panel.everything.setChecked(True)
     assert seen[-1][0].everything and "6 of 6" in panel.mask.text()
+
+
+def test_maps_tab_on_a_synthetic_level(tmp_path, monkeypatch):
+    """The Maps tab (phase 10): it lists the levels, opens one (zones, markers, Go to),
+    builds a zone file when the page asks, and describes what was clicked. Without
+    QtWebEngine here: the page's messages are fed in as the page would send them."""
+    import json
+    from PySide6.QtWidgets import QApplication
+    from dr2kit.studio.app import MainWindow
+    from test_level import make_datafile, make_level
+    root = tmp_path / "game"
+    root.mkdir()
+    make_datafile(root)
+    make_level(root)
+    monkeypatch.setenv("DR2_CZ_DATA", str(root))
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    db = tmp_path / "i.sqlite"
+    build_index("cz", AssetTree(root), db, thumbs=False)
+    app = QApplication.instance() or QApplication([])
+    win = MainWindow(db)
+    mv = win.maps_view
+    assert win.maps_list.tree.topLevelItemCount() == 1             # the level "town"
+    win.left.setCurrentWidget(win.maps_list)
+    assert win.centre.currentWidget() is mv and win.right_panel.isHidden()
+    win._map_chosen("town", "")
+    assert mv.level == "town" and mv.meta["start"]["name"] == "Start"
+    goto = [mv.goto_box.itemText(i) for i in range(mv.goto_box.count())]
+    assert "Spawn point: Start" in goto and "Map area: Main Street" not in goto  # no strings
+    assert any(t.startswith("Zone: town_z01") for t in goto)
+    built = []
+    mv._built = lambda req, path, err: built.append((req, path, err))
+    for w in mv._workers:                       # let the builders' answers reach us
+        w[1].built.disconnect()
+        w[1].built.connect(lambda req, path, err: built.append((req, path, err)))
+    mv._message("want " + json.dumps({"zone": "town_z01", "part": "pieces",
+                                      "detail": "full", "script": "town"}))
+    import time
+    deadline = time.time() + 30
+    while not built and time.time() < deadline:
+        app.processEvents()
+        time.sleep(0.05)
+    (req, path, err), = built
+    assert err == "" and path.endswith(".glb") and os.path.isfile(path)
+    mv._message("pick " + json.dumps({"type": "item", "name": "HotDog3", "item": "HotDog",
+                                      "vpath": "data/streamedassets.big/HotDog.big/hotdog.big",
+                                      "file": "town.txt", "line": 1}))
+    assert "HotDog" in mv.info.toPlainText() and mv.btn_library.isEnabled()
+    win.left.setCurrentWidget(win.library_view)
+    assert not win.right_panel.isHidden() and win.centre.currentWidget() is not mv
+    assert win.wait_for_jobs()
+    win.close()

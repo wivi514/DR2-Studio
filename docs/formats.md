@@ -530,14 +530,23 @@ uses one of these (counts of elements, CZ / CW):
 | FLOAT2 | `0x2C23A5` | TEXCOORD 0-4 | 10,046 | 20,026 | 2 BE floats (textures land right in the renders) |
 | HEND3N | `0x2A2190` | NORMAL | 6,944 | 10,492 | 10_11_11 signed normalised: x = bits 0-10, y = 11-21, z = 22-31 (unit length on every vertex but 136 / 2,117 zero normals) |
 | DEC4N | `0x1A2187` | TANGENT | 2,622 | 5,928 | 2_10_10_10: x, y, z 10 bits signed, w 2 bits (xyz unit length on every vertex; **w is 0 on half of them**, see §Tangent w) |
-| SHORT2N | `0x2C2159` | TEXCOORD 1-5 | 3,033 | 6,579 | two 16-bit signed normalised, **x = low half of the BE word** |
+| SHORT2N | `0x2C2159` | TEXCOORD 1-5 | 3,033 | 6,579 | two 16-bit signed normalised, **x = high half of the BE word** (the first in memory; lightmaps land right in a game frame, phase 10) |
 | UBYTE4N | `0x1A2086` | BLENDWEIGHT | 2,121 | 2,452 | 4 bytes / 255, **x = low byte of the BE word** (the four sum to 255 on every vertex) |
 | UBYTE4 | `0x1A2286` | BLENDINDICES | 2,121 | 2,452 | 4 bytes, x = low byte |
 | D3DCOLOR | `0x182886` | COLOR4 | 4 | 1 | `0xAARRGGBB` |
 
 **Byte order:** every element is read as big-endian 32-bit words and component *x* is in
 the **low** bits. This is how the CZ recomp's renderer fetches vertices (it draws both
-games correctly), and the skin weights only sum to 255 this way round.
+games correctly), and the skin weights only sum to 255 this way round. **Except 16-bit
+pairs** (`SHORT2N`): *x* is the **high** half. *Retraction (2026-10-11, phase 10):* the
+table said "x = low half" by analogy with the byte formats, never checked: `SHORT2N`
+only holds level lightmap UVs, which nothing drew before phase 10. Drawn that way, CZ's
+safehouse bathroom, seen from the camera of a recomp capture, got blocky shadows across
+its door; swapped, its shading matches the game frame. Why: the Xbox's vertex fetch
+hands a shader a 16-bit pair transposed and the game's shaders swap it back (a `yx`
+destination swizzle on most 16-bit fetches; the CZ recomp's `vk_renderer.cpp`,
+`g_SwappedTexcoords`). The vertex re-encode gate is unaffected (decode and encode
+changed together).
 
 **Signed normalised values are not clamped** (phase 4). A *b*-bit field holds *q* and
 decodes to *q* / (2^(b−1) − 1). The lowest code, −2^(b−1), gives slightly less than −1
@@ -1278,11 +1287,34 @@ because the scene is `_COMP_<piece>.big`). `TextureFinder` now ranks `_LOD` pack
 `MERGED_COLLISION.big` parses as a scene but has no drawable mesh (the collision
 geometry is in its `persistent.big` in a form not read ❓).
 
-**Materials.** Level materials name a colour map, an **AO map** (`AO_<piece>`: baked
-shadows; the vertex data has two UV sets) and the engine's shadow / exposure samplers;
-many floors blend two colour maps through a mask (`sand_pebbles_brown_cm`,
-`gravel_dirty_gray_cm`, `page_grass_patch_mask_cm`). Today's export uses the first colour
-map only (§Materials).
+**Materials** ✅ (step 3, 2026-10-11; read from the level shaders with XenosRecomp: a
+draw's shader name, `UsedShaders.txt`, is the hash of a `deadrising*-sd.big/<hash>.sdo`
+shader description listing its vertex / pixel shader pairs, one per render pass).
+Level materials name a colour map, a **lightmap** (`AO_<piece>` in CZ, `LM_<piece>` in
+CW, sometimes `…_NE`: baked light) and the engine's shadow / exposure samplers.
+
+* **Lightmaps.** The `…LM…` shaders (`CM_LM`, `CM_NM_RMX_LM`, `CM_SM_NM_RM_LM_SPEC`…)
+  compute, in linear light, `colour² × (lightmap² + key light × gMiscParameters.x)`
+  (then fog and the frame's tone curve): the lightmap is the lighting. It is read with
+  the draw's **last UV set**, always `SHORT2N` (every lightmapped draw of both games;
+  the vertex shader passes it through unchanged). Lightmap and `LM` shader go together
+  on every draw: CZ 3,033 and CW 6,579 draws have both (the `SHORT2N` counts above), no
+  draw has one without the other.
+  Every `LM_`/`AO_` name is a lightmap whatever it ends with; *fixed:* 639 slots ending
+  `_NE`, `_si`, `_det`, `_sm` were read as normal, self-illumination, detail or specular
+  maps (`texture_role` now says `lightmap`).
+* **Blends.** `CM2DDU…` mixes the base colour map (UV 0) and an overlay (the 2nd texture,
+  UV 1) by a mask's **green** channel squared (the 3rd texture, UV 2):
+  `mix(base², overlay², mask.g²) × lightmap²` (CZ 72 draws, CW 10). `CM2DDX…` (CZ 1,
+  CW 105) mixes by the overlay's own **alpha** (not squared) and has no mask.
+* The `.glb` carries the lightmap as the material's occlusion texture on that UV set
+  (`extras.dr2.lightmap` names it) and a blend in `extras.dr2.blend` (overlay, mask, UV
+  sets, rule). Blender shows the colour map only; DR2 Studio's views draw both as the
+  shaders do (`web/levelmaterials.js`).
+* *Checked* (2026-10-11): CZ's safehouse bathroom drawn in the Maps tab from the camera of
+  a recomp capture (`c0`–`c3` of Chuck's vertex shader dump: eye −294.17, 5.44, −47.31,
+  53° vertical): same walls, door and framing, and the lightmap's shading where the game
+  has it. The game is warmer and brighter (exposure and the time-of-day light, not drawn).
 
 **Level text files** (`datafile.big`, not digest-checked): blocks
 `cClass Name { Key = "value" }`, nested, positions `"x,y,z"`, rotations `"x,y,z,w"`.

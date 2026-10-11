@@ -18,7 +18,13 @@ Key facts (docs/formats.md §"Vertex declarations"; counts from ``dr2 census --m
   words, and component *x* sits in the **low** bits of its word (so for 8_8_8_8, x is the
   last byte in memory). This is how the CZ recomp's renderer fetches vertices, and it
   draws both games correctly; the 8_8_8_8 rule was also measured on skinning weights
-  (they sum to 255 only this way round).
+  (they sum to 255 only this way round). **16-bit pairs are the exception:** x is the
+  **high** half, the first 16 bits in memory (phase 10). The Xbox's vertex fetch hands
+  a shader a 16-bit pair transposed, and the game's shaders swap it back with a ``yx``
+  destination swizzle, so the value the game uses has x first (the CZ recomp's
+  ``vk_renderer.cpp``, g_SwappedTexcoords). Only ``SHORT2N`` occurs (level lightmap
+  UVs); read the other way, every lightmap landed transposed (docs/formats.md
+  §Vertex declarations, retraction).
 * Packed normals are ``HEND3N`` (10_11_11 signed normalised: x = bits 0-10, y = 11-21,
   z = 22-31); tangents are ``DEC4N`` (2_10_10_10: x, y, z 10 bits each, w 2 bits = the
   bitangent sign).
@@ -178,7 +184,7 @@ def _decode_one(kind: str, comps: int, raw: bytes, off: int) -> tuple:
         words = struct.unpack_from(f">{(comps + 1) // 2}I", raw, off)
         h = []
         for w in words:
-            h += [w & 0xFFFF, w >> 16]                                # x = low half
+            h += [w >> 16, w & 0xFFFF]                    # x = HIGH half (module docstring)
         h = h[:comps]
         if kind == "s16n":
             return tuple(_snorm(x, 16) for x in h)
@@ -271,7 +277,7 @@ def _encode_one(kind: str, comps: int, vals) -> bytes:
             h = [struct.unpack("<H", struct.pack("<e", float(x)))[0] for x in v]
         h += [0] * (len(h) % 2)
         return struct.pack(f">{len(h) // 2}I",
-                           *(h[i] | h[i + 1] << 16 for i in range(0, len(h), 2)))
+                           *(h[i] << 16 | h[i + 1] for i in range(0, len(h), 2)))
     if kind == "dec4n":
         w = v[3] if comps > 3 else 0.0
         return struct.pack(">I", _q_snorm(v[0], 10) | _q_snorm(v[1], 10) << 10

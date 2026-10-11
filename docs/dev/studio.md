@@ -22,8 +22,11 @@ dr2kit/studio/
   edit_tools.py  TextureEdit (image editor + re-import on save), open_in_blender (phase 7)
   share_dialog.py ShareDialog (details, preview, check, .dr2mod), InstallDialog (phase 7)
   library_view.py LibraryView: the Library tab, by category, with export (phase 8)
+  maps_view.py   MapsList + MapsView: the Maps tab, levels in 3D (phase 10)
   icon/        dr2studio.svg, the app icon (our own drawing; dev/packaging.md §The icon)
-  web/         viewer.html + viewer.js, and three.js 0.186.1 (MIT) under vendor/three/
+  web/         viewer.html + viewer.js (3D view), maps.html + maps.js (Maps tab),
+               levelmaterials.js (lightmaps, blends: both pages), three.js 0.186.1 (MIT)
+               under vendor/three/
 ```
 
 ## The window
@@ -255,6 +258,31 @@ each step to a `QProgressDialog` whose *Cancel* sets a `threading.Event` checked
 between files. Results (and failures) go to the log; with `DR2_STUDIO_NO_DIALOGS` set
 (tests) there is no dialog.
 
+## The Maps tab (phase 10)
+
+**Maps** is the second left tab (`MapsList`: levels, zones). Choosing it hands the centre
+to `MapsView` and hides the right panel (the view has its own: item set, Layers, Go to,
+what was clicked, *Open in Library / Blender*, *Export .glb…*, *How to use Maps*, *Copy
+camera position*); leaving it gives back the viewer shown before.
+
+The page (`web/maps.html`, `maps.js`) talks with `dr2:` console lines like the 3D view:
+`ready`, `status`, `want {zone, part, detail, script}`, `pick {…}`, `camera {…}`; Python
+calls `dr2.openLevel(meta)`, `zoneReady(zone, part, detail, url)`, `setLayer`, `goTo`,
+`setView` (an exact camera: a recomp capture's), `pickAt(x, y)` and `reload()`. Every 0.3 s
+the page works out which zones it wants at which detail (full size within 40 m of a
+zone's bounds, small textures otherwise, backdrops over 300 m always small) and asks,
+nearest first, three at a time. `MapsView` hands each request to one of three `_Builder`
+threads (each with its own `MapCache` and `AssetTree`: the trees' archive caches are not
+shared between threads), registers the built file with the scheme handler under a new
+URL (`dr2://studio/maps/<n>-<file>`), and answers `zoneReady`. A level change bumps a
+generation number; answers of an older generation are dropped. `_MapsPage` keeps the
+page's own console errors (a shader that doesn't compile) in `errors`.
+
+Checking it: a scratch driver opens the window in a real display, drives the page with
+`dr2.goTo` / `setView` / `pickAt` and saves `view.grab()` pictures; for the gate, the
+camera of a recomp capture (`c0`–`c3` of a vertex shader dump, row 1 divided by the
+widescreen factor) goes into `setView` and the two pictures are compared.
+
 ## Testing
 
 `QT_QPA_PLATFORM=offscreen` runs the window without a display. A smoke test opens the
@@ -273,6 +301,9 @@ A second test edits a text file (CRLF kept, diff, revert), changes a string thro
 table, and switches a mod off in the mod manager, on a synthetic game.
 Grabbing the window to a PNG (`window.grab().save(...)`) is how the screenshots in the
 guides are made.
+A Maps test (phase 10) opens the window on a synthetic level, checks the level list, the
+centre and panel swap, *Go to*, a zone file built on request and a picked item's
+description (the page's messages are fed in, since CI has no WebEngine).
 
 ## Next (later phases)
 

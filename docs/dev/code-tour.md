@@ -44,6 +44,7 @@ dr2kit/
                        slots, looks, colour choices, prop states (phase 9)
     level.py           levels: list them, read a zone, put its pieces in place → .glb (phase 10)
     placed.py          what the level text files place: items (→ models), doors, markers (phase 10)
+    mapdata.py         the Maps tab's data: zone files cached on disk, a level's markers as JSON (phase 10)
     video.py           Bink movies (Case West): probe, frames, sound, .mp4 export (phase 6)
   index/
     schema.sql         the SQLite tables
@@ -62,6 +63,7 @@ dr2kit/
     app.py, viewers.py DR2 Studio (PySide6): tree, search, texture viewer, mod bar
     model_view.py      the 3D view: QWebEngineView + three.js over a dr2: URL scheme
     variant_panel.py   the Variants panel beside the 3D view: slots, colours, detail (phase 9)
+    maps_view.py       the Maps tab: level list, the 3D level page, layers, Go to, what is this (phase 10)
     audio_view.py      the audio view: waveform, playback (QAudioSink), loop (phase 5)
     text_view.py       text editor with a diff, and the string-bank table (phase 6)
     video_view.py      the movie view: Bink pictures + sound (phase 6)
@@ -406,6 +408,16 @@ areas, triggers, sound areas, map points, `NavMesh`), naming unknown classes;
 `streamedassets.big` packs. `level.things_glb` places item models like `zone_glb`
 places pieces, and `level.zone_of(position, zones)` says which zone a thing is in;
 `census.check_level_scripts` is the text half of the level census.
+
+Step 3: `convert.mapdata.MapCache(tree, game)` builds and keeps a zone's `pieces(level,
+zone, detail)` and `items(level, zone, script, detail)` files on disk (named by
+`stamp`: `MAP_VERSION`, the source files' sizes and dates, the tree's own `stamp()` when
+it has one), and `overview(cache, level, script)` is the JSON a level opens with. In
+`convert.gltf`, `lightmap_slots(scene)` and `blend_slots(scene)` say which materials
+carry a lightmap (occlusion texture on its UV set) or a two-texture blend (extras).
+`studio/maps_view.py` holds `MapsList` (left tab), `MapsView` (page + side panel) and
+`_Builder` threads; `web/maps.js` the page (zone streaming, fly / orbit camera, markers,
+picking) and `web/levelmaterials.js` the level materials, shared with `viewer.js`.
 
 ### `dr2kit/convert/variants.py` (phase 9)
 What a model can show, the way the game decides it ([`formats.md`](../formats.md)

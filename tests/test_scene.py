@@ -107,9 +107,10 @@ def test_vertex_decoders():
     assert vx.decode_element(el(0x1A2286), u8x4(1, 2, 3, 4), 4, 0, 1) == [(1, 2, 3, 4)]
     (n,) = vx.decode_element(el(0x2A2190), hend3n(0.6, -0.8, 0.0), 4, 0, 1)
     assert n == pytest.approx((0.6, -0.8, 0.0), abs=2e-3)
-    # SHORT2N: x is the low half of the big-endian word
+    # SHORT2N: x is the HIGH half of the big-endian word, the first short in memory
+    # (phase 10: the game's shaders swap the fetched pair back; lightmaps prove it)
     (uv,) = vx.decode_element(el(0x2C2159), struct.pack(">hh", -32767, 16384), 4, 0, 1)
-    assert uv == pytest.approx((16384 / 32767, -1.0))
+    assert uv == pytest.approx((-1.0, 16384 / 32767))
     with pytest.raises(FormatError, match="unknown vertex type"):
         vx.decode_element(el(0x123456), bytes(4), 4, 0, 1)
     with pytest.raises(FormatError, match="run past"):

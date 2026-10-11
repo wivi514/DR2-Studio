@@ -12,6 +12,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from './vendor/three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from './vendor/three/examples/jsm/controls/OrbitControls.js';
+import { applyLevelMaterials } from './levelmaterials.js';
 
 const status = document.getElementById('status');
 function say(text) {
@@ -95,7 +96,8 @@ function applySkeleton() {
 window.dr2 = {
   load(url, keep) {
     say('loading…');
-    new GLTFLoader().load(url, gltf => {
+    new GLTFLoader().load(url, async gltf => {
+      await applyLevelMaterials(gltf);     // level pieces: lightmaps and blends, as the game
       if (model) scene.remove(model);
       model = gltf.scene;
       scene.add(model);
