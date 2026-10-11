@@ -19,15 +19,20 @@ Phase 10 already *shows* zombie spawn areas and placed objects; phase 11 lets a 
 The research (2026-10-11) is below, then the plan. Facts also in
 [`formats.md`](formats.md) §Levels.
 
-## Status (2026-10-11): researched, not approved, nothing built
+## Status (2026-10-11): researched, re-checked against phase 10, not approved, nothing built
 
-A preparation only: the user will decide whether to do it once phase 10 is done. Its
-plan assumes phase 10's readers; re-check this file against what phase 10 built.
+A preparation only: the user decides whether to do it. Phase 10 is done (stretch items
+included, `phase10-kickoff.md` §Status); this file was re-checked against what it built
+the same day (§What phase 10 gives), and the plan below says which piece each step
+builds on and what is still missing.
 
 ## Start here (handoff, 2026-10-11)
 
-- Do phase 10 first. Then read this file, `formats.md` §Levels (the level text files and
-  the zombie spawns), `mods/build.py` (how mods become game files; `base_dirs`), and the
+- Phase 10 is done. Read this file, then `formats.md` §Levels (the level text files, the
+  zombie spawns, "Collision"), `dev/code-tour.md` for `formats/levelscript.py`,
+  `convert/placed.py`, `convert/zombies.py`, `convert/level.py`, `convert/mapdata.py`,
+  `mods/preview.py` and `studio/maps_view.py`, `dev/studio.md` §The Maps tab (the page's
+  `dr2:` messages), `mods/build.py` (how mods become game files; `base_dirs`), and the
   `.bcs.json` string mods (`formats/bcs.py`, guide `11-text.md`), the model for
   "edits by name" mods.
 - **How the research was done** (scripts deleted; redo like this): read
@@ -36,6 +41,25 @@ plan assumes phase 10's readers; re-check this file against what phase 10 built.
   copy is `<CZ recomp>/assets/game_patched/data/datafile.big` (compare entry by entry
   with `BigArchive.parse`).
 - **Decisions to ask the user** before building: the list under §Decisions to take.
+
+## What phase 10 gives (checked 2026-10-11)
+
+| Piece | What it does today | What phase 11 still needs |
+|---|---|---|
+| `formats/levelscript.py` `Document` | Reads every block-format `.txt` of `datafile.big` and writes it back **byte for byte** (CZ 24, CW 39, `zombiesets.txt`, `missions.txt`, `items.txt` included; not block format, so not read: CZ `curves.txt`, `padmap.txt`, `zombie_pdv_variations.txt`, CW `sgraph_d.txt`, `sgraph_zombie_d.txt`). Blocks keep their line; `Document.set(block, key, value)` changes one line | **Adding and removing blocks** (a new `cItemPlacement`, a deleted zombie), adding a key to a block, all in the file's own style (CRLF, tabs, sorted keys); addressing a block by its path (`cMissionDefinition X/cMissionLevelReady Y/…`) |
+| `convert/placed.py` | Every item, door, spawn point, zombie area (`cZombieWarehouse` polygons, `Thing.parent` = the area name), trigger, map / light / sound area, map point and the nav mesh of a level script, with file and line; every item and door finds its model (CZ 1,060, CW 1,835) | Nothing for objects; the item browser can use `ItemModels` |
+| `convert/zombies.py` | `crowds()`: every `cMissionZombieFactory` of the missions run on a level (`cMissionLevelReady LevelName`), its area and amounts per type; `spots()`: example figures spread over the area | **`cMissionSpawnZombie`** (single zombies), **`cMissionSpawnZombieCrate`** (respawns), **`cMissionZombieRemoval`**, **`cMissionAdjustZombieTuning`** and **`zombiesets.txt`** (load sets) are not read yet; crowds carry their mission name but no block path |
+| Maps tab (`studio/maps_view.py`, `web/maps.js`) | Layers (zombie areas, zombies, nav mesh, collision…), click → what it is (`dr2:pick`, with file and line for items), Go to, time of day, the in-game map. Items are **one glTF node each** (extras `dr2_name`, `dr2_file`, `dr2_line`), so the page can move one without a rebuild | Selection, a move / turn gizmo (three.js `TransformControls`: **not vendored**, only `OrbitControls`; same three.js 0.186.1, MIT), undo / redo, side-panel editors, a "save into mod" message to Python |
+| Collision (`formats/collision.py`, `level.zone_collision`) | Every zone's collision mesh in world space (5 CZ shapes' place unknown) | **Snap to floor** and "is this spot reachable": a ray down onto the collision, not onto the drawn pieces (what the game stands on) |
+| Nav mesh (`placed.read_navmesh`) | The polygons zombies walk on | A check that a zombie area or a single zombie stands on it |
+| `mods/preview.py` (`Preview`, `ModdedTree`) | Studio shows the switched-on mods with the build's own bytes; Ctrl+M shows the game without them; only the zones a mod touches rebuild | Nothing, once the build knows `.edits.json`: an edit shows "with my mods" for free |
+| `mods/build.py` | Whole-file replacements, `.bcs.json` merged by id over the recomp's copy (`base_dirs`) | **An `.edits.json` kind**: merge several mods' edits by block path, conflict only on the same key of the same block, applied over whatever file is underneath |
+| `formats/level.py` placements | `ZONE_ORGANIZATION.big` records parse and write back identically (`placements_bytes`, census), placement maths checked to 0.8 mm (CZ) / 8 mm (CW) | For step 4 only: writing a changed table |
+| Time of day (`mapdata.light_table`) | The hour slider | `zombiesets.txt` entries have their own clock (`start` / `end` in seconds from Day 1 0:00): the zombie view should pick the load set by game time, not the light hour |
+
+Studio has **no "mod being edited"** yet (the Mods window manages the library; editing
+writes into a mod folder only through *Edit in image editor* and the text editor):
+step 2 needs one (pick or create the mod the edits go to).
 
 ## What the research found
 
@@ -74,12 +98,21 @@ unknown.
   `NonInteractableProp`, `TextureSubType`).
 - **Mission objects:** `cMissionSpawnItem` (CZ 146, CW 111) and `cMissionSpawnNPC`
   (survivors, CZ 38, CW 15) in `missions.txt`.
-- An `ItemName` must name a block of `items.txt` whose model ships (all of CW's
-  placements do; CZ is a demo and some don't, phase 10 step 2).
+- An `ItemName` must name a block of `items.txt` whose model ships. Every placed item and
+  door of both games finds its model (phase 10; ~~CZ is a demo and some don't~~:
+  retracted, the research's 482 "missing" were a wrong lookup). An *added* item can still
+  name one whose model is missing in CZ: `dr2 mod check` must say so.
 - **Level pieces** are binary (`ZONE_ORGANIZATION.big`, 208-byte records,
   `formats.md` §Levels). Moving one is a float edit; adding one means a new record and
   the piece's `.big`/`.tex` in that zone archive. Whether the game accepts more records
   than shipped is unknown.
+- **A piece's collision is not in the piece** (found in phase 10's stretch): it sits in
+  the zone's `MERGED_COLLISION.big`, one shape per piece node, already placed or in the
+  piece's space, with a Havok search tree (`hkpMoppCode`) and edge welding built from the
+  triangles. Moving or hiding a piece leaves its collision behind (an invisible wall
+  where it was) unless the shape moves too; moving the vertices without rebuilding the
+  MOPP tree is untested ❓ and rebuilding it needs Havok's algorithm (not available).
+  Items and doors are not in the merged collision (they are separate props).
 
 ### The text files as mods
 
@@ -121,12 +154,19 @@ A mod stores **what it changed, by block name**, not a whole file:
   quaternions unit length, names unique; it warns when a zombie type is not in the
   level's `zombiesets.txt` load set.
 
+Builds on `levelscript.Document` (add: block insert / remove, key insert, path
+addressing) and `mods/build.py` (add: the `.edits.json` kind next to `.bcs.json`);
+`mods/preview.py` then shows edits without more work.
+
 ### 2. Maps tab: edit objects
 
 - Select an item or door (click, or from a list); **move** (drag on the floor plane,
-  arrow keys, or type x,y,z), **turn**, **snap to floor** (ray down to the level
-  geometry), **delete**, **duplicate**, **add** from an item browser (the Library's
-  Weapons & items, with pictures), **change** what it is.
+  arrow keys, or type x,y,z), **turn**, **snap to floor** (ray down onto the zone's
+  **collision mesh**, `level.zone_collision`, sent to the page as the collision part),
+  **delete**, **duplicate**, **add** from an item browser (the Library's Weapons &
+  items, with pictures), **change** what it is.
+- The page already has each item as its own node with its file and line; add
+  `TransformControls` (vendor it from three.js 0.186.1) and a `dr2:edit {…}` message.
 - Every change goes into the mod being edited (the Mod manager's current mod), as
   `.edits.json`; **undo/redo**; the "with my mods" view shows the result at once and
   "without mods" the original (phase 10).
@@ -135,10 +175,12 @@ A mod stores **what it changed, by block name**, not a whole file:
 
 ### 3. Maps tab: edit zombie spawns
 
-- A **Zombies** layer: crowd areas (factory + its area polygons) coloured by density,
-  single zombies as figures with their type (phase 9's default look) and held item,
-  respawn areas, removal circles; a time-of-day / mission picker, since spawns belong to
-  missions.
+- Extend phase 10's **Zombies** layer (crowds only, example figures): read
+  `cMissionSpawnZombie` (figures at their spot, type, held item, count),
+  `cMissionSpawnZombieCrate` (respawn areas), `cMissionZombieRemoval` (circles) and
+  `zombiesets.txt` into `convert/zombies.py`; colour crowd areas by density; a mission
+  picker (spawns belong to missions) and the load set for the game time (see the table
+  above: its own clock, not the light hour).
 - Edit a crowd: types and amounts, clumping; reshape its area (drag polygon points, add
   and remove points); add a new area and a factory for it.
 - Edit single zombies: move, turn, type, item, count; add and delete.
@@ -148,8 +190,16 @@ A mod stores **what it changed, by block name**, not a whole file:
 ### 4. Level pieces (stretch)
 
 - Move, hide (remove the record), or copy a piece within its zone
-  (`ZONE_ORGANIZATION.big` rewrite, round-trip identical first); a new model as a piece
-  is a further stretch (its `.big` + `.tex` added to the zone archive).
+  (`ZONE_ORGANIZATION.big` rewrite; reading and writing back identically is done,
+  phase 10); a new model as a piece is a further stretch (its `.big` + `.tex` added to
+  the zone archive, textures by the first-copy rule).
+- **First, the collision question** (§Where objects come from): in the recomp, move a
+  piece's record only and see whether its collision stays behind (expected); then move
+  the shape's vertices in `MERGED_COLLISION.big` without touching `hkpMoppCode` and see
+  whether the game still collides correctly, crashes, or ignores it. Hiding a piece
+  could drop its collision shape the same way. Until that is known, a moved or hidden
+  piece is shown in the Maps tab with a warning, and only *visual* edits (a piece with no
+  collision shape: signs, decals, lights) are offered without one.
 
 ### 5. In-game proof and limits (both games)
 
@@ -160,7 +210,7 @@ A mod stores **what it changed, by block name**, not a whole file:
   (`MaxNumUpdatingZombies`), the load-set budget, whether a factory's amounts are
   capped. Write them into guide 15 (engine limits).
 
-### 6. A guide: `modding/NN-edit-a-level.md` (the number after phase 10's Maps guide)
+### 6. A guide: `modding/19-edit-a-level.md` (after phase 10's `18-maps.md`)
 
 Studio steps first (select, move, add, zombies), then the `.edits.json` format, then
 `dr2` CLI (`dr2 level set/add/remove …`), troubleshooting (item not in this game,
@@ -174,16 +224,22 @@ type not loaded, the recomp's co-op edits kept).
 - **Zombie editing per mission**, with the street's main mission (CZ
   `PrologueZombies`) shown first; or a simpler "level view" that shows every mission's
   spawns at once with a filter.
-- **Pieces (binary) are a stretch**; items, doors and zombies (text) are the goal.
+- **Pieces (binary) are a stretch**; items, doors and zombies (text) are the goal. A
+  moved piece needs its collision moved too (Havok search tree not rebuildable):
+  limit piece edits to pieces without collision until the in-game test says more?
 - **New zombie types in a level:** allowed with a warning and the measured budget, or
   refused until the budget is known.
+- **Where edits are saved:** a "mod being edited" picked in the Maps tab (new mod or an
+  existing one from the library), proposed default; or always a new mod per level.
 
 ## Gate (both games)
 
-- Census: every `.txt` of `datafile.big` reads and writes back byte-identical; every
+- Census: every block-format `.txt` of `datafile.big` reads and writes back
+  byte-identical (already true: CZ 24, CW 39; the 5 other formats named above); every
   `.edits.json` applied then reversed gives the original.
 - Studio: move a weapon, add one, delete one, change a crowd's amounts and area, add a
-  single zombie with an item; "without mods" shows the original; `dr2 mod check` passes.
+  single zombie with an item; "without mods" (Ctrl+M) shows the original; `dr2 mod check`
+  passes; the moved weapon snapped to the collision floor.
 - In game: each of those edits seen in the recomp (captures), and in CZ the recomp's
   co-op edits to `missions.txt` still present in the deployed file.
 
@@ -196,3 +252,7 @@ type not loaded, the recomp's co-op edits kept).
 - Mission blocks are nested several levels deep; names are unique per parent, not
   globally (`x2009` factory names): address blocks by their path.
 - The recomps stay read-only; the `game_patched` copy is read as a base, never written.
+  CZ's has `datafile.big` (its co-op `missions.txt` / `outfits.csv`); CW's recomp has no
+  `game_patched` folder (checked 2026-10-11).
+- A level texture shared by several packs of a zone uses its **first** copy (phase 10,
+  seen in game): a piece edit that adds textures must follow that rule.

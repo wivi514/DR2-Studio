@@ -17,6 +17,24 @@ Entry template:
 
 ---
 
+## 2026-10-11 — Phase 11 plan re-checked against phase 10
+**Done:** `phase11-kickoff.md` updated (user: make it "properly ready"): a new §What
+phase 10 gives table (each piece phase 11 builds on, and what it still lacks), the plan
+steps pointed at those pieces, the gate and decisions brought up to date.
+**Why:** the plan was written before phase 10 was built; it assumed readers and views
+that now exist, and didn't know about the collision file.
+**Learned (checked today):** every block-format `.txt` of `datafile.big` already writes
+back byte for byte (CZ 24, CW 39; five other-format files named); `Document` can only
+change a value, not add or remove blocks; single zombies, respawn crates, removals and
+`zombiesets.txt` aren't read yet; items are one glTF node each with file and line (the
+page can move one without a rebuild); three.js `TransformControls` isn't vendored;
+Studio has no "mod being edited"; the CW recomp has no `game_patched`. A piece's
+collision lives in `MERGED_COLLISION.big` with a Havok search tree, so moving a building
+piece needs an in-game test first. The research's "CZ items without models" claim is
+retracted there (phase 10 found every model).
+**Docs updated:** `phase11-kickoff.md`, `roadmap.md`, `README.md`, `CLAUDE.md`, this entry.
+**Next:** the user decides on phase 11 (§Decisions to take).
+
 ## 2026-10-11 — Phase 10 stretch: floors, zombies, time of day, collision
 **Done:** the four stretch items, each a Maps layer or setting and in the level export:
 - the in-game map's upper floor and basement pictures (CZ `map_prologue_2f`, CW `map_2f`,

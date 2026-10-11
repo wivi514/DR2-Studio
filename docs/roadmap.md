@@ -255,16 +255,22 @@ called it much bigger than phase 9: built in steps, each usable on its own.
   time of day and the sky; the collision mesh.
 
 ## Phase 11 (potential): edit levels, saved as mods (user, 2026-10-11)
-Researched and planned 2026-10-11, **not approved** (the user decides after phase 10);
-`phase11-kickoff.md`. Phase 10 shows spawns and placements; phase 11 changes them.
+Researched and planned 2026-10-11, **not approved** (phase 10 is done; the user
+decides); `phase11-kickoff.md`, re-checked against what phase 10 built (its §What phase
+10 gives: the lossless text reader, item nodes, the collision mesh for snapping, the mods
+preview; missing: block add/remove, single zombies / respawns / load sets, a move gizmo,
+a "mod being edited", the `.edits.json` build kind). Phase 10 shows spawns and
+placements; phase 11 changes them.
 - Mods that hold only their level edits, by block name (`.edits.json`, like `.bcs.json`
   strings), applied over the shipped or the recomp's patched file, so CZ's co-op edits to
   `missions.txt` survive and mods merge.
 - Maps tab: move, turn, add, delete, change placed items and doors; undo; snap to floor.
 - Zombie spawns (in `missions.txt`): crowds in areas (types, amounts, area shape), single
   zombies (type, item), respawns; the level's zombie load set and its budget.
-- Stretch: level pieces (binary placements). In-game proof of each edit, and the limits
-  (items per level, zombies, load budget) measured.
+- Stretch: level pieces (binary placements; a piece's collision lives in the zone's
+  merged collision with a Havok search tree, so moving one needs an in-game test first).
+  In-game proof of each edit, and the limits (items per level, zombies, load budget)
+  measured.
 - **Gate:** every level text file round-trips byte-identical; each edit kind made in
   Studio, checked by `dr2 mod check`, and seen in the recomp in both games.
 
