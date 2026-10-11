@@ -236,7 +236,7 @@ they are different objects); colour-choice mods and Chuck's outfits are not star
 
 ## Phase 10: Maps: see a whole level, extract it, see your mods in it (user, 2026-10-11)
 Planned and approved 2026-10-11, **built the same day** (`phase10-kickoff.md`: research,
-plan, gate, §Status). Owed: the Case West frame comparison, the user's test. The user
+plan, gate, §Status). Checked in both games (CW by eye by the user); owed: the stretch items. The user
 called it much bigger than phase 9: built in steps, each usable on its own.
 - Read levels: zone lists, piece placements (`ZONE_ORGANIZATION.big`), `dr2 level`,
   `census --levels`.

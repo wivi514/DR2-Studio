@@ -38,8 +38,8 @@ Studio's **Maps** tab (`studio/maps_view.py`, `web/maps.js`, lightmaps and blend
 shaders draw them), level export (`catalog/level_export.py`, `dr2 export <level>`, the
 add-on's Import zone), and **With my mods** (`mods/preview.py`, Ctrl+M). Fixed on the way:
 `SHORT2N` decoded transposed, lightmaps taken for normal maps, level pieces using their
-`_LOD` textures, a zone's first texture copy rule (checked in game). Owed: the Case West
-frame comparison and the user's own test (`docs/phase10-kickoff.md` §Status). Editing
+`_LOD` textures, a zone's first texture copy rule (checked in game). Checked in both games
+(CW by eye by the user); owed: the stretch items (`docs/phase10-kickoff.md` §Status). Editing
 levels is a potential phase 11, researched in `docs/phase11-kickoff.md`, not approved.** Read these before writing code:
 
 | Doc | What it holds |
