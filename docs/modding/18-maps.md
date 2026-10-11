@@ -70,6 +70,13 @@ West's Phenotrans blueprint) with a red arrow where you are and the way you look
 the game's map, it shows the upper floor when you are upstairs and Case West's tunnels
 when you are in the basement. Click on it to jump there. Untick *In-game map* in Layers to hide it.
 
+**Time of day** (right panel): the slider picks the hour (00:00-23:00), and the view
+takes the game's light for it from the level's lighting table: the sky's colours, the
+fog, the sun or moon on items and characters, the ambient light. Walls and floors keep
+their baked light (as in the game). In Case West each part of the facility has its own
+table (the cafeteria, the server room…): the view uses the one for where you stand.
+Untick *Time of day* for Studio's plain, neutral light.
+
 **Copy camera position** puts the camera's x, y, z on the clipboard (handy for notes, or
 to tell someone where something is).
 

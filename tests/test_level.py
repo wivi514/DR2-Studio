@@ -503,3 +503,27 @@ def test_floor_polygons_triangulate():
                    - (l_shape[b][2] - l_shape[a][2]) * (l_shape[c][0] - l_shape[a][0])) / 2
                for a, b, c in tris)
     assert len(tris) == 4 and abs(area - 3.0) < 1e-9
+
+
+def test_light_table_by_hour(tmp_path):
+    from dr2kit.container.big import BigArchive
+    from dr2kit.convert import mapdata
+    tree = make_datafile(tmp_path)
+    hours = ",".join(str(h) for h in range(24))
+    rows = ["name," + hours]
+    for c in "xyz":
+        rows.append(f"mSkyColor1.{c}," + ",".join(str(h / 10) for h in range(24)))
+    rows.append("mSHRenderMatrixRed.33," + ",".join("0.5" for _ in range(24)))
+    rows.append("mSHRenderMatrixRed.13," + ",".join("0.1" for _ in range(24)))
+    rows.append("mFogEnd," + ",".join("200" for _ in range(24)))
+    df = tmp_path / "data" / "datafile.big"
+    arc = BigArchive.parse(df.read_bytes())
+    arc.add("town.csv", "\r\n".join(rows).encode())
+    df.write_bytes(arc.to_bytes())
+    table = mapdata.light_table(AssetTree(tmp_path), "/town.csv")
+    assert len(table) == 24
+    assert table[12]["sky"][0] == [1.2, 1.2, 1.2] and table[12]["fog_end"] == 200
+    # irradiance n^T M n, n = (0, ±1, 0, 1): up = M11 + M13 + M31 + M33
+    assert abs(table[0]["ambient"]["up"][0] - 0.6) < 1e-9
+    assert abs(table[0]["ambient"]["down"][0] - 0.4) < 1e-9
+    assert mapdata.light_table(AssetTree(tmp_path), "nope.csv") is None

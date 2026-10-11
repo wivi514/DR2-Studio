@@ -262,6 +262,81 @@ def map_picture(tree: AssetTree, script: str | None, game: str | None = None) ->
     return out
 
 
+LIGHT_KEYS = {          # what the Maps page uses of a lighting table, per hour
+    "sky": ("mSkyColor1", "mSkyColor2", "mSkyColor3"), "sky_mid": "mSkyMidPoint",
+    "fog": "mFogColour", "fog_start": "mFogStart", "fog_end": "mFogEnd", "fog_max": "mFogMax",
+    "key": "mKeyLightColour", "key_dir": "mKeyLightDirection", "tint": "mTintColour",
+}
+
+
+def light_table(tree: AssetTree, name: str) -> list[dict] | None:
+    """A lighting table (``datafile.big/<name>.csv``: rows of 24 hourly values) as 24
+    dicts the Maps page reads: the sky's three colours and midpoint, fog colour and
+    distances, the key light's colour and direction, the tint, and the ambient light
+    from above and below (the spherical-harmonic matrices ``mSHRenderMatrix<C>.ij``:
+    irradiance = nᵀ M n with n = (x, y, z, 1); up and down are n = (0, ±1, 0, 1))."""
+    try:
+        text = tree.resolve(f"{placed.DATAFILE}/{name.strip('/')}").data().decode("latin-1")
+    except Exception:  # noqa: BLE001 - no table: the page keeps its own light
+        return None
+    rows = {}
+    for line in text.splitlines():
+        cells = line.split(",")
+        if len(cells) >= 25:
+            try:
+                rows[cells[0].strip()] = [float(c) for c in cells[1:25]]
+            except ValueError:
+                continue
+
+    def vec(key, h, n=3):
+        return [rows.get(f"{key}.{c}", [0.0] * 24)[h] for c in "xyzw"[:n]]
+    hours = []
+    for h in range(24):
+        d = {"sky": [vec(k, h) for k in LIGHT_KEYS["sky"]],
+             "sky_mid": rows.get("mSkyMidPoint", [0.2] * 24)[h],
+             "fog": vec("mFogColour", h), "fog_start": rows.get("mFogStart", [0] * 24)[h],
+             "fog_end": rows.get("mFogEnd", [1000] * 24)[h],
+             "fog_max": rows.get("mFogMax", [0] * 24)[h],
+             "key": vec("mKeyLightColour", h), "key_dir": vec("mKeyLightDirection", h),
+             "tint": vec("mTintColour", h)}
+        amb = {}
+        for side, s in (("up", 1), ("down", -1)):
+            col = []
+            for ch in ("Red", "Green", "Blue"):
+                m = lambda i, j: rows.get(f"mSHRenderMatrix{ch}.{i}{j}", [0.0] * 24)[h]
+                col.append(m(1, 1) + s * (m(1, 3) + m(3, 1)) + m(3, 3))
+            amb[side] = col
+        d["ambient"] = amb
+        hours.append(d)
+    return hours
+
+
+def lighting(cache: MapCache, script: str | None) -> list[dict]:
+    """The lighting contexts of a level script: each ``cLightContextVolume``'s table
+    (`light_table`) and the area it covers (its ``QuadName`` polygon and height). The
+    game lights a place with the context whose area holds it."""
+    if not script:
+        return []
+    ls = cache.script(script)
+    polys = {t.name.lower(): t for t in ls.things if t.polygon}
+    tables: dict[str, list | None] = {}
+    out = []
+    for t in ls.things:
+        if t.cls != "cLightContextVolume":
+            continue
+        f = (t.props.get("ContextFileName") or "").strip("/")
+        if f and f not in tables:
+            tables[f] = light_table(cache.tree, f)
+        quad = polys.get((t.props.get("QuadName") or "").lower())
+        if f and tables.get(f):
+            out.append({"name": t.name, "file": f, "hours": tables[f],
+                        "polygon": [[p[0], p[2]] for p in quad.polygon] if quad else [],
+                        "y": [min(p[1] for p in quad.polygon),
+                              min(p[1] for p in quad.polygon) + (quad.height or 1000)]
+                        if quad else None})
+    return out
+
+
 def overview(cache: MapCache, level: str, script: str | None = None) -> dict:
     """The JSON document the Maps page opens a level with (module docstring)."""
     L = cache.level(level)
@@ -289,6 +364,7 @@ def overview(cache: MapCache, level: str, script: str | None = None) -> dict:
             out["start"] = {"position": start.position, "rotation": start.rotation,
                             "name": start.name}
     out["map"] = map_picture(cache.tree, script, cache.game)
+    out["lighting"] = lighting(cache, script)
     if out["start"] is None:
         main = [z for z in L.zones if z.radius <= BACKDROP_RADIUS] or L.zones
         z = min(main, key=lambda z: z.radius) if len(main) == 1 else main[0]

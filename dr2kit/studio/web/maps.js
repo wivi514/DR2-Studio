@@ -16,6 +16,12 @@
 //   dr2.reload()                   drop every loaded zone and ask again (mods changed)
 //   dr2.setView(eye, fwd, up, fovY) an exact camera (a recomp capture's, for comparing)
 //   dr2.pickAt(x, y)               what a click at page pixel x, y would pick (tests)
+//   dr2.setHour(h)                 time of day 0-23 (null: Studio's own neutral light)
+// Time of day (meta.lighting, convert/mapdata.py lighting): the lighting context whose
+// area holds the camera gives, for the hour, the sky (the game's Skybox shader: a
+// gradient by elevation, colour 1 at the horizon, 2 at the midpoint, 3 at the zenith),
+// the fog, the key light and the ambient light from above / below; lightmapped surfaces
+// keep their baked light, as in the game.
 // The in-game map (meta.map: a picture and the world rectangle it covers, convert/
 // mapdata.py map_picture) is drawn in the top-left corner with the camera on it (layer
 // "overview"); a click there flies to that spot.
@@ -55,6 +61,75 @@ scene.add(new THREE.HemisphereLight(0xffffff, 0x50483c, 2.2));
 const sun = new THREE.DirectionalLight(0xfff4e0, 1.6);
 sun.position.set(0.4, 1, 0.3);
 scene.add(sun);
+
+// --- sky and time of day --------------------------------------------------------------
+const skyUniforms = { c0: { value: new THREE.Color(0x87a0b4) }, c1: { value: new THREE.Color(0x87a0b4) },
+  c2: { value: new THREE.Color(0x5070a0) }, mid: { value: 0.2 } };
+const sky = new THREE.Mesh(new THREE.SphereGeometry(3000, 32, 16), new THREE.ShaderMaterial({
+  uniforms: skyUniforms, side: THREE.BackSide, depthWrite: false, fog: false,
+  vertexShader: `varying vec3 vDir; void main() { vDir = normalize(position);
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: `uniform vec3 c0, c1, c2; uniform float mid; varying vec3 vDir;
+    void main() {
+      float t = asin(clamp(vDir.y, 0.0, 1.0)) / 1.5707963;     // elevation, 0..1
+      float s = min(t, mid) / mid, r = max(t - mid, 0.0) / (1.0 - mid);
+      vec3 c = c0 + s * ((c1 - c0) + r * (c2 - c1));
+      gl_FragColor = vec4(c, 1.0);
+      #include <colorspace_fragment>
+    }`,
+}));
+sky.renderOrder = -10;
+sky.visible = false;
+scene.add(sky);
+let hour = 12;
+const hemi = scene.children.find(o => o.isHemisphereLight);
+function lightAt(pos) {
+  const L = (meta && meta.lighting) || [];
+  for (const c of L) {
+    if (!c.polygon || c.polygon.length < 3) continue;
+    if (c.y && (pos.y < c.y[0] - 2 || pos.y > c.y[1] + 2)) continue;
+    let inside = false;
+    for (let i = 0, j = c.polygon.length - 1; i < c.polygon.length; j = i++) {
+      const [xi, zi] = c.polygon[i], [xj, zj] = c.polygon[j];
+      if ((zi > pos.z) !== (zj > pos.z) && pos.x < (xj - xi) * (pos.z - zi) / (zj - zi) + xi) inside = !inside;
+    }
+    if (inside) return c;
+  }
+  return L[0] || null;
+}
+let lastLight = null;
+function applyLight() {
+  if (hour === null || !meta || !meta.lighting || !meta.lighting.length) {
+    if (lastLight !== 'none') {
+      scene.background = new THREE.Color(0x87a0b4); scene.fog = null; sky.visible = false;
+      hemi.color.set(0xffffff); hemi.groundColor.set(0x50483c); hemi.intensity = 2.2;
+      sun.color.set(0xfff4e0); sun.intensity = 1.6; sun.position.set(0.4, 1, 0.3);
+      lastLight = 'none';
+    }
+    return;
+  }
+  const c = lightAt(camera.position);
+  const key = c.name + ':' + hour;
+  if (key === lastLight) return;
+  lastLight = key;
+  const h = c.hours[hour];
+  const col = v => new THREE.Color(Math.max(0, v[0]), Math.max(0, v[1]), Math.max(0, v[2]));
+  skyUniforms.c0.value.copy(col(h.sky[0])); skyUniforms.c1.value.copy(col(h.sky[1]));
+  skyUniforms.c2.value.copy(col(h.sky[2])); skyUniforms.mid.value = Math.max(0.01, h.sky_mid);
+  sky.visible = true;
+  scene.background = col(h.sky[0]);
+  // the game's fog grows from start to end up to fog_max; three.js's linear fog grows to
+  // 1, so its far end is stretched to reach fog_max at the game's end distance
+  const span = Math.max(1, h.fog_end - h.fog_start) / Math.max(0.01, h.fog_max);
+  scene.fog = h.fog_max > 0 ? new THREE.Fog(col(h.fog), h.fog_start, h.fog_start + span) : null;
+  const k = col(h.key);
+  sun.color.copy(k.r + k.g + k.b > 0 ? k.clone().multiplyScalar(1 / Math.max(k.r, k.g, k.b)) : k);
+  sun.intensity = Math.max(k.r, k.g, k.b) * 0.8;
+  sun.position.set(-h.key_dir[0], -h.key_dir[1], -h.key_dir[2]);
+  hemi.color.copy(col(h.ambient.up).multiplyScalar(Math.PI * 4));
+  hemi.groundColor.copy(col(h.ambient.down).multiplyScalar(Math.PI * 4));
+  hemi.intensity = 1.0;
+}
 
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 4000);
 camera.rotation.order = 'YXZ';
@@ -372,6 +447,7 @@ window.dr2 = {
     }
     buildMarkers();
     setOverview();
+    lastLight = null;
     if (!keep && m.start) {
       const p = m.start.position;
       let y = 0;
@@ -446,6 +522,7 @@ window.dr2 = {
     schedule();
   },
   pickAt(x, y) { pick(x, y); },
+  setHour(h) { hour = (h === null || h === undefined) ? null : h; lastLight = null; applyLight(); },
   camera() {
     return { position: camera.position.toArray(), yaw };
   },
@@ -580,6 +657,8 @@ renderer.setAnimationLoop(() => {
     s.getWorldPosition(tmp);
     s.visible = tmp.distanceTo(camera.position) < LABEL_RANGE;
   }
+  sky.position.copy(camera.position);
+  applyLight();
   renderer.render(scene, camera);
   drawOverview();
 });

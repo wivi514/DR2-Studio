@@ -411,6 +411,11 @@ areas, triggers, sound areas, map points, `NavMesh`), naming unknown classes;
 places pieces, and `level.zone_of(position, zones)` says which zone a thing is in;
 `census.check_level_scripts` is the text half of the level census.
 
+Stretch: `mapdata.light_table(tree, name)` reads a lighting table into 24 hourly dicts
+(sky, fog, key light, ambient up/down from the SH matrices), `mapdata.lighting(cache,
+script)` lists a level's lighting contexts with their areas; the page draws the sky
+gradient (the `Skybox` shader's formula), fog and lights for the context the camera is
+in (`dr2.setHour`).
 Stretch: `convert.zombies.crowds(tree, script)` reads the zombie factories of
 `missions.txt` for a level, `spots(ls, crowds)` spreads them over their area's floor
 polygons (ear-clipped, seeded); `level.zombies_glb` makes each type's model once per look

@@ -1306,6 +1306,14 @@ in-game layout files (`ingame.big/map_*.txt`) give other numbers: those widgets 
 parents whose scale we didn't resolve (the CW 2f is off by ×0.82 there). The positions
 are profile data (`map_floors`).
 
+**The sky** ✅ (stretch, read from the `Skybox` pixel shader `db040ae0`): no texture; a
+gradient by the view direction's elevation t (asin, 0 at the horizon, 1 at the zenith):
+`mSkyColor1` at the horizon, `mSkyColor2` at t = `mSkyMidPoint`, `mSkyColor3` at the
+zenith, linear in between, then the frame's tone curve. `skybox.big` (both games) is the
+dome it is drawn on. CZ's `fortune_exterior_sky(_n)` and `fortune_exterior_canyon(_n)`
+name textures (`fortune_sky`, `fortune_terrain_dirt01/02`) that are nowhere in the game
+data: leftovers the game can't draw; the distant hills are pieces of zone z01.
+
 **Which copy of a texture the game uses** ✅ (in game, 2026-10-11). A texture name
 often sits in several packs of one zone, always with the same bytes (CZ 457 names, 660
 extra copies; CW 1,217 and 1,803). The game takes the name from the **first pack of the
@@ -1371,7 +1379,7 @@ per level folder. 0 classes outside the list below in either game.
 | `waypoint_<level>.txt` | `cTriggerVolume` (`Level`, `LevelSpawnPoint`: doors between levels), `cEnvironmentVolume`, `cEnvironmentAcoustics`, `cAudioMaterial`, `cWaypoint` |
 | `nm_<level>.txt` | the navigation mesh: `Vertices { "x,y,z" … }` then polygons |
 | `fe_map_points*.csv`, `fe_map_*_f1/f2/b1.csv` | the in-game map: each level's map rectangle; rooms (string ids) and points (safehouse, workbenches, save points) |
-| `prologue.csv`, CW `epilogue_*.csv` | light by hour: 24 columns of spherical-harmonic matrices (`mSHRenderMatrixRed.00`…) |
+| `prologue.csv`, CW `epilogue_*.csv` | light by hour (24 columns): spherical-harmonic ambient matrices (`mSHRenderMatrixRed.00`… 4×4 per colour: irradiance = nᵀMn, n = (x, y, z, 1)), fog (`mFogColour`, `mFogStart`, `mFogEnd`, `mFogMax`), key light colour and direction, the sky (`mSkyColor1/2/3`, `mSkyMidPoint`), tint, exposure, bloom, depth of field… A level's `cLightContextVolume`s say which table lights which area (`QuadName` polygon; CW also a `DarkContextFileName`, presumably with the power off ❓) |
 | `zombiesets.txt` | zombie types and counts per level and time of day |
 
 **Zombie spawns are in `missions.txt`**, not the level files (researched for phase 11,

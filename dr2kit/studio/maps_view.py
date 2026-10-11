@@ -222,6 +222,22 @@ class MapsView(QWidget):
             self.layer_boxes[kind] = b
             grid.addWidget(b, i, 0)
         sl.addLayout(grid)
+        trow = QHBoxLayout()
+        self.time_box = QCheckBox("Time of day")
+        self.time_box.setToolTip("The game's light for the hour: sky, fog, sun or moon, "
+                                 "ambient light (from the level's lighting table)")
+        self.time_box.setChecked(True)
+        from PySide6.QtWidgets import QSlider
+        self.hour = QSlider(Qt.Horizontal)
+        self.hour.setRange(0, 23)
+        self.hour.setValue(12)
+        self.hour_label = QLabel("12:00")
+        trow.addWidget(self.time_box)
+        trow.addWidget(self.hour, 1)
+        trow.addWidget(self.hour_label)
+        sl.addLayout(trow)
+        self.hour.valueChanged.connect(self._hour_changed)
+        self.time_box.toggled.connect(lambda _v: self._hour_changed(self.hour.value()))
         sl.addWidget(QLabel("<b>Go to</b>"))
         self.goto_box = QComboBox()
         self.goto_box.activated.connect(self._goto)
@@ -362,6 +378,7 @@ class MapsView(QWidget):
         self._js(f"dr2.openLevel({json.dumps(meta)}, {str(keep_camera and same).lower()})")
         for kind, box in self.layer_boxes.items():
             self._js(f"dr2.setLayer({json.dumps(kind)}, {str(box.isChecked()).lower()})")
+        self._hour_changed(self.hour.value())
         if zone:
             self.go_to_zone(zone)
 
@@ -384,6 +401,10 @@ class MapsView(QWidget):
             if z["name"].lower() == zone.lower():
                 c = z["centre"]
                 self._js(f"dr2.goTo({c[0]}, {z['min'][1] + 2}, {c[2]}, null)")
+
+    def _hour_changed(self, h: int) -> None:
+        self.hour_label.setText(f"{h:02d}:00")
+        self._js(f"dr2.setHour({h if self.time_box.isChecked() else 'null'})")
 
     def _script_changed(self, _i) -> None:
         if self.level:
