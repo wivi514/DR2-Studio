@@ -254,9 +254,9 @@ called it much bigger than phase 9: built in steps, each usable on its own.
 - Stretch (done 2026-10-11): upper floor / basement map pictures; zombies in their areas;
   time of day and the sky; the collision mesh.
 
-## Phase 11 (potential): edit levels, saved as mods (user, 2026-10-11)
-Researched and planned 2026-10-11, **not approved** (phase 10 is done; the user
-decides); `phase11-kickoff.md`, re-checked against what phase 10 built (its §What phase
+## Phase 11 (next): edit levels and add your own things, saved as mods (user, 2026-10-11)
+Researched and planned 2026-10-11; the user will start it in a fresh conversation
+(its decisions still open); `phase11-kickoff.md`, re-checked against what phase 10 built (its §What phase
 10 gives: the lossless text reader, item nodes, the collision mesh for snapping, the mods
 preview; missing: block add/remove, single zombies / respawns / load sets, a move gizmo,
 a "mod being edited", the `.edits.json` build kind). Phase 10 shows spawns and

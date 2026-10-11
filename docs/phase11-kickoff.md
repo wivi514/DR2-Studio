@@ -1,4 +1,4 @@
-# Phase 11 kickoff (potential): edit levels (zombie spawns, objects), saved as mods
+# Phase 11 kickoff: edit levels (zombie spawns, objects) and add your own things, saved as mods
 
 **Direction (user, 2026-10-11):** "probably will add later that we can toggle to see
 zombie spawn, modify zombie spawn, modify placement of object and can add more but that
@@ -24,12 +24,13 @@ Phase 10 already *shows* zombie spawn areas and placed objects; phase 11 lets a 
 The research (2026-10-11) is below, then the plan. Facts also in
 [`formats.md`](formats.md) §Levels.
 
-## Status (2026-10-11): researched, re-checked against phase 10, not approved, nothing built
+## Status (2026-10-11): researched, re-checked against phase 10, prefabs added; nothing built
 
-A preparation only: the user decides whether to do it. Phase 10 is done (stretch items
-included, `phase10-kickoff.md` §Status); this file was re-checked against what it built
-the same day (§What phase 10 gives), and the plan below says which piece each step
-builds on and what is still missing.
+The user will start this phase **in a fresh conversation** (2026-10-11). Phase 10 is
+done (stretch items included, `phase10-kickoff.md` §Status); this file was re-checked
+against what it built the same day (§What phase 10 gives), and the user added a fourth
+goal the same day: **add your own things from prefabs** (§What makes a thing work in
+game, plan step 5). The decisions under §Decisions to take are still open.
 
 ## Start here (handoff, 2026-10-11)
 
@@ -45,7 +46,24 @@ builds on and what is still missing.
   and count blocks with `re.findall(r"^\s*(c\w+) ", text, re.M)`; the recomp's patched
   copy is `<CZ recomp>/assets/game_patched/data/datafile.big` (compare entry by entry
   with `BigArchive.parse`).
-- **Decisions to ask the user** before building: the list under §Decisions to take.
+- **First:** ask the user the open questions under §Decisions to take (with the proposed
+  defaults), before writing code.
+- **Suggested order** (everything stands on step 1; the unknowns that could change the
+  plan get an in-game test early, before the editor is built around them):
+  1. `levelscript.Document`: add / remove blocks and keys, block paths; the `.edits.json`
+     build kind; census: apply then reverse = the original.
+  2. Quick in-game tests, both games, each with a hand-made mod: an **added save point**
+     (a cloned `cTriggerVolume` `ActionType 4` in `waypoint_<level>.txt`); an **added
+     weapon** placement; an **unmovable item as a wall** (does `CollisionType` give it
+     collision?); an **added pack** in `streamedassets.big` (does the engine find a new
+     file? the build needs to add files first, step 5). Their answers settle the
+     prefab routes and the "own models" decision.
+  3. Maps tab editing of objects (step 2), then zombies (step 3), then prefabs (step 5),
+     then the guide (step 7); level pieces (step 4) last, after its collision test.
+- **How the prefab research was done:** walk every `.txt` of `datafile.big` with
+  `Document.parse` and list `cTriggerVolume` blocks by `ActionType`; list `items.txt`
+  blocks by class and the keys with *Collision* in their name; count Havok parts
+  (`… hkpMoppCode`) inside `streamedassets.big`'s nested packs.
 
 ## What phase 10 gives (checked 2026-10-11)
 

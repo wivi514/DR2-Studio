@@ -42,13 +42,15 @@ add-on's Import zone), and **With my mods** (`mods/preview.py`, Ctrl+M). Fixed o
 (CW by eye by the user). Stretch done the same day: upper floor / basement map pictures,
 zombies in their areas, time of day and the sky, the collision mesh (`formats/collision.py`).
 Owed: the user's own test of Maps (`docs/phase10-kickoff.md` §Status). Editing
-levels is a potential phase 11, researched in `docs/phase11-kickoff.md`, not approved.** Read these before writing code:
+levels is phase 11, researched in `docs/phase11-kickoff.md` (edit objects and zombie spawns, and add your own
+things from prefabs: save points, usable items, zombies, buildings), to start in a fresh conversation from its
+§Start here; its decisions are still open.** Read these before writing code:
 
 | Doc | What it holds |
 |---|---|
 | `docs/ARCHITECTURE.md` | Components, data flow, the asset index, the mod package format, stack choices |
 | `docs/formats.md` | Everything known about every file format, with a status per format (cracked / partial / unknown) |
-| `docs/phase11-kickoff.md` | Potential phase 11 (edit levels: zombie spawns, objects, saved as `.edits.json` mods): research, what phase 10 already gives and what is missing, plan, gate. **Not approved** |
+| `docs/phase11-kickoff.md` | Phase 11 (edit levels: zombie spawns, objects; add your own things from prefabs; saved as `.edits.json` mods): research, what phase 10 already gives and what is missing, plan, gate. **Next; decisions open** |
 | `docs/phase10-kickoff.md` | Phase 10 (Maps: see a whole level, extract it, see your mods in it without the game): research, plan, gate, and §Status (what it still owes) |
 | `docs/phase9-kickoff.md` | Phase 9 (variants: one look per model, export as shown or organized): research, plan, gate, and §Status (what it still owes) |
 | `docs/phase8-kickoff.md` | Phase 8 (the Library, export everything at once): decisions, gate, and §Status (what it still owes) |

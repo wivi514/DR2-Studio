@@ -33,7 +33,8 @@ collision is made by the engine from `CollisionType` (3 on 316 CZ items); only 9
 items (like `wall_long_blocking`) without building a Havok search tree ❓ (in-game test).
 The mod build refuses new vpaths: own models need it to add files.
 **Docs updated:** `phase11-kickoff.md`, `roadmap.md`, this entry.
-**Next:** the user decides on phase 11.
+**Next:** phase 11 in a fresh conversation (user, 2026-10-11): the kickoff's §Start here
+now gives the first questions, an order of work and the early in-game tests.
 
 ## 2026-10-11 — Phase 11 plan re-checked against phase 10
 **Done:** `phase11-kickoff.md` updated (user: make it "properly ready"): a new §What
