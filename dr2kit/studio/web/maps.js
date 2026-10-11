@@ -243,10 +243,17 @@ function buildMarkers() {
 const ov = document.getElementById('overview');
 const ovCtx = ov.getContext('2d');
 let ovImg = null;
+let ovFloors = [];               // [{img, x, y, scale, when, height}]: the other floors
 function setOverview() {
   ovImg = null;
+  ovFloors = [];
   ov.style.display = 'none';
   if (!meta || !meta.map || !meta.map.url) return;
+  for (const f of meta.map.floors || []) {
+    const fi = new Image();
+    fi.onload = () => ovFloors.push({ ...f, img: fi });
+    fi.src = f.url;
+  }
   const img = new Image();
   img.onload = () => {
     ovImg = img;
@@ -259,6 +266,20 @@ function drawOverview() {
   if (!ovImg || ov.style.display === 'none') return;
   const [x0, x1, z0, z1] = meta.map.rect;
   ovCtx.drawImage(ovImg, 0, 0, ov.width, ov.height);
+  // the floor you are on, as the game's map shows it: above the second-floor height or
+  // below the basement height (fe_map_points), its picture over the darkened main one
+  const feet = camera.position.y - EYE;
+  const k = ov.width / ovImg.naturalWidth;
+  for (const f of ovFloors) {
+    if (f.height === null || f.height === undefined) continue;
+    if ((f.when === 'above' && feet > f.height) || (f.when === 'below' && feet < f.height)) {
+      ovCtx.fillStyle = 'rgba(0,0,0,0.45)';
+      ovCtx.fillRect(0, 0, ov.width, ov.height);
+      ovCtx.drawImage(f.img, f.x * k, f.y * k, f.img.naturalWidth * f.scale * k,
+                      f.img.naturalHeight * f.scale * k);
+      break;
+    }
+  }
   const px = (camera.position.x - x0) / (x1 - x0) * ov.width;
   const py = (camera.position.z - z0) / (z1 - z0) * ov.height;
   const dir = new THREE.Vector3(0, 0, -1).applyEuler(camera.rotation);

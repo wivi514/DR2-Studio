@@ -172,9 +172,10 @@ MAP_PICTURES = "data/frontend/map.tex"
 _NOT_MAPS = ("blur", "2f", "b1", "infobrochure", "pegboard", "tile", "icon", "hud", "colourize")
 
 
-def map_rects(tree: AssetTree) -> dict[str, tuple[float, float, float, float]]:
-    """``LEVEL_<NAME>`` → (min x, max x, min z, max z): the world rectangle the in-game
-    map picture covers (``fe_map_points*.csv`` of ``datafile.big``)."""
+def map_rects(tree: AssetTree) -> dict[str, tuple[float, ...]]:
+    """``LEVEL_<NAME>`` → (min x, max x, min z, max z, basement y, second floor y): the
+    world rectangle the in-game map picture covers, and the heights below / above which
+    the map shows the basement / the upper floor (``fe_map_points*.csv``)."""
     out = {}
     try:
         arc = tree.open_archive(placed.DATAFILE)
@@ -189,13 +190,13 @@ def map_rects(tree: AssetTree) -> dict[str, tuple[float, float, float, float]]:
             cells = [c.strip() for c in line.split(",") if c.strip()]
             if len(cells) >= 7 and cells[0].upper().startswith("LEVEL_"):
                 try:
-                    out[cells[0].upper()] = tuple(float(c) for c in cells[3:7])
+                    out[cells[0].upper()] = tuple(float(c) for c in cells[3:9])
                 except ValueError:
                     continue
     return out
 
 
-def map_picture(tree: AssetTree, script: str | None) -> dict | None:
+def map_picture(tree: AssetTree, script: str | None, game: str | None = None) -> dict | None:
     """The in-game map for a level script: the game's main map picture
     (``frontend/map.tex``: CZ ``map_prologue``, CW ``map_all``) and the world rectangle it
     covers, ``{"vpath", "rect": [min x, max x, min z, max z]}``, or None. Checked on CZ:
@@ -218,7 +219,21 @@ def map_picture(tree: AssetTree, script: str | None) -> dict | None:
             best = e
     if best is None:
         return None
-    return {"vpath": f"{MAP_PICTURES}/{best.name}", "rect": list(rect)}
+    out = {"vpath": f"{MAP_PICTURES}/{best.name}", "rect": list(rect[:4]), "floors": []}
+    if game is None:
+        return out
+    from ..profiles import load_profile
+    names = {e.name.lower().removesuffix(".bct"): e.name for e in arc.entries}
+    for f in load_profile(game).map_floors:
+        name = names.get(str(f.get("picture", "")).lower())
+        if name is None:
+            continue
+        when = f.get("when", "above")
+        k = 5 if when == "above" else 4
+        out["floors"].append({"vpath": f"{MAP_PICTURES}/{name}", "x": f["x"], "y": f["y"],
+                              "scale": f.get("scale", 1.0), "when": when,
+                              "height": rect[k] if len(rect) > k else None})
+    return out
 
 
 def overview(cache: MapCache, level: str, script: str | None = None) -> dict:
@@ -247,7 +262,7 @@ def overview(cache: MapCache, level: str, script: str | None = None) -> dict:
         if start is not None and start.position:
             out["start"] = {"position": start.position, "rotation": start.rotation,
                             "name": start.name}
-    out["map"] = map_picture(cache.tree, script)
+    out["map"] = map_picture(cache.tree, script, cache.game)
     if out["start"] is None:
         main = [z for z in L.zones if z.radius <= BACKDROP_RADIUS] or L.zones
         z = min(main, key=lambda z: z.radius) if len(main) == 1 else main[0]

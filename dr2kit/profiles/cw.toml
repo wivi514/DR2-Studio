@@ -37,6 +37,22 @@ digest_checked = [
     "data/models/zombies/zombie_pdv_variations.txt",
 ]
 
+# The in-game map's other floors (phase 10): see cz.toml. map_2f fitted to the blueprint
+# (its octagon and outer walls), map_b1 to the tunnel pieces of storage_pens_z09.
+[[map_floors]]
+picture = "map_2f"
+x = 168
+y = 76
+scale = 2.0
+when = "above"
+
+[[map_floors]]
+picture = "map_b1"
+x = 688
+y = 509
+scale = 1.0
+when = "below"
+
 [census]
 archive_files = 202   # .big files plus .tex packs and 6 .bcf fonts that are archives
 archives = 8017

@@ -35,6 +35,19 @@ play_defaults = { CZ_VKDRAW = "1" }
 # Mods can't touch them.
 digest_checked = ["data/audio/Prologue.txt"]
 
+
+# The in-game map's other floors (phase 10): picture, where its top-left corner sits on
+# the main map picture and its scale, both in the main picture's pixels, and when it
+# shows ("above" the map's second-floor height, "below" its basement height, from
+# fe_map_points). Measured by fitting each picture to the main map's outlines (the
+# layout file's numbers sit under parents we can't resolve): docs/formats.md §Levels.
+[[map_floors]]
+picture = "map_prologue_2f"
+x = 238
+y = 584
+scale = 1.0
+when = "above"
+
 # Measured by `dr2 census` (2026-10-08). Used by tests to notice a different game version.
 [census]
 archive_files = 197   # .big files plus .tex packs and 9 .bcf fonts that are archives

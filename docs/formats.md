@@ -1295,7 +1295,16 @@ because the scene is `_COMP_<piece>.big`). `TextureFinder` now ranks `_LOD` pack
 rectangle, x to the right and z downwards. Checked on CZ by the map areas' centres (the
 bowling alley, the department store, the theatre within 20 px) and on CW by a top-down
 render of `living_research` over the same rectangle (its outline is the blueprint's
-lower block). `map_2f` / `map_b1` are the upper floor and basement (not placed yet ❓).
+lower block). **Other floors** (stretch, 2026-10-11): `map_prologue_2f` (CZ), `map_2f` and
+`map_b1` (CW) are drawn over the main picture when the player is above the level's
+second-floor height or below its basement height (`fe_map_points` columns 8-9: CZ
+−100 / 8.0, CW −2.5 / 4.0). Where they sit, in the main picture's pixels: CZ 2f at
+(238, 584) ×1, CW 2f at (168, 76) ×2, CW b1 at (688, 509) ×1, measured by fitting each
+picture: the CZ 2f and CW 2f to the main map's outlines (the octagon, the outer walls),
+the CW b1 to a top-down render of `storage_pens_z09`'s tunnel pieces (an exact fit). The
+in-game layout files (`ingame.big/map_*.txt`) give other numbers: those widgets sit under
+parents whose scale we didn't resolve (the CW 2f is off by ×0.82 there). The positions
+are profile data (`map_floors`).
 
 **Which copy of a texture the game uses** ✅ (in game, 2026-10-11). A texture name
 often sits in several packs of one zone, always with the same bytes (CZ 457 names, 660

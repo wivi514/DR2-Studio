@@ -347,7 +347,14 @@ class MapsView(QWidget):
             if png:
                 url = f"/maps/overview-{self.game}.png"
                 self._handler.files[url] = png
-                meta["map"] = dict(meta["map"], url=f"dr2://studio{url}")
+                floors = []
+                for k, f in enumerate(meta["map"].get("floors", [])):
+                    fpng = self._map_png(f["vpath"])
+                    if fpng:
+                        furl = f"/maps/overview-{self.game}-floor{k}.png"
+                        self._handler.files[furl] = fpng
+                        floors.append(dict(f, url=f"dr2://studio{furl}"))
+                meta["map"] = dict(meta["map"], url=f"dr2://studio{url}", floors=floors)
         self._js(f"dr2.openLevel({json.dumps(meta)}, {str(keep_camera and same).lower()})")
         for kind, box in self.layer_boxes.items():
             self._js(f"dr2.setLayer({json.dumps(kind)}, {str(box.isChecked()).lower()})")

@@ -46,6 +46,7 @@ class Profile:
     play_defaults: dict = field(default_factory=dict)  # env for Play when no <id>_defaults.env
     census: dict = field(default_factory=dict)
     variants: dict = field(default_factory=dict)  # the shape-group table (convert/variants.py)
+    map_floors: tuple = ()      # the in-game map's floor pictures, placed (convert/mapdata.py)
 
 
 def load_profile(game: str) -> Profile:
@@ -63,7 +64,8 @@ def load_profile(game: str) -> Profile:
                    no_mods_env=str(raw.get("no_mods_env", "")),
                    play_defaults={str(k): str(v) for k, v in raw.get("play_defaults", {}).items()},
                    census=dict(raw.get("census", {})),
-                   variants=dict(raw.get("variants", {})))
+                   variants=dict(raw.get("variants", {})),
+                   map_floors=tuple(raw.get("map_floors", ())))
 
 
 def config_path() -> Path:
