@@ -30,7 +30,7 @@ from ..container.vpath import AssetTree, split
 from . import level as clevel
 from . import placed
 
-MAP_VERSION = 5            # bump when what goes into a zone file changes (5: collision)
+MAP_VERSION = 6            # bump when what goes into a zone file changes (5: collision, 6: zombie paths)
 FULL, LOD = "full", "lod"
 PNG_LEVEL = 1              # fast PNGs for the cache (exports keep level 6)
 BACKDROP_RADIUS = 300.0    # zones larger than this are backdrops (CZ z01): always small textures
@@ -370,6 +370,10 @@ def overview(cache: MapCache, level: str, script: str | None = None) -> dict:
         if ls.navmesh and ls.navmesh.polygons:
             out["navmesh"] = {"vertices": [c for v in ls.navmesh.vertices for c in v],
                               "triangles": [i for t in ls.navmesh.triangles() for i in t]}
+        from . import zombies as czomb
+        crowds, zspawns = czomb.mission_spawns(cache.tree, script)
+        out["crowds"] = [czomb.crowd_dict(c) for c in crowds]
+        out["zombie_spawns"] = [z.to_dict() for z in zspawns if z.position or z.kind == "crate"]
         spawns = ls.of_kind("spawn")
         start = next((s for s in spawns if s.name.lower() == "start"), None) or \
             (spawns[0] if spawns else None)

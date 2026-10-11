@@ -7,9 +7,9 @@ and a mod to put the changes in ([`06-mod-packages.md`](06-mod-packages.md)). Lo
 level first in the **Maps** tab ([`18-maps.md`](18-maps.md)): it shows every item's name,
 file and line when you click it.
 
-> This guide grows with phase 11. Written so far: editing items and doors in the Maps
-> tab, the edits files and the `dr2 level` commands. Next: zombie spawns, adding things
-> from prefabs.
+> This guide grows with phase 11. Written so far: editing items, doors and zombies in
+> the Maps tab, the edits files and the `dr2 level` commands. Next: adding things from
+> prefabs (save points, workbenches…).
 
 ## How the game places things
 
@@ -102,6 +102,28 @@ level files it changes.
 **Saves:** a mod that adds items (and a save point) to a level file still loads your
 saves (checked in Case Zero, 2026-10-11, with added items, a workbench and a save point;
 moving and deleting not yet checked).
+
+## Steps: change the zombies in DR2 Studio
+
+Read [Zombies: what you can change](#zombies-what-you-can-change-and-new-zombies) first:
+the game's saves set the rules.
+
+1. With **Edit** ticked (as above), tick the layers **Zombie spawns** (single zombies:
+   red cones facing their way, labelled *type ×number*; *(later)* when they wait for
+   something in their mission; respawn floors in orange; blue circles where a mission
+   clears zombies), **Zombies** (example crowds) and **Zombie areas**.
+2. **A single zombie:** click its cone. Drag the handles (or type **Place**, **Turn**)
+   to move and turn it, **F** puts it on the floor. Under the place: **Zombie** (its
+   type; it suggests names as you type), **×** (how many), **Holds** (an item it carries,
+   such as `HandGun`). **Delete** sets the number to 0: the game's own zombies are taken
+   out this way, which keeps saves working.
+3. **A crowd:** click one of its zombies (or its zombie area). The panel shows the
+   crowd's types and amounts as a line, `zombie_skinny 40, zombie_fat 30`. Type a new
+   line (`zombie_fat 15, zombie_cop 10`) and press Enter.
+4. **New zombies:** **Add zombie…**, pick a type: they go where the middle of the view
+   meets the floor, in your mod's own mission. **They appear in a new game only**
+   (start one to see them); then move, turn and change them like the others.
+5. **Undo / Redo** and **Play** as for items.
 
 ## Steps: change a level with the `dr2` command
 

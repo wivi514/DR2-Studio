@@ -54,6 +54,14 @@ own zombies are edited by value. The added-pack test (own models, step 5) is sti
 and all of it in CW. Built: the Maps tab's Edit section (`studio/maps_edit.py`, the
 vendored `TransformControls`), `zombies.mission_spawns`.
 
+**Step 3 (2026-10-11): the zombie editor built.** The Maps tab's *Zombie spawns* layer
+(single zombies, crates, clearings), editing a single zombie (place, facing, type, number,
+held item; delete = number 0), a crowd's types and amounts, and *Add zombie…* into the
+mod's own mission (`maps_edit.ZombieEdits`); checked in Studio on CZ's street with a
+driver (pictures) and tests. Not done: reshaping zombie areas (polygon points), a mission
+picker (every mission's spawns show at once, each labelled with its mission), the
+load-set view.
+
 ### Earlier status: researched, re-checked against phase 10, prefabs added
 
 The user will start this phase **in a fresh conversation** (2026-10-11). Phase 10 is

@@ -300,6 +300,18 @@ applies them again to each items file that loads later (`applyOverride`). Saving
 the file watcher refresh the mods; `use_tree` then swaps trees without reloading the
 level for five seconds (`_own_write_until`).
 
+**Zombies (step 3).** `overview` sends `crowds` and `zombie_spawns`
+(`zombies.mission_spawns`); the page draws the spawns on the layer `zombie_spawn`
+(`buildZombieSpawns`: a cone per single zombie, a circle per clearing, the floor polygon
+of a crate's `ShapeName`), and a single zombie or a clearing takes the same handles
+(`attachZombie`; the drag's end sends `edit zmove {path, position, yaw}`, Delete `edit
+zdelete {path}`). The panel's zombie fields (`z_type`, `z_count`, `z_item`) and crowd line
+(`crowd_types`) send `zset` / `crowd`; *Add zombie…* asks `dr2.askPlace()` and sends
+`zadd`. `MapsView._zombie_edit` runs them in `LevelEditor` and answers
+`dr2.setZombies(editor.zombies(script))` (the page rebuilds the layer, keeping the
+selection). `dr2.selectZombie(path)` selects one (the drivers use it). Zombie figures
+carry their crowd's path (`dr2_path`, `MAP_VERSION` 6).
+
 Checking it: a scratch driver opens the window in a real display, drives the page with
 `dr2.goTo` / `setView` / `pickAt` and saves `view.grab()` pictures; for the gate, the
 camera of a recomp capture (`c0`–`c3` of a vertex shader dump, row 1 divided by the

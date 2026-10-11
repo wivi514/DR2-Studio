@@ -15,6 +15,15 @@ later is built from the game with the mods (``mods.preview``) as before.
 
 Numbers are written like the game's tool writes them: three decimals
 (``"-140.911,3.399,-89.938"``).
+
+**Zombies** (step 3) live in ``missions.txt``, and the in-game tests of 2026-10-11 decide
+how they are edited (docs/formats.md §Levels, "Level edits in game"): the game's own
+zombies only by **value** (`zombie_set`, `zombie_move`, `crowd_amounts`; deleting one sets
+its ``NumberOfZombies`` to 0), because a block added inside a game mission breaks saves;
+new zombies go into the mod's **own mission** (`add_zombie`: a ``cMissionDefinition`` named
+after the mod, with the keys of the level's main zombie mission and a
+``cMissionLevelReady`` for the level), which runs in a new game. `zombies` gives the page
+the crowds and spawns as the mod has them now.
 """
 
 from __future__ import annotations
@@ -79,7 +88,146 @@ def _snapshot(doc: Document) -> dict[str, tuple]:
     return out
 
 
-class LevelEditor:
+MISSIONS = "missions.txt"
+
+
+class ZombieEdits:
+    """The zombie half of `LevelEditor` (module docstring); mixed into it."""
+
+    def zombies(self, script: str) -> dict:
+        """``{"crowds": […], "zombie_spawns": […]}`` of the level of ``script``, as
+        ``missions.txt`` is with the mod's changes (what the page draws)."""
+        from ..convert import zombies as czomb
+        try:
+            doc = self.session(MISSIONS).doc
+        except Dr2Error:                          # a game (or test data) without missions
+            return {"crowds": [], "zombie_spawns": []}
+        crowds, spawns = czomb.spawns_in(doc, script)
+        return {"crowds": [czomb.crowd_dict(c) for c in crowds],
+                "zombie_spawns": [z.to_dict() for z in spawns
+                                  if z.position or z.kind == "crate"]}
+
+    def is_own(self, path: str) -> bool:
+        """Is ``path`` inside a mission the mod adds (not one of the game's)?"""
+        from ..formats.levelscript import split_path
+        top = split_path(path)[0].lower()
+        original = self.session(MISSIONS).original
+        return not any(f"{b.cls} {b.name}".lower() == top for b in original.blocks)
+
+    def zombie_set(self, path: str, keys: dict) -> None:
+        """Change keys of a zombie block (``None`` removes a key the mod added)."""
+        def fn(doc):
+            b = doc.find(path)
+            for k, v in keys.items():
+                if v is None:
+                    doc.unset(b, k)
+                else:
+                    doc.set(b, k, str(v))
+        self._change(MISSIONS, fn)
+
+    def zombie_move(self, path: str, position, yaw: float | None = None) -> None:
+        """Put a single zombie (``SpawnPoint``) or a clearing (``Location``) elsewhere;
+        ``yaw``: its facing, radians, as the game's ``Rotation``."""
+        def fn(doc):
+            b = doc.find(path)
+            key = "SpawnPoint" if b.cls == "cMissionSpawnZombie" else "Location"
+            doc.set(b, key, fmt(position))
+            if yaw is not None and b.cls == "cMissionSpawnZombie":
+                doc.set(b, "Rotation", f"{yaw:.3f}")
+        self._change(MISSIONS, fn)
+
+    def crowd_amounts(self, path: str, amounts: list[tuple[str, int]]) -> None:
+        """A crowd's types and amounts (``Type<n>`` / ``Amount<n>`` in order). Types it
+        no longer has keep their keys with ``Amount<n> = 0``: removing keys from the
+        game's blocks is avoided (only values are known to keep saves)."""
+        def fn(doc):
+            b = doc.find(path)
+            old = [p.key for p in b.props if p.key.lower().startswith("amount")
+                   and p.key[6:].isdigit()]
+            for i, (t, n) in enumerate(amounts):
+                doc.set(b, f"Type{i}", t)
+                doc.set(b, f"Amount{i}", str(int(n)))
+            for k in old:
+                if int(k[6:]) >= len(amounts):
+                    doc.set(b, k, "0")
+        self._change(MISSIONS, fn)
+
+    def own_mission(self, script: str) -> str:
+        """The path of the mod's own ``cMissionLevelReady`` for ``script``'s level,
+        made (cloned from the level's main zombie mission) when it isn't there yet."""
+        mod_id = _mod_id(self.mod_dir)
+        mission = f"cMissionDefinition {mod_id}_Zombies"
+        ready = f"{mission}/cMissionLevelReady {mod_id}_{re.sub(r'\W', '_', script)}"
+        doc = self.session(MISSIONS).doc
+        if doc.get(ready) is not None:
+            return ready
+        template = _main_zombie_mission(self.session(MISSIONS).original, script)
+        level = f"LEVEL_{script.upper()}"
+
+        def fn(doc):
+            m = doc.get(mission)
+            if m is None:
+                props = {p.key: p.value for p in template.props} if template else \
+                    {"Duration": "518400", "MissionType": "12", "Module": "1",
+                     "StartTime": "0"}
+                m = doc.add(None, "cMissionDefinition", f"{mod_id}_Zombies", props)
+            doc.add(m, "cMissionLevelReady", ready.rsplit(" ", 1)[1],
+                    {"IgnoreWarning": "true", "LevelName": level})
+        self._change(MISSIONS, fn)
+        return ready
+
+    def add_zombie(self, script: str, ztype: str, position, yaw: float = 0.0,
+                   count: int = 1) -> str:
+        """New zombies (``count`` of ``ztype``) in the mod's own mission; returns the
+        new block's path. They appear in a new game (module docstring)."""
+        ready = self.own_mission(script)
+        doc = self.session(MISSIONS).doc
+        taken = {b.name.lower() for b in doc.find(ready).children}
+        n = 1
+        while f"zombie{n}" in taken:
+            n += 1
+        name = f"Zombie{n}"
+        props = {"NumberOfZombies": str(int(count)), "Rotation": f"{yaw:.3f}",
+                 "SpawnPoint": fmt(position), "ZombieType": ztype}
+        self._change(MISSIONS, lambda doc: doc.add(doc.find(ready), "cMissionSpawnZombie",
+                                                   name, props))
+        return f"{ready}/cMissionSpawnZombie {name}"
+
+    def remove_zombie(self, path: str) -> None:
+        """Take a single zombie out: the mod's own are removed, the game's get
+        ``NumberOfZombies = 0`` (a value: saves keep working)."""
+        if self.is_own(path):
+            self._change(MISSIONS, lambda doc: doc.remove(doc.find(path)))
+        else:
+            self.zombie_set(path, {"NumberOfZombies": "0"})
+
+
+def _mod_id(mod_dir: Path) -> str:
+    from ..mods.manifest import Mod
+    try:
+        mid = Mod.load(mod_dir).id
+    except Dr2Error:
+        mid = Path(mod_dir).name
+    return re.sub(r"\W", "_", mid) or "Mod"
+
+
+def _main_zombie_mission(doc: Document, script: str) -> Block | None:
+    """The game's mission that puts the most crowds on ``script``'s level (CZ's street:
+    ``PrologueZombies``): new zombie missions copy its keys (start time, duration…)."""
+    want = f"level_{script}".lower()
+    best, most = None, 0
+    for m in doc.blocks:
+        if m.cls != "cMissionDefinition":
+            continue
+        n = sum(1 for r in m.children if r.cls == "cMissionLevelReady"
+                and (r.get("LevelName") or "").lower() == want
+                for c in r.walk() if c.cls == "cMissionZombieFactory")
+        if n > most:
+            best, most = m, n
+    return best
+
+
+class LevelEditor(ZombieEdits):
     """Edits of placed things in one mod (module docstring)."""
 
     def __init__(self, tree: AssetTree, mod_dir: str | Path, base_dirs=()):

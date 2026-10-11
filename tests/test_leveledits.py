@@ -258,3 +258,32 @@ def test_blocks_inside_game_missions_are_refused_own_missions_allowed(game, tmp_
         "cMissionDefinition MyZombies/cMissionLevelReady MyReady/cMissionSpawnZombie Two":
             spawn}}, priority=1)
     assert mbuild.plan_mods([m, m2], "cz", AssetTree(game)).planned
+
+
+def test_zombie_editing_keeps_the_games_missions_whole(game, tmp_path):
+    """Phase 11 step 3 (studio.maps_edit): the game's zombies change by value only, new
+    ones go into the mod's own mission (cloned from the level's main zombie mission),
+    and the build accepts the result."""
+    from dr2kit.container.vpath import AssetTree
+    from dr2kit.studio.maps_edit import LevelEditor
+    mod = create(tmp_path / "zeds", "zeds")
+    ed = LevelEditor(AssetTree(game), mod)
+    z = ed.zombies("prologue")
+    crowd = z["crowds"][0]
+    assert crowd["area"] == "street" and crowd["amounts"] == {"zombie_skinny": 40}
+    ed.crowd_amounts(crowd["path"], [("zombie_fat", 12), ("zombie_skinny", 3)])
+    new = ed.add_zombie("prologue", "zombie_fat", (1, 2, 3), 0.5, 4)
+    assert new.startswith("cMissionDefinition zeds_Zombies/") and ed.is_own(new)
+    singles = [s for s in ed.zombies("prologue")["zombie_spawns"] if s["kind"] == "single"]
+    assert [s["path"] for s in singles] == [new]
+    ed.zombie_move(new, (5, 2, 5), 1.0)
+    e = le.from_json(ed.session("missions.txt").save().read_text())
+    assert e.set[crowd["path"]] == {"Amount0": "12", "Type0": "zombie_fat",
+                                    "Amount1": "3", "Type1": "zombie_skinny"}
+    own = e.add["cMissionDefinition zeds_Zombies"]
+    assert own["Duration"] == "10"                       # Zeds' keys (the main mission)
+    ready = own["cMissionLevelReady zeds_prologue"]
+    assert ready["cMissionSpawnZombie Zombie1"]["SpawnPoint"] == "5.000,2.000,5.000"
+    assert mbuild.plan_mods([Mod.load(mod)], "cz", AssetTree(game)).planned
+    ed.remove_zombie(new)                                # the mod's own: removed
+    assert all(s["kind"] != "single" for s in ed.zombies("prologue")["zombie_spawns"])

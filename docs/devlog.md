@@ -17,6 +17,22 @@ Entry template:
 
 ---
 
+## 2026-10-11 — Phase 11 step 3: the zombie editor
+**Done:** the Maps tab's *Zombie spawns* layer (every single zombie as a cone facing its
+way with *type ×n*, respawn floors, clearing circles) and zombie editing: move / turn a
+single zombie with the handles, its type, number and held item in the panel, delete (=
+number 0), a crowd's types and amounts as one line, *Add zombie…* into the mod's own
+mission (`maps_edit.ZombieEdits`, cloned from the level's main zombie mission). Zombie
+figures carry their crowd's block path (`MAP_VERSION` 6).
+**Why:** plan step 3, in the shape step 2's in-game tests allow: the game's zombies by
+value only, new ones in the mod's own mission (new game).
+**Learned:** a driven Studio run showed the markers right on CZ's street; one rooftop
+zombie's spawn point sits below the drawn roof (the game puts zombies on the ground
+itself), so its cone hides under the roof.
+**Docs updated:** guide 19 (zombie steps), `dev/studio.md`, `dev/code-tour.md`,
+`phase11-kickoff.md`.
+**Next:** prefabs (step 5): save points, workbenches, doors, items from templates.
+
 ## 2026-10-11 — Phase 11 step 2: in-game tests (CZ) and the Maps editor for items
 **Done:** the early in-game tests of the plan, in the CZ recomp: the user played each
 build, and when the first one crashed a headless bisect (scripted presses loading a copy

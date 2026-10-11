@@ -471,6 +471,10 @@ undo / redo across files; each returns `ItemState`s of the changed placements) a
 Step 3: `convert.zombies.mission_spawns(tree, script)` gives a level's crowds and every
 single zombie, respawn crate and clearing (`MissionSpawn`, with block paths);
 `levelcheck.check` refuses a block added inside a game mission (`SAVE_BREAK`).
+`studio/maps_edit.ZombieEdits` (mixed into `LevelEditor`): `zombies(script)` (what the page
+draws, from the mod's `missions.txt`), `zombie_set`, `zombie_move`, `crowd_amounts`,
+`own_mission` / `add_zombie` (the mod's own mission, cloned from the level's main zombie
+mission), `remove_zombie`.
 
 ### `dr2kit/convert/variants.py` (phase 9)
 What a model can show, the way the game decides it ([`formats.md`](../formats.md)

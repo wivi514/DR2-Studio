@@ -51,6 +51,7 @@ from ..errors import Dr2Error
 from . import model_view
 
 PAGE_URL = "dr2://studio/maps.html"
+ZOMBIE_OPS = ("zmove", "zdelete", "zset", "crowd", "zadd")
 ROLE = Qt.UserRole + 1
 
 # The layers in the order the panel lists them, with whether they start on.
@@ -61,6 +62,7 @@ LAYER_ORDER = [("pieces", "Buildings (level pieces)", True),
                ("map_point", "Map points (workbenches, save points)", True),
                ("zombie_area", "Zombie areas", False),
                ("zombies", "Zombies (crowds the missions put in the areas)", False),
+               ("zombie_spawn", "Zombie spawns (single zombies, respawns, clearings)", False),
                ("trigger", "Triggers (doors to other levels…)", False),
                ("navmesh", "Navigation mesh", False),
                ("collision", "Collision (what the player bumps into)", False),
@@ -530,6 +532,17 @@ class MapsView(QWidget):
         if t == "piece":
             rows = [("A level piece", info.get("name")), ("Zone", info.get("zone")),
                     ("File", info.get("vpath"))]
+        elif t == "marker" and info.get("kind") == "zombie_spawn":
+            p = info.get("props") or {}
+            what = {"single": "Single zombie(s)", "crate": "Respawns zombies",
+                    "removal": "Clears zombies"}.get(info.get("spawn"), "Zombies")
+            rows = [(what, p.get("ZombieType") or p.get("ShapeName") or ""),
+                    ("How many", p.get("NumberOfZombies") or p.get("ZombiesPerSpawnTime")),
+                    ("Holds", p.get("SpawnWithItem")), ("Radius", p.get("Radius")),
+                    ("Mission", info.get("mission")),
+                    ("When", "after a timer or a cinematic of the mission"
+                     if info.get("when") else "when the level is ready"),
+                    ("In", f"missions.txt, line {info.get('line')}")]
         elif t == "zombie":
             rows = [("A zombie", info.get("name")), ("Model", info.get("vpath")),
                     ("Crowd of the area", info.get("area")),
@@ -565,6 +578,7 @@ class MapsView(QWidget):
             if v not in (None, "")) + "</table>")
         self._set_actions(info.get("vpath") if t in ("piece", "item", "door", "zombie") else None)
         self._show_edit_target(info if t in ("item", "door") else None)
+        self._show_zombie_target(info)
 
     def _set_actions(self, vpath: str | None) -> None:
         for b in (self.btn_library, self.btn_blender, self.btn_export):
@@ -726,11 +740,46 @@ class MapsView(QWidget):
             {"op": "duplicate", **self._target}))
         self.btn_del = QPushButton("Delete")
         self.btn_del.setToolTip("Take it out of the level: Delete")
-        self.btn_del.clicked.connect(lambda: self._target and self._edit(
-            {"op": "delete", **self._target}))
+        self.btn_del.clicked.connect(lambda: self._edit({"op": "zdelete", **self._ztarget})
+                                     if self._ztarget else self._target and self._edit(
+                                         {"op": "delete", **self._target}))
         for b in (self.btn_floor, self.btn_dup, self.btn_del):
             row.addWidget(b)
         sl.addLayout(row)
+        self.z_panel = QWidget()
+        zg = QGridLayout(self.z_panel)
+        zg.setContentsMargins(0, 0, 0, 0)
+        self.z_type = QLineEdit()
+        self.z_type.setToolTip("Which zombie (a model of data/models/zombies.big)")
+        self.z_type.editingFinished.connect(self._zombie_fields)
+        from PySide6.QtWidgets import QSpinBox
+        self.z_count = QSpinBox()
+        self.z_count.setRange(0, 200)
+        self.z_count.setToolTip("How many (0: none; the game's own zombies are taken out "
+                                "this way, which keeps saves working)")
+        self.z_count.editingFinished.connect(self._zombie_fields)
+        self.z_item = QLineEdit()
+        self.z_item.setToolTip("An item it holds (HandGun…), empty for none")
+        self.z_item.editingFinished.connect(self._zombie_fields)
+        zg.addWidget(QLabel("Zombie"), 0, 0)
+        zg.addWidget(self.z_type, 0, 1)
+        zg.addWidget(QLabel("×"), 0, 2)
+        zg.addWidget(self.z_count, 0, 3)
+        zg.addWidget(QLabel("Holds"), 1, 0)
+        zg.addWidget(self.z_item, 1, 1, 1, 3)
+        sl.addWidget(self.z_panel)
+        self.crowd_panel = QWidget()
+        cg = QVBoxLayout(self.crowd_panel)
+        cg.setContentsMargins(0, 0, 0, 0)
+        self.crowd_label = QLabel()
+        self.crowd_label.setWordWrap(True)
+        self.crowd_types = QLineEdit()
+        self.crowd_types.setToolTip("Types and how many: zombie_fat 15, zombie_skinny 10")
+        self.crowd_types.editingFinished.connect(self._crowd_typed)
+        cg.addWidget(self.crowd_label)
+        cg.addWidget(self.crowd_types)
+        sl.addWidget(self.crowd_panel)
+        self._ztarget: dict | None = None         # {kind: single|removal|crowd, path}
         row = QHBoxLayout()
         self.btn_add = QPushButton("Add item…")
         self.btn_add.setToolTip("Choose an item, it goes where the middle of the view "
@@ -743,6 +792,12 @@ class MapsView(QWidget):
         for b in (self.btn_add, self.btn_undo, self.btn_redo):
             row.addWidget(b)
         sl.addLayout(row)
+        self.btn_add_zombie = QPushButton("Add zombie…")
+        self.btn_add_zombie.setToolTip("New zombies where the middle of the view meets the "
+                                       "floor. They go in your mod's own mission, so they "
+                                       "appear in a new game (docs: 19-edit-a-level)")
+        self.btn_add_zombie.clicked.connect(self._add_zombie)
+        sl.addWidget(self.btn_add_zombie)
         self._refresh_edit_panel()
 
     def _mod_dir(self):
@@ -776,9 +831,17 @@ class MapsView(QWidget):
                                   + (f": {n} change{'s' if n != 1 else ''} to the level "
                                      f"files" if n else ""))
         has = on and self._target is not None
-        for w in (self.ed_item, self.ed_turn, self.btn_floor, self.btn_dup, self.btn_del,
-                  *self.ed_pos):
+        z = self._ztarget if on else None
+        for w in (self.ed_item, self.btn_dup):
             w.setEnabled(has)
+        movable = has or (z is not None and z["kind"] in ("single", "removal"))
+        for w in (self.ed_turn, self.btn_floor, *self.ed_pos):
+            w.setEnabled(movable)
+        self.ed_turn.setEnabled(has or (z is not None and z["kind"] == "single"))
+        self.btn_del.setEnabled(has or (z is not None and z["kind"] == "single"))
+        self.z_panel.setVisible(z is not None and z["kind"] == "single")
+        self.crowd_panel.setVisible(z is not None and z["kind"] == "crowd")
+        self.btn_add_zombie.setEnabled(on and mod is not None and bool(self.level))
         self.btn_add.setEnabled(on and mod is not None and bool(self.level))
         ed = self.editor
         self.btn_undo.setEnabled(on and ed is not None and ed.can_undo())
@@ -833,6 +896,12 @@ class MapsView(QWidget):
 
     def _fields_changed(self) -> None:
         """Place or turn typed in the panel."""
+        z = self._ztarget
+        if z and z["kind"] in ("single", "removal") and self.editor is not None:
+            pos = [sb.value() for sb in self.ed_pos]
+            yaw = math.radians(self.ed_turn.value()) if z["kind"] == "single" else None
+            self._edit({"op": "zmove", "path": z["path"], "position": pos, "yaw": yaw})
+            return
         if not self._target or self.editor is None:
             return
         from .maps_edit import yaw_quaternion
@@ -857,6 +926,149 @@ class MapsView(QWidget):
         if st is None or not text or text.lower() == (st.item or "").lower():
             return
         self._edit({"op": "item", **self._target, "item": text})
+
+    # ---- zombies (step 3) ---------------------------------------------------------------
+
+    def _script(self) -> str:
+        return self.script_box.currentData() or self.level or ""
+
+    def _show_zombie_target(self, info: dict) -> None:
+        """A clicked single zombie, clearing, zombie figure or zombie area → the panel."""
+        self._ztarget = None
+        ed = self.editor if self.edit_box.isChecked() else None
+        if ed is not None and info:
+            t = info.get("type")
+            if t == "marker" and info.get("kind") == "zombie_spawn" and info.get("path") \
+                    and info.get("spawn") in ("single", "removal"):
+                self._ztarget = {"kind": info["spawn"], "path": info["path"]}
+            elif t == "zombie" and info.get("path"):
+                self._ztarget = {"kind": "crowd", "path": info["path"]}
+            elif t == "marker" and info.get("kind") == "zombie_area":
+                area = (info.get("parent") or info.get("name", "")).split("/")[0].lower()
+                crowds = [c for c in ed.zombies(self._script())["crowds"]
+                          if c["area"].lower() == area]
+                if crowds:
+                    self._ztarget = {"kind": "crowd", "path": crowds[0]["path"]}
+        if self._ztarget:
+            self._target = None
+            self._fill_zombie()
+        self._refresh_edit_panel()
+
+    def _zombie_now(self) -> dict | None:
+        """The selected zombie block as the mod has it now."""
+        z = self._ztarget
+        if z is None or self.editor is None:
+            return None
+        b = self.editor.session("missions.txt").doc.get(z["path"])
+        return None if b is None else {p.key: p.value for p in b.props}
+
+    def _fill_zombie(self) -> None:
+        props = self._zombie_now() or {}
+        z = self._ztarget
+        if z["kind"] in ("single", "removal"):
+            v = props.get("SpawnPoint") or props.get("Location") or "0,0,0"
+            try:
+                pos = [float(c) for c in v.split(",")]
+            except ValueError:
+                pos = [0.0, 0.0, 0.0]
+            for sb, c in zip(self.ed_pos, pos):
+                sb.blockSignals(True)
+                sb.setValue(c)
+                sb.blockSignals(False)
+            self.ed_turn.blockSignals(True)
+            try:
+                self.ed_turn.setValue(math.degrees(float(props.get("Rotation", "0"))))
+            except ValueError:
+                self.ed_turn.setValue(0)
+            self.ed_turn.blockSignals(False)
+            self.z_type.setText(props.get("ZombieType", ""))
+            self.z_count.blockSignals(True)
+            try:
+                self.z_count.setValue(int(props.get("NumberOfZombies", "1")))
+            except ValueError:
+                self.z_count.setValue(1)
+            self.z_count.blockSignals(False)
+            self.z_item.setText(props.get("SpawnWithItem", ""))
+            if self.z_type.completer() is None:
+                from ..convert.levelcheck import ZOMBIES
+                try:
+                    arc = AssetTree(self.tree.root).open_archive(ZOMBIES)
+                    names = sorted(e.name[:-4] for e in arc.entries
+                                   if e.name.lower().endswith(".big"))
+                except Dr2Error:
+                    names = []
+                c = QCompleter(names, self)
+                c.setCaseSensitivity(Qt.CaseInsensitive)
+                c.setFilterMode(Qt.MatchContains)
+                self.z_type.setCompleter(c)
+        else:
+            amounts = []
+            for k, v in props.items():
+                if k.lower().startswith("type") and k[4:].isdigit():
+                    amounts.append((int(k[4:]), v, props.get(f"Amount{k[4:]}", "0")))
+            amounts.sort()
+            self.crowd_types.setText(", ".join(f"{t} {n}" for _i, t, n in amounts
+                                               if n not in ("0", "")))
+            self.crowd_label.setText(f"<b>Crowd</b> in the area "
+                                     f"<b>{props.get('ZombieWarehouseName', '?')}</b> "
+                                     f"(mission {z['path'].split('/')[0].split(' ', 1)[-1]}). "
+                                     f"Types and how many:")
+
+    def _zombie_fields(self) -> None:
+        z = self._ztarget
+        if not z or z["kind"] != "single":
+            return
+        props = self._zombie_now() or {}
+        keys = {}
+        t = self.z_type.text().strip()
+        if t and t != props.get("ZombieType"):
+            keys["ZombieType"] = t
+        n = str(self.z_count.value())
+        if n != props.get("NumberOfZombies", "1"):
+            keys["NumberOfZombies"] = n
+        item = self.z_item.text().strip()
+        if item != props.get("SpawnWithItem", ""):
+            if item:
+                keys["SpawnWithItem"] = item
+            elif "SpawnWithItem" in props and self.editor.is_own(z["path"]):
+                keys["SpawnWithItem"] = None
+        if keys:
+            self._edit({"op": "zset", "path": z["path"], "keys": keys})
+
+    def _crowd_typed(self) -> None:
+        z = self._ztarget
+        if not z or z["kind"] != "crowd":
+            return
+        amounts = []
+        for part in self.crowd_types.text().split(","):
+            bits = part.split()
+            if not bits:
+                continue
+            try:
+                n = int(bits[1]) if len(bits) > 1 else 1
+            except ValueError:
+                self.status.emit(f"Maps: {part.strip()!r}: write a type and a number "
+                                 f"(zombie_fat 15)")
+                return
+            amounts.append((bits[0], n))
+        if amounts:
+            self._edit({"op": "crowd", "path": z["path"], "amounts": amounts})
+
+    def _add_zombie(self) -> None:
+        if self.editor is None and self._get_editor() is None:
+            return
+        from ..convert.levelcheck import ZOMBIES
+        try:
+            arc = AssetTree(self.tree.root).open_archive(ZOMBIES)
+            names = sorted(e.name[:-4] for e in arc.entries if e.name.lower().endswith(".big"))
+        except Dr2Error:
+            names = []
+        ztype, ok = QInputDialog.getItem(self, "Add zombies", "Zombie type (they appear in "
+                                         "a new game):", names, 0, True)
+        if not ok or not ztype:
+            return
+        self._adding = "zombie:" + ztype
+        self._js("dr2.askPlace()")
 
     def usable_items(self) -> list[str]:
         """Items whose model ships in this game, by name (for *Add item…*)."""
@@ -883,6 +1095,9 @@ class MapsView(QWidget):
         if not self._adding:
             return
         item, self._adding = self._adding, None
+        if item.startswith("zombie:"):
+            self._edit({"op": "zadd", "type": item[7:], "position": msg["point"]})
+            return
         script = self.script_box.currentData() or self.level
         self._edit({"op": "add", "file": f"{script}.txt", "item": item,
                     "position": msg["point"]})
@@ -893,6 +1108,8 @@ class MapsView(QWidget):
         if ed is None:
             return
         op = msg.get("op")
+        if op in ZOMBIE_OPS:
+            return self._zombie_edit(ed, msg)
         try:
             if op == "move":
                 states = ed.move(msg["file"], msg["name"], msg["position"], msg.get("rotation"))
@@ -921,6 +1138,12 @@ class MapsView(QWidget):
             return
         self._own_write_until = time.monotonic() + 5.0
         self._send_states(states)
+        if op in ("undo", "redo"):                # it may have been a zombie change
+            self._js(f"dr2.setZombies({json.dumps(ed.zombies(self._script()))})")
+            if self._ztarget and self._zombie_now() is None:
+                self._ztarget = None
+            elif self._ztarget:
+                self._fill_zombie()
         if self._target:
             st = ed.state(**self._target)
             if st is None:
@@ -933,6 +1156,40 @@ class MapsView(QWidget):
         self.status.emit(f"Maps: {what} {names} (saved into {Path(ed.mod_dir).name})")
         self._refresh_edit_panel()
         if hasattr(self.window, "_refresh_mod"):      # the bottom bar's list of changes
+            self.window._refresh_mod()
+
+    def _zombie_edit(self, ed, msg: dict) -> None:
+        op = msg["op"]
+        try:
+            if op == "zmove":
+                ed.zombie_move(msg["path"], msg["position"], msg.get("yaw"))
+            elif op == "zdelete":
+                ed.remove_zombie(msg["path"])
+                if ed.session("missions.txt").doc.get(msg["path"]) is None:
+                    self._ztarget = None
+            elif op == "zset":
+                ed.zombie_set(msg["path"], msg["keys"])
+            elif op == "crowd":
+                ed.crowd_amounts(msg["path"], msg["amounts"])
+            elif op == "zadd":
+                path = ed.add_zombie(self._script(), msg["type"], msg["position"])
+                self._ztarget = {"kind": "single", "path": path}
+                self.status.emit(f"Maps: added {msg['type']} into your mod's own mission: "
+                                 f"they appear in a new game")
+        except Dr2Error as e:
+            self.status.emit(f"Maps: {e}")
+            return
+        self._own_write_until = time.monotonic() + 5.0
+        self._js(f"dr2.setZombies({json.dumps(ed.zombies(self._script()))})")
+        if self._ztarget:
+            if self._zombie_now() is None:
+                self._ztarget = None
+            else:
+                self._fill_zombie()
+        if op != "zadd":
+            self.status.emit(f"Maps: zombies changed (saved into {Path(ed.mod_dir).name})")
+        self._refresh_edit_panel()
+        if hasattr(self.window, "_refresh_mod"):
             self.window._refresh_mod()
 
     def _send_states(self, states) -> None:

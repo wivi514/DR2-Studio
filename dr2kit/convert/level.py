@@ -324,6 +324,7 @@ def zombies_glb(tree: AssetTree, spots, *, game: str, detail: str = "medium",
                              "dr2_name": ztype, "dr2_area": sp.crowd.area if sp.crowd else "",
                              "dr2_mission": sp.crowd.mission if sp.crowd else "",
                              "dr2_line": sp.crowd.line if sp.crowd else 0,
+                             "dr2_path": sp.crowd.path if sp.crowd else "",
                              "dr2_file": "missions.txt"}}
                  for sp in places]
         asm.add(data, nodes, parent, vp, static=True)

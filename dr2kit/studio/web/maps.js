@@ -9,7 +9,8 @@
 //   dr2:camera {position, yaw}     where the camera is (for "Copy position")
 //   dr2:edit {op, name, file, …}   editing (phase 11): move {position, rotation}, delete,
 //                                  duplicate, undo, redo (studio/maps_edit.py answers with
-//                                  dr2.itemState)
+//                                  dr2.itemState); zombies: zmove {path, position, yaw},
+//                                  zdelete {path} (answered with dr2.setZombies)
 //   dr2:place {point}              where to put a new item (the answer to dr2.askPlace)
 //
 //   dr2.openLevel(meta, keep)      a level: zones, markers, nav mesh, start (convert/mapdata.py)
@@ -30,6 +31,12 @@
 //   dr2.askPlace()                 answer with dr2:place: the floor point in the middle
 //                                  of the view
 //   dr2.selectItem(name)           select a placed item by name (as a click would)
+//   dr2.selectZombie(path)         select a single zombie or a clearing by block path
+//   dr2.setZombies({crowds, zombie_spawns})   the missions' zombies as they are now:
+//                                  single zombies (cones facing their way, "type ×n"),
+//                                  respawn crates (their floor polygon), clearings (circles),
+//                                  layer "zombie_spawn"; a single zombie or a clearing gets
+//                                  the move / turn handles while editing
 // Time of day (meta.lighting, convert/mapdata.py lighting): the lighting context whose
 // area holds the camera gives, for the hour, the sky (the game's Skybox shader: a
 // gradient by elevation, colour 1 at the horizon, 2 at the midpoint, 3 at the zenith),
@@ -182,6 +189,7 @@ function dispose(obj) {
 
 // --- markers ------------------------------------------------------------------------
 const COLOURS = { spawn: 0x30e060, zombie_area: 0xe04040, map_area: 0x4090ff,
+  zombie_spawn: 0xd02818, crate: 0xff8020, removal: 0x60c0ff,
   light_area: 0xffd040, trigger: 0xff40ff, sound_area: 0x40e0e0, map_point: 0xffa020,
   acoustics: 0xa0a0a0, waypoint: 0xffffff, navmesh: 0x40ff80 };
 
@@ -317,6 +325,7 @@ function buildMarkers() {
     }
     markerGroups[kind].add(obj);
   }
+  buildZombieSpawns();
   if (meta.navmesh) {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(meta.navmesh.vertices, 3));
@@ -330,6 +339,65 @@ function buildMarkers() {
     g.visible = layerOn('navmesh');
     markerGroups.navmesh = g;
     markerRoot.add(g);
+  }
+}
+
+// The missions' zombies (meta.zombie_spawns, convert/zombies.py MissionSpawn): one group,
+// layer "zombie_spawn", rebuilt by dr2.setZombies after an edit.
+function buildZombieSpawns() {
+  const old = markerGroups.zombie_spawn;
+  if (old) { dispose(old); markerRoot.remove(old); }
+  const g = new THREE.Group();
+  g.visible = layerOn('zombie_spawn');
+  markerGroups.zombie_spawn = g;
+  markerRoot.add(g);
+  const shapes = {};
+  for (const m of meta.markers || []) if (m.polygon && m.polygon.length) shapes[m.name.toLowerCase()] = m;
+  for (const z of meta.zombie_spawns || []) {
+    const p = z.props || {};
+    const m = { kind: 'zombie_spawn', spawn: z.kind, name: z.path.split('/').pop(), path: z.path,
+                mission: z.mission, when: z.when, props: p, file: 'missions.txt', line: z.line };
+    let made = null, text = '';
+    if (z.kind === 'single' && z.position) {
+      const yaw = parseFloat(p.Rotation || '0') || 0;
+      m.position = z.position;
+      m.rotation = [0, Math.sin(yaw / 2), 0, Math.cos(yaw / 2)];
+      made = pinMarker(m, COLOURS.zombie_spawn, true);
+      const n = parseInt(p.NumberOfZombies || '1');
+      text = `${p.ZombieType || '?'} ×${isNaN(n) ? 1 : n}` + (p.SpawnWithItem ? ` + ${p.SpawnWithItem}` : '')
+        + (z.when ? ' (later)' : '');
+    } else if (z.kind === 'removal' && z.position) {
+      m.position = z.position;
+      const r = parseFloat(p.Radius || '5') || 5;
+      const pts = [];
+      for (let i = 0; i < 48; i++) pts.push(new THREE.Vector3(Math.cos(i / 48 * 2 * Math.PI) * r, 0.1, Math.sin(i / 48 * 2 * Math.PI) * r));
+      const grp = new THREE.Group();
+      grp.position.copy(v3(z.position));
+      grp.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts),
+        new THREE.LineBasicMaterial({ color: COLOURS.removal })));
+      const disc = new THREE.Mesh(new THREE.CircleGeometry(r, 32), new THREE.MeshBasicMaterial({
+        color: COLOURS.removal, transparent: true, opacity: 0.1, side: THREE.DoubleSide, depthWrite: false }));
+      disc.rotation.x = -Math.PI / 2;
+      disc.position.y = 0.08;
+      disc.userData.marker = m;
+      grp.add(disc);
+      made = [grp, v3(z.position).add(new THREE.Vector3(0, 1.2, 0))];
+      text = `clears zombies (${r} m)`;
+    } else if (z.kind === 'crate') {
+      const shape = shapes[(p.ShapeName || '').toLowerCase()];
+      if (!shape) continue;
+      made = polygonMarker({ ...shape, ...m, polygon: shape.polygon, height: shape.height }, COLOURS.crate);
+      text = `respawns ${p.ZombiesPerSpawnTime || '?'} every ${p.TimeBetweenSpawns || '?'} s`;
+    }
+    if (!made) continue;
+    const [obj, at] = made;
+    obj.userData.zombie = m;
+    const s = label(text, COLOURS[z.kind === 'single' ? 'zombie_spawn' : z.kind], 'zombie_spawn');
+    s.position.copy(at);
+    obj.add(s);
+    if (obj.position.lengthSq() > 0) s.position.sub(obj.position);
+    if (m.rotation) s.position.applyQuaternion(obj.quaternion.clone().invert());
+    g.add(obj);
   }
 }
 
@@ -591,6 +659,30 @@ window.dr2 = {
       new THREE.Vector3(0, 0, -4).applyEuler(camera.rotation)).setY(camera.position.y - EYE);
     post('place', { point: p.toArray().map(c => Math.round(c * 1000) / 1000) });
   },
+  setZombies(z) {
+    if (!meta) return;
+    const keep = editTarget && editTarget.path;
+    if (keep) detachGizmo();
+    meta.crowds = z.crowds; meta.zombie_spawns = z.zombie_spawns;
+    labels.splice(0, labels.length, ...labels.filter(s => !isInside(s, markerGroups.zombie_spawn)));
+    buildZombieSpawns();
+    if (keep) {
+      markerGroups.zombie_spawn.traverse(o => {
+        if (o.userData.zombie && o.userData.zombie.path === keep && !editTarget) attachZombie(o);
+      });
+    }
+  },
+  selectZombie(path) {
+    let found = null;
+    if (markerGroups.zombie_spawn) markerGroups.zombie_spawn.traverse(o => {
+      if (!found && o.userData.zombie && o.userData.zombie.path === path) found = o;
+    });
+    if (!found) return false;
+    clearSelection();
+    if (!(editing && attachZombie(found))) return false;
+    post('pick', { type: 'marker', ...found.userData.zombie });
+    return true;
+  },
   selectItem(name) {
     const n = itemNodes(name, addedRoot)[0] || itemNodes(name).find(o => o.visible);
     if (n) pickNode(n);
@@ -679,11 +771,30 @@ function attachGizmo(node) {
   editTarget = { node, name: u.dr2_name, file: u.dr2_file };
   gizmo.attach(node);
 }
+function attachZombie(group) {          // a single zombie's cone, or a clearing's circle
+  const z = group.userData.zombie;
+  if (!z || (z.spawn !== 'single' && z.spawn !== 'removal')) return false;
+  editTarget = { node: group, path: z.path, zombie: z };
+  gizmo.attach(group);
+  if (selBox) { scene.remove(selBox); selBox.geometry.dispose(); }
+  selBox = new THREE.BoxHelper(group, 0xffff00);
+  selBox.material.depthTest = false;
+  selBox.renderOrder = 20;
+  scene.add(selBox);
+  return true;
+}
 function detachGizmo() { gizmo.detach(); editTarget = null; }
 function sendMove(t) {
   const p = new THREE.Vector3(), q = new THREE.Quaternion();
   t.node.getWorldPosition(p);
   t.node.getWorldQuaternion(q);
+  if (t.path) {                                   // a zombie: place and facing (radians)
+    const yaw = new THREE.Euler().setFromQuaternion(q, 'YXZ').y;
+    post('edit', { op: 'zmove', path: t.path,
+                   position: p.toArray().map(c => Math.round(c * 1000) / 1000),
+                   yaw: t.zombie.spawn === 'single' ? Math.round(yaw * 1000) / 1000 : null });
+    return;
+  }
   post('edit', { op: 'move', name: t.name, file: t.file,
                  position: p.toArray().map(c => Math.round(c * 1000) / 1000),
                  rotation: [q.x, q.y, q.z, q.w].map(c => Math.round(c * 10000) / 10000) });
@@ -792,8 +903,9 @@ window.addEventListener('keydown', e => {
   if (e.code === 'KeyT') setGizmoMode('translate');
   else if (e.code === 'KeyR') setGizmoMode('rotate');
   else if (e.code === 'KeyF') snapToFloor(editTarget);
+  else if ((e.code === 'Delete' || e.code === 'Backspace') && editTarget.path) post('edit', { op: 'zdelete', path: editTarget.path });
   else if (e.code === 'Delete' || e.code === 'Backspace') post('edit', { op: 'delete', name: editTarget.name, file: editTarget.file });
-  else if (ctrl && e.code === 'KeyD') { post('edit', { op: 'duplicate', name: editTarget.name, file: editTarget.file }); e.preventDefault(); }
+  else if (ctrl && e.code === 'KeyD' && !editTarget.path) { post('edit', { op: 'duplicate', name: editTarget.name, file: editTarget.file }); e.preventDefault(); }
 });
 renderer.domElement.addEventListener('wheel', e => {
   speed = Math.max(0.5, Math.min(200, speed * (e.deltaY < 0 ? 1.25 : 0.8)));
@@ -840,12 +952,20 @@ function pick(x, y) {
     for (let o = h.object; o && !info; o = o.parent) {
       const u = o.userData || {};
       if (u.marker) { info = { type: 'marker', ...u.marker }; delete info.polygon; target = h.object.parent; }
+      else if (u.zombie) { info = { type: 'marker', ...u.zombie }; target = o; }
       else if (u.dr2_piece) { info = { type: 'piece', name: u.dr2_piece, vpath: u.dr2_vpath, index: u.dr2_index }; target = o; }
-      else if (u.dr2_zombie) { info = { type: 'zombie', name: u.dr2_zombie, vpath: u.dr2_vpath, area: u.dr2_area, mission: u.dr2_mission, line: u.dr2_line }; target = o; }
+      else if (u.dr2_zombie) { info = { type: 'zombie', name: u.dr2_zombie, vpath: u.dr2_vpath, area: u.dr2_area, mission: u.dr2_mission, line: u.dr2_line, path: u.dr2_path }; target = o; }
       else if (u.dr2_item) { info = { type: u.dr2_kind || 'item', name: u.dr2_name, item: u.dr2_item, vpath: u.dr2_vpath, file: u.dr2_file, line: u.dr2_line }; target = o; }
     }
     if (!info) continue;
+    let zombieGroup = null;
+    for (let o = target; o; o = o.parent) if (o.userData && o.userData.zombie) { zombieGroup = o; break; }
     if (editing && target && target.userData && target.userData.dr2_item) attachGizmo(target);
+    else if (editing && zombieGroup && attachZombie(zombieGroup)) {
+      info = { type: 'marker', ...zombieGroup.userData.zombie };
+      post('pick', info);
+      return;
+    }
     else detachGizmo();
     for (let o = h.object; o; o = o.parent) if (o.userData && o.userData.zone) { info.zone = o.userData.zone; break; }
     info.point = h.point.toArray().map(c => Math.round(c * 1000) / 1000);

@@ -108,6 +108,12 @@ def mission_spawns(tree: AssetTree, script: str) -> tuple[list[Crowd], list[Miss
                              "missions.txt")
     except VPathError:
         return [], []
+    return spawns_in(doc, script)
+
+
+def spawns_in(doc: Document, script: str) -> tuple[list[Crowd], list[MissionSpawn]]:
+    """`mission_spawns` of an already parsed ``missions.txt`` (the editor's, with the
+    mod's changes in it)."""
     want = f"level_{script}".lower()
     crowds_out: list[Crowd] = []
     spawns: list[MissionSpawn] = []
@@ -150,6 +156,12 @@ def _crowd(b, mission) -> Crowd:
     return c
 
 
+def crowd_dict(c: Crowd) -> dict:
+    """A crowd for the Maps page and panel."""
+    return {"path": c.path, "mission": c.mission, "area": c.area, "amounts": c.amounts,
+            "props": c.props}
+
+
 @dataclass
 class Spot:
     """One zombie to draw."""
@@ -161,29 +173,9 @@ class Spot:
 
 
 def crowds(tree: AssetTree, script: str) -> list[Crowd]:
-    """Every zombie factory that ``missions.txt`` runs on the level of ``script``."""
-    try:
-        doc = Document.parse(tree.resolve(join(placed.DATAFILE, "missions.txt")).data(),
-                             "missions.txt")
-    except VPathError:
-        return []
-    want = f"level_{script}".lower()
-    out: list[Crowd] = []
-
-    def go(b, mission, level):
-        if b.cls == "cMissionDefinition":
-            mission = b.name
-        if b.cls == "cMissionLevelReady":
-            level = (b.get("LevelName") or "").lower()
-        if b.cls == "cMissionZombieFactory" and level == want:
-            c = _crowd(b, mission)
-            if c.area and c.amounts:
-                out.append(c)
-        for ch in b.children:
-            go(ch, mission, level)
-    for b in doc.blocks:
-        go(b, None, None)
-    return out
+    """Every zombie factory that ``missions.txt`` runs on the level of ``script`` (those
+    that put at least one zombie in an area)."""
+    return [c for c in mission_spawns(tree, script)[0] if c.amounts]
 
 
 def model_vpath(tree: AssetTree, ztype: str, detail: str = "medium") -> str | None:
