@@ -51,7 +51,8 @@ from ..formats.bct import Bct, is_bct
 # only re-reads changed files, so a new rule would otherwise miss old rows).
 # 2: audio tables (phase 5). 3: string banks get kind "strings" (phase 6).
 # 4: scene facts, thumbnails, model->rig links and the Library (phase 8).
-SCHEMA_VERSION = "4"
+# 5: detail levels in the Library (library_item.detail, detail_of; phase 9).
+SCHEMA_VERSION = "5"
 THUMB_SIZE = 128
 SCENE_HEADER = "sceneheader"
 MAT_TEXTURE_INFO = "mattextureinfoarray"
@@ -62,8 +63,9 @@ RIG_LINKS = 3             # at most this many matching skeletons per model, clos
 # Bumped when model thumbnails are drawn differently: the next build redraws them all
 # (without re-reading the archives). 2: baked zombie-clothing colours. 3: hair, opacity
 # maps and glass lenses see-through. 4: clear glass that vanished drawn solid. 5: hair
-# colour from gDiffuseColourControl. 6: rigid parts placed by their node.
-THUMB_VERSION = "6"
+# colour from gDiffuseColourControl. 6: rigid parts placed by their node. 7: the default
+# look of models with variants (phase 9: one head, one shirt…, no wound caps).
+THUMB_VERSION = "7"
 POSE_TOLERANCE = 0.001    # metres: a model's bones this close to a rig's are "the same pose"
 
 _EXT_KIND = {"xma": "audio", "sfx": "sfx", "anm": "anim", "po": "shader", "vo": "shader", "pdo": "shader",
@@ -475,6 +477,7 @@ def scene_pass(con: sqlite3.Connection, game: str, tree: AssetTree, stats: Index
     vpath order, so each archive is opened once (the tree's cache)."""
     from ..convert import material as cmat
     from ..convert import png, render
+    from ..convert import variants as cvar
     from ..formats.scene import Scene
     draw = thumbs and render.available()
     key = f"thumbs:{game}"
@@ -495,6 +498,7 @@ def scene_pass(con: sqlite3.Connection, game: str, tree: AssetTree, stats: Index
     reader = AssetTree(tree.root, cache_size=32)
     decoded: dict[int, object] = {}
     shaders = cmat.ShaderLibrary(reader) if draw else None
+    classifier = cvar.Classifier.for_game(game) if draw else None
     for i, r in enumerate(rows):
         if progress and i % 100 == 0:
             progress(f"models and skeletons: {i}/{len(rows)}")
@@ -536,7 +540,10 @@ def scene_pass(con: sqlite3.Connection, game: str, tree: AssetTree, stats: Index
                 return None if im is None else render.rgba_to_float(im.rgba, im.width, im.height)
             try:
                 bad: list[str] = []
-                parts = render.scene_parts(sc, texture_for, bad, material_colour)
+                mv = cvar.model_variants(sc, game, classifier)     # the default look
+                look = None if not mv.has_choices else {
+                    k for k, on in enumerate(mv.shown(mv.default())) if on}
+                parts = render.scene_parts(sc, texture_for, bad, material_colour, look)
                 img = render.render(parts)
                 if img is None and any(p.alpha_test for p in parts):
                     # all see-through (clear glass): draw it solid, so it has a picture
@@ -622,7 +629,9 @@ def link_rigs(con: sqlite3.Connection, game: str, stats: IndexStats) -> None:
 def link_library(con: sqlite3.Connection, game: str, stats: IndexStats) -> None:
     """Put every asset the Library shows into its group (dr2kit/catalog/groups.toml),
     folding identical copies into one: the copy outside ``preload4.big``, nearest the
-    top, first by path, is shown; the others get ``copy_of``."""
+    top, first by path, is shown; the others get ``copy_of``. Detail levels of one model
+    (groups.toml ``[[detail]]``) are folded the same way into the highest level
+    (``detail_of``), and each row says its level (``detail``)."""
     from ..catalog.groups import catalog
     cat = catalog()
     kinds = sorted({k for g in cat.groups for k in g.kinds})
@@ -640,9 +649,30 @@ def link_library(con: sqlite3.Connection, game: str, stats: IndexStats) -> None:
     for r, (grp, sub, label) in placed:
         key = (r["kind"], r["sha1"])
         first = keeper.setdefault(key, r["id"])
-        rows.append((r["id"], game, grp, sub, label, None if first == r["id"] else first))
-    con.executemany("INSERT INTO library_item VALUES (?,?,?,?,?,?)", rows)
-    stats.library = sum(1 for x in rows if x[5] is None)
+        rows.append([r["id"], game, grp, sub, label, None if first == r["id"] else first,
+                     "", None])
+    # detail levels ([[detail]] rules): one item per model, the highest level shown
+    names = {r["id"]: r["name"] for r, _ in placed}
+    levels: dict[tuple, list] = {}
+    for row in rows:
+        if row[5] is not None:
+            continue
+        hit = cat.detail(row[2], names[row[0]])
+        if hit is not None:
+            base, rank, level = hit
+            levels.setdefault((row[2], row[3], base), []).append((rank, level, row))
+    for members in levels.values():
+        if len(members) < 2:
+            continue
+        members.sort(key=lambda m: m[0])
+        top = members[0][2]
+        for rank, level, row in members:
+            row[6] = level
+            if row is not top:
+                row[7] = top[0]
+                row[4] = f"{top[4] or row[4]} ({level} detail)".strip()
+    con.executemany("INSERT INTO library_item VALUES (?,?,?,?,?,?,?,?)", rows)
+    stats.library = sum(1 for x in rows if x[5] is None and x[7] is None)
 
 
 def format_stats(s: IndexStats) -> str:

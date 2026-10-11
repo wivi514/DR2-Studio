@@ -41,8 +41,13 @@ blender/io_dr2/
 - **Import** makes a collection named after the asset with custom properties
   `dr2_game` / `dr2_vpath`, makes it the active collection, then runs
   `bpy.ops.import_scene.gltf` on the bytes from `core.export_glb`
-  (`dr2kit.convert.model.export_glb`, like `dr2 extract --glb`).
-- **Check rig** finds that collection from the active object (or its parent), selects
+  (`dr2kit.convert.model.export_glb`, like `dr2 extract --glb`). Phase 9:
+  `organise_variants(coll)` then moves each part with a `dr2_group` custom property
+  into a child collection of that name and hides the ones whose `dr2_shown` is false
+  (DR2 Studio's *Open in Blender* script does the same), so a zombie arrives in its
+  default look with every other part one eye-click away.
+- **Check rig** finds that collection from the active object (or its parent; or, for a
+  part in a variant group's collection, the model collection holding it), selects
   its visible objects, runs `bpy.ops.export_scene.gltf(export_format="GLB",
   use_selection=True, export_extras=True)` (custom properties carry the bones' game
   records, `gltf-mapping.md`), and `core.check` runs

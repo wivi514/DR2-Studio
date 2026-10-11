@@ -96,13 +96,16 @@ def dr2_collection(context):
     obj = context.active_object
     if obj is None:
         return None
-    for coll in obj.users_collection:
+    owners = list(obj.users_collection)
+    if obj.parent is not None:
+        owners += obj.parent.users_collection
+    for coll in owners:
         if coll.get("dr2_vpath"):
             return coll
-    if obj.parent is not None:
-        for coll in obj.parent.users_collection:
-            if coll.get("dr2_vpath"):
-                return coll
+    for coll in owners:          # a variant group's collection (Head 2…) inside the model's
+        for top in bpy.data.collections:
+            if top.get("dr2_vpath") and coll.name in top.children:
+                return top
     return None
 
 
@@ -167,10 +170,34 @@ class DR2_OT_import(bpy.types.Operator):
         arm = next((o for o in coll.objects if o.type == "ARMATURE"), None)
         if arm is not None:
             context.view_layer.objects.active = arm
+        organise_variants(coll)
         for n in notes:
             self.report({"WARNING"}, n)
         self.report({"INFO"}, f"imported {r.vpath}: {summary}")
         return {"FINISHED"}
+
+
+def organise_variants(coll) -> int:
+    """Variants (dr2kit phase 9): put each part in a collection named after its group
+    (``dr2_group``: Head 1, Head 2, Shirt 1…) inside ``coll``, and hide the parts the
+    chosen look doesn't show (``dr2_shown``). Returns how many parts were hidden.
+    Hidden parts are left out of Export to mod, and the toolkit keeps them as they are."""
+    groups, hidden = {}, 0
+    for obj in list(coll.objects):
+        group = obj.get("dr2_group")
+        if group is None:
+            continue
+        sub = groups.get(group)
+        if sub is None:
+            sub = groups[group] = bpy.data.collections.new(group)
+            coll.children.link(sub)
+        sub.objects.link(obj)
+        coll.objects.unlink(obj)
+        if not obj.get("dr2_shown", True):
+            obj.hide_set(True)
+            obj.hide_render = True
+            hidden += 1
+    return hidden
 
 
 def _temp_glb(data: bytes | None = None) -> str:

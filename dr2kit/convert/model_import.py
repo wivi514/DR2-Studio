@@ -171,6 +171,25 @@ def _extras(obj: dict) -> dict:
 
 # --- the plan -------------------------------------------------------------------------------
 
+def _variant_notes(plan: ImportPlan, scene: Scene, gltf: dict) -> None:
+    """Variants (phase 9, `convert.variants`): say what a one-look export leaves as it
+    is, and warn about part names the game reads without their variant number."""
+    from .variants import corrected_name
+    mode = next(((sc.get("extras") or {}).get("dr2_mode") for sc in gltf.get("scenes", [])
+                 if (sc.get("extras") or {}).get("dr2_mode")), None)
+    if mode == "shown" and plan.untouched:
+        plan.add("info", "variants", f"exported as one look: the {len(plan.untouched)} "
+                                     f"part(s) of the other looks are kept as they are")
+    for m in scene.meshes:
+        fixed = corrected_name(m.name)
+        if fixed is not None and m.name in plan.shapes:
+            plan.add("warning", m.name,
+                     f"the game reads a variant's number from the part's name, and this "
+                     f"name has it after 'Shape' (meant: {fixed}), so the game draws this "
+                     f"part on every look of the model; the name can't be changed by an "
+                     f"import (docs/modding/17-variants.md)")
+
+
 def plan_import(scene: Scene, glb_bytes: bytes, source: str = "<glb>") -> ImportPlan:
     """Read the ``.glb``, match it to ``scene`` and check everything; write nothing."""
     plan = ImportPlan(scene)
@@ -267,6 +286,7 @@ def plan_import(scene: Scene, glb_bytes: bytes, source: str = "<glb>") -> Import
             plan.shapes[mesh.name] = parts
     if not plan.shapes and not plan.unchanged and plan.ok:
         plan.add("error", source, "no object of the file matches a shape of the model")
+    _variant_notes(plan, scene, gltf)
     return plan
 
 

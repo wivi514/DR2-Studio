@@ -23,6 +23,12 @@ Models show a small picture of themselves, textures their thumbnail. Things the 
 ships twice with the same bytes (a skeleton in `skeleton/` and again in `preload4.big`)
 are shown once; the details say where the other copies are ("also in…").
 
+Each zombie is **one** item: its three files (`zombie_cop_2` high detail, `_3` medium,
+`_4` low, which the game swaps by distance) are behind its **Detail** choice in the
+**Variants** panel, and its picture shows **one look** (one head, one shirt…), not every
+part at once. Choosing a look: [`17-variants.md`](17-variants.md). Exporting a zombie
+or the group still writes all three detail levels, each with every part organised.
+
 ## Steps: find a character and export everything it uses
 
 1. Start DR2 Studio. It opens on the **Library** tab (left). If it says "Nothing here
@@ -92,7 +98,8 @@ dr2 library characters -g cz              # one group's items, with their names
 dr2 export data/models/npcs.big/chest_young_chuck.big -o exports      # one model, everything
 dr2 export characters -g cz -o exports    # every character, one folder each
 dr2 export music -g cw -o exports         # all of Case West's music as WAV
-dr2 export zombies/zombie_cop -o exports  # one sub-group
+dr2 export zombies/zombie_cop -o exports  # one sub-group (every detail level)
+dr2 export zombies -o exports --variants shown      # only each zombie's default look
 dr2 export sounds --wav -o exports        # a whole section; --wav/--png/--glb/--mp4/--json limit the files
 dr2 export environments --list -o exports # only show what would go where
 ```

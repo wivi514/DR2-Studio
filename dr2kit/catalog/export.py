@@ -10,9 +10,15 @@ docs/phase8-kickoff.md):
         chest_young_chuck.glb   meshes, skeleton, skin, materials, textures embedded
         textures/*.png          every texture its materials name, named as in the game
         textures/textures.txt   which texture is colour / normal / specular, for which material
+        textures/colours/*.png  models with colour choices (phase 9): each choice, baked
         skeleton.glb            the rig alone (an armature in Blender)
         info.txt                where it comes from, its counts against the game's limits,
-                                the rig it matches, how to open it
+                                the rig it matches, its detail levels and variants, how
+                                to open it
+
+A model with variants (`convert.variants`, phase 9) goes into its ``.glb`` with every
+part sorted into groups, the parts of the chosen look (default: the first of each slot)
+shown and the others marked hidden; ``mode="shown"`` keeps only that look's parts.
 
 and one file per sound (``music/HB_Indemnify.wav``), movie (``.mp4``), string bank
 (``.json``, the format a mod's ``.bcs.json`` uses), texture (``.png``) or text file.
@@ -125,12 +131,12 @@ def group_rows(con: sqlite3.Connection, game: str, target: str) -> list:
             out = []
             for gg in cat.groups:
                 if gg.section == sections[slug(target)]:
-                    out += query.library_items(con, game, gg.id)
+                    out += query.library_items(con, game, gg.id, details=True)
             return out
         raise Dr2Error(f"{target}: no such Library group. Groups: "
                        + ", ".join(x.id for x in cat.groups)
                        + "; sections: " + ", ".join(slug(s) for s in cat.sections()))
-    rows = query.library_items(con, game, g.id)
+    rows = query.library_items(con, game, g.id, details=True)
     if sub:
         rows = [r for r in rows if r["sub"] == sub or slug(r["sub"]) == slug(sub)]
         if not rows:
@@ -168,8 +174,12 @@ class Exporter:
     `OUTPUTS`; None = everything)."""
 
     def __init__(self, tree: AssetTree, game: str, db_path=None,
-                 outputs: set[str] | None = None):
+                 outputs: set[str] | None = None, *, variant: str | None = None,
+                 mode: str = "all"):
         self.tree, self.game, self.db_path = tree, game, db_path
+        # variants (phase 9): the look to export (choice text, `convert.variants`), and
+        # "all" (every part, sorted into groups) or "shown" (only that look's parts)
+        self.variant, self.mode = variant, mode
         self.outputs = set(outputs) if outputs else set(OUTPUTS)
         bad = self.outputs - set(OUTPUTS)
         if bad:
@@ -287,19 +297,48 @@ class Exporter:
     def model(self, job: Job, w: _Writer, cancel=None) -> None:
         """The folder of one model: .glb, textures, skeleton, info (module docstring)."""
         from ..convert import gltf
-        from ..convert.model import TextureFinder, read_scene
+        from ..convert import variants as cvar
+        from ..convert.model import TextureFinder, model_glb, read_scene
         from ..formats.scene import texture_role
         folder = job.dest
         vpath = job.row["vpath"]
         sc = read_scene(self.tree, vpath)
         finder = TextureFinder(self.tree, sc.source, self.game, self.db_path)
         missing: list[str] = []
+        mv = cvar.read_variants(self.tree, sc, self.game)
+        try:
+            choice = mv.parse(self.variant)
+        except Dr2Error:
+            choice = mv.default()       # a choice for another model of the group
+        mode = self.mode if mv.has_choices else "all"
 
         glb = folder / f"{folder.name}.glb"
         if "glb" in self.outputs and not w.exists(glb):
             st = gltf.ExportStats()
-            w.write(glb, gltf.model_to_glb(sc, finder, stats=st, base_colour=finder.baker(sc)))
+            w.write(glb, model_glb(self.tree, sc, game=self.game, finder=finder, stats=st,
+                                   variant=choice, mode=mode, variants=mv))
             missing += st.missing_textures or []
+
+        # colour choices: each one's colour map, baked (textures/colours/)
+        colour_lines = []
+        if "png" in self.outputs and mv.colours:
+            bank = cvar.ColourBank(self.tree, self.game)
+            for col in mv.colours:
+                for n, name in enumerate([None] + col.options):
+                    if cancel and cancel():
+                        return
+                    stem = col.own.removesuffix(".pdv")
+                    path = folder / "textures" / "colours" / f"{stem}_{n}.png"
+                    vs = bank.valueset(name) if name else None
+                    if name and vs is None:
+                        continue
+                    colour_lines.append(f"colours/{path.name:<40} {'own colours' if not n else name}")
+                    if w.exists(path):
+                        continue
+                    baked = finder.bake(sc, sc.materials[col.materials[0]], vs,
+                                        suffix=f"_{col.key}{n}" if n else "")
+                    if baked is not None:
+                        w.write(path, baked[1])
 
         # every texture the materials name, once each, with what it is for
         used: dict[str, list[int]] = {}
@@ -331,6 +370,9 @@ class Exporter:
         if "png" in self.outputs and used:
             note = folder / "textures" / "textures.txt"
             if not w.exists(note):
+                if colour_lines:
+                    lines += ["", "Colour choices (the game may swap these in for a material's own "
+                                  "colours; already baked, ready to look at):"] + colour_lines
                 w.write(note, _TEXTURES_HEAD.format(name=job.row["name"]) + "\n".join(lines) + "\n")
 
         skel = folder / "skeleton.glb"
@@ -338,11 +380,12 @@ class Exporter:
             w.write(skel, gltf.skeleton_to_glb(sc))
         info = folder / "info.txt"
         if self.outputs & {"glb", "png"} and not w.exists(info):
-            w.write(info, self.info_text(job.row, sc, missing, len(used)))
+            w.write(info, self.info_text(job.row, sc, missing, len(used), mv, choice, mode))
 
     # -- info.txt --
 
-    def info_text(self, row, sc, missing: list[str], textures: int = 0) -> str:
+    def info_text(self, row, sc, missing: list[str], textures: int = 0, mv=None,
+                  choice=None, mode: str = "all") -> str:
         """The ``info.txt`` of a model or skeleton folder."""
         item = query.library_item(self.con, row["id"])
         g = catalog().group(item["grp"]) if item else None
@@ -376,6 +419,18 @@ class Exporter:
                 lines.append(f"rig:         {r['vpath']}  ({how})")
             elif len(sc.skeleton):
                 lines.append("rig:         its own (no skeleton file has the same bones)")
+        levels = query.detail_levels(self.con, row["id"])
+        if levels:
+            lines += ["", "detail levels (the game draws the high one close up, the low one far "
+                          "away; each has its own folder):"]
+            lines += [f"  {lv['detail']:<7} {lv['vpath']}" for lv in levels]
+        if mv is not None and mv.has_choices:
+            lines += ["", "variants (docs/modding/17-variants.md): the game shows one choice per "
+                          "slot, never all at once",
+                      "  in the .glb: " + ("every part, in groups; the parts this look doesn't "
+                                           "show are marked hidden" if mode == "all" else
+                                           "only the parts this look shows")]
+            lines += ["  " + x for x in mv.describe(choice)]
         lines += ["", _HOW_TO_USE if sc.meshes else _HOW_TO_USE_RIG]
         return "\n".join(lines) + "\n"
 

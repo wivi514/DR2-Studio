@@ -54,6 +54,17 @@ Phase 5 adds audio (``audio=True``, needs PyAV):
 * **first packets**: how many sounds share their first packet with a *different* sound
   (the recomp's audio substitution recognises a sound by that packet).
 
+Phase 9 adds variants (``variants=True``, `dr2kit.convert.variants`):
+
+* **shape groups**: every shape of every model is classified the way the game does
+  (zombies) or by the prop-state name rules; no shape carries two numbers of one slot;
+  shapes of zombie models that match no pattern, misplaced digits
+  (``headwearShape2Deformed``) and environment pieces with variant-like shapes (burnt,
+  damaged, LOD copies) are named; the slots of each zombie's detail levels are listed;
+* **colour choices**: every material's choices by the name rule, and every choice the
+  game's list (``zombie_pdv_variations.txt``) names is found in the shader bank and
+  given by the rule.
+
 Results for both games are recorded in docs/formats.md. Run it with ``dr2 census``.
 """
 
@@ -171,6 +182,16 @@ class CensusReport:
     duplicate_name_entries: int = 0
     unsafe_names: list = field(default_factory=list)
     problems: list = field(default_factory=list)   # (vpath, what went wrong)
+    # variants (phase 9)
+    var_models: Counter = field(default_factory=Counter)      # zombie / prop states / none
+    var_groups: Counter = field(default_factory=Counter)      # parts per group kind
+    var_unmatched: list = field(default_factory=list)         # zombie shapes: '*' only
+    var_misplaced: list = field(default_factory=list)
+    var_env: list = field(default_factory=list)               # environment, variant-like
+    var_levels: dict = field(default_factory=dict)            # zombie -> {level: slots}
+    colour_materials: int = 0
+    colour_choices: int = 0
+    colour_listed: int = 0                                    # list entries found by the rule
     seconds: float = 0.0
     lzx_backend: str = ""
 
@@ -251,7 +272,7 @@ def check_texture(rep: "CensusReport", evp: str, name: str, data: bytes,
 def run_census(game: str, tree: AssetTree, *, python_lzx: bool = False,
                reencode: bool = False, textures: bool = False, models: bool = False,
                reimport: bool = False, audio: bool = False, workers: int | None = None,
-               progress=None) -> CensusReport:
+               progress=None, variants: bool = False) -> CensusReport:
     """Census one game's data folder. See the module docstring for what is checked.
 
     ``progress(message)`` is called once per file on disk. ``workers`` sets the process
@@ -260,6 +281,10 @@ def run_census(game: str, tree: AssetTree, *, python_lzx: bool = False,
     from .container import lzx
     t0 = time.time()
     rep = CensusReport(game, str(tree.root), lzx_backend=lzx.backend_detail())
+    var_ctx = None
+    if variants:
+        from .convert import variants as cvar
+        var_ctx = (cvar.Classifier.for_game(game), cvar.ColourBank(tree, game), game, set())
     pool = ProcessPoolExecutor(max_workers=workers or os.cpu_count()) if reencode else None
     pending: set = set()
     audio_pool = None
@@ -430,7 +455,7 @@ def run_census(game: str, tree: AssetTree, *, python_lzx: bool = False,
                     continue
                 visit(sub, data, evp, depth + 1)
         if scenefmt.is_scene(arc):
-            check_scene(rep, vp, arc, models or reimport, reimport)
+            check_scene(rep, vp, arc, models or reimport, reimport, var_ctx)
 
     try:
         for vp, path in tree.files():
@@ -459,6 +484,8 @@ def run_census(game: str, tree: AssetTree, *, python_lzx: bool = False,
                 continue
             visit(arc, raw, vp, 0)
         drain(0)
+        if var_ctx is not None:
+            check_colour_list(rep, var_ctx)
         if audio_pool is not None:
             drain_audio(0)
             rep.audio_shared_first = sum(1 for v in first_packets.values() if len(v) > 1)
@@ -511,10 +538,76 @@ def check_bcs(rep: CensusReport, vp: str, raw: bytes) -> None:
     rep.strings[bank_name(vp)] = len(bank.strings)
 
 
+# burnt, damaged, broken or lower-detail copies by name (not "blackjack", "clod"…)
+_VARIANT_LIKE = re.compile(r"_black(?:shape|_|\d|$)|_dmg|broken|(?:^|_)lod(?:\d|_|shape|$)",
+                           re.IGNORECASE)
+
+
+def check_variants(rep: CensusReport, vp: str, sc, ctx) -> None:
+    """The phase 9 variant census of one model (module docstring)."""
+    from .convert import variants as cvar
+    classifier, bank, game, seen_own = ctx
+    mv = cvar.model_variants(sc, game, classifier)
+    rep.var_models["zombie (the game's table)" if mv.zombie else
+                   "prop states" if mv.states else "no variants"] += 1
+    low = vp.lower()
+    for p in mv.parts:
+        kind = (p.group.rsplit(" ", 1)[0] if p.group[-1:].isdigit() else p.group)
+        rep.var_groups[kind] += 1
+        if mv.zombie and p.bits == cvar.DEFAULT_BIT:
+            rep.var_unmatched.append(f"{vp}: {p.name}")
+        if p.misplaced:
+            rep.var_misplaced.append(f"{vp}: {p.name}")
+        if mv.zombie:
+            for slot in cvar.SLOTS:
+                if bin(p.bits & slot.all_bits).count("1") > 1:
+                    rep.problems.append((vp, f"variants: {p.name} has two {slot.label} numbers"))
+    if "/environment/" in low:
+        odd = [m.name for m in sc.meshes if _VARIANT_LIKE.search(m.name)]
+        if odd:
+            rep.var_env.append(f"{vp}: {', '.join(odd[:4])}{'…' if len(odd) > 4 else ''}")
+    m = re.search(r"zombies\.big/[^/]+/([^/]+)_(\d)\.big$", low)
+    if m and mv.zombie:
+        rep.var_levels.setdefault(m.group(1), {})[m.group(2)] = {
+            k: v for k, v in mv.slots.items()}
+    try:
+        cols = cvar.colour_choices(sc, bank)
+    except Exception as ex:  # noqa: BLE001 - reported
+        rep.problems.append((vp, f"colour choices: {ex}"))
+        return
+    for c in cols:
+        rep.colour_materials += 1
+        rep.colour_choices += len(c.options)
+        for name in c.options:
+            if bank.valueset(name) is None:
+                rep.problems.append((vp, f"colour choice {name}: no such value set"))
+        seen_own.add(c.own)
+
+
+def check_colour_list(rep: CensusReport, ctx) -> None:
+    """Every choice the game's list names is in the bank and given by the name rule."""
+    from .convert import variants as cvar
+    _cls, bank, _game, _seen = ctx
+    listed = bank.listed() or {}
+    names = list(bank.names())
+    for model, table in listed.items():
+        for own, alts in table.items():
+            rule = cvar.colour_rule(own, names)
+            for a in alts:
+                if a not in bank.names():
+                    rep.problems.append((model, f"colour list: {a} is not in the shader bank"))
+                elif a in rule:
+                    rep.colour_listed += 1
+                else:
+                    rep.problems.append((model, f"colour list: {a} is not found by the name "
+                                                f"rule for {own}"))
+
+
 def check_scene(rep: CensusReport, vp: str, arc: BigArchive, decode: bool,
-                reimport: bool = False) -> None:
+                reimport: bool = False, variants=None) -> None:
     """Parse one scene (and, with ``decode``, every draw); count and check what it holds.
-    ``reimport`` adds the phase 4 re-import gates (`check_reimport`)."""
+    ``reimport`` adds the phase 4 re-import gates (`check_reimport`); ``variants`` (a
+    context from `run_census`) the phase 9 variant census (`check_variants`)."""
     import math
     try:
         sc = scenefmt.Scene.from_archive(arc, vp)
@@ -592,6 +685,8 @@ def check_scene(rep: CensusReport, vp: str, arc: BigArchive, decode: bool,
                 rep.problems.append((f"{vp}/{m.name}", f"draw {d.number}: {bad}"))
     if reimport and sc.meshes:
         check_reimport(rep, vp, arc.to_bytes())
+    if variants is not None and sc.meshes:
+        check_variants(rep, vp, sc, variants)
 
 
 def _reencode_vertices(sc, d) -> str | None:
@@ -753,6 +848,28 @@ def format_report(rep: CensusReport) -> str:
             w(f"    decoded: {rep.scene_vertices:,} vertices, {rep.scene_triangles:,} triangles")
         if rep.scene_checks:
             w(f"    checks: {_fmt(rep.scene_checks)}")
+    if rep.var_models:
+        w(f"variants: models: {_fmt(rep.var_models)}")
+        w(f"    parts by group: {_fmt(rep.var_groups)}")
+        w(f"    zombie parts matching no pattern (always drawn): {len(rep.var_unmatched)}"
+          + (f" ({'; '.join(x.rsplit('/', 1)[-1] for x in rep.var_unmatched[:6])}"
+             f"{'…' if len(rep.var_unmatched) > 6 else ''})" if rep.var_unmatched else ""))
+        w(f"    misplaced digits (the game loses the variant): {len(rep.var_misplaced)}")
+        for x in rep.var_misplaced:
+            w(f"        {x}")
+        w(f"    colour choices: {rep.colour_choices} for {rep.colour_materials} materials "
+          f"(by name); the game's list: {rep.colour_listed} found by the rule")
+        w("    zombie slots per detail level (2 high, 3 medium, 4 low):")
+        for z, lv in sorted(rep.var_levels.items()):
+            w(f"        {z}: " + "; ".join(
+                f"{n}: " + (" ".join(f"{k}{''.join(map(str, v))}" for k, v in sl.items()) or "-")
+                for n, sl in sorted(lv.items())))
+        w(f"    environment pieces with variant-like shapes (not classified): "
+          f"{len(rep.var_env)}")
+        for x in rep.var_env[:8]:
+            w(f"        {x}")
+        if len(rep.var_env) > 8:
+            w(f"        ... and {len(rep.var_env) - 8} more (use --json for all)")
     if rep.audio_shapes:
         w(f"audio (.xma): {_fmt(rep.audio_shapes)}; channels: "
           f"{_fmt(rep.audio_channels, sort_keys=True)}")

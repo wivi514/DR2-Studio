@@ -311,3 +311,34 @@ def test_errors_are_shown_and_missing_help_doesnt_block(tmp_path, monkeypatch):
     assert win.wait_for_jobs()
     win.close()
     del app
+
+
+def test_variant_panel_edits_a_choice():
+    """Phase 9: the Variants panel shows a model's slots and reports the choice."""
+    from types import SimpleNamespace
+
+    from PySide6.QtWidgets import QApplication
+
+    from dr2kit.convert import variants as cv
+    from dr2kit.studio.variant_panel import VariantPanel
+    QApplication.instance() or QApplication([])
+    names = ["head1_headShape", "head2_headShape", "chest_shirt1Shape", "chest_shirt2Shape",
+             "cap_neckchest1Shape", "head_eyesShape"]
+    mv = cv.model_variants(SimpleNamespace(
+        meshes=[SimpleNamespace(name=n) for n in names],
+        source="data/models/zombies.big/z.big/z_2.big", materials=[]), "cz")
+    panel = VariantPanel()
+    seen = []
+    panel.changed.connect(lambda c, colours: seen.append((c, colours)))
+    panel.set_model(mv, mv.default(), [{"id": 7, "detail": "high"}, {"id": 8, "detail": "low"}], 7)
+    assert panel.choice() == mv.default()
+    panel._slots["head"].setCurrentIndex(panel._slots["head"].findData(2))
+    assert seen and seen[-1][0].slots["head"] == 2 and seen[-1][1] is False
+    details = []
+    panel.detail.connect(details.append)
+    panel._detail.setCurrentIndex(1)
+    assert details == [8]
+    panel.btn_default.click()
+    assert seen[-1][0].slots["head"] == 1
+    panel.everything.setChecked(True)
+    assert seen[-1][0].everything and "6 of 6" in panel.mask.text()

@@ -180,7 +180,9 @@ Voices, Footsteps…), optionally a sub-group (by name prefix, by the archive it
 texture role) and a friendlier label. The index applies the rules after each build
 (`library_item`), so Studio and the CLI list a group in milliseconds and the counts can
 be checked against the index (`dr2 library --check`). Identical copies are folded into
-one item (`copy_of`), preferring the copy outside `preload4.big`.
+one item (`copy_of`), preferring the copy outside `preload4.big`. Phase 9 folds a
+model's **detail levels** the same way (`[[detail]]` rules: `zombie_cop_2/_3/_4` →
+one *Zombie Cop* with a Detail choice; `detail_of`); exports still write every level.
 
 Model pictures are **3D renders** (user decision, 2026-10-09) made while the index is
 built, by a numpy software renderer (`convert/render.py`) rather than Studio's 3D page:
@@ -300,6 +302,28 @@ byte for byte (the round-trip gate).
    model's archives, its folder on disk, then the index.
 4. Put identity data in `extras`: original node and chunk names, bone indices, material
    hashes, shader name (`UsedShaders.txt`, e.g. `LIT_CM`), source vpath.
+
+**Variants (phase 9, `convert/variants.py`; guide `modding/17-variants.md`).** A zombie
+model holds every look at once; the game shows one choice per slot, decided by the
+**shape names** through a table compiled into the executable. The toolkit keeps that
+table as profile data (`[variants]` in `cz.toml`/`cw.toml`, copied once by
+`tools/variant_table.py`, so the executable is never needed) and classifies shapes with
+the game's own prefix rule, so a look converts to the game's 64-bit hide mask and back.
+Design choices (user: "whatever is best", 2026-10-10):
+- The **default look** (pictures, 3D view, exports) is one choice per slot (the first),
+  never everything; *Show everything* stays one click away. The game's own pick is not
+  known yet, so the default is not claimed to be the game's.
+- **Two export modes**, one code path (`convert.model.model_glb`): *as shown* (only the
+  chosen parts; the viewer's Export .glb) and *everything, organised* (every part tagged
+  with its group and shown flag, colour choices as `KHR_materials_variants`; Export all,
+  Open in Blender, groups). Blender has no glTF visibility extension, so node extras +
+  our Blender scripts make the collections; other programs get the shown export.
+- **Colour choices** are other value sets found by name in the shader bank; they only
+  change shader constants, so they reuse the colour bakes.
+- **Prop states** (twin shapes: `slot_logo` / `slot_logo_dmg`) by name rules, off by
+  default; buildings are not classified (the census lists variant-like pieces).
+- Re-import needs nothing new: shapes are matched by name, and parts a file leaves out
+  are kept as they are.
 
 **Skeleton-only export.** `data/skeleton/<rig>fullbody.big` (plus `face`/`hand`/`upperbdy`
 parts) → a `.glb` armature with no mesh, so modellers start from the game's rig.

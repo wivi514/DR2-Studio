@@ -9,9 +9,55 @@ phase for this and do your research first."
 The research (2026-10-10) is below, then the plan. The facts are also in
 [`formats.md`](formats.md) §Variants, with how each was found.
 
+## Status (2026-10-10): done, except the in-game check
+
+Built the same day (guide [`modding/17-variants.md`](modding/17-variants.md); results in
+[`dev/testing.md`](dev/testing.md) §Phase 9 results; facts in `formats.md` §Variants):
+
+- **Step 1** `dr2kit/convert/variants.py`: the game's table as profile data (`[variants]`,
+  copied and checked by `tools/variant_table.py`), the game's prefix matcher, slots,
+  on/off parts, prop states, looks as text, the hide mask both ways, colour choices by
+  the name rule (it reproduces CZ's list exactly). `dr2 census --variants`: 0 problems in
+  both games.
+- **Step 2** Studio: the Variants panel (slots, on/off parts, prop states, colours with
+  swatches, Detail, Default / Random / Show everything); parts hide at once, colours
+  re-bake keeping the camera; Library pictures show the default look; one Library item
+  per zombie with its detail levels inside (`library_item.detail_of`, schema 5).
+- **Step 3** exports: *as shown* (Export .glb, `--variants shown`) and *everything,
+  organised* (Export all, Open in Blender, groups: group collections, hidden parts,
+  `KHR_materials_variants`), `textures/colours/`, variants in `info.txt`; `dr2 variants`,
+  `--variant`, `--variants`.
+- **Step 4** mods: organised and one-look exports import back byte-identical; the add-on
+  exports the visible parts and keeps the hidden ones; `dr2 model check` notes a one-look
+  file and warns on replaced misplaced-digit parts.
+
+**Corrections found while building:** the table records are `{u64 mask, pattern}` from
+CZ `0x829DF718`: the "halved bits" and the unreadable tall-boots mask were an 8-byte
+misreading (`formats.md`, retraction); the prop-state counts in the research matched
+`window`/`wings` (only the two slot machines keep states as shapes).
+
+**Changed from the plan:** the default look is "the first of each slot", not "the game's
+default" (unknown); look-alike files (`chair_1…9`) are **not** folded into one Library
+item (they are different objects with their own pictures; folding would hide them); the
+"new shirt as `chest_shirt5`" guide is not written, because the importer still only
+replaces existing shapes (17-variants.md says so); a "new shape matches no group"
+warning is moot for the same reason.
+
+**Owed:**
+- **Step 0 / the in-game gate:** a captured frame whose zombies each draw one choice
+  per slot. The capture save starts in the safehouse bathroom (no zombies; tried
+  2026-10-10); needs a save outside, or the user playing with a capture key.
+- How the game picks a look (the writer of the spawn record's mask, `formats.md` ❓), so
+  **Default** and **Random** can follow it; whether CW uses its colour choices; whether
+  CZ varies `_3`'s colours (its list has no `_3` sections).
+- Stretch goals not started: colour-choice mods; Chuck's outfits from `outfits.csv`
+  (step 5, a phase 10 candidate).
+- The CW recomp has no misplaced-digit fix for `zombie_security_2`/`_3` (a finding for
+  the CW recomp, not this repo).
+
 ## Start here (handoff, 2026-10-10)
 
-Status: **planned, nothing built.** The user starts phase 9 in a fresh conversation.
+Status (at handoff): **planned, nothing built.** Built since: §Status above.
 
 - Read this file, then `formats.md` §Variants (the table, the hide mask, colour choices,
   the misplaced-digit meshes), then `dev/code-tour.md` for `convert/gltf.py`,

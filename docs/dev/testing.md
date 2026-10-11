@@ -240,6 +240,32 @@ renderer and its lattice, export layout and name clashes, a model folder, resume
 output filters, cancel, `dr2 library` and `dr2 export`); `test_studio.py` (the Library
 tab: groups, filter, a model's rig and textures, *Export all…* and a group export).
 
+### Phase 9 results (2026-10-10)
+
+| Gate | Case Zero | Case West |
+|---|---|---|
+| **Variant census** (`dr2 census --variants`): every shape of every model classified as the game does; no shape with two numbers of one slot; misplaced digits named; colour choices found; the game's list = the name rule | 43 zombie models, 2 with prop states, 1,352 without variants; 2 misplaced digits (`zombie_soldier_3`); 219 colour choices for 62 materials, all 129 listed ones given by the rule; 0 problems; 32 s | 42 zombie models; 4 misplaced digits (`zombie_security_2`/`_3`); 289 colour choices for 81 materials (CW's list is empty); 66 environment pieces with LOD/burnt-like names listed; 0 problems; 49 s |
+| Profile table = the executable (`tools/variant_table.py <image> --check`) | agrees (groups at `0x829DF718`, slots at `0x8208A2E0`) | agrees (`0x829F25D0`, `0x82084AE0`) |
+| Index rebuilt (schema 5, pictures of the default look) + **count gate** (`dr2 library --check`) | 230 s; 1,397 pictures; 0 problems | 356 s; 1,495 pictures; 0 problems |
+| **Studio** (driven headless on the real index, screenshots looked at): pick a zombie in the Library → Variants panel; change head, hat, shirt, a colour; switch Detail | `zombie_skinny_2`: 15 of 94 parts by default; head 3 / no hat / shirt 2 / shirt1 colour 2 shown at once, the colour re-baked keeping the camera; Detail → `_3` with the same look | `zombie_gas_2`: head 2, no tumour; Detail → `_3` |
+| **Blender** (`tools/blender_variants_gate.py`: Studio's own Open-in-Blender script, Blender 5.2 headless) | as shown: exactly the look's 18 parts; organised: 18 group collections, only the look's parts visible, 39 colour choices in glTF Variants, `shirt2 3` switches the shirt's material | as shown: 20 parts; organised: 28 collections, only the look visible, 14 colour choices, `cleavgshirt 2` switches |
+| **Add-on** (`tools/blender_addon_gate.py`, now with a zombie) | `zombie_skinny_2` imports into 18 group collections with 79 parts hidden; a visible shirt pushed out 2 cm checks OK (the hidden parts kept) and exports; `dr2 mod check` accepts | — |
+| Library pictures (contact sheet of every zombie item, both games) | one look each, no overlapping clothes | the same |
+| **In game** (captured zombies draw one choice per slot) | **not done**: the capture save starts in the safehouse bathroom, with no zombie in view (a run on 2026-10-10 confirmed it); needs a save outside or a person playing | not done |
+
+Earlier evidence for the in-game behaviour is the CZ recomp's own measurement (a live
+hide mask that drew a bare-headed soldier): `tests/test_variants.py` checks that the
+toolkit's rule gives exactly that soldier for that mask.
+
+Unit tests added: `test_variants.py` (the profile table against the slots, the game's
+prefix matcher, a skinny-like model's slots / default look / hide mask / mask → look, the
+recomp's measured mask, look text round trip and errors, misplaced digits, props and
+people not classified, prop states, the colour name rule and list parser, `.glb` extras /
+left-out parts / `KHR_materials_variants`, the Library's detail levels; on game data:
+one choice per slot in the default look of 7 zombies, CZ's list = the name rule, organised
+and one-look exports import back byte-identical); `test_studio.py` (the Variants panel);
+`test_catalog.py` (labels, detail rules).
+
 ## Writing a test for new code
 
 - One test file per module (`tests/test_<module>.py`).

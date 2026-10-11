@@ -218,10 +218,17 @@ def _scene_glb(args, tree, vpath: str, data: bytes) -> bytes:
     scene = Scene.parse(data, vpath)
     if args.skeleton or not scene.meshes:
         return gltf.skeleton_to_glb(scene)
+    from ..convert.model import model_glb
+    from ..convert.variants import read_variants
     finder = None if args.no_textures else TextureFinder(tree, vpath, args.game)
     st = gltf.ExportStats()
-    out = gltf.model_to_glb(scene, finder, stats=st,
-                            base_colour=finder.baker(scene) if finder else None)
+    mv = read_variants(tree, scene, args.game)
+    choice = mv.parse(args.variant)
+    out = model_glb(tree, scene, game=args.game, finder=finder, textures=finder is not None,
+                    stats=st, variant=choice, mode=args.variants, variants=mv)
+    if mv.has_choices and not args.quiet:
+        print(f"    look: {choice.text()} ({'only its parts' if args.variants == 'shown' else 'every part, the others hidden'}; "
+              f"`dr2 variants {vpath}` lists the choices)", file=sys.stderr)
     if not args.quiet:
         print(f"    {st.meshes} meshes, {st.primitives} draws, {st.vertices:,} vertices, "
               f"{st.triangles:,} triangles, {len(scene.skeleton)} bones, "
@@ -232,6 +239,31 @@ def _scene_glb(args, tree, vpath: str, data: bytes) -> bytes:
         print(f"    note: texture {name!r} not found (run `dr2 index build` to search "
               f"the whole game)", file=sys.stderr)
     return out
+
+
+# ---- variants ---------------------------------------------------------------------------
+
+def cmd_variants(args) -> int:
+    """What a model can show: slots, on/off parts, prop states, colour choices; with
+    --variant, which parts that look shows and the game's hide mask for it."""
+    from ..container.vpath import AssetTree
+    from ..convert.model import read_scene
+    from ..convert.variants import read_variants
+    tree = AssetTree(locate(args.game).root)
+    scene = read_scene(tree, args.vpath)
+    mv = read_variants(tree, scene, args.game)
+    print(scene.source)
+    if not mv.has_choices:
+        print("  no variants: the game draws every part of this model")
+        return 0
+    choice = mv.parse(args.variant)
+    for line in mv.describe(choice):
+        print("  " + line)
+    if args.parts:
+        print()
+        for p, shown in zip(mv.parts, mv.shown(choice)):
+            print(f"  {'shown ' if shown else 'hidden'}  {p.group:<18} {p.bits:#018x}  {p.name}")
+    return 0
 
 
 # ---- model -----------------------------------------------------------------------------
@@ -475,15 +507,23 @@ def cmd_library(args) -> int:
         return 0
     from ..catalog.export import group_rows
     rows = group_rows(con, game, args.group)
-    sub = None
+    levels: dict[int, list[tuple[str, str]]] = {}     # detail levels folded into an item
     for r in rows:
+        if r["detail_of"] is not None:
+            levels.setdefault(r["detail_of"], []).append((r["vpath"].lower(), r["detail"]))
+    shown = [r for r in rows if r["detail_of"] is None]
+    sub = None
+    for r in shown:
         if r["sub"] != sub:
             sub = r["sub"]
             if sub:
                 print(f"[{sub}]")
         label = f"{r['label']}  " if r["label"] else ""
-        print(f"  {label}{r['name']}  ({_human(r['size'])})  {r['vpath']}")
-    print(f"{len(rows)} item(s)", file=sys.stderr)
+        more = (f"  [detail: {r['detail']}, {', '.join(d for _v, d in sorted(levels[r['id']]))}]"
+                if r["id"] in levels else "")
+        print(f"  {label}{r['name']}  ({_human(r['size'])})  {r['vpath']}{more}")
+    print(f"{len(shown)} item(s)" + (f" (+{len(rows) - len(shown)} detail levels in them)"
+                                     if len(rows) > len(shown) else ""), file=sys.stderr)
     return 0
 
 
@@ -508,7 +548,7 @@ def cmd_export(args) -> int:
         print(f"{len(jobs)} asset(s)", file=sys.stderr)
         return 0
     ex = cx.Exporter(AssetTree(locate(args.game).root, cache_size=32), args.game, args.db,
-                     outputs)
+                     outputs, variant=args.variant, mode=args.variants)
 
     def progress(done, total, vpath):
         if vpath and not args.quiet:
@@ -843,7 +883,7 @@ def cmd_census(args) -> int:
         rep = run_census(g, tree, python_lzx=args.python_lzx, reencode=args.reencode,
                          textures=args.textures, models=args.models,
                          reimport=args.reimport, audio=args.audio, workers=args.workers,
-                         progress=progress)
+                         progress=progress, variants=args.variants)
         print(format_report(rep))
         reports.append(rep)
     if args.json:
@@ -881,6 +921,15 @@ def build_parser() -> argparse.ArgumentParser:
     def game_opt(p):
         p.add_argument("-g", "--game", default="cz", choices=GAME_IDS,
                        help="which game (default: cz)")
+
+    def variant_opts(p):
+        p.add_argument("--variant", metavar="CHOICE",
+                       help="models with variants: the look, e.g. head=2,shirt=1,"
+                            "colour.jersey=4 (default: the first of each; `dr2 variants` "
+                            "lists them)")
+        p.add_argument("--variants", choices=("all", "shown"), default="all",
+                       help="all: every part, sorted into groups, the others hidden "
+                            "(default); shown: only the parts of that look")
 
     p = sub.add_parser("doctor", help="show versions, the LZX decoder in use, and the games found")
     p.set_defaults(func=cmd_doctor)
@@ -931,9 +980,21 @@ def build_parser() -> argparse.ArgumentParser:
                    help="with --glb: only the skeleton (an armature)")
     p.add_argument("--no-textures", action="store_true",
                    help="with --glb: don't embed textures (smaller, faster)")
+    variant_opts(p)
     p.add_argument("-q", "--quiet", action="store_true")
     game_opt(p)
     p.set_defaults(func=cmd_extract)
+
+    p = sub.add_parser("variants", help="what a model can show: heads, shirts, colours… "
+                       "(the game shows one choice per slot)")
+    p.add_argument("vpath", help="a model, e.g. data/models/zombies.big/zombie_skinny.big/"
+                                 "zombie_skinny_2.big")
+    p.add_argument("--variant", metavar="CHOICE",
+                   help="a look to describe, e.g. head=2,shirt=3,colour.jersey=4")
+    p.add_argument("--parts", action="store_true",
+                   help="list every part: its group, the game's bits, shown or hidden")
+    game_opt(p)
+    p.set_defaults(func=cmd_variants)
 
     p = sub.add_parser("model", help="check or import a .glb edited in Blender into a model")
     msub = p.add_subparsers(dest="action", required=True, metavar="ACTION")
@@ -1001,6 +1062,7 @@ def build_parser() -> argparse.ArgumentParser:
                  ("json", "string banks as .bcs.json"), ("raw", "other files as they are")):
         p.add_argument(f"--{o}", action="store_true", help=f"only {h} (combine several)")
     p.add_argument("--list", action="store_true", help="only show what would go where")
+    variant_opts(p)
     p.add_argument("-q", "--quiet", action="store_true")
     p.add_argument("--db", help="index file (default: the per-user cache folder)")
     p.set_defaults(func=cmd_export)
@@ -1139,6 +1201,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--audio", action="store_true",
                    help="also decode every sound (.xma) and check its length, and resolve "
                         "every .sfx track (needs PyAV)")
+    p.add_argument("--variants", action="store_true",
+                   help="also classify every model's parts as the game does (heads, "
+                        "shirts…), and check every colour choice (phase 9)")
     p.add_argument("--workers", type=int,
                    help="processes for --reencode / --audio (default: all CPUs)")
     p.add_argument("-q", "--quiet", action="store_true", help="no per-archive progress")

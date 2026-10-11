@@ -45,6 +45,7 @@ class Profile:
     no_mods_env: str = ""                     # env var that turns mods off for a run
     play_defaults: dict = field(default_factory=dict)  # env for Play when no <id>_defaults.env
     census: dict = field(default_factory=dict)
+    variants: dict = field(default_factory=dict)  # the shape-group table (convert/variants.py)
 
 
 def load_profile(game: str) -> Profile:
@@ -61,7 +62,8 @@ def load_profile(game: str) -> Profile:
                    recomp_executables=tuple(raw.get("recomp_executables", ())),
                    no_mods_env=str(raw.get("no_mods_env", "")),
                    play_defaults={str(k): str(v) for k, v in raw.get("play_defaults", {}).items()},
-                   census=dict(raw.get("census", {})))
+                   census=dict(raw.get("census", {})),
+                   variants=dict(raw.get("variants", {})))
 
 
 def config_path() -> Path:

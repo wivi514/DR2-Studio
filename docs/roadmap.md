@@ -217,8 +217,10 @@ Done 2026-10-09 (`phase8-kickoff.md` §Status, guide `modding/16-library.md`).
 - **Gate:** from the Library alone, one character exported with everything (opens in
   Blender with textures and bones) and whole groups exported in one go, in both games.
 
-## Phase 9: variants: choose what a model wears, see it, export it that way (user, 2026-10-10) 📋
-Planned; research done (`phase9-kickoff.md`, `formats.md` §Variants).
+## Phase 9: variants: choose what a model wears, see it, export it that way (user, 2026-10-10) ✅
+Done 2026-10-10 except the in-game check (`phase9-kickoff.md` §Status, guide
+`modding/17-variants.md`). Look-alike files (`chair_1…9`) stay separate items (decision:
+they are different objects); colour-choice mods and Chuck's outfits are not started.
 - Confirm in game how zombies pick their parts and colours (both games).
 - The variant model: the executable's shape-group table as profile data, colour choices
   from `zombie_pdv_variations.txt` and the shader banks, prop states by name rules.

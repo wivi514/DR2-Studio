@@ -45,7 +45,12 @@ the toolkit: it uses the copy you already have, from the folder you give it.
 5. Leave **Textures** on (off is faster), tick **Skeleton only** for just the armature,
    and click **Import**. The model arrives in its own collection, named after it, with
    its armature, meshes, weights and textures, exactly as `dr2 extract --glb` and the
-   glTF importer would give.
+   glTF importer would give. A model with **variants** (a zombie's heads, shirts…) gets
+   one collection per group inside it (*Head 1*, *Head 2*, *Shirt 3*, *Wound caps*…),
+   with the parts of the default look shown and the others hidden (eye icons in the
+   Outliner); its colour choices are in the **glTF Variants** tab
+   ([`17-variants.md`](17-variants.md)). **Export to mod** sends the visible parts; the
+   hidden ones stay as they are in the game.
 
 ### Edit, check, export to a mod
 

@@ -9,6 +9,9 @@ need the game data around it:
   archive first), then the asset index (``dr2 index build``) if there is one. A name
   that is not found is reported, never silently replaced.
 * `export_glb` / `export_skeleton_glb` read a vpath and return the ``.glb`` bytes.
+* `model_glb` (phase 9) is the one place a model becomes a ``.glb`` in a **look**
+  (`convert.variants`): every part sorted into groups (``mode="all"``) or only the
+  look's parts (``mode="shown"``), its colour choices baked by `TextureFinder.bake`.
 
 Used by ``dr2 extract --glb`` and DR2 Studio's 3D view.
 """
@@ -42,6 +45,8 @@ class TextureFinder:
         self.vpath = model_vpath
         self.found: dict[str, str] = {}          # name -> vpath it was read from
         self._scanned: list[dict[str, tuple[str, bytes]]] | None = None
+        self._shaders = None                     # convert.material.ShaderLibrary, on demand
+        self._baked: dict[tuple, tuple | None] = {}   # (material, value set, suffix) -> bake
 
     def _containers(self) -> list[str]:
         """The archives holding the model, nearest first (excluding the model itself)."""
@@ -173,23 +178,38 @@ class TextureFinder:
         hit = self.bct(name)
         return None if hit is None else texture_png(hit[1], hit[0])
 
-    def baker(self, scene: Scene):
+    def baker(self, scene: Scene, colours: dict | None = None):
         """The ``base_colour`` hook for `gltf.model_to_glb`: bakes materials whose colour
-        is in shader constants (`convert.material`), None for the others."""
-        from . import material as cmat
-        from . import png
-        shaders = cmat.ShaderLibrary(self.tree)
+        is in shader constants (`convert.material`), None for the others.
+
+        ``colours`` maps a material index to a value set swapped in for it (a colour
+        choice, `convert.variants`); those materials bake with it."""
+        colours = colours or {}
 
         def base_colour(m):
-            rec = cmat.recipe(scene, m, shaders)
-            if rec is None:
-                return None
-            img = cmat.bake(rec, self.image)
-            if img is None:
-                return None
-            mode = "RGBA" if rec.family in ("lens", "hair") else "RGB"   # these keep opacity
-            return f"{rec.diffuse}_baked", png.encode(img, mode), rec.family
+            i = next((k for k, x in enumerate(scene.materials) if x is m), -1)
+            return self.bake(scene, m, colours.get(i))
         return base_colour
+
+    def bake(self, scene: Scene, m, valueset=None, suffix: str = ""):
+        """``(image name, png bytes, family)`` of material ``m`` baked (with ``valueset``
+        instead of its own, if given), or None when it has nothing to bake. Remembered,
+        so an export that bakes for the ``.glb`` and for ``textures/`` bakes once."""
+        from . import material as cmat
+        from . import png
+        key = (id(m), valueset.name if valueset is not None else None, suffix)
+        if key in self._baked:
+            return self._baked[key]
+        if self._shaders is None:
+            self._shaders = cmat.ShaderLibrary(self.tree)
+        rec = cmat.recipe(scene, m, self._shaders, valueset)
+        out = None
+        img = cmat.bake(rec, self.image) if rec is not None else None
+        if img is not None:
+            mode = "RGBA" if rec.family in ("lens", "hair") else "RGB"   # these keep opacity
+            out = f"{rec.diffuse}_baked{suffix}", png.encode(img, mode), rec.family
+        self._baked[key] = out
+        return out
 
 
 def read_scene(tree: AssetTree, vpath: str) -> Scene:
@@ -200,13 +220,76 @@ def read_scene(tree: AssetTree, vpath: str) -> Scene:
     return Scene.parse(data, node.vpath)
 
 
-def export_glb(tree: AssetTree, vpath: str, *, game: str | None = None, textures: bool = True,
-               db_path=None, stats: gltf.ExportStats | None = None) -> bytes:
-    """The model at ``vpath`` as ``.glb`` bytes (skeleton, meshes, skin, textures)."""
-    scene = read_scene(tree, vpath)
-    finder = TextureFinder(tree, scene.source, game, db_path) if textures else None
+MODES = ("all", "shown")     # every part sorted into groups / only the chosen parts
+
+
+def model_glb(tree: AssetTree, scene: Scene, *, game: str | None = None, finder=None,
+              textures: bool = True, db_path=None, stats: gltf.ExportStats | None = None,
+              variant=None, mode: str = "all", colour_variants: bool = True,
+              variants=None) -> bytes:
+    """``.glb`` bytes of a parsed model, showing one look (`convert.variants`).
+
+    * ``variant``: a `variants.Choice`, or choice text (``"head=2 colour.jersey=3"``),
+      on top of the model's default look; None is the default look.
+    * ``mode="all"``: every shape, each node tagged with its group and whether the look
+      shows it (``dr2_group``, ``dr2_shown``, and ``dr2_part``: the mesh index, which
+      Studio's 3D view uses to hide parts); with ``colour_variants`` and textures, every
+      colour choice as a ``KHR_materials_variants`` variant. ``mode="shown"``: only the
+      shapes the look shows, in its colours.
+    * ``variants``: a `variants.ModelVariants` already read (else read here).
+    """
+    from . import variants as cvar
+    if mode not in MODES:
+        raise Dr2Error(f"unknown export mode {mode!r} (expected {' or '.join(MODES)})")
+    if finder is None and textures:
+        finder = TextureFinder(tree, scene.source, game, db_path)
+    mv = variants or cvar.read_variants(tree, scene, game or "cz")
+    choice = variant if isinstance(variant, cvar.Choice) else mv.parse(variant)
+    bank = cvar.ColourBank(tree, game or "cz") if mv.colours and finder else None
+    swaps = {}
+    if bank is not None:
+        for i, name in mv.colour_options(choice).items():
+            vs = bank.valueset(name)
+            if vs is not None:
+                swaps[i] = vs
+    shown = mv.shown(choice)
+    parts = include = None
+    if mv.has_choices:
+        if mode == "shown":
+            include = {i for i, s in enumerate(shown) if s}
+        else:
+            parts = [{"dr2_group": p.group, "dr2_shown": s, "dr2_part": p.index}
+                     for p, s in zip(mv.parts, shown)]
+    extra_variants = None
+    if mode == "all" and colour_variants and bank is not None:
+        extra_variants = []
+        for col in mv.colours:
+            for n, name in enumerate(col.options, 1):
+                vs = bank.valueset(name)
+                if vs is None:
+                    continue
+                mats = {}
+                for i in col.materials:
+                    baked = finder.bake(scene, scene.materials[i], vs, suffix=f"_{col.key}{n}")
+                    if baked is not None:
+                        mats[i] = baked
+                if mats:
+                    extra_variants.append((f"{col.key} {n}", mats))
+    extras = {"dr2_variant": choice.text(), "dr2_mode": mode} if mv.has_choices else None
     return gltf.model_to_glb(scene, finder, stats=stats,
-                             base_colour=finder.baker(scene) if finder else None)
+                             base_colour=finder.baker(scene, swaps) if finder else None,
+                             parts=parts, include=include, colour_variants=extra_variants,
+                             extras=extras)
+
+
+def export_glb(tree: AssetTree, vpath: str, *, game: str | None = None, textures: bool = True,
+               db_path=None, stats: gltf.ExportStats | None = None, variant=None,
+               mode: str = "all") -> bytes:
+    """The model at ``vpath`` as ``.glb`` bytes (skeleton, meshes, skin, textures), in
+    the look ``variant`` (default: the game's default look; `model_glb`)."""
+    scene = read_scene(tree, vpath)
+    return model_glb(tree, scene, game=game, textures=textures, db_path=db_path,
+                     stats=stats, variant=variant, mode=mode)
 
 
 def export_skeleton_glb(tree: AssetTree, vpath: str) -> bytes:

@@ -17,6 +17,48 @@ Entry template:
 
 ---
 
+## 2026-10-10 — Phase 9: variants (one look per zombie, exported as shown or organised)
+**Done:** built phase 9 from `phase9-kickoff.md`. `dr2kit/convert/variants.py` classifies a
+model's parts the way the game does (its 53-record shape-group table, copied into the
+profiles by the new `tools/variant_table.py`, and its prefix matcher) into slots (head,
+headwear, shirt, trousers, skirt, feet, tall boots, head tumour), on/off parts (wound
+caps, burnt, bare arms, glasses…) and prop states (the slot machines' damaged logo, win
+screen, far copy), and finds each material's colour choices in the shader bank. A look
+is plain text (`head=2 shirt=3 colour.jersey=4`) and converts to the game's hide mask and
+back. DR2 Studio has a Variants panel beside the 3D view (parts hide at once, colours
+re-bake), the Library pictures show the default look, and each zombie is one Library
+item with its three detail levels inside (index schema 5). Exports: *as shown* (only the
+look) or *everything, organised* (group collections in Blender with the other parts
+hidden, colour choices in Blender's glTF Variants tab), `textures/colours/`, variants in
+`info.txt`; `dr2 variants`, `--variant`, `--variants`, `dr2 census --variants`.
+**Why:** the user saw zombies wearing every head and shirt at once and asked to choose a
+look, see it, and export it that way or with everything.
+**Learned:**
+- **Retraction:** the table's records are `{u64 mask, u32 pattern, u32 0}` from CZ
+  `0x829DF718` (CW `0x829F25D0`). Read 8 bytes late (the research), each pattern got the
+  mask of the record before it: that was the "halved bits" and the "unreadable" tall-boots
+  mask (`0x10000000000000`). The classifier's own loads (`ld r29,0(r6)`, `lwz r11,8(r6)`)
+  settle it; the CZ recomp's measured values are the table's own.
+- The matcher (`sub_82795420`) is a case-sensitive prefix test per comma alternative;
+  `*` ends one; the `*` record counts only when nothing else matched.
+- A slot table (CZ `0x8208A2E0`) lists the 7 numbered slots; the recomp's measured mask
+  hides every number but one per slot, numbers the model lacks included (no hat).
+- The name rule `<own>N.pdv` / `<own>_varN.pdv` reproduces CZ's colour list exactly and
+  also gives the `_3` models (unlisted) and CW (empty list: 289 choices for 81 materials).
+- Misplaced digits: CZ `zombie_soldier_3` ×2, CW `zombie_security_2` and `_3` ×2 each.
+- The research's prop-state counts (70 models…) matched `window`/`wings`; by twin shapes
+  only the two slot machines keep states as shapes (retracted in `formats.md`).
+- The in-game capture save starts in the safehouse bathroom: no zombies to check there.
+**Docs updated:** `formats.md` §Variants (layout, matcher, slot table, mask decode, colour
+rule, retractions), `modding/17-variants.md` (new), `modding/README.md`,
+`modding/16-library.md`, `modding/13-blender-addon.md`, `modding/12-troubleshooting.md`,
+`modding/asset-catalogue.md`, `modding/context.toml`, `glossary.md` (look, slot, on/off
+part, hide mask, colour choice, prop state; detail level), `ARCHITECTURE.md`,
+`roadmap.md`, `phase9-kickoff.md` §Status, `dev/code-tour.md`, `dev/gltf-mapping.md`,
+`dev/blender-addon.md`, `dev/testing.md` §Phase 9 results, `docs/README.md`, `CLAUDE.md`.
+**Next:** the in-game check (a save outside the safehouse, or the user playing), and the
+game code that rolls each zombie's look, so Default and Random follow the game.
+
 ## 2026-10-10 — Research for phase 9: variants
 **Done:** the user asked for a phase so zombies (and items, buildings) show one look
 instead of every part at once, with export as shown or with everything. Researched and

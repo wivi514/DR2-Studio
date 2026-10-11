@@ -24,6 +24,12 @@ What goes in (docs/dev/gltf-mapping.md has the full table):
   blended; every other material is opaque, because their colour maps' alpha is a mask
   (`convert.material.alpha_mode`).
 
+* **Variants** (phase 9, `convert.variants`, optional): each shape's node can carry its
+  group and whether the chosen look shows it (``extras.dr2_group`` / ``dr2_shown``), a
+  look can leave shapes out ("as shown"), and colour choices become
+  ``KHR_materials_variants`` (Blender's glTF Variants tab). `convert.model.model_glb`
+  decides all three.
+
 Conventions: the games are Y-up, characters face +Z with their left side at +X, and
 the triangle strips give counter-clockwise front faces that agree with the stored
 normals on 99.4% of triangles (checked over every draw of both games). That is
@@ -310,7 +316,9 @@ class ExportStats:
 
 
 def model_to_glb(scene: Scene, texture_png: Callable[[str], bytes | None] | None = None,
-                 *, stats: ExportStats | None = None, base_colour=None) -> bytes:
+                 *, stats: ExportStats | None = None, base_colour=None,
+                 parts: list[dict] | None = None, include=None,
+                 colour_variants: list | None = None, extras: dict | None = None) -> bytes:
     """A ``.glb`` with the scene's skeleton, meshes, skin and materials.
 
     ``texture_png(name)`` returns a texture's PNG bytes (or None if it can't be found);
@@ -318,6 +326,15 @@ def model_to_glb(scene: Scene, texture_png: Callable[[str], bytes | None] | None
     may return ``(name, png bytes, family)`` for a material whose colour comes from
     shader constants (`convert.material`; `model.TextureFinder.baker`): that PNG is used
     as the base colour, and ``extras.dr2.baked`` says so.
+
+    Variants (`convert.variants`, phase 9), all optional:
+
+    * ``parts[i]``: extras for mesh ``i``'s node, kept by Blender as custom properties
+      (``{"dr2_group": "Head 2", "dr2_shown": False}``).
+    * ``include``: the mesh indices to write (the others are left out: "as shown").
+    * ``colour_variants``: ``[(name, {material index: (image name, png, family)})]``,
+      written as ``KHR_materials_variants`` (Blender's glTF Variants panel switches them).
+    * ``extras``: merged into the scene's ``extras`` (the choice used, for example).
     """
     st = stats if stats is not None else ExportStats()
     st.missing_textures = st.missing_textures or []
@@ -344,6 +361,8 @@ def model_to_glb(scene: Scene, texture_png: Callable[[str], bytes | None] | None
 
     from .material import ALPHA_CUTOFF, alpha_mode, material_shaders
     used_by = material_shaders(scene)
+    used = None if include is None else {d.material for k, mesh in enumerate(scene.meshes)
+                                         if k in include for d in mesh.draws}
     for i, m in enumerate(scene.materials):
         colour, normal = m.texture("colour"), m.texture("normal")
         mat = {"name": f"{i:02d}_{colour or 'material'}",
@@ -352,6 +371,9 @@ def model_to_glb(scene: Scene, texture_png: Callable[[str], bytes | None] | None
                                   "valueset": f"{m.valueset:08x}",
                                   "params": list(m.params),
                                   "textures": [s.name for s in m.slots if not s.engine]}}}
+        if used is not None and i not in used:     # a left-out part's: no textures
+            b.add("materials", mat)
+            continue
         baked = base_colour(m) if base_colour is not None and texture_png is not None else None
         if baked is not None:
             bname, png_bytes, family = baked
@@ -380,12 +402,35 @@ def model_to_glb(scene: Scene, texture_png: Callable[[str], bytes | None] | None
             mat["normalTexture"] = {"index": t}
         b.add("materials", mat)
 
+    # colour choices: one material copy per (choice, material), mapped per primitive
+    variant_maps: dict[int, list[dict]] = {}
+    if colour_variants:
+        names = []
+        for vi, (vname, mats) in enumerate(colour_variants):
+            names.append({"name": vname})
+            for i, (bname, png_bytes, family) in sorted(mats.items()):
+                base = json.loads(json.dumps(b.gltf["materials"][i]))
+                img = b.add("images", {"name": bname, "mimeType": "image/png",
+                                       "bufferView": b.view(png_bytes)})
+                base["pbrMetallicRoughness"]["baseColorTexture"] = {
+                    "index": b.add("textures", {"source": img})}
+                base["name"] = f"{base['name']} ({vname})"
+                base["extras"]["dr2"]["baked"] = family
+                base["extras"]["dr2"]["colour_choice"] = vname
+                st.textures += 1
+                variant_maps.setdefault(i, []).append({"material": b.add("materials", base),
+                                                       "variants": [vi]})
+        b.gltf.setdefault("extensionsUsed", []).append("KHR_materials_variants")
+        b.gltf.setdefault("extensions", {})["KHR_materials_variants"] = {"variants": names}
+
     # one skin over the whole skeleton
     skin = None
     if joint_nodes and any(d.skinned for m in scene.meshes for d in m.draws):
         skin = add_skin(b, scene.skeleton, joint_nodes)
 
-    for mesh in scene.meshes:
+    for mesh_index, mesh in enumerate(scene.meshes):
+        if include is not None and mesh_index not in include:
+            continue
         prims = []
         for d in mesh.draws:
             dd = scene.draw_data(d, mesh.name)
@@ -419,6 +464,9 @@ def model_to_glb(scene: Scene, texture_png: Callable[[str], bytes | None] | None
                         "declaration": [e.describe() for e in d.declaration]}}}
             if d.material >= 0:
                 prim["material"] = d.material
+                if d.material in variant_maps:
+                    prim["extensions"] = {"KHR_materials_variants": {
+                        "mappings": variant_maps[d.material]}}
             prims.append(prim)
             st.primitives += 1
             st.vertices += len(dd.positions)
@@ -426,6 +474,8 @@ def model_to_glb(scene: Scene, texture_png: Callable[[str], bytes | None] | None
         mi = b.add("meshes", {"name": mesh.name, "primitives": prims})
         node = {"name": mesh.name, "mesh": mi,
                 "extras": {"dr2": {"shape": mesh.name, "words": list(mesh.words)}}}
+        if parts is not None and mesh_index < len(parts):
+            node["extras"].update(parts[mesh_index])
         if skin is not None:
             node["skin"] = skin
         index = b.add("nodes", node)
@@ -439,4 +489,6 @@ def model_to_glb(scene: Scene, texture_png: Callable[[str], bytes | None] | None
         st.meshes += 1
     b.gltf["asset"]["extras"] = {"dr2": {"source": scene.source}}
     b.gltf["scenes"][0]["extras"] = {"dr2": {"source": scene.source}}   # Blender keeps this one
+    if extras:
+        b.gltf["scenes"][0]["extras"].update(extras)
     return b.to_bytes()

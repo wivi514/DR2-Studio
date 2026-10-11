@@ -139,8 +139,8 @@ class Recipe:
     mask: str | None
 
 
-def recipe(scene, material, shaders: ShaderLibrary) -> Recipe | None:
-    """The bake recipe of ``material``, or None when its colour map is a real colour."""
+def material_valueset(scene, material) -> ValueSet | None:
+    """The material's own value set (``<model>.big/valuesets.big/<hash>.scv``), or None."""
     if material.valueset in (0, 0xFFFFFFFF) or scene.archive is None:
         return None
     vsets = next((e for e in scene.archive.entries if e.name.lower() == "valuesets.big"), None)
@@ -151,9 +151,21 @@ def recipe(scene, material, shaders: ShaderLibrary) -> Recipe | None:
         arc = BigArchive.parse(vsets.data(), "valuesets.big")
         entry = next((e for e in arc.entries
                       if e.name.lower() == f"{material.valueset:08x}.scv"), None)
-        if entry is None:
-            return None
-        vs = ValueSet.parse(entry.data(), entry.name)
+        return None if entry is None else ValueSet.parse(entry.data(), entry.name)
+    except Dr2Error:
+        return None
+
+
+def recipe(scene, material, shaders: ShaderLibrary, valueset: ValueSet | None = None
+           ) -> Recipe | None:
+    """The bake recipe of ``material``, or None when its colour map is a real colour.
+
+    ``valueset`` replaces the material's own value set: a colour choice
+    (`convert.variants.colour_choices`), which only changes the constants."""
+    vs = valueset or material_valueset(scene, material)
+    if vs is None:
+        return None
+    try:
         table = shaders.table(vs.pixel_shader)
     except Dr2Error:
         return None

@@ -2,7 +2,10 @@
 //
 // Python drives it through window.dr2 (QWebEnginePage.runJavaScript) and listens to
 // console lines that start with "dr2:" (model_view.py turns them into status text).
-//   dr2.load(url)           show the .glb at url (Studio serves dr2://studio/model.glb)
+//   dr2.load(url, keep)     show the .glb at url (Studio serves dr2://studio/model.glb);
+//                           keep = true keeps the camera (a re-baked colour choice)
+//   dr2.setShown(list)      variants: show part i when list[i] (the node's extras
+//                           dr2_part = i, dr2kit/convert/model.py); the others hidden
 //   dr2.setSkeleton(on)     bones as lines over the mesh
 //   dr2.setWireframe(on)    triangles as lines
 //   dr2.resetView()         frame the model again
@@ -43,6 +46,15 @@ const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(0, 1, 0);
 
 let model = null, helper = null, wire = false, skeleton = false, meshCount = 0;
+let shown = null;               // variants: which parts show (null: all)
+
+function applyShown() {
+  if (!model) return;
+  model.traverse(o => {
+    const i = o.userData ? o.userData.dr2_part : undefined;
+    if (i !== undefined) o.visible = !shown || !!shown[i];
+  });
+}
 
 function frame() {
   if (!model) return;
@@ -81,7 +93,7 @@ function applySkeleton() {
 }
 
 window.dr2 = {
-  load(url) {
+  load(url, keep) {
     say('loading…');
     new GLTFLoader().load(url, gltf => {
       if (model) scene.remove(model);
@@ -100,10 +112,12 @@ window.dr2 = {
       meshCount = meshes;
       applyWire();
       applySkeleton();
-      frame();
+      applyShown();
+      if (!keep) frame();
       say(`${meshes} draws, ${Math.round(tris).toLocaleString()} triangles, ${bones.size} bones`);
     }, undefined, err => say('could not load the model: ' + (err.message || err)));
   },
+  setShown(list) { shown = list; applyShown(); },
   setSkeleton(on) { skeleton = !!on; applySkeleton(); },
   setWireframe(on) { wire = !!on; applyWire(); },
   resetView() { frame(); },

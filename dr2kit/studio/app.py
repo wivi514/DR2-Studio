@@ -123,6 +123,40 @@ class _Relay(QObject):
         self.fn(result, err)
 
 
+def _swatches(tree, game: str, mv) -> dict:
+    """Colour key → the main colour (rgb) of each option, own first, for the Variants
+    panel's drop-downs: a value set's ``gBaseTextureColour`` (or first pattern/body
+    colour); None when it has none."""
+    if mv is None or not mv.colours:
+        return {}
+    from ..convert import material as cmat
+    from ..convert import variants as cvar
+    from ..convert.model import read_scene
+    shaders = cmat.ShaderLibrary(tree)
+    bank = cvar.ColourBank(tree, game)
+    sc = read_scene(tree, mv.source)
+    out = {}
+    for col in mv.colours:
+        row = []
+        for name in [None] + col.options:
+            vs = bank.valueset(name) if name else cmat.material_valueset(
+                sc, sc.materials[col.materials[0]])
+            rgb = None
+            try:
+                table = shaders.table(vs.pixel_shader) if vs is not None else None
+                values = vs.named(table) if table else {}
+            except Dr2Error:
+                values = {}
+            for k in ("gBaseTextureColour", "gPattern1Colour", "gBodyPart1Colour"):
+                if k in values:
+                    v = list(values[k]) + [0.0, 0.0, 0.0]
+                    rgb = tuple(c ** 0.5 for c in v[:3])     # linear → screen, roughly
+                    break
+            row.append(rgb)
+        out[col.key] = row
+    return out
+
+
 class MainWindow(QMainWindow):
     def __init__(self, db_path: Path | None = None):
         super().__init__()
@@ -135,6 +169,10 @@ class MainWindow(QMainWindow):
         self.current: dict | None = None
         self.mod_dir: Path | None = None
         self._threads: list = []
+        # variants (phase 9): the look chosen per model this session, as choice text
+        # (convert/variants.py), used by the 3D view, Export .glb, Export all and Blender
+        self.looks: dict[tuple[str, str], str] = {}
+        self._variants = None              # the shown model's ModelVariants
 
         # --- toolbar
         tb = self.addToolBar("main")
@@ -222,6 +260,8 @@ class MainWindow(QMainWindow):
         self.video_view = VideoViewer()
         self.model_view = model_view.ModelViewer()
         self.model_view.status.connect(lambda t: self.say(f"3D view: {t}"))
+        self.model_view.variants.changed.connect(self._look_changed)
+        self.model_view.variants.detail.connect(self._detail_chosen)
         self.empty = QLabel("Select an asset on the left.\n\nNo index yet? Use “Build / refresh "
                             "index” (about a minute per game).")
         self.empty.setAlignment(Qt.AlignCenter)
@@ -675,18 +715,40 @@ class MainWindow(QMainWindow):
             self.model_view.set_title(row["name"])
             return lines
         self.model_view.set_title(f"{row['name']}: exporting…")
+        self.model_view.variants.hide()
+        self._variants = None
+        self._load_model(row, sc)
+        return lines
+
+    def look(self, vpath: str | None = None) -> str | None:
+        """The look chosen for a model this session (choice text), or None (default)."""
+        a = self.current
+        return self.looks.get((self.game, vpath or (a["vpath"] if a else "")))
+
+    def _load_model(self, row, sc, keep_view: bool = False) -> None:
+        """Bake the model in its chosen look (in the background) and show it, with the
+        Variants panel when it has choices (`convert.variants`)."""
         game, vpath, db = self.game, row["vpath"], self.db_path
+        look = self.looks.get((game, vpath))
+        levels = [dict(r) for r in query.detail_levels(self.con, row["id"])]
 
         def work(progress):
             from ..convert import gltf
-            from ..convert.model import TextureFinder
+            from ..convert import variants as cvar
+            from ..convert.model import TextureFinder, model_glb
             tree = AssetTree(locate(game).root)      # the worker's own (not thread-shared)
             if not sc.meshes:
-                return gltf.skeleton_to_glb(sc), []
+                return gltf.skeleton_to_glb(sc), [], None, None, {}
             st = gltf.ExportStats()
             finder = TextureFinder(tree, vpath, game, db)
-            glb = gltf.model_to_glb(sc, finder, stats=st, base_colour=finder.baker(sc))
-            return glb, st.missing_textures
+            mv = cvar.read_variants(tree, sc, game)
+            try:
+                choice = mv.parse(look)
+            except Dr2Error:
+                choice = mv.default()                # a look of another detail level
+            glb = model_glb(tree, sc, game=game, finder=finder, stats=st, variant=choice,
+                            mode="all", colour_variants=False, variants=mv)
+            return glb, st.missing_textures, mv, choice, _swatches(tree, game, mv)
 
         def done(result, err):
             if err:
@@ -694,12 +756,40 @@ class MainWindow(QMainWindow):
                 return
             if self.current is None or self.current["vpath"] != vpath:
                 return                                  # the user moved on
-            glb, missing = result
-            self.model_view.show_glb(glb, row["name"])
+            glb, missing, mv, choice, swatches = result
+            shown = mv.shown(choice) if mv is not None and mv.has_choices else None
+            self.model_view.show_glb(glb, row["name"], keep_view=keep_view, shown=shown)
+            self._variants = mv
+            if mv is not None and (mv.has_choices or len(levels) > 1):
+                self.model_view.variants.set_model(mv, choice, levels, row["id"], swatches)
+                self.model_view.variants.show()
             for name in missing:
                 self.say(f"{row['name']}: texture {name!r} not found")
         self.run_job(work, done)
-        return lines
+
+    def _look_changed(self, choice, colours_changed: bool) -> None:
+        """The Variants panel changed: hide/show parts now; re-bake for a colour."""
+        a, mv = self.current, self._variants
+        if a is None or mv is None:
+            return
+        self.looks[(self.game, a["vpath"])] = choice.text()
+        if colours_changed:
+            from ..convert.model import read_scene
+            self.model_view.set_title(f"{a['name']}: baking the colours…")
+            self._load_model(a, read_scene(self.asset_tree(), a["vpath"]), keep_view=True)
+        else:
+            self.model_view.set_shown(mv.shown(choice))
+
+    def _detail_chosen(self, asset_id: int) -> None:
+        """Another detail level picked in the Variants panel: show that file, same look."""
+        a = self.current
+        if a is None or asset_id == a["id"]:
+            return
+        target = query.by_id(self.con, asset_id)
+        if target is not None and (self.game, a["vpath"]) in self.looks:
+            self.looks.setdefault((self.game, target["vpath"]),
+                                  self.looks[(self.game, a["vpath"])])
+        self.show_asset(asset_id)
 
     def _scene_relations(self, row) -> list[str]:
         """A model's textures (with pictures, by material and role) and rig, or the
@@ -929,14 +1019,19 @@ class MainWindow(QMainWindow):
         if not path:
             return
         from ..convert import gltf
-        from ..convert.model import TextureFinder
+        from ..convert.model import TextureFinder, model_glb
         from ..formats.scene import Scene
         sc = Scene.parse(self.asset_tree().resolve(a["vpath"]).data(), a["vpath"])
         if sc.meshes:
             st = gltf.ExportStats()
             finder = TextureFinder(self.asset_tree(), a["vpath"], self.game, self.db_path)
-            data = gltf.model_to_glb(sc, finder, stats=st, base_colour=finder.baker(sc))
+            # variants: the look shown in the 3D view, only its parts (Export all… and
+            # Open in Blender give every part, sorted into groups)
+            data = model_glb(self.asset_tree(), sc, game=self.game, finder=finder, stats=st,
+                             variant=self._look_choice(), mode="shown")
             what = f"{st.primitives} draws, {st.textures} textures"
+            if self._variants is not None and self._variants.has_choices:
+                what += "; the look shown, only its parts (Export all… has every part)"
         else:
             data, what = gltf.skeleton_to_glb(sc), f"{len(sc.skeleton)} bones"
         Path(path).write_bytes(data)
@@ -952,12 +1047,23 @@ class MainWindow(QMainWindow):
                 self, f"Export {a['name']} with everything into… (a folder named after it "
                       f"is made in it)")
         if folder:
-            self.export_rows([a], Path(folder), by_group=False)
+            self.export_rows([a], Path(folder), by_group=False, variant=self.look())
 
-    def export_rows(self, rows: list, out: Path, *, by_group: bool, on_done=None) -> None:
+    def export_rows(self, rows: list, out: Path, *, by_group: bool, on_done=None,
+                    variant: str | None = None) -> None:
         """Export assets of this game in the background, with a progress bar and Cancel
-        (`library_view.run_export`)."""
-        run_export(self, rows, out, by_group=by_group, on_done=on_done)
+        (`library_view.run_export`); ``variant``: the look (choice text) of a model."""
+        run_export(self, rows, out, by_group=by_group, on_done=on_done, variant=variant)
+
+    def _look_choice(self):
+        """The current model's chosen look as a `Choice` (the panel's), or None."""
+        mv = self._variants
+        if mv is None or not mv.has_choices:
+            return None
+        try:
+            return mv.parse(self.look())
+        except Dr2Error:
+            return None
 
     def replace_png(self, src: str | None = None, vpath: str | None = None,
                     quiet: bool = False) -> bool:
@@ -1336,6 +1442,7 @@ class MainWindow(QMainWindow):
         if not a or a["kind"] not in ("model", "skeleton"):
             return
         game, vpath, mod_dir = self.game, a["vpath"], self.mod_dir
+        look = self._look_choice()
         mod_glb = mod_dir / "replace" / (vpath + ".glb") if mod_dir else None
         self.say(f"exporting {a['name']} for Blender…")
 
@@ -1344,8 +1451,8 @@ class MainWindow(QMainWindow):
                 return mod_glb.read_bytes()
             from ..convert.model import export_glb, export_skeleton_glb
             tree = self.asset_tree()
-            return export_glb(tree, vpath, game=game) if a["kind"] == "model" else \
-                export_skeleton_glb(tree, vpath)
+            return export_glb(tree, vpath, game=game, variant=look) if a["kind"] == "model" \
+                else export_skeleton_glb(tree, vpath)
 
         def done(glb, err):
             if err:

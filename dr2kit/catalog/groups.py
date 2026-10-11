@@ -113,16 +113,26 @@ class LabelRule:
 
 
 @dataclass
+class DetailRule:
+    """``[[detail]]``: files of one model at several detail levels (``zombie_cop_2``,
+    ``_3``, ``_4``), shown as one Library item (phase 9)."""
+    groups: tuple[str, ...]
+    pattern: re.Pattern            # named groups: base, n
+    levels: dict[str, str]         # n -> level name ("2" -> "high"), in order of detail
+
+
+@dataclass
 class Catalog:
     """The rules of groups.toml, ready to apply."""
     groups: list[Group]
     labels: list[LabelRule]
     names: dict[str, dict[str, str]]          # group id -> name -> label
+    details: list[DetailRule] = field(default_factory=list)
 
     @classmethod
     def from_toml(cls, text: str) -> "Catalog":
         data = tomllib.loads(text)
-        unknown = set(data) - {"group", "label", "names"}
+        unknown = set(data) - {"group", "label", "names", "detail"}
         if unknown:
             raise ValueError(f"groups.toml: unknown table(s) {', '.join(sorted(unknown))}")
         groups = []
@@ -147,7 +157,23 @@ class Catalog:
                             r["format"]) for r in data.get("label", [])]
         names = {gid: {k.lower(): v for k, v in table.items()}
                  for gid, table in data.get("names", {}).items()}
-        return cls(groups, labels, names)
+        details = [DetailRule(tuple(r["groups"]), re.compile(r["pattern"], re.IGNORECASE),
+                              {str(k): v for k, v in r["levels"].items()})
+                   for r in data.get("detail", [])]
+        return cls(groups, labels, names, details)
+
+    def detail(self, group_id: str, name: str) -> tuple[str, int, str] | None:
+        """``(model base name, rank, level name)`` when ``name`` is one detail level of a
+        model (rank 0 = the most detailed), else None."""
+        stem = name.rsplit(".", 1)[0] if "." in name else name
+        for r in self.details:
+            if group_id in r.groups:
+                m = r.pattern.match(stem)
+                if m and m.group("n") in r.levels:
+                    order = list(r.levels)
+                    return m.group("base").lower(), order.index(m.group("n")), \
+                        r.levels[m.group("n")]
+        return None
 
     def group(self, group_id: str) -> Group | None:
         return next((g for g in self.groups if g.id == group_id), None)

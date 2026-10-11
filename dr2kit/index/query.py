@@ -154,23 +154,28 @@ def library_counts(con: sqlite3.Connection, game: str) -> list[sqlite3.Row]:
     """Shown items per group and sub-group (identical copies counted once)."""
     return con.execute("""
         SELECT grp, sub, count(*) AS n FROM library_item
-        WHERE game = ? AND copy_of IS NULL GROUP BY grp, sub ORDER BY grp, sub""",
+        WHERE game = ? AND copy_of IS NULL AND detail_of IS NULL
+        GROUP BY grp, sub ORDER BY grp, sub""",
                        (game,)).fetchall()
 
 
 def library_items(con: sqlite3.Connection, game: str, grp: str, sub: str | None = None,
-                  text: str = "", limit: int | None = None) -> list[sqlite3.Row]:
+                  text: str = "", limit: int | None = None, details: bool = False
+                  ) -> list[sqlite3.Row]:
     """The items shown in a group (or one of its sub-groups), with their label and
     sub-group, by label then name. ``text``: words that must all appear in the label or
-    the name."""
+    the name. ``details``: also the lower detail levels folded into an item (exports)."""
     where, args = ["l.game = ?", "l.grp = ?", "l.copy_of IS NULL"], [game, grp]
+    if not details:
+        where.append("l.detail_of IS NULL")
     if sub is not None:
         where.append("l.sub = ?")
         args.append(sub)
     for word in text.lower().split():
         where.append("(lower(l.label) LIKE ? ESCAPE '\\' OR lower(a.name) LIKE ? ESCAPE '\\')")
         args += [_like(word)] * 2
-    sql = (f"SELECT {ASSET_COLUMNS}, l.grp, l.sub, l.label FROM library_item l "
+    sql = (f"SELECT {ASSET_COLUMNS}, l.grp, l.sub, l.label, l.detail, l.detail_of "
+           f"FROM library_item l "
            f"JOIN asset a ON a.id = l.asset_id WHERE {' AND '.join(where)} "
            f"ORDER BY l.sub, (l.label = ''), lower(l.label), lower(a.name)")
     if limit:
@@ -181,6 +186,20 @@ def library_items(con: sqlite3.Connection, game: str, grp: str, sub: str | None 
 def library_item(con: sqlite3.Connection, asset_id: int) -> sqlite3.Row | None:
     """An asset's Library row (group, sub-group, label, copy_of), or None."""
     return con.execute("SELECT * FROM library_item WHERE asset_id=?", (asset_id,)).fetchone()
+
+
+def detail_levels(con: sqlite3.Connection, asset_id: int) -> list[sqlite3.Row]:
+    """The detail levels of the model ``asset_id`` belongs to (itself included), most
+    detailed first, each with its ``detail`` name; [] when it has none."""
+    row = con.execute("SELECT detail, detail_of FROM library_item WHERE asset_id=?",
+                      (asset_id,)).fetchone()
+    if row is None or not row["detail"]:
+        return []
+    top = row["detail_of"] or asset_id
+    return con.execute(f"""
+        SELECT {ASSET_COLUMNS}, l.detail FROM library_item l JOIN asset a ON a.id = l.asset_id
+        WHERE l.asset_id = ? OR l.detail_of = ?
+        ORDER BY (l.detail_of IS NOT NULL), a.vpath_lower""", (top, top)).fetchall()
 
 
 def copies(con: sqlite3.Connection, asset_id: int) -> list[sqlite3.Row]:

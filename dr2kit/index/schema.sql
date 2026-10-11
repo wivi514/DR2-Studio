@@ -141,14 +141,19 @@ CREATE TABLE IF NOT EXISTS scene (
 
 -- The Library (phase 8): the group, sub-group and friendly label of each asset it shows,
 -- from dr2kit/catalog/groups.toml (build.link_library, after every build). An asset
--- whose bytes equal another's is listed once: `copy_of` names the one shown.
+-- whose bytes equal another's is listed once: `copy_of` names the one shown. Detail
+-- levels of one model (phase 9: zombie_cop_2/_3/_4, the [[detail]] rules) are listed
+-- once too: `detail_of` names the high-detail one, `detail` says which level a row is.
 CREATE TABLE IF NOT EXISTS library_item (
     asset_id INTEGER PRIMARY KEY REFERENCES asset(id) ON DELETE CASCADE,
     game TEXT NOT NULL,
     grp TEXT NOT NULL,
     sub TEXT NOT NULL,
     label TEXT NOT NULL,
-    copy_of INTEGER                  -- NULL: shown; otherwise the asset shown instead
+    copy_of INTEGER,                 -- NULL: shown; otherwise the asset shown instead
+    detail TEXT NOT NULL DEFAULT '', -- 'high', 'medium', 'low' ('' when no levels)
+    detail_of INTEGER                -- NULL: shown; otherwise its high-detail item
 );
 CREATE INDEX IF NOT EXISTS library_group ON library_item (game, grp, sub);
 CREATE INDEX IF NOT EXISTS library_copy ON library_item (copy_of);
+CREATE INDEX IF NOT EXISTS library_detail ON library_item (detail_of);

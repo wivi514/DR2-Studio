@@ -24,6 +24,9 @@ How it draws (no triangle-by-triangle Python loop):
   ``ALPHA_CUTOFF`` dropped), the same rule as the ``.glb`` export
   (`convert.material.alpha_mode`): on cloth and skin shaders a colour map's alpha is a
   mask, and a first version that alpha-tested everything erased the zombies' clothes.
+* **Which parts**: a zombie's picture shows its default look (one head, one shirt…,
+  `convert.variants`), not every variant on top of each other; the caller passes the
+  meshes to draw.
 * **Anti-aliasing**: drawn at ``SUPERSAMPLE``× the size and averaged down.
 
 Needs numpy (optional for the toolkit): `available` says whether it is there.
@@ -216,14 +219,15 @@ def _sample(tex, uvs, i0, i1, i2, u, v, w):
 
 def scene_parts(scene, texture_for: Callable[[str], "np.ndarray | None"] | None = None,
                 problems: list | None = None,
-                material_colour: Callable[[object], "np.ndarray | None"] | None = None
-                ) -> list[Part]:
+                material_colour: Callable[[object], "np.ndarray | None"] | None = None,
+                meshes=None) -> list[Part]:
     """A parsed `Scene`'s draws as renderer parts (rest pose).
 
     ``texture_for(name)`` gives a colour texture as an (h, w, 4) float array, or None.
     ``material_colour(material)``, tried first, gives the colour of a material whose
     colour is not a texture (zombie clothing: `convert.material` bakes it from shader
     constants, as the ``.glb`` export does), or None to use its texture.
+    ``meshes``: the mesh indices to draw (a variant's look, `convert.variants`), or all.
     A draw that can't be decoded is skipped and named in ``problems``."""
     parts = []
     cache: dict[str, object] = {}
@@ -232,7 +236,9 @@ def scene_parts(scene, texture_for: Callable[[str], "np.ndarray | None"] | None 
         world = scene.skeleton.world_matrices() if scene.skeleton.nodes else []
     except Exception:  # noqa: BLE001 - a broken hierarchy: draw parts where stored
         world = []
-    for mesh in scene.meshes:
+    for mesh_index, mesh in enumerate(scene.meshes):
+        if meshes is not None and mesh_index not in meshes:
+            continue
         for dr in mesh.draws:
             try:
                 dd = scene.draw_data(dr, mesh.name)

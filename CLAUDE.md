@@ -25,13 +25,18 @@ everything at once (`catalog/export.py`, *Export all…*, `dr2 export`); gate pa
 games. Fixed 2026-10-10 from the user's tests: model colours (shader bakes, see-through
 hair/opacity maps), rigid parts placed by their node, Play's renderer for source builds,
 Open in Blender. Owed: `docs/phase8-kickoff.md` §Status and `phase7-kickoff.md` §Status.
-Phase 9 (user-set 2026-10-10, variants) researched and planned: `docs/phase9-kickoff.md`.** Read these before writing code:
+Phase 9 (user-set 2026-10-10, variants) done the same day: `convert/variants.py` (the game's
+shape-group table as profile data, looks, hide mask, colour choices), the Variants panel,
+default-look pictures, detail levels folded in the Library, as-shown / organised exports
+(Blender collections, `KHR_materials_variants`), `dr2 variants`, `census --variants`; gate
+passed in Studio and Blender in both games. Owed: the in-game zombie capture and how the
+game picks a look (`docs/phase9-kickoff.md` §Status).** Read these before writing code:
 
 | Doc | What it holds |
 |---|---|
 | `docs/ARCHITECTURE.md` | Components, data flow, the asset index, the mod package format, stack choices |
 | `docs/formats.md` | Everything known about every file format, with a status per format (cracked / partial / unknown) |
-| `docs/phase9-kickoff.md` | Phase 9 (variants: one look per model, export as shown or organized): research, plan, gate. Planned, not started |
+| `docs/phase9-kickoff.md` | Phase 9 (variants: one look per model, export as shown or organized): research, plan, gate, and §Status (what it still owes) |
 | `docs/phase8-kickoff.md` | Phase 8 (the Library, export everything at once): decisions, gate, and §Status (what it still owes) |
 | `docs/phase7-kickoff.md` | Phase 7 handoff and §Status: what phase 7 did and still owes |
 | `docs/dev/packaging.md` | Release builds: the bundle, the LGPL ffmpeg and licence gate, AppImage, CI |
@@ -159,6 +164,11 @@ python tools/blender_skeleton_gate.py     # skeleton round trip through Blender 
 dr2 index build                           # the asset index + model pictures (~3-4.5 min per game)
 dr2 library [group] / dr2 library --check            # the Library: groups, items, the count gate
 dr2 export <group|vpath…> -g cz -o out [--wav|--png|--glb…]   # export all (one folder per model)
+dr2 variants <model vpath> [--variant head=2,shirt=1] [--parts]  # a model's looks (phase 9)
+dr2 extract --glb --variant "head=2" --variants shown|all <model> -o out
+dr2 census --variants                     # classify every model's parts as the game does (~30 / ~50 s)
+python tools/variant_table.py <recomp>/assets/game/default_image.bin --check cz   # table = exe?
+python tools/blender_variants_gate.py     # phase 9 gate in Blender (~20 s)
 dr2 studio                                # the GUI (pip install -e ".[studio]")
 dr2 help [page] / dr2 help --search <words>          # the guides (= Studio's help)
 dr2 play -g cz [--no-mods] [--deploy-only]           # deploy switched-on mods, start the recomp

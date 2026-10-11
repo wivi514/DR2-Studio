@@ -32,6 +32,8 @@ from pathlib import Path
 from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QUrl, Signal
 from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
+from .variant_panel import VariantPanel
+
 WEB_DIR = Path(__file__).with_name("web")
 SCHEME = b"dr2"
 PAGE_URL = "dr2://studio/viewer.html"
@@ -200,13 +202,19 @@ class ModelViewer(QWidget):
         self._serial = 0
         self.last_message = ""
         self.view = None
+        # variants (phase 9): the panel beside the view, for models with choices
+        self.variants = VariantPanel(self)
+        self.variants.hide()
+        body = QHBoxLayout()
+        lay.addLayout(body, 1)
         if WEB_ENGINE and _registered:
             self._profile, self._handler = _profile_and_handler()
             self.view = QWebEngineView(self)
             self._page = _Page(self._profile, self._message, self.view)   # keep a reference
             self.view.setPage(self._page)
             self.view.load(QUrl(PAGE_URL))
-            lay.addWidget(self.view, 1)
+            body.addWidget(self.view, 1)
+            body.addWidget(self.variants)
             self.skeleton.toggled.connect(lambda on: self._js(f"dr2.setSkeleton({str(on).lower()})"))
             self.wireframe.toggled.connect(lambda on: self._js(f"dr2.setWireframe({str(on).lower()})"))
             self.reset.clicked.connect(lambda: self._js("dr2.resetView()"))
@@ -215,7 +223,8 @@ class ModelViewer(QWidget):
             note = QLabel("The 3D view needs PySide6's QtWebEngine (" + why + ").\n\n"
                           "Use “Export .glb…” and open the file in Blender instead.")
             note.setWordWrap(True)
-            lay.addWidget(note, 1)
+            body.addWidget(note, 1)
+            body.addWidget(self.variants)
             for w in (self.skeleton, self.wireframe, self.reset):
                 w.setEnabled(False)
 
@@ -227,18 +236,31 @@ class ModelViewer(QWidget):
         """The text next to the buttons (e.g. "exporting…" while a model is prepared)."""
         self.info.setText(title)
 
-    def show_glb(self, data: bytes, title: str = "") -> None:
-        """Show a ``.glb`` (bytes from `dr2kit.convert.gltf`)."""
+    def show_glb(self, data: bytes, title: str = "", keep_view: bool = False,
+                 shown: list[bool] | None = None) -> None:
+        """Show a ``.glb`` (bytes from `dr2kit.convert.gltf`). ``keep_view`` keeps the
+        camera (a re-baked colour choice); ``shown``: which parts show (variants)."""
         self.info.setText(title)
         if self.view is None:
             return
         self._handler.model = data
         self._serial += 1                       # a new URL each time: no stale cache
-        call = f"dr2.load('dr2://studio{MODEL_PATH}?{self._serial}')"
+        call = (self._shown_call(shown) + ";" +
+                f"dr2.load('dr2://studio{MODEL_PATH}?{self._serial}', {str(keep_view).lower()})")
         if self.ready:
             self._js(call)
         else:
             self._pending = call
+
+    @staticmethod
+    def _shown_call(shown: list[bool] | None) -> str:
+        if shown is None:
+            return "dr2.setShown(null)"
+        return "dr2.setShown([" + ",".join("1" if s else "0" for s in shown) + "])"
+
+    def set_shown(self, shown: list[bool] | None) -> None:
+        """Show part ``i`` of the current model when ``shown[i]`` (instant, no reload)."""
+        self._js(self._shown_call(shown))
 
     def _js(self, code: str) -> None:
         if self.view is not None and self.ready:

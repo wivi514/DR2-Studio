@@ -46,3 +46,69 @@ model_draws = 6954     # draw calls over all models; every one decodes (dr2 cens
 sounds = 8916          # .xma entries; every one decodes to its stored length (census --audio)
 sfx = 4745             # .sfx sound definitions; all parse
 sfx_missing = 22       # .sfx tracks whose recording the shipped data lacks
+
+[variants]
+# The game's shape-group table, copied from the executable by
+# tools/variant_table.py (docs/formats.md §Variants). Each entry: the mask bit
+# and the name patterns (comma list; each is a prefix, '*' ends it). A shape's
+# bits are the OR of every entry that matches; '*' only counts when none does.
+group_table = "0x829df718"
+slot_table = "0x8208a2e0"
+# The game's colour-choice list (zombie_pdv_variations.txt; CW's is empty). The
+# toolkit finds choices by name (convert/variants.py) and says which the list names.
+colour_lists = ["data/datafile.big/zombie_pdv_variations.txt", "data/preload4.big/zombie_pdv_variations.txt"]
+groups = [
+  ["0x1", "head*,cap_neck*,cap_gas_neck*,cap_black_neck*"],
+  ["0x2", "cap_*"],
+  ["0x4", "chest*,cap_chest*,cap_gas_chest*,cap_black_chest*,cap_hip*,cap_gas_hip*,cap_black_hip*,cap_skirt_hip*"],
+  ["0x8", "pants_*,skirt_*"],
+  ["0x10", "larm_*,cap_larm*,cap_gas_larm*,cap_black_larm*"],
+  ["0x20", "rarm_*,cap_rarm*,cap_gas_rarm*,cap_black_rarm*"],
+  ["0x40", "lleg_*,lcalf_*,lsock_*,lshoe_*,cap_lleg*,cap_gas_lleg*,cap_black_lleg*"],
+  ["0x80", "rleg_*,rcalf_*,rsock_*,rshoe_*,cap_rleg*,cap_gas_rleg*,cap_black_rleg*"],
+  ["0x100", "headwear*"],
+  ["0x200", "eyewear_acc*"],
+  ["0x400", "chest_acc*"],
+  ["0x800", "chest_acc_bkpc"],
+  ["0x1000", "*"],
+  ["0x2000", "larm_arm*,rarm_arm*"],
+  ["0x4000", "head_gas*,cap_gas*,chestupper_gas*,larm_gas*,rarm_gas*"],
+  ["0x8000", "head_black*,cap_black*,chestupper_black*,larm_black*,rarm_black*,rshoe_black*,lshoe_black*,rcalf_black*,lcalf_black*,lleg_black*,rleg_black*,pants_black*"],
+  ["0x10000", "head1_*,chestupper_neck1*,cap_neckchest1,cap_chestneck1"],
+  ["0x20000", "head2_*,chestupper_neck2*,cap_neckchest2,cap_chestneck2"],
+  ["0x40000", "head3_*,chestupper_neck3*,cap_neckchest3,cap_chestneck3"],
+  ["0x80000", "head4_*,chestupper_neck4*,cap_neckchest4,cap_chestneck4"],
+  ["0x100000", "head5_*,chestupper_neck5*,cap_neckchest5,cap_chestneck5"],
+  ["0x200000", "head1_head_tumour1*,head2_head_tumour1*,head3_head_tumour1*,head4_head_tumour1*,head5_head_tumour1*"],
+  ["0x400000", "head1_head_tumour2*,head2_head_tumour2*,head3_head_tumour2*,head4_head_tumour2*,head5_head_tumour2*"],
+  ["0x800000", "head1_head_tumour3*,head2_head_tumour3*,head3_head_tumour3*,head4_head_tumour3*,head5_head_tumour3*"],
+  ["0x1000000", "head1_head_tumour4*,head2_head_tumour4*,head3_head_tumour4*,head4_head_tumour4*,head5_head_tumour4*"],
+  ["0x2000000", "headwear1*,geo_head1*"],
+  ["0x4000000", "headwear2*,geo_head2*,headwear_acc*"],
+  ["0x8000000", "headwear3*,geo_head3*"],
+  ["0x10000000", "headwear4*,geo_head4*"],
+  ["0x20000000", "headwear5*,geo_head5*"],
+  ["0x40000000", "chest_shirt1*,rarm_shirt1*,larm_shirt1*,chestupper_bowtie1*,chest_tshirt1*,geo_upper1*,head_shirt1*,chestupper_neck_shirt1*,cap_rarmchest1,cap_chestrarm1,cap_larmchest1,cap_chestlarm1"],
+  ["0x80000000", "chest_shirt2*,rarm_shirt2*,larm_shirt2*,chestupper_bowtie2*,chest_tshirt2*,geo_upper2*,head_shirt2*,chestupper_neck_shirt2*,cap_rarmchest2,cap_chestrarm2,cap_larmchest2,cap_chestlarm2"],
+  ["0x100000000", "chest_shirt3*,rarm_shirt3*,larm_shirt3*,chestupper_bowtie3*,chest_tshirt3*,geo_upper3*,head_shirt3*,chestupper_neck_shirt3*,cap_rarmchest3,cap_chestrarm3,cap_larmchest3,cap_chestlarm3"],
+  ["0x200000000", "chest_shirt4*,rarm_shirt4*,larm_shirt4*,chestupper_bowtie4*,chest_tshirt4*,geo_upper4*,head_shirt4*,chestupper_neck_shirt4*,cap_rarmchest4,cap_chestrarm4,cap_larmchest4,cap_chestlarm4"],
+  ["0x400000000", "chest_shirt5*,rarm_shirt5*,larm_shirt5*,chestupper_bowtie5*,chest_tshirt5*,geo_upper5*,head_shirt5*,chestupper_neck_shirt5*,cap_rarmchest5,cap_chestrarm5,cap_larmchest5,cap_chestlarm5"],
+  ["0x800000000", "chest_shirt6*,rarm_shirt6*,larm_shirt6*,chestupper_bowtie6*,chest_tshirt6*,geo_upper6*,head_shirt6*,chestupper_neck_shirt6*,cap_rarmchest6,cap_chestrarm6,cap_larmchest6,cap_chestlarm6"],
+  ["0x1000000000", "chest_shirt1_tumour1*,larm_shirt1_tumour1,chest_shirt2_tumour1*,larm_shirt2_tumour1,chest_shirt3_tumour1*,larm_shirt3_tumour1,chest_shirt4_tumour1*,larm_shirt4_tumour1,chest_shirt5_tumour1*,larm_shirt5_tumour1,chest_shirt6_tumour1*,larm_shirt6_tumour1"],
+  ["0x2000000000", "pants_pants1*,rleg_pants1*,lleg_pants1*,rcalf_pants1*,lcalf_pants1*,lsock_pants1*,rsock_pants1*,geo_lower1*,cap_rleghip1,cap_hiprleg1,cap_lleghip1,cap_hiplleg1"],
+  ["0x4000000000", "pants_pants2*,rleg_pants2*,lleg_pants2*,rcalf_pants2*,lcalf_pants2*,lsock_pants2*,rsock_pants2*,geo_lower2*,cap_rleghip2,cap_hiprleg2,cap_lleghip2,cap_hiplleg2"],
+  ["0x8000000000", "pants_pants3*,rleg_pants3*,lleg_pants3*,rcalf_pants3*,lcalf_pants3*,lsock_pants3*,rsock_pants3*,geo_lower3*,cap_rleghip3,cap_hiprleg3,cap_lleghip3,cap_hiplleg3"],
+  ["0x10000000000", "pants_pants4*,rleg_pants4*,lleg_pants4*,rcalf_pants4*,lcalf_pants4*,lsock_pants4*,rsock_pants4*,geo_lower4*,cap_rleghip4,cap_hiprleg4,cap_lleghip4,cap_hiplleg4"],
+  ["0x20000000000", "pants_pants5*,rleg_pants5*,lleg_pants5*,rcalf_pants5*,lcalf_pants5*,lsock_pants5*,rsock_pants5*,geo_lower5*,cap_rleghip5,cap_hiprleg5,cap_lleghip5,cap_hiplleg5"],
+  ["0x40000000000", "pants_pants6*,rleg_pants6*,lleg_pants6*,rcalf_pants6*,lcalf_pants6*,lsock_pants6*,rsock_pants6*,geo_lower6*,cap_rleghip6,cap_hiprleg6,cap_lleghip6,cap_hiplleg6"],
+  ["0x80000000000", "pants_pants7*,rleg_pants7*,lleg_pants7*,rcalf_pants7*,lcalf_pants7*,lsock_pants7*,rsock_pants7*,geo_lower7*,cap_rleghip7,cap_hiprleg7,cap_lleghip7,cap_hiplleg7"],
+  ["0x100000000000", "skirt_skirt1*,rleg_skirt1*,lleg_skirt1*,rcalf_skirt1*,lcalf_skirt1*,lsock_skirt1*,rsock_skirt1*,geo_skirt_lower1*,cap_skirt_rleghip1,cap_skirt_hiprleg1,cap_skirt_lleghip1,cap_skirt_hiplleg1"],
+  ["0x200000000000", "lleg_lfoot1*,rleg_rfoot1*"],
+  ["0x400000000000", "lleg_lfoot2*,rleg_rfoot2*"],
+  ["0x800000000000", "lleg_lfoot3*,rleg_rfoot3*"],
+  ["0x1000000000000", "lleg_lfoot4*,rleg_rfoot4*"],
+  ["0x2000000000000", "lleg_lfoot5*,rleg_rfoot5*"],
+  ["0x4000000000000", "lleg_lfoot6*,rleg_rfoot6*"],
+  ["0x8000000000000", "lleg_lfoot7*,rleg_rfoot7*"],
+  ["0x10000000000000", "lleg_tallboot1*,rleg_tallboot1*"],
+]

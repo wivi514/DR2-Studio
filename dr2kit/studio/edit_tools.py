@@ -160,6 +160,22 @@ def run():
     arm = next((o for o in coll.objects if o.type == "ARMATURE"), None)
     if arm is not None:
         bpy.context.view_layer.objects.active = arm
+    # variants (phase 9): parts go into one collection per group (Head 1, Head 2, Shirt 1…);
+    # the parts the chosen look doesn't show are hidden (H / Alt+H, or the eye icons)
+    groups = dict()
+    for obj in list(coll.objects):
+        group = obj.get("dr2_group")
+        if group is None:
+            continue
+        sub = groups.get(group)
+        if sub is None:
+            sub = groups[group] = bpy.data.collections.new(group)
+            coll.children.link(sub)
+        sub.objects.link(obj)
+        coll.objects.unlink(obj)
+        if not obj.get("dr2_shown", True):
+            obj.hide_set(True)
+            obj.hide_render = True
     # show the textures: Material Preview in every 3D view (Solid view draws grey)
     for win in bpy.context.window_manager.windows:
         for area in win.screen.areas:

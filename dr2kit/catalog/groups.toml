@@ -348,8 +348,8 @@ format = "{Rest} (story)"
 
 [[label]]
 groups = ["zombies"]
-pattern = "^(?P<rest>.+)_(?P<n>\\d+)$"
-format = "{Rest}, variant {n}"
+pattern = "^(?P<rest>.+)_(?P<n>[234])$"
+format = "{Rest}"
 
 [[label]]
 groups = ["environments"]
@@ -360,6 +360,15 @@ format = "{rest}"
 groups = ["cutscene-props"]
 pattern = "^cine_(?P<rest>.+)$"
 format = "{Rest}"
+
+# Detail levels: files of one model drawn at different distances (_2 close, _3 medium,
+# _4 far: docs/formats.md §Variants). The Library lists the model once, with a Detail
+# choice; `dr2 export` still writes every level. `levels` go from most to least detailed.
+# (Before phase 9 these were labelled "variant 2/3/4", which they are not.)
+[[detail]]
+groups = ["zombies"]
+pattern = "^(?P<base>.+)_(?P<n>[234])$"
+levels = { "2" = "high", "3" = "medium", "4" = "low" }
 
 [names.characters]
 chest_young_chuck = "Young Chuck's orange 04 shirt (chest)"

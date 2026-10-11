@@ -38,6 +38,8 @@ dr2kit/
     audio.py           .xma -> PCM / WAV through PyAV; fitting audio to a sound (phase 5)
     material.py        bake colours that come from shader constants (zombie clothing)
     strings.py         find, search and export strings; write a mod's string changes (phase 6)
+    variants.py        which parts and colours a model shows: the game's shape classifier,
+                       slots, looks, colour choices, prop states (phase 9)
     video.py           Bink movies (Case West): probe, frames, sound, .mp4 export (phase 6)
   index/
     schema.sql         the SQLite tables
@@ -55,6 +57,7 @@ dr2kit/
   studio/
     app.py, viewers.py DR2 Studio (PySide6): tree, search, texture viewer, mod bar
     model_view.py      the 3D view: QWebEngineView + three.js over a dr2: URL scheme
+    variant_panel.py   the Variants panel beside the 3D view: slots, colours, detail (phase 9)
     audio_view.py      the audio view: waveform, playback (QAudioSink), loop (phase 5)
     text_view.py       text editor with a diff, and the string-bank table (phase 6)
     video_view.py      the movie view: Bink pictures + sound (phase 6)
@@ -77,7 +80,8 @@ tools/                 developer scripts: PyAV codec check, the phase 3 gates
                        xex_digests.py (the files each executable digest-checks),
                        blender_addon_gate.py (the add-on's flow inside Blender),
                        build_release.py + release/build_ffmpeg_lgpl.sh + release/make_icons.py
-                       (releases), newcomer_gate.py (phase 7: make, share, install, Play)
+                       (releases), newcomer_gate.py (phase 7: make, share, install, Play),
+                       variant_table.py (phase 9: the shape-group table out of an executable)
 setup.py               only a build hook: copies docs/modding into dr2kit/help/en/ in packages
 ```
 
@@ -360,7 +364,28 @@ rate, exact length; returns notes), `split_streams` cuts 5.1 into stereo streams
   the model's folder on disk (loose models such as `data/dynamicprops/special/*.big`),
   then the asset index (shared packs elsewhere, e.g. `models/special/weapon_common.tex`).
   `export_glb(tree, vpath)` / `export_skeleton_glb` tie it together for the CLI
-  (`dr2 extract --glb`) and Studio.
+  (`dr2 extract --glb`) and Studio. `TextureFinder.bake(scene, material, valueset)` bakes
+  a material's colours (with another value set for a colour choice) and remembers it.
+- Phase 9: `model_glb(tree, scene, variant=…, mode="all"|"shown")` is the one way every
+  caller (CLI, Studio, Export all, the Blender add-on) makes a model's `.glb` in a look:
+  `"all"` tags each node (`dr2_group`, `dr2_shown`, `dr2_part`) and writes the colour
+  choices as `KHR_materials_variants`; `"shown"` leaves the hidden parts (and their
+  textures) out. `model_to_glb` gained the `parts`, `include`, `colour_variants` and
+  `extras` arguments for it.
+
+### `dr2kit/convert/variants.py` (phase 9)
+What a model can show, the way the game decides it ([`formats.md`](../formats.md)
+§Variants; guide [`17-variants.md`](../modding/17-variants.md)). `Classifier` holds the
+game's 53-record shape-group table from the profile (`[variants]`, copied from the
+executable by `tools/variant_table.py`) and gives a shape name its bits with the game's
+prefix rule. `model_variants(scene, game)` → `ModelVariants`: each mesh as a `Part`
+(bits, group label such as *Head 2*, prop states, misplaced-digit flag), the `SLOTS` and
+`TOGGLES` present, the `PROP_STATES` (twin shapes by name). `Choice` is one look;
+`ModelVariants.parse(text)` / `Choice.text()` convert it, `default()`, `random()`,
+`everything()` make one, `shown(choice)` and `hide_mask(choice)` apply it (and
+`choice_from_mask` / `shown_by_mask` go the other way). `ColourBank(tree, game)` reads the
+shader bank's value sets (`*-sc.big`) and the game's colour list; `colour_choices(scene,
+bank)` finds each material's choices by the name rule; `read_variants` does both.
 
 ### `dr2kit/index/` (phase 2)
 `build.build_index(game, tree, db)` walks every file and archive (like the census) and
@@ -385,6 +410,12 @@ their 98 names) and `link_library()` (the `library_item` table from
 `library_counts`, `library_items`, `library_item`, `copies`, `scene_info`, `picture`,
 `rigs_of` and `rig_users`. Schema version 4.
 
+Phase 9: `link_library()` also folds a model's detail levels (`[[detail]]` rules:
+`zombie_cop_2/_3/_4`) into one item (`library_item.detail`, `detail_of`);
+`library_items(details=True)` includes them (exports), `detail_levels(con, id)` lists
+them. The model pictures show the default look (`convert.variants`; `THUMB_VERSION` 7).
+Schema version 5.
+
 ### `dr2kit/convert/render.py` (phase 8)
 A numpy software renderer for the Library's model pictures, run while the index is
 built (no window or GPU needed). `scene_parts(scene, texture_for)` turns a scene's draws
@@ -393,7 +424,8 @@ draws them orthographically from the front-right, rasterising every triangle wit
 lattice of points (`_lattice`) and keeping the nearest per pixel with one sort of packed
 integer keys; only the winning points are shaded. `to_png` encodes the result.
 `scene_parts` takes a `material_colour` hook, tried before the texture: the index uses it
-to bake zombie clothing (`convert.material`), as the `.glb` export does. Changing how
+to bake zombie clothing (`convert.material`), as the `.glb` export does, and a `meshes`
+set (phase 9: the default look of a zombie, not every part). Changing how
 pictures are drawn: bump `index.build.THUMB_VERSION`, and the next build redraws them.
 
 ### `dr2kit/catalog/` (phase 8)
@@ -409,7 +441,10 @@ pictures are drawn: bump `index.build.THUMB_VERSION`, and the next build redraws
   sub-group or section name, `Exporter.run(jobs, progress, cancel)` writes them: a model
   folder (`.glb`, `textures/*.png` + `textures.txt`, `skeleton.glb`, `info.txt`), WAV,
   MP4, `.bcs.json`, PNG or the raw file. Each file is written to `*.part` and renamed, and
-  existing files are skipped, so an export resumes where it stopped.
+  existing files are skipped, so an export resumes where it stopped. Phase 9: the
+  `Exporter` takes a look (`variant`) and a `mode`; models get every part organised by
+  default, `textures/colours/` holds each colour choice baked, and `info.txt` lists the
+  detail levels and the variants.
 
 ### `dr2kit/mods/` (phase 2)
 - `manifest`: `Mod.load(folder)` reads `mod.toml`; `Mod.files()` lists `replace/`;
@@ -453,7 +488,11 @@ file into the open mod, *Changes* shows a diff; `StringsViewer`: a bank as a fil
 table, edits go into the mod's `.bcs.json`), `video_view.py` (`VideoViewer`), and
 `mod_manager.py` (`ModManager`, the library window). Phase 8: `library_view.py`
 (`LibraryView`, the Library tab; `run_export`, an export with a progress bar and Cancel
-in a worker thread).
+in a worker thread). Phase 9: `variant_panel.py` (`VariantPanel`: slots, on/off parts,
+prop states, colour choices with swatches, the detail levels, Default / Random / Show
+everything); the window keeps each model's look (`MainWindow.looks`) for the 3D view,
+Export .glb (as shown), Export all and Open in Blender; `viewer.js`'s `dr2.setShown`
+hides parts without reloading, a colour change re-bakes and reloads keeping the camera.
 
 ## Tests
 

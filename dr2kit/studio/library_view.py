@@ -91,16 +91,19 @@ class _ExportWorker(QObject):
     step = Signal(int, int, str)
     finished = Signal(object, object)          # Result, error text
 
-    def __init__(self, game, root, db_path, jobs, cancel: threading.Event):
+    def __init__(self, game, root, db_path, jobs, cancel: threading.Event,
+                 variant: str | None = None):
         super().__init__()
         self.game, self.root, self.db_path, self.jobs, self.cancel = game, root, db_path, jobs, cancel
+        self.variant = variant
 
     @Slot()
     def run(self):
         from ..catalog.export import Exporter
         from ..container.vpath import AssetTree
         try:
-            ex = Exporter(AssetTree(self.root, cache_size=32), self.game, self.db_path)
+            ex = Exporter(AssetTree(self.root, cache_size=32), self.game, self.db_path,
+                          variant=self.variant)
             try:
                 res = ex.run(self.jobs, progress=self.step.emit, cancel=self.cancel.is_set)
             finally:
@@ -287,9 +290,11 @@ class LibraryView(QWidget):
         self.window.export_rows(rows, Path(folder), by_group=True)
 
 
-def run_export(window, rows: list, out: Path, *, by_group: bool, on_done=None) -> None:
+def run_export(window, rows: list, out: Path, *, by_group: bool, on_done=None,
+               variant: str | None = None) -> None:
     """Export ``rows`` of the window's game into ``out`` with a progress dialog and
-    *Cancel* (`dr2kit.catalog.export`)."""
+    *Cancel* (`dr2kit.catalog.export`). ``variant``: a model's look (choice text); models
+    are exported with every part, sorted into groups (`convert.variants`)."""
     import os
     from ..catalog.export import plan
     from ..profiles import locate
@@ -304,7 +309,7 @@ def run_export(window, rows: list, out: Path, *, by_group: bool, on_done=None) -
         dlg.setMinimumDuration(300)
         dlg.canceled.connect(cancel.set)
     th = QThread(window)
-    worker = _ExportWorker(game, locate(game).root, window.db_path, jobs, cancel)
+    worker = _ExportWorker(game, locate(game).root, window.db_path, jobs, cancel, variant)
     worker.moveToThread(th)
     relay = _Relay(window, dlg, out, on_done, th)
     th.started.connect(worker.run)

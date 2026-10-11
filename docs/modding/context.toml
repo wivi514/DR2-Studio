@@ -20,6 +20,7 @@ steps = [
   "Open or create a mod (bottom bar).",
   "Shape: click Open in Blender, edit, then in Blender's DR2 tab Check rig and Export to mod. In Blender: Z → Material Preview shows the textures; Viewport Overlays → untick Bones hides the skeleton ([how](07-blender-setup.md#seeing-the-model-clearly-textures-and-bones)).",
   "Textures: Export .glb… to Substance Painter (or any texturing program), export PNGs, then Import textures… (or drop the folder here).",
+  "A zombie? The Variants panel (right of the 3D view) picks its head, shirt, colours… Export .glb… gives that look; Export all… and Open in Blender give every part, sorted ([how](17-variants.md)).",
   "Click Play to see it in game. Limits: Help → Limits.",
 ]
 guide = "14-texturing-tools.md"

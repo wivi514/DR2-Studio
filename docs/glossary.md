@@ -329,10 +329,35 @@ it once and lists where the other copies are.
 **Variant.** One of several looks a model can have. A zombie model holds several heads,
 shirts and trousers at once, and the game shows one of each (a **shape group** per
 choice); a material can also swap its colours (a **colour variant**, another value set).
-Not to be confused with detail levels. Phase 9 ([`phase9-kickoff.md`](phase9-kickoff.md)).
+Not to be confused with detail levels. Phase 9 ([`modding/17-variants.md`](modding/17-variants.md)).
+
+**Look (variant choice).** One combination of choices for a model: head 2, no hat, shirt
+3, jersey colours 4… DR2 Studio's **Variants** panel edits it; the command line writes it
+as text (`head=2 headwear=none shirt=3 colour.jersey=4`).
+
+**Slot.** Something the game picks one of for each zombie: Head, Headwear, Shirt,
+Trousers, Skirt, Feet, Tall boots, Head tumour. A slot's choices are numbered by the
+part names (`head2_…`, `chest_shirt3…`); **none** takes the part off.
+
+**On/off part.** A part that is shown or not, apart from the slots: wound caps, burnt
+look, bare arms, glasses, chest accessories.
+
+**Hide mask.** The 64-bit number each zombie carries in the game: one bit per group of
+parts; a part is hidden when one of its bits is set. A look in the toolkit converts to
+this number (shown in the Variants panel), to compare with what a recomp reports.
+
+**Colour choice.** Another set of colours for a piece of clothing (`jersey 3`): another
+**value set** the game can swap in for the material's own. Only the numbers change, so
+the toolkit bakes it the same way as the own colours.
+
+**Prop state.** A prop's other look kept in the same file as twin parts: a slot
+machine's damaged logo (`slot_logo_dmg` next to `slot_logo`), its win screen, a lower
+detail copy (`LOD_slot_machine`). Off by default.
 
 **Detail level (LOD).** A simpler copy of a model the game draws when it is far away.
-Zombies come as `_2` (high), `_3` (medium) and `_4` (low detail).
+Zombies come as `_2` (high), `_3` (medium) and `_4` (low detail). The Library shows the
+three files as one item with a **Detail** choice (before phase 9 it called them
+"variant 2/3/4", which they are not).
 
 **Wound cap (`cap_*`).** A small shape that closes the hole where a zombie's limb or head
 came off. The game hides caps until that happens.

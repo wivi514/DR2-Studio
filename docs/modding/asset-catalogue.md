@@ -76,7 +76,7 @@ families (`dummy01.l_upperarm`, `dummy01.r_thumb1`, `dummy01.jaw` …).
 | `large` | `largefullbody.big` | 98 | big men (2 / 1) |
 | `child` | `childfullbody.big` | 98 | Katey (1 / 0) |
 | `longcloak` | `longcloakfullbody.big` | 112 | characters with long coats, 14 more bones (0 / 1) |
-| `zombie` | `zombiefullbody.big` | 30 | zombies (a light rig): every zombie variant, with its own proportions, and the cutscene zombies |
+| `zombie` | `zombiefullbody.big` | 30 | zombies (a light rig): every zombie type, with its own proportions, and the cutscene zombies |
 | `tiger` | `tigerfullbody.big` | 64 | the tiger (both games ship the rig) |
 | `camera`, `stage`, `prop` | | 1 / 1 / 50 | cutscene camera, stage origin, and 50 prop slots (`prop01` …) for cutscene props |
 
@@ -90,7 +90,7 @@ matches ([`16-library.md`](16-library.md)). `dr2 info <model>` shows which bones
 | Where | What |
 |---|---|
 | `data/models/npcs.big/<name>.big` | characters and outfit parts; textures in `<name>.tex` next to it. Whole NPCs: `boss_mechanic`, `cast_katey_pro_t1`, `cine_soldier` … |
-| `data/models/zombies.big/<type>.big/<type>_<n>.big` | zombie variants |
+| `data/models/zombies.big/<type>.big/<type>_<n>.big` | zombies: `_2` high, `_3` medium, `_4` low detail (the game swaps them by distance); each holds several heads, shirts, trousers… of which the game shows one each ([`17-variants.md`](17-variants.md)) |
 | `data/streamedassets.big/<Item>.big/<item>.big` | weapons and props, often with a few bones (doors, wheels, blades) |
 | `data/cine_props.big/<prop>.big/<prop>.big` | cutscene props (the bike, the ambulance doors …) |
 | `data/models/environment/<area>/<zone>.big/<piece>.big/_COMP_<piece>.big` | level pieces, with shared ("combined") vertex buffers |

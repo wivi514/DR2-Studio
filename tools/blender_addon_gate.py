@@ -11,7 +11,10 @@ It installs and enables the add-on, points its preferences at the toolkit folder
 presses its buttons as a user would: search the index for Case Zero's
 ``chest_young_chuck`` model, **Import** it, **Check rig** (an unchanged import must pass),
 push both arms out 2 cm, **Check rig** again (must still pass: the shapes are rebuilt),
-and **Export to mod** into ``out_mod``. Each step prints a ``DR2GATE`` line; the script
+and **Export to mod** into ``out_mod``. Phase 9 adds a zombie with variants
+(``zombie_skinny_2``): **Import** must sort its parts into group collections with the
+parts of other looks hidden; after a visible shirt is pushed out 2 cm, **Check rig** must
+pass (the hidden parts are left as they are) and **Export to mod** must write it. Each step prints a ``DR2GATE`` line; the script
 exits non-zero on the first failure. Afterwards ``dr2 mod check out_mod -g cz`` must
 accept the mod (docs/dev/testing.md §Phase 6 results).
 """
@@ -76,6 +79,42 @@ def main():
     if bpy.ops.dr2.export_to_mod() != {"FINISHED"}:
         fail("export to mod")
     print("DR2GATE exported to", mod, flush=True)
+    zombie(s)
+
+
+ZOMBIE = "data/models/zombies.big/zombie_skinny.big/zombie_skinny_2.big"
+
+
+def zombie(s):
+    """Phase 9: a model with variants imports organised; a part of the look exports."""
+    s.query = "zombie_skinny_2"
+    if bpy.ops.dr2.search() != {"FINISHED"}:
+        fail("zombie search")
+    s.index = next((i for i, r in enumerate(s.results) if r.vpath == ZOMBIE), -1)
+    if s.index < 0 or bpy.ops.dr2.import_asset() != {"FINISHED"}:
+        fail("zombie import")
+    coll = next(c for c in bpy.data.collections if c.get("dr2_vpath") == ZOMBIE)
+    groups = {c.name for c in coll.children}
+    hidden = [o.name for o in coll.all_objects if o.type == "MESH" and not o.visible_get()]
+    if not {"Head 1", "Head 2", "Shirt 1", "Wound caps", "Always shown"} <= groups or not hidden:
+        fail(f"zombie groups {sorted(groups)}, {len(hidden)} hidden")
+    print("DR2GATE zombie import", len(groups), "group collections,", len(hidden),
+          "parts hidden", flush=True)
+    shirt = next(o for o in coll.all_objects if o.name.startswith("chest_shirt1Shape"))
+    if not shirt.visible_get():
+        fail("shirt 1 (the default look) is hidden")
+    for v in shirt.data.vertices:
+        v.co += v.normal * 0.02
+    bpy.context.view_layer.objects.active = shirt     # in a group collection: still found
+    if bpy.ops.dr2.check_rig() != {"FINISHED"} or not s.last.startswith("OK"):
+        fail(f"zombie check: {s.last}\n" + bpy.data.texts["DR2 rig check"].as_string())
+    report = bpy.data.texts["DR2 rig check"].as_string()
+    if "replace chest_shirt1Shape" not in report or "kept as they are" not in report:
+        fail("zombie report:\n" + report)
+    print("DR2GATE zombie check edited", s.last, flush=True)
+    if bpy.ops.dr2.export_to_mod() != {"FINISHED"}:
+        fail("zombie export to mod")
+    print("DR2GATE zombie exported", flush=True)
 
 
 main()

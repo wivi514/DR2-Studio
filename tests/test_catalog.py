@@ -120,7 +120,12 @@ def test_shipped_rules_load_and_place_known_assets():
                      "chest_young_chuck.big") == \
         ("characters", "Outfit parts", "Young Chuck's orange 04 shirt (chest)")
     assert cat.place("cz", "model", "data/models/zombies.big/zombie_cop.big/zombie_cop_2.big",
-                     "zombie_cop_2.big") == ("zombies", "zombie_cop", "Zombie Cop, variant 2")
+                     "zombie_cop_2.big") == ("zombies", "zombie_cop", "Zombie Cop")
+    # detail levels, not variants (phase 9): one item, the levels folded into it
+    assert cat.detail("zombies", "zombie_cop_2.big") == ("zombie_cop", 0, "high")
+    assert cat.detail("zombies", "zombie_cop_4.big") == ("zombie_cop", 2, "low")
+    assert cat.detail("characters", "zombie_cop_4.big") is None
+    assert cat.detail("zombies", "zombie_test.big") is None
     assert cat.place("cz", "audio", "data/streamedassets.big/fx_ftspsneaker.big/a.xma",
                      "a.xma")[:2] == ("footsteps", "sneaker")
     assert cat.place("cw", "video", "data/movies/dr2_logo.bik", "dr2_logo.bik")[2] == \

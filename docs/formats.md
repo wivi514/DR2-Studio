@@ -1003,48 +1003,84 @@ weight map that the bake already handles). So the game probably binds another te
 (Chuck's normal face?) to these heads at run time. **Not verified in game.** Until it is,
 the toolkit shows and exports the file as it is.
 
-## Variants: which parts and colours a model shows 🟡
+## Variants: which parts and colours a model shows ✅
 
-Found 2026-10-10 (research for phase 9, [`phase9-kickoff.md`](phase9-kickoff.md)). A model
-can hold several looks at once; the game draws only some shapes and may swap a
-material's value set. Tools that draw every shape (the toolkit before phase 9) show a
-zombie wearing all its clothes at once.
+Found 2026-10-10 (research for phase 9, [`phase9-kickoff.md`](phase9-kickoff.md)); the
+layout corrected and the rules implemented the same day (`dr2kit/convert/variants.py`,
+`dr2 variants`, `dr2 census --variants`). A model can hold several looks at once; the
+game draws only some shapes and may swap a material's value set. Tools that draw every
+shape (the toolkit before phase 9) show a zombie wearing all its clothes at once. How the
+game picks a look per zombie is still unknown ❓ (below).
 
-**Shape groups (in the executable, both games).** A table of `{u32 pattern string,
-u32 0, u64 mask}` records, 16 bytes each, at CZ `0x829DF720` (read from the CZ recomp's
-`assets/game/default_image.bin`; CW has the same records, pointer at image offset
-`0x9F26D8`). Each pattern is a comma list of shape-name wildcards; a shape matching it
-belongs to that bit. Bits: `0x2…0x100` body regions for dismemberment (`head*`,
-`chest*`, `pants_*,skirt_*`, `larm_*`, `rarm_*`, `lleg_*`, `rleg_*`, each with its
-`cap_…` caps; CW adds `cap_lfoot*`/`cap_rfoot*`), `0x4` all caps, `0x200…0x1000`
-accessories, `0x4000` bare arms, `0x8000` gas look, `0x10000` burnt look (`*_black*`),
-`0x20000…0x200000` heads 1-5 (`head1_*,chestupper_neck1*,cap_neckchest1,cap_chestneck1`),
-`0x400000…0x2000000` head tumours 1-4, `0x4000000…0x40000000` headwear 1-5,
-`0x80000000…0x1000000000` shirts 1-6, `0x2000000000` shirt tumours,
-`0x4000000000…0x100000000000` trousers 1-7, `0x200000000000` skirt,
-`0x400000000000…0x10000000000000` feet 1-7; `lleg_tallboot1*,rleg_tallboot1*` follows,
-but the words after it read as floats (3.0, 0.3), so its mask is not known ❓.
-Shapes matching no numbered group (`head_eyes`, `rarm_arm`) are always drawn; `cap_*`
-shapes are the wound caps shown when a limb comes off. Bit values in this paragraph are
-the table's stored values; the per-mesh bits the game uses are half of them (below).
-Checked: the numbered shapes of
-every zombie `_2` model in both games fit these groups. ❓ How the game picks a number
-per slot (the mask is set in code not yet read; the loader is CZ `sub_825B3670`).
+**Shape groups (in the executable, both games).** 53 records of 16 bytes,
+**`{u64 mask, u32 pattern address, u32 0}`**, big-endian, at CZ `0x829DF718` and CW
+`0x829F25D0` (read from the recomps' `assets/game/default_image.bin`, the image mapped at
+`0x82000000`; `tools/variant_table.py` finds and prints them, and checks the copy in the
+profiles' `[variants]`). The loader (CZ `sub_825AC588`) passes that address and the count
+53 to the classifier. Each pattern is a comma list; a shape matching it gets that bit:
+
+| Mask | Patterns (abridged) | The toolkit calls it |
+|---|---|---|
+| `0x1` … `0x80` | `head*`, `chest*` (+ hip caps), `pants_*,skirt_*`, `larm_*`, `rarm_*`, `lleg_*`, `rleg_*`, each with its `cap_…` | body regions (cutting limbs off); never hidden by a look |
+| `0x2` | `cap_*` | Wound caps |
+| `0x100` | `headwear*` | (headwear region) |
+| `0x200`, `0x400`, `0x800` | `eyewear_acc*`, `chest_acc*`, `chest_acc_bkpc` | Glasses, Chest accessories, Backpack |
+| `0x1000` | `*` | matched nothing else (only used then) |
+| `0x2000`, `0x4000`, `0x8000` | `larm_arm*,rarm_arm*`; `head_gas*…`; `head_black*,…,pants_black*` | Bare arms, Gas look, Burnt |
+| `0x10000` … `0x100000` | `head1_*,chestupper_neck1*,cap_neckchest1,cap_chestneck1` … `head5_…` | Head 1-5 |
+| `0x200000` … `0x1000000` | `head1_head_tumour1*,…,head5_head_tumour1*` … tumour 4 | Head tumour 1-4 |
+| `0x2000000` … `0x20000000` | `headwear1*,geo_head1*` (`headwear2*` adds `headwear_acc*`) … 5 | Headwear 1-5 |
+| `0x40000000` … `0x800000000` | `chest_shirt1*,rarm_shirt1*,larm_shirt1*,chest_tshirt1*,geo_upper1*,…,cap_chestlarm1` … 6 | Shirt 1-6 |
+| `0x1000000000` | `chest_shirt1_tumour1*,larm_shirt1_tumour1,…` | Shirt tumour |
+| `0x2000000000` … `0x80000000000` | `pants_pants1*,rleg_pants1*,…,geo_lower1*,cap_rleghip1,…` … 7 | Trousers 1-7 |
+| `0x100000000000` | `skirt_skirt1*,…,geo_skirt_lower1*,…` | Skirt |
+| `0x200000000000` … `0x8000000000000` | `lleg_lfoot1*,rleg_rfoot1*` … 7 | Feet 1-7 |
+| `0x10000000000000` | `lleg_tallboot1*,rleg_tallboot1*` | Tall boots |
+
+CW's table is CZ's plus `cap_lfoot*` / `cap_rfoot*` in the leg regions (`0x40`, `0x80`).
+
+> **Retraction (2026-10-10, same day).** The first reading took the records as
+> `{u32 pattern, u32 0, u64 mask}` starting at CZ `0x829DF720`, which pairs every pattern
+> with the mask of the record before it. That made the masks look "twice the bits the
+> game uses" ("the per-mesh bits are the table values shifted right by one") and left the
+> tall boots' mask unreadable ("the words after it read as floats"). Both came from the
+> 8-byte misalignment: the classifier loads the mask with `ld r29,0(r6)` and the pattern
+> with `lwz r11,8(r6)`, the 8 bytes before `0x829DF720` hold `0x1` (head) and the tall
+> boots' mask is `0x10000000000000`. The values the CZ recomp measured (head 1
+> `0x10000`, the helmet `0x04000101`) are the table's own values.
+
+**The matcher** (CZ `sub_82795420`, called by `sub_827A2E10` for each record): an
+alternative matches when it is a **prefix** of the shape name; `*` ends the alternative
+(so `head1_*` and `cap_neckchest1` are both prefixes); comparison is case-sensitive.
+A shape's bits are the OR of every record that matches; the `*` record counts only when
+nothing else did (the classifier keeps it apart: `cmplwi r11,42`).
+
+**The slot table** (CZ `0x8208A2E0`, CW `0x82084AE0`): 7 rows of 7 u64, the masks of
+heads 1-5, headwear 1-5, shirts 1-6, trousers 1-7, skirt, feet 1-7, tall boots (unused
+entries 0). The same loader reads it to build, for each of 6 shirts, a 32-bit set of
+meshes: the burnt meshes plus head 1, headwear 1, that shirt, trousers 1, skirt, feet 1
+and tall boots. Its use (a burnt look?) is not traced further ❓.
 
 **At run time (measured in the CZ recomp, its sessions 2026-10-08 to 10; code
 `runtime/cpu/zombie_variant_names.cpp` there, commit `78632f1`).**
-- When a model loads, `sub_827ACF00` runs every mesh name through the wildcard
-  classifier `sub_827A2E10` and builds a per-type table, 8 bytes per mesh in model order.
-  **A mesh's bits are the table values above shifted right by one**: head 1 `0x10000`,
-  head 2 `0x20000`, head 3 `0x40000`, the helmet `headwear2` `0x04000101` (headwear 2 +
-  headwear + head region). Checked here against the recomp's live hide mask
-  `0x001FFFCF767EC602`: only the halved bits reproduce the bare-headed soldier it drew.
+- When a model loads, `sub_827ACF00` runs every mesh name through the classifier and
+  builds a per-type table, 8 bytes per mesh in model order (head 1 `0x10000`, the helmet
+  `headwear2` `0x04000101` = headwear 2 + headwear + head region).
 - **Each zombie carries a 64-bit hide mask** (actor `+0x40`); at draw time `sub_827ADD40`
   skips a mesh when `bits & mask != 0`. So a set bit hides a variant, and meshes with no
   variant bits always draw. The mask is set in `sub_82437600` (`0x82437978`):
-  `actor+0x40 = r24 ? 0x4000 : *(spawn+0x30)`. ❓ What writes `spawn+0x30`: probably
-  rolled from the zombie-spawn seed (random stream 4, a Park-Miller generator at
-  `0x8276F728`), not found yet. ❓ How a colour set is chosen per zombie.
+  `actor+0x40 = r24 ? 0x4000 : *(spawn+0x30)`. The spawn record is filled by
+  `sub_8248A420` (`std r9,48(r3)`) from its callers' objects (`sub_82439960`: `+128`;
+  `sub_8243C688`, `sub_82475D78`, `sub_8243D2C0` via `sub_8248A460`). ❓ Where those
+  objects get the mask: probably rolled from the zombie-spawn seed (random stream 4, a
+  Park-Miller generator at `0x8276F728`), not found yet. ❓ How a colour set is chosen.
+- The measured live mask `0x001FFFCF767EC602` decodes to: wound caps, glasses, chest
+  accessories, gas and burnt hidden; heads 2-5 hidden (head 1 shown); head tumours 1-2
+  hidden; headwear 1, 2, 4, 5 hidden (headwear 3 shown: the soldier has none, so no hat);
+  shirts 1, 3-6 hidden; trousers 2-7, skirt, every foot and the tall boots hidden. So the
+  game hides every number but one per slot, numbers the model doesn't have included, and
+  can pick a number the model lacks (no hat, no feet). `tests/test_variants.py` checks
+  that this mask draws exactly the bare-headed soldier with the toolkit's rule.
 - **Distance:** the crowd renderer `sub_825B8680` gives the zombies largest on screen `_2`,
   the next `_3`, the rest `_4`. `_2` and `_3` honour the mask; `_3`'s shaders don't sample
   normal maps; `_4` is one baked texture (`zombie_fat_4.tex/al_lod4_cm`) and only roughly
@@ -1052,13 +1088,22 @@ per slot (the mask is set in code not yet read; the loader is CZ `sub_825B3670`)
 - **Names decide, so a misspelling breaks a variant.** CZ `zombie_soldier_3.big` has
   `headwearShape2Deformed` and `chestupper_neckShape2Deformed` (digit after "Shape"), which
   classify without their variant bit: every far soldier wore the helmet. The CZ recomp
-  corrects the name for the classifier. CW `zombie_security_2.big` (the close model) has
-  `chestupper_neckShape1Deformed` and `chestupper_neckShape3Deformed` too, seen in the
-  shape census here; the CW recomp has no such fix ❓ (effect in CW not checked).
+  corrects the name for the classifier. CW `zombie_security_2.big` **and `_3.big`** have
+  `chestupper_neckShape1Deformed` and `chestupper_neckShape3Deformed` (census: these 6 are
+  all, both games); the CW recomp has no such fix ❓ (effect in CW not checked). The
+  toolkit reads them as meant and says so.
+
+**Which models.** The game classifies crowd zombies. The toolkit applies the table to
+every model in `data/models/zombies.big` and to any model with numbered parts (cutscene
+zombies `cine_zombie_*`); never to people or props, whose `cap_…` or `head_…` names mean
+nothing to the table. Census (`dr2 census --variants`, 2026-10-10): CZ 43 models, CW 42;
+no shape carries two numbers of one slot; zombie shapes that match no pattern (always
+drawn): CZ 113, CW 162, nearly all `geo_*` and `polySurface*` parts of cutscene zombies.
 
 **Detail levels.** `<zombie>_2.big`, `_3.big`, `_4.big` are high, medium and low detail
-(CZ `zombie_cop`: 214, 102, 19 KB). `_3` keeps the same groups; `_4` keeps the clothing
-groups only, or is one shape (`zombie_cop_4`: `geo_lod4`).
+(CZ `zombie_cop`: 214, 102, 19 KB). `_3` keeps `_2`'s slots (census: every zombie of both
+games; CZ `zombie_cop_3` adds a `pants2` shape); `_4` keeps headwear (as `geo_headN`), shirts
+and trousers (as `geo_upperN`/`geo_lowerN`) or none (`zombie_cop_4`: `geo_lod4`).
 
 **Colour variants.** A value set (`.scv`) carries its `.pdv` name inside. CZ's
 `data/datafile.big/zombie_pdv_variations.txt` maps, per model section (`[zombie_skinny_2]`),
@@ -1066,25 +1111,33 @@ a material's own `.pdv` to its alternatives:
 `zombie_skinny_mtl_jersey.pdv=zombie_skinny_mtl_jersey1.pdv,…jersey5.pdv,` (8 models,
 36 materials, 129 alternatives). The alternatives are value sets in
 `shaders/deadrisingprologue-sc.big` (149; the same 149 in `preload4.big`), found by
-their embedded names: **all 129 found** (2026-10-10). CW's list
-(`data/preload4.big/zombie_pdv_variations.txt`) is **empty**, yet
-`shaders/deadrisingepilogue-sc.big` holds 265 value sets (zombie-named alternatives such
-as `zombie_showgirl_mtl_caps1…4`). The executables name the list
+their embedded names: **all 129 found** (2026-10-10). **The name rule** — the bank's value
+sets named `<own name>N.pdv` or `<own name>_varN.pdv`, by N — **gives exactly the listed
+choices** for every listed material (census, 2026-10-10), and also choices for materials
+the list doesn't name: CZ's `_3` models (the list has `_2` and `_4` sections only): 219
+choices for 62 materials in all. CW's list (`data/preload4.big/zombie_pdv_variations.txt`)
+is **empty**, yet `shaders/deadrisingepilogue-sc.big` holds 265 value sets; the rule finds
+289 choices for 81 materials of 13 CW models (`zombie_showgirl_mtl_caps1…4` and other DR2
+names have no model in CW). The executables name the list
 (`data/datafile/tofix/zombie_pdv_variations.txt`) and `shaderconstantvariationmap.cpp`.
-The names follow `<base>N.pdv` / `<base>_varN.pdv`, which reproduces CZ's list ❓ (does CW
-pick by name, or not at all?).
+❓ Does CW's game use the choices (by name), or not at all; does CZ vary `_3`'s colours.
 
 **Prop states.** Some props keep states as shapes (slot machines: `slot_logo` /
 `slot_logo_dmg`, `slot_screen_staticWin`, `slot_screen_staticOff`, `LOD_slot_machine`),
 others as files (`cashregister_dmg.big`, `military_hummwv_hummwv_stage2/3.big`,
-`chair_1…9.big`). Counts by name over both games: 70 models with on/off/win/open-style
-shape names, 11 with damaged or broken shapes, 9 with `LOD_` shapes.
+`chair_1…9.big`). ~~Counts by name over both games: 70 models with on/off/win/open-style
+shape names, 11 with damaged or broken shapes, 9 with `LOD_` shapes.~~ (Retracted
+2026-10-10: those counts matched `window`, `wings` and similar names. By twin shapes — a
+state shape whose base name is also a shape — only CZ's two slot machines keep states
+as shapes; `dr2 census --variants`.) Environment pieces with burnt, damaged or LOD-like
+shape names (CZ 0, CW 66, mostly `lod_large`/`lod_small` pieces of Case West's zones)
+are listed by the census, not classified.
 
 **Chuck's outfits.** `data/datafile.big/outfits.csv` (`outfit_name, headwear_piece, head,
 facewear, chest_piece, hands, leg_piece, feet_piece`) lists the part model per slot
 (`OUTFIT_BOWLING_SHIRT_JEANS,NONE,naked,NONE,Bowling_Shirt_Jeans,naked,…`);
 `clothingdatabase.csv` marks which body slots each part covers (`Hair, Head, Facewear,
-Shoulders, Chest, Arms…`).
+Shoulders, Chest, Arms…`). Not used by the toolkit yet.
 
 ## Rig matching (which skeleton file a model was made for) ✅
 
