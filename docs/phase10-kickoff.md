@@ -20,11 +20,19 @@ So, three goals:
 The research (2026-10-11) is below, then the plan. The facts are also in
 [`formats.md`](formats.md) §Levels, with how each was found.
 
-## Status (2026-10-11): planned and approved, nothing built
+## Status (2026-10-11): being built
 
 The user approved the plan and every decision below (2026-10-11), stressing: show the
 switched-on mods, and make switching to **without mods** easy. Editing levels moves to a
 possible **phase 11** (below); phase 10 only shows and extracts.
+
+| Step | State |
+|---|---|
+| 1. Read a level | ✅ 2026-10-11: `formats/level.py`, `convert/level.py` (a zone → one `.glb`), `gltf.Assembler`, `dr2 level list/info`, `dr2 census --levels` (0 problems, both games). Placement maths confirmed (census + pictures of CZ z05 inside and out, all of CZ `prologue` and CW `living_research`). Fixed on the way: level pieces exported their small `_LOD` textures. Owed: the recomp frame from the same spot (with the gate's capture) |
+| 2. Placed things | — |
+| 3. Maps tab | — |
+| 4. Extract | — |
+| 5. See your mods | — |
 
 ## Start here (handoff, 2026-10-11)
 

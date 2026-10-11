@@ -28,6 +28,7 @@ dr2kit/
     audioscript.py     .sfx and audio scene scripts: the block text format (phase 5)
     shader.py          shader constant tables (.po) and material value sets (.scv)
     bcs.py             string banks (str_<lang>.bcs): read, write, JSON, apply changes (phase 6)
+    level.py           levels: the zone list and each zone's placement table (phase 10)
   convert/
     png.py             pure-Python PNG reader/writer (Pillow used when present)
     dxt.py             DXT1/DXT5/DXN block decode + encode (numpy, pure-Python fallback)
@@ -40,6 +41,7 @@ dr2kit/
     strings.py         find, search and export strings; write a mod's string changes (phase 6)
     variants.py        which parts and colours a model shows: the game's shape classifier,
                        slots, looks, colour choices, prop states (phase 9)
+    level.py           levels: list them, read a zone, put its pieces in place → .glb (phase 10)
     video.py           Bink movies (Case West): probe, frames, sound, .mp4 export (phase 6)
   index/
     schema.sql         the SQLite tables
@@ -372,6 +374,25 @@ rate, exact length; returns notes), `split_streams` cuts 5.1 into stereo streams
   choices as `KHR_materials_variants`; `"shown"` leaves the hidden parts (and their
   textures) out. `model_to_glb` gained the `parts`, `include`, `colour_variants` and
   `extras` arguments for it.
+- Phase 10: `TextureFinder` treats `<piece>.tex` as a level piece's own pack (its scene is
+  `<piece>.big/_COMP_<piece>.big`) and ranks the small `_LOD.tex` copies last
+  (`lod=True`: first). `gltf.Assembler` merges whole `.glb` files into one: `add(glb,
+  placements, parent)` copies meshes and materials once and gives each placement its
+  own node tree (instancing), images with the same bytes are stored once, `group(name)`
+  makes a folder node (a Blender collection).
+
+### `dr2kit/formats/level.py`, `dr2kit/convert/level.py` (phase 10)
+Levels ([`formats.md`](../formats.md) §Levels). `formats.level` reads the binary tables:
+`read_zone_list` (`zonelist.big` → `Zone` records), `ZoneOrganization.from_entries`
+(`ZONE_ORGANIZATION.big` → `Placement` records: piece, scale, quaternion, position,
+world bounds, distances, flags, the unknown bytes kept in `tail`), each with `to_bytes`
+(byte-identical, checked by the census). `Placement.matrix()` / `to_world(p)` apply
+world = rotation × (scale × local) + position. `convert.level` finds the levels
+(`list_levels`, `Level.open(tree, "prologue")`), reads a zone (`Level.zone("z05")` →
+`ZoneData`: pieces by name → scene vpath, placements, `unplaced`, `missing`) and builds
+it as one `.glb` (`zone_glb`: each piece through `model.model_glb` in its default look,
+placed by `gltf.Assembler`; `lod=True` for the small textures). The level census is
+`census.check_levels` (`dr2 census --levels`); the CLI is `dr2 level list|info`.
 
 ### `dr2kit/convert/variants.py` (phase 9)
 What a model can show, the way the game decides it ([`formats.md`](../formats.md)

@@ -266,6 +266,45 @@ def cmd_variants(args) -> int:
     return 0
 
 
+# ---- level -----------------------------------------------------------------------------
+
+def cmd_level(args) -> int:
+    """Levels: list them and their zones, or describe a level, a zone, its placements."""
+    from ..convert import level as clevel
+    tree = _tree(args)
+    if args.action == "list":
+        for L in clevel.list_levels(tree):
+            print(f"{L.name:<22} {len(L.zones):>2} zones   {L.vpath}")
+            print("    " + " ".join(L.zone_names()))
+        return 0
+    L = clevel.Level.open(tree, args.level)
+    if not args.zone:
+        print(f"{L.name}: {len(L.zones)} zones ({L.vpath})")
+        for z in L.zones:
+            zd = L.zone(z)
+            c = z.centre
+            print(f"  {z.zone:<24} {len(zd.pieces):>4} pieces {len(zd.placements):>4} placed   "
+                  f"centre {c[0]:8.1f} {c[1]:6.1f} {c[2]:8.1f}  radius {z.radius:6.1f} m")
+            for name in zd.unplaced:
+                print(f"      never placed: {name}")
+            for name in zd.missing:
+                print(f"      placed, but not in the zone: {name}")
+        return 0
+    zd = L.zone(args.zone)
+    print(f"{zd.vpath}: {len(zd.pieces)} pieces, {len(zd.placements)} placements")
+    import math
+    for p in zd.placements:
+        x, y, z = p.position
+        yaw = math.degrees(2 * math.atan2(p.rotation[1], p.rotation[3]))
+        rot = "" if p.rotation[:3] == (0.0, 0.0, 0.0) else (
+            f"  turned {yaw:.0f}°" if p.rotation[0] == p.rotation[2] == 0.0 else
+            f"  rotation {' '.join(f'{c:.3f}' for c in p.rotation)}")
+        scale = "" if p.scale == (1.0, 1.0, 1.0) else f"  scale {' '.join(f'{c:.3f}' for c in p.scale)}"
+        flags = f"  flags {p.flags:#x}" if p.flags else ""
+        print(f"  {p.index:>3} {p.piece:<32} at {x:8.2f} {y:7.2f} {z:8.2f}{rot}{scale}{flags}")
+    return 0
+
+
 # ---- model -----------------------------------------------------------------------------
 
 def cmd_model(args) -> int:
@@ -883,7 +922,7 @@ def cmd_census(args) -> int:
         rep = run_census(g, tree, python_lzx=args.python_lzx, reencode=args.reencode,
                          textures=args.textures, models=args.models,
                          reimport=args.reimport, audio=args.audio, workers=args.workers,
-                         progress=progress, variants=args.variants)
+                         progress=progress, variants=args.variants, levels=args.levels)
         print(format_report(rep))
         reports.append(rep)
     if args.json:
@@ -995,6 +1034,16 @@ def build_parser() -> argparse.ArgumentParser:
                    help="list every part: its group, the game's bits, shown or hidden")
     game_opt(p)
     p.set_defaults(func=cmd_variants)
+
+    p = sub.add_parser("level", help="the games' levels: zones, pieces and where they go")
+    lsub = p.add_subparsers(dest="action", required=True, metavar="ACTION")
+    pl = lsub.add_parser("list", help="every level and its zones")
+    game_opt(pl)
+    pl = lsub.add_parser("info", help="a level's zones, or one zone's placements")
+    pl.add_argument("level", help="a level, e.g. prologue (Case Zero) or living_research (Case West)")
+    pl.add_argument("zone", nargs="?", help="a zone, e.g. z05 or prologue_z05")
+    game_opt(pl)
+    p.set_defaults(func=cmd_level)
 
     p = sub.add_parser("model", help="check or import a .glb edited in Blender into a model")
     msub = p.add_subparsers(dest="action", required=True, metavar="ACTION")
@@ -1204,6 +1253,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--variants", action="store_true",
                    help="also classify every model's parts as the game does (heads, "
                         "shirts…), and check every colour choice (phase 9)")
+    p.add_argument("--levels", action="store_true",
+                   help="also read every level: zones, placements, pieces (~1 min per game)")
     p.add_argument("--workers", type=int,
                    help="processes for --reencode / --audio (default: all CPUs)")
     p.add_argument("-q", "--quiet", action="store_true", help="no per-archive progress")

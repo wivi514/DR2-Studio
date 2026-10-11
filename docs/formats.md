@@ -24,7 +24,7 @@ Case West census before they count as rules (CLAUDE.md rule 7).
 | shader banks `.vo/.po/.vdo/.pdo/.sdo/.scv` | `shaders/*-{vs,ps,vd,pd,sc,sd,ss}.big` | 🟡 | `.vo`/`.po` are standard 360 D3D shader containers (`10 2A 11 01`, XenosRecomp translates them); `.sdo` = a shader name's permutations (`5cef4d20.sdo` → `ProtoSkinnedClothRGB`). Models carry their **own** vertex declarations, so the decoder doesn't need `-vd.big` (phase 0 guessed it did) |
 | mission / data `.txt`, `.csv` | `datafile.big`, CW loose `.csv` | ✅ text | engine scripting; edited for co-op in the CZ recomp |
 | `.bik` | **CW only**, `data/movies` | ✅ read (Bink) | `dr2kit/convert/video.py` through PyAV: all 10 movies decode, every frame and the sound (`census --audio`); export to `.mp4`. Replacing one needs a Bink encoder (§Movies) |
-| level zones (`zonelist.big`, `ZONE_ORGANIZATION.big`) | `models/environment/<level>/` | 🟡 | where each level piece is placed: 208-byte records, layout mostly read (§Levels); no reader in the toolkit yet (phase 10) |
+| level zones (`zonelist.big`, `ZONE_ORGANIZATION.big`) | `models/environment/<level>/` | ✅ read | where each level piece is placed: 208-byte records, placement maths confirmed, written back identically; a few tail bytes unknown (§Levels, `formats/level.py`) |
 | level text files (`<level>.txt`, `waypoint_*`, `nm_*`, `fe_map_*`) | `datafile.big` | 🟡 text | placed items, doors, spawn points, zombie areas, triggers, the navigation mesh, the in-game map (§Levels) |
 | zone collision `MERGED_COLLISION.big` | every zone | ❓ | a scene with no drawable mesh; the geometry's form is unknown |
 | digest list | the XEX's `Digest` resource | ✅ | files the executable checks; mods can't touch them (§Digest-checked files) |
@@ -1190,40 +1190,93 @@ materials or bones), a texture keeps its size and format, a sound keeps its leng
 
 ## Levels: zones, placements, level text files 🟡
 
-Researched 2026-10-11 for phase 10 (`phase10-kickoff.md`); nothing in the toolkit reads
-these yet except the pieces themselves. Measured on every zone of both games with
-throwaway scripts (redo them as `phase10-kickoff.md` §Start here says).
+Researched 2026-10-11 for phase 10 (`phase10-kickoff.md`). **Read by the toolkit since
+phase 10 step 1** (2026-10-11): `dr2kit/formats/level.py` (zone list, placements) and
+`dr2kit/convert/level.py` (a zone as one `.glb`), checked by `dr2 census --levels` on
+every zone of both games. The level text files are still research only (step 2).
 
 **Layout.** A level is `data/models/environment/<level>/`: a `zonelist.big` and one
 archive per **zone** `<level>_zNN.big` (CZ `prologue` z01-z11, CW levels z00-z09). A zone
 holds, per piece, `<piece>.big` (one entry, `_COMP_<piece>.big`, an ordinary scene that
-`convert.model.read_scene` reads: 1,573 of 1,573 pieces of the five main levels, 0
-failures), `<piece>.tex` and `<piece>_LOD.tex` (its textures full size and small);
-plus `ZONE_ORGANIZATION.big`, `MERGED_COLLISION.big` and an empty `COMMON_TEXTURE.tex`.
+`convert.model.read_scene` reads), `<piece>.tex` and `<piece>_LOD.tex` (its textures
+full size and small: the same names, a quarter of the size, `.bct` added to the names in
+the small pack); plus `ZONE_ORGANIZATION.big`, `MERGED_COLLISION.big` and
+`ZONE_ORGANIZATION(_LOD).tex` / `MERGED_COLLISION(_LOD).tex` (not archives).
+
+Levels found (`dr2 level list`): CZ `prologue` (11 zones), `prologue_menu` (5: the title
+screen's street, its zone archives named `prologue_z01`… like the street's),
+`prologue_menu2` (1); CW `living_research`, `storage_pens`, `secure_laboratory`,
+`safehouse` (10 zones each), `main_menu` (one zone named `main_menu`) and four cutscene
+sets `cine_*` (1 zone each).
 
 **`zonelist.big`**: `NumZones` (be32) and `ZoneList`, `NumZones` × 132 bytes:
-`char name[64]` (`prologue/prologue_z05`), `f32 min[3], max[3], centre[3], radius`, a
-be32 (−1, or 1 / 2 for CZ's z10 / z11), zeros. Checked against the zones' own
-`_ZONEINFO_` for CZ z05 (same bounds).
+`char name[64]` (`prologue/prologue_z05`; Case West writes a backslash,
+`living_research\living_research_z01`), `f32 min[3], max[3], centre[3], radius`, an
+`i32` (−1, or 1 / 2 for CZ's z10 / z11, two small interiors ❓), 24 zero bytes. Each
+zone's own `ZONE_ORGANIZATION.big/_ZONEINFO_` (10 floats) holds the same bounds: 60 of
+62 zones; CW `cine_exterior_before_z01` and `living_research_z05` differ (census note).
 
 **`ZONE_ORGANIZATION.big/ModelInstanceArray`**: `NumModelInstance` × 208 bytes (every
 record of both games is 208 bytes; `ModelInstanceArray_Dynamic` is empty in all zones):
 
 ```
 +0    char name[32]; char name2[32]      the piece (both names equal in every record)
-+64   f32 scale[3]                       1,1,1 in every record seen
-+76   f32 rotation[4]                    quaternion x,y,z,w
++64   f32 scale[3]                       1,1,1 on 1,870 of 1,894; 24 others (CZ 0.542…)
++76   f32 rotation[4]                    quaternion x,y,z,w (unit length but one, below)
 +92   f32 position[3]
 +104  f32 bounds_min[3], bounds_max[3], centre[3], radius     world space
-+144  f32 0, draw distance (20…110), 0, 0; u32 0xFFFFFFFF; 0; f32 (5…20); zeros
-+200  u32 the piece's number in the zone; 0; 0      [tail fields: meaning unknown ❓]
++144  u32 flags                          0, or 0x20 on 71 placements ❓
++148  f32 draw distance (20…110)
++152  u32 0, 0, 0xFFFFFFFF, 0            the same in every record [meaning unknown ❓]
++168  f32 (5…20, a LOD distance?)
++172  24 zero bytes
++196  u32 the piece's number in the zone
++200  8 zero bytes
 ```
 
-A piece's mesh is stored around its centre (`z05_bowling_struc` local bounds ±18.8 m;
-placed at x −162, its world bounds centre): world = rotation × (scale × local) +
-position (to be confirmed by assembling a zone, phase 10 step 1). CZ: 922 placements in
-all its zones, CW: 972. `MERGED_COLLISION.big` parses as a scene but has no drawable mesh
-(the collision geometry is in its `persistent.big` in a form not read ❓).
+*Retraction (2026-10-11, step 1):* the research put the piece's number at +200; it is at
++196 (+200…+207 are zeros), and +144 is a flags word, not a float 0: its only other
+value, 0x20, marks trees, foliage, spinning fans, some lights and ceiling beams (CZ 54,
+CW 17; perhaps "moves" ❓).
+
+**The placement maths, confirmed** (step 1, 2026-10-11): a piece's mesh is stored around
+its centre, and **world = rotation × (scale × local) + position**, with the quaternion
+used as stored (x, y, z, w, as glTF; its conjugate puts CZ `z05_glass08` 3.8 m off).
+How it was checked:
+
+* *Census* (`dr2 census --levels`): for every placement, the piece's shape bounds
+  (each shape's stored box, through its node, `Scene.rigid_node`) placed this way give
+  the record's world bounds: 1,868 of 1,894 placements within 8 mm. 23 others hold
+  pieces whose shapes store bounds that don't fit their own vertices (CZ's street
+  signs and shop-window glass, CW cutscene skies): their **vertices**, placed, lie
+  inside the record's bounds. 3 are unexplained and named: CZ `prologue_menu`
+  `z03_hotel_top_billboard` (vertices 5.6 m outside), CW `cine_exterior_before`
+  `817_sky08` (1.4 m) and `living_research_z00` `z00_decalA_01` (0.47 m).
+* *Pictures*: CZ `prologue_z05` (the bowling alley, inside and out), the whole of CZ
+  `prologue` and CW `living_research`, assembled and rendered in Blender: walls, roofs,
+  floors, lanes and signs meet with no gaps.
+* One record, CW `safehouse_z00` `glower_fl`, has a quaternion of length 1.017 (and
+  scale 1, 1, 0.774); the toolkit normalises it.
+
+Every record writes back to the stored bytes (`Placement.to_bytes`, census). Every
+placement names a piece of its zone and every piece is placed exactly once, in both
+games (1,894 placements, no piece placed twice). Assembled: CZ `prologue` 662 pieces,
+1.70 M triangles as exported (the research's 1.26 M came from a throwaway script whose
+method wasn't kept); CW `living_research` 370 pieces, 1.53 M triangles; ~22 s each with
+the small textures.
+
+**Textures.** 31,075 texture names in the pieces of both games; all found but 15 different names
+(CZ: `brass_trim_CM`/`_SM`, `page_map_shinblue_cm`, `page_pendant_yellow_cm`,
+`photo_paper_colour_cm`, `tiles_ceramic_sm`, `glass_store_rm`; both: `cubemap_colorgloss`,
+`~Mirror`; CW: `relfection_2_dots`, `glassrefl`, `reflections`,
+`metal_beams_holes_2_sm`, `grating_pitcover01_sm`, `safehouse_01`): not in the game data
+at all (searched every archive). *Fixed 2026-10-11:* before phase 10, a level piece's
+`.glb` took its textures from the **small** `_LOD` pack (the zone lists `<piece>_LOD.tex`
+before `<piece>.tex`, and the finder didn't see `<piece>.tex` as the piece's own pack
+because the scene is `_COMP_<piece>.big`). `TextureFinder` now ranks `_LOD` packs last.
+
+`MERGED_COLLISION.big` parses as a scene but has no drawable mesh (the collision
+geometry is in its `persistent.big` in a form not read ❓).
 
 **Materials.** Level materials name a colour map, an **AO map** (`AO_<piece>`: baked
 shadows; the vertex data has two UV sets) and the engine's shadow / exposure samplers;

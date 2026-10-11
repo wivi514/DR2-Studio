@@ -17,6 +17,31 @@ Entry template:
 
 ---
 
+## 2026-10-11 — Phase 10 step 1: levels read and assembled
+**Done:** `formats/level.py` reads the zone list and every zone's placement table (and
+writes them back identically); `convert/level.py` lists levels, reads a zone and builds
+it as one `.glb` with every piece in its place; `gltf.Assembler` merges `.glb` files
+(one mesh per piece however often it is placed, shared textures stored once);
+`dr2 level list|info`; `dr2 census --levels`.
+**Why:** everything else in phase 10 (the Maps tab, the export, mods in the view) stands
+on putting the pieces in the right place, so the placement maths had to be settled first.
+**Learned:**
+- world = rotation × (scale × local) + position, quaternion as stored: 1,868 of 1,894
+  placements reproduce their stored bounds within 8 mm; 23 more have loose shape bounds
+  but their vertices fit; 3 unexplained (named in `formats.md` §Levels). Pictures in
+  Blender of the bowling alley (inside and out), all of Fortune City and CW's
+  `living_research`: everything meets.
+- The research had the piece number at +200 (it is +196) and +144 as a float 0 (it is a
+  flags word; 0x20 on trees, foliage, fans, some lights and beams). Retraction kept.
+- One CW record (`glower_fl`) stores a quaternion of length 1.017; normalised.
+- **A bug since phase 3:** level pieces exported their small `_LOD` textures, because a
+  zone lists `<piece>_LOD.tex` first and the finder didn't treat `<piece>.tex` as the
+  piece's own pack (its scene is `_COMP_<piece>.big`). Fixed for every model: `_LOD`
+  packs now rank last. 15 texture names in level pieces aren't in either game at all.
+**Docs updated:** `formats.md` §Levels (and the format table), `dev/code-tour.md`,
+`phase10-kickoff.md` §Status, this entry.
+**Next:** step 2, the level text files (items, doors, spawn points, map areas…).
+
 ## 2026-10-11 — Research for a potential phase 11: edit levels
 **Done:** the user asked to prepare the potential phase 11 (see, modify zombie spawns;
 move and add objects). Researched and wrote `phase11-kickoff.md`. Not approved, not built.

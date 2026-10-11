@@ -65,11 +65,24 @@ Phase 9 adds variants (``variants=True``, `dr2kit.convert.variants`):
   game's list (``zombie_pdv_variations.txt``) names is found in the shader bank and
   given by the rule.
 
+Phase 10 adds levels (``levels=True``, `check_levels`; `dr2kit.formats.level`):
+
+* **zones**: every level's ``zonelist.big`` parses, every zone's archive is there, and
+  each zone record has the same bounds as the zone's own ``_ZONEINFO_``;
+* **placements**: every record of every zone parses and writes back to the stored bytes;
+  its quaternion has unit length; it names a piece of its zone, and every piece is
+  placed (the exceptions are named); the bytes whose meaning is unknown hold the values
+  seen so far (others named); and the world bounds it stores equal the piece's own
+  bounds rotated, scaled and moved by it (the placement maths, worst error reported);
+* **pieces**: every piece's scene parses, and every texture it names is found (the
+  ones the game doesn't ship are listed).
+
 Results for both games are recorded in docs/formats.md. Run it with ``dr2 census``.
 """
 
 from __future__ import annotations
 
+import math
 import os
 import re
 import time
@@ -192,6 +205,11 @@ class CensusReport:
     colour_materials: int = 0
     colour_choices: int = 0
     colour_listed: int = 0                                    # list entries found by the rule
+    # levels (phase 10)
+    levels: dict = field(default_factory=dict)                # level -> {zones, pieces, …}
+    level_counts: Counter = field(default_factory=Counter)    # named measurements
+    level_bounds_error: float = 0.0                           # worst placement-maths error, m
+    level_notes: list = field(default_factory=list)           # named, not problems
     seconds: float = 0.0
     lzx_backend: str = ""
 
@@ -272,7 +290,7 @@ def check_texture(rep: "CensusReport", evp: str, name: str, data: bytes,
 def run_census(game: str, tree: AssetTree, *, python_lzx: bool = False,
                reencode: bool = False, textures: bool = False, models: bool = False,
                reimport: bool = False, audio: bool = False, workers: int | None = None,
-               progress=None, variants: bool = False) -> CensusReport:
+               progress=None, variants: bool = False, levels: bool = False) -> CensusReport:
     """Census one game's data folder. See the module docstring for what is checked.
 
     ``progress(message)`` is called once per file on disk. ``workers`` sets the process
@@ -486,6 +504,8 @@ def run_census(game: str, tree: AssetTree, *, python_lzx: bool = False,
         drain(0)
         if var_ctx is not None:
             check_colour_list(rep, var_ctx)
+        if levels:
+            check_levels(rep, tree, game)
         if audio_pool is not None:
             drain_audio(0)
             rep.audio_shared_first = sum(1 for v in first_packets.values() if len(v) > 1)
@@ -499,6 +519,149 @@ def run_census(game: str, tree: AssetTree, *, python_lzx: bool = False,
 
 
 _NUMBERS = re.compile(r"\d+")
+
+# How far a placement's stored world bounds may be from the piece's own bounds placed by
+# it: the stored values are float32 and the pieces sit up to ~900 m from the origin.
+LEVEL_BOUNDS_TOLERANCE = 0.01
+
+
+def piece_bounds(sc) -> list[tuple[float, float, float]]:
+    """The 8 corners of every shape's stored bounds, in the piece's own space (a rigid
+    shape's bounds are relative to its node, `Scene.rigid_node`)."""
+    import itertools
+    world = sc.skeleton.world_matrices() if sc.skeleton.nodes else []
+    pts = []
+    for m in sc.meshes:
+        n = sc.rigid_node(m)
+        mat = world[n] if n is not None else [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]]
+        for c in itertools.product(*zip(m.bounds_min, m.bounds_max)):
+            pts.append(tuple(sum(mat[i][j] * c[j] for j in range(3)) + mat[i][3]
+                             for i in range(3)))
+    return pts
+
+
+def piece_vertices(sc) -> list[tuple[float, float, float]]:
+    """Every vertex of every shape, in the piece's own space (rigid shapes through
+    their node's rest matrix)."""
+    world = sc.skeleton.world_matrices() if sc.skeleton.nodes else []
+    out = []
+    for m in sc.meshes:
+        n = sc.rigid_node(m)
+        mat = world[n] if n is not None else [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]]
+        for d in m.draws:
+            for c in sc.draw_data(d, m.name).positions:
+                out.append(tuple(sum(mat[i][j] * c[j] for j in range(3)) + mat[i][3]
+                                 for i in range(3)))
+    return out
+
+
+def check_levels(rep: CensusReport, tree: AssetTree, game: str) -> None:
+    """The phase 10 level census (module docstring); results in ``rep.levels``."""
+    from .convert import level as clevel
+    from .convert.model import TextureFinder, read_scene
+    from .formats import level as lvlfmt
+    lc = rep.level_counts
+    for L in clevel.list_levels(tree):
+        info = rep.levels.setdefault(L.name, Counter())
+        info["zones"] += len(L.zones)
+        for z in L.zones:
+            try:
+                zd = L.zone(z)
+            except Exception as ex:  # noqa: BLE001 - reported
+                rep.problems.append((f"{L.vpath}/{z.zone}", f"zone: {ex}"))
+                continue
+            org = zd.organization
+            if org.info is None or any(abs(a - b) > 1e-3 for a, b in zip(
+                    org.info, (*z.bounds_min, *z.bounds_max, *z.centre, z.radius))):
+                rep.level_notes.append(f"{zd.vpath}: _ZONEINFO_ differs from the zone list")
+                lc["zone info differs from the zone list"] += 1
+            else:
+                lc["zone info = zone list"] += 1
+            if org.dynamic:
+                rep.level_notes.append(f"{zd.vpath}: {len(org.dynamic)} bytes of dynamic placements")
+            stored = tree.resolve(f"{zd.vpath}/{clevel.ORGANIZATION}/ModelInstanceArray").data()
+            if org.placements_bytes() != stored:
+                rep.problems.append((zd.vpath, "placements: written back, they differ"))
+            for name in zd.missing:
+                rep.problems.append((zd.vpath, f"placement names no piece: {name}"))
+            for name in zd.unplaced:
+                rep.level_notes.append(f"{zd.vpath}: piece {name} is never placed")
+                lc["pieces never placed"] += 1
+            info["pieces"] += len(zd.pieces)
+            info["placements"] += len(zd.placements)
+            scenes = {}
+            for p in zd.placements:
+                lc["placements"] += 1
+                q = math.sqrt(sum(c * c for c in p.rotation))
+                if abs(q - 1) > 1e-4:          # CW glower_fl: 1.017 (drawn normalised)
+                    lc["rotation not of unit length"] += 1
+                    rep.level_notes.append(f"{zd.vpath}: {p.piece}: rotation of length "
+                                           f"{q:.5f} (drawn normalised)")
+                lc["scale 1,1,1" if p.scale == (1.0, 1.0, 1.0) else "scale other"] += 1
+                lc["rotated" if p.rotation[:3] != (0.0, 0.0, 0.0) else "not rotated"] += 1
+                if p.name2 != p.piece:
+                    lc["second name differs"] += 1
+                    rep.level_notes.append(f"{zd.vpath}: {p.piece} / {p.name2}")
+                lc[f"flags {p.flags:#x}"] += 1
+                if p.flags not in lvlfmt.FLAG_VALUES:
+                    rep.level_notes.append(f"{zd.vpath}: {p.piece}: flags {p.flags:#x}")
+                if p.tail != lvlfmt.EXPECTED_TAIL:
+                    lc["unknown bytes not as seen"] += 1
+                    rep.level_notes.append(f"{zd.vpath}: {p.piece}: unknown bytes "
+                                           f"{p.tail.hex()}")
+                name = clevel.piece_name(p, zd)
+                if name is None:
+                    continue
+                if name not in scenes:
+                    try:
+                        scenes[name] = read_scene(tree, zd.pieces[name])
+                    except Exception as ex:  # noqa: BLE001 - reported
+                        rep.problems.append((zd.pieces[name], f"piece: {ex}"))
+                        scenes[name] = None
+                sc = scenes[name]
+                if sc is None:
+                    continue
+                pts = [p.to_world(c) for c in piece_bounds(sc)]
+                if not pts:
+                    lc["pieces with no shapes"] += 1
+                    continue
+                lo = [min(c[i] for c in pts) for i in range(3)]
+                hi = [max(c[i] for c in pts) for i in range(3)]
+                err = max(max(abs(a - b) for a, b in zip(lo, p.bounds_min)),
+                          max(abs(a - b) for a, b in zip(hi, p.bounds_max)))
+                if err <= LEVEL_BOUNDS_TOLERANCE:
+                    rep.level_bounds_error = max(rep.level_bounds_error, err)
+                    lc["placed bounds = stored bounds"] += 1
+                    continue
+                # Some pieces' shapes store bounds that don't fit their own vertices; the
+                # placement's bounds then hold the placed vertices, with room to spare.
+                pts = [p.to_world(c) for c in piece_vertices(sc)]
+                out = max([b - a for a, b in zip((min(c[i] for c in pts) for i in range(3)),
+                                                 p.bounds_min)] +
+                          [a - b for a, b in zip((max(c[i] for c in pts) for i in range(3)),
+                                                 p.bounds_max)])
+                if out <= LEVEL_BOUNDS_TOLERANCE:
+                    lc["placed vertices inside the stored bounds (loose shape bounds)"] += 1
+                else:
+                    lc["placed vertices outside the stored bounds"] += 1
+                    rep.level_notes.append(f"{zd.pieces[name]}: placed vertices {out:.2f} m "
+                                           f"outside the stored bounds (unexplained)")
+            for name, sc in scenes.items():
+                if sc is None:
+                    continue
+                lc["pieces read"] += 1
+                finder = TextureFinder(tree, zd.pieces[name], game)
+                for m in sc.materials:
+                    for slot in m.slots:
+                        if slot.engine:
+                            continue
+                        lc["texture names"] += 1
+                        if finder.bct(slot.name) is None:
+                            info["textures missing"] += 1
+                            rep.level_notes.append(f"{zd.pieces[name]}: texture {slot.name} "
+                                                   f"is not in the game")
+                        elif "_lod.tex/" in finder.found[slot.name].lower():
+                            lc["textures found only small (_LOD)"] += 1
 
 
 def check_movie(rep: CensusReport, vp: str, path) -> None:
@@ -893,6 +1056,18 @@ def format_report(rep: CensusReport) -> str:
         w(f"string banks (.bcs): {rep.string_banks} parsed and re-written identically, "
           f"{'same' if len(counts) == 1 else 'DIFFERENT'} ids count: "
           f"{_fmt(rep.strings, sort_keys=True) if len(counts) > 1 else counts.pop()}")
+    if rep.levels:
+        w(f"levels: {len(rep.levels)}; " + "; ".join(
+            f"{k}: {v['zones']} zones, {v['pieces']} pieces, {v['placements']} placed"
+            + (f", {v['textures missing']} textures missing" if v['textures missing'] else "")
+            for k, v in rep.levels.items()))
+        w(f"    {_fmt(rep.level_counts)}")
+        w(f"    placement maths (world bounds = piece bounds placed): worst error "
+          f"{rep.level_bounds_error * 1000:.2f} mm")
+        for x in rep.level_notes[:12]:
+            w(f"    note: {x}")
+        if len(rep.level_notes) > 12:
+            w(f"    ... and {len(rep.level_notes) - 12} more notes (use --json for all)")
     w(f"duplicate names: {rep.duplicate_name_entries} entries in "
       f"{rep.duplicate_name_archives} archives")
     w(f"names unsafe in a vpath or as a Windows file name: {len(rep.unsafe_names)}")

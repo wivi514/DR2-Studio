@@ -30,6 +30,9 @@ What goes in (docs/dev/gltf-mapping.md has the full table):
   ``KHR_materials_variants`` (Blender's glTF Variants tab). `convert.model.model_glb`
   decides all three.
 
+* **Levels** (phase 10): `Assembler` puts whole ``.glb`` files (one per level piece or
+  item) into one, each placed where the game puts it, meshes shared between placements.
+
 Conventions: the games are Y-up, characters face +Z with their left side at +X, and
 the triangle strips give counter-clockwise front faces that agree with the stored
 normals on 99.4% of triangles (checked over every draw of both games). That is
@@ -492,3 +495,157 @@ def model_to_glb(scene: Scene, texture_png: Callable[[str], bytes | None] | None
     if extras:
         b.gltf["scenes"][0]["extras"].update(extras)
     return b.to_bytes()
+
+
+# --- assembling several .glb into one (levels, phase 10) -------------------------------
+
+_TEXTURE_SLOTS = (("pbrMetallicRoughness", "baseColorTexture"),
+                  ("pbrMetallicRoughness", "metallicRoughnessTexture"),
+                  (None, "normalTexture"), (None, "occlusionTexture"),
+                  (None, "emissiveTexture"))
+
+
+class Assembler:
+    """Puts whole ``.glb`` files (one per piece or item) into one, each where it goes.
+
+    Used by `dr2kit.convert.level` to build a zone: every piece is exported once by
+    `model.model_glb` (so a level looks exactly like the pieces do in the Library), then
+    `add` copies its meshes and materials in **once** and gives each placement its own
+    node tree pointing at those meshes (glTF instancing: a lamp post placed 40 times is
+    stored once). Images with the same bytes are stored once across pieces (level pieces
+    share their wall and floor textures). `group` makes an empty node that `add` can put
+    things under: one per zone or layer, a collection in Blender.
+    """
+
+    def __init__(self, generator: str = "dr2kit"):
+        self.b = GlbBuilder(generator)
+        self._images: dict[bytes, int] = {}        # sha1 of the PNG -> image index
+        self.extras: dict = {}
+
+    def group(self, name: str, parent: int | None = None, extras: dict | None = None) -> int:
+        """An empty node (a folder of nodes); under ``parent``, or at the top."""
+        node = {"name": name}
+        if extras:
+            node["extras"] = extras
+        i = self.b.add("nodes", node)
+        self._attach(i, parent)
+        return i
+
+    def _attach(self, i: int, parent: int | None) -> None:
+        if parent is None:
+            self.b.gltf["scenes"][0]["nodes"].append(i)
+        else:
+            self.b.gltf["nodes"][parent].setdefault("children", []).append(i)
+
+    def add(self, glb: bytes, placements: list[dict], parent: int | None = None,
+            source: str = "<glb>") -> list[int]:
+        """Copy ``glb`` in and place it once per item of ``placements``: dicts with
+        ``name`` and optional ``translation``, ``rotation`` (x, y, z, w), ``scale`` and
+        ``extras``. Returns the placement nodes."""
+        import hashlib
+        g = Glb.parse(glb, source)
+        js, b = g.gltf, self.b
+        views = []
+        for v in js.get("bufferViews", []):
+            off = v.get("byteOffset", 0)
+            views.append((v, g.bin[off:off + v["byteLength"]]))
+        view_map: dict[int, int] = {}
+
+        def view(i: int) -> int:
+            if i not in view_map:
+                v, data = views[i]
+                view_map[i] = b.view(data, v.get("target"))
+                if "byteStride" in v:
+                    b.gltf["bufferViews"][view_map[i]]["byteStride"] = v["byteStride"]
+            return view_map[i]
+
+        acc = []
+        for a in js.get("accessors", []):
+            a = dict(a)
+            if "bufferView" in a:
+                a["bufferView"] = view(a["bufferView"])
+            acc.append(b.add("accessors", a))
+        imgs = []
+        for im in js.get("images", []):
+            v, data = views[im["bufferView"]]
+            key = hashlib.sha1(data).digest()
+            if key not in self._images:
+                im = dict(im)
+                im["bufferView"] = view(im["bufferView"])
+                self._images[key] = b.add("images", im)
+            imgs.append(self._images[key])
+        samplers = [b.add("samplers", dict(s)) for s in js.get("samplers", [])]
+        texs = []
+        for t in js.get("textures", []):
+            t = dict(t)
+            if "source" in t:
+                t["source"] = imgs[t["source"]]
+            if "sampler" in t:
+                t["sampler"] = samplers[t["sampler"]]
+            texs.append(b.add("textures", t))
+        mats = []
+        for m in js.get("materials", []):
+            m = json.loads(json.dumps(m))
+            for outer, slot in _TEXTURE_SLOTS:
+                holder = m.get(outer, {}) if outer else m
+                if slot in holder:
+                    holder[slot]["index"] = texs[holder[slot]["index"]]
+            mats.append(b.add("materials", m))
+        meshes = []
+        for me in js.get("meshes", []):
+            me = json.loads(json.dumps(me))
+            for p in me["primitives"]:
+                p["attributes"] = {k: acc[v] for k, v in p["attributes"].items()}
+                if "indices" in p:
+                    p["indices"] = acc[p["indices"]]
+                if "material" in p:
+                    p["material"] = mats[p["material"]]
+                p.pop("extensions", None)      # colour choices: not carried into a level
+            meshes.append(b.add("meshes", me))
+        nodes = js.get("nodes", [])
+        roots = js["scenes"][js.get("scene", 0)].get("nodes", [])
+        out = []
+        for pl in placements:
+            top = {"name": pl.get("name", "placed")}
+            for k in ("translation", "rotation", "scale"):
+                if pl.get(k) is not None:
+                    top[k] = list(pl[k])
+            if pl.get("extras"):
+                top["extras"] = pl["extras"]
+            ti = b.add("nodes", top)
+            self._attach(ti, parent)
+            node_map: dict[int, int] = {}
+
+            def copy(i: int) -> int:
+                n = dict(nodes[i])
+                n.pop("children", None)
+                if "mesh" in n:
+                    n["mesh"] = meshes[n["mesh"]]
+                skin = n.pop("skin", None)
+                k = b.add("nodes", n)
+                node_map[i] = k
+                for c in nodes[i].get("children", []):
+                    b.gltf["nodes"][k].setdefault("children", []).append(copy(c))
+                if skin is not None:
+                    b.gltf["nodes"][k]["skin"] = skin          # remapped below
+                return k
+            for r in roots:
+                b.gltf["nodes"][ti].setdefault("children", []).append(copy(r))
+            for i, k in node_map.items():                      # skins: one per copy
+                n = b.gltf["nodes"][k]
+                if "skin" in n:
+                    s = dict(js["skins"][n["skin"]])
+                    s["joints"] = [node_map[j] for j in s["joints"]]
+                    if "skeleton" in s:
+                        s["skeleton"] = node_map[s["skeleton"]]
+                    if "inverseBindMatrices" in s:
+                        s["inverseBindMatrices"] = acc[s["inverseBindMatrices"]]
+                    n["skin"] = b.add("skins", s)
+            out.append(ti)
+        return out
+
+    def to_bytes(self) -> bytes:
+        if self.extras:
+            self.b.gltf["asset"]["extras"] = {"dr2": self.extras}
+            self.b.gltf["scenes"][0]["extras"] = {"dr2": self.extras}
+        return self.b.to_bytes()

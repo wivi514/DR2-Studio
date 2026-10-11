@@ -7,7 +7,12 @@ need the game data around it:
   own pack (``npcs.big/chest_young_chuck.big`` → ``npcs.big/chest_young_chuck.tex``),
   then any texture or ``.tex`` pack in the archives that contain the model (nearest
   archive first), then the asset index (``dr2 index build``) if there is one. A name
-  that is not found is reported, never silently replaced.
+  that is not found is reported, never silently replaced. A level piece's scene is
+  ``<piece>.big/_COMP_<piece>.big``, so its own pack is ``<piece>.tex``. **Small copies
+  come last:** ``<name>_LOD.tex`` packs hold the same names at a quarter of the size
+  (the game's textures for far away); before phase 10 they were found first for level
+  pieces, which exported blurry. ``lod=True`` asks for them first (the Maps tab's far
+  zones).
 * `export_glb` / `export_skeleton_glb` read a vpath and return the ``.glb`` bytes.
 * `model_glb` (phase 9) is the one place a model becomes a ``.glb`` in a **look**
   (`convert.variants`): every part sorted into groups (``mode="all"``) or only the
@@ -40,9 +45,10 @@ class TextureFinder:
     """``finder(name)`` → PNG bytes of the texture called ``name``, or None."""
 
     def __init__(self, tree: AssetTree, model_vpath: str, game: str | None = None,
-                 db_path=None):
+                 db_path=None, lod: bool = False):
         self.tree, self.game, self.db_path = tree, game, db_path
         self.vpath = model_vpath
+        self.lod = lod                           # the small _LOD copies first
         self.found: dict[str, str] = {}          # name -> vpath it was read from
         self._scanned: list[dict[str, tuple[str, bytes]]] | None = None
         self._shaders = None                     # convert.material.ShaderLibrary, on demand
@@ -63,15 +69,17 @@ class TextureFinder:
         if self._scanned is not None:
             return self._scanned
         self._scanned = []
-        parts = split(self.vpath)
-        stem = parts[-1].rsplit(".", 1)[0].lower()
+        stem = self._stem()
+        small: list[dict] = []                   # _LOD packs: after everything else
         for cvp in self._containers():
             try:
                 arc = self.tree.open_archive(cvp)
             except Dr2Error:
                 continue
             own: dict[str, tuple[str, bytes]] = {}
+            own_lod: dict[str, tuple[str, bytes]] = {}
             other: dict[str, tuple[str, bytes]] = {}
+            other_lod: dict[str, tuple[str, bytes]] = {}
             for e in arc.entries:
                 lname = e.name.lower()
                 if lname.endswith(".tex"):
@@ -79,17 +87,35 @@ class TextureFinder:
                     if not is_big(data):
                         continue
                     pack = BigArchive.parse(data, join(cvp, e.name))
-                    target = own if lname[:-4] == stem else other
+                    pstem = lname[:-4]
+                    is_lod = pstem.endswith("_lod")
+                    mine = pstem.removesuffix("_lod") == stem
+                    target = ((own_lod if mine else other_lod) if is_lod
+                              else (own if mine else other))
                     for t in pack.entries:
                         key = t.name.lower().removesuffix(".bct")
                         target.setdefault(key, (join(cvp, e.name, t.name), t))
                 elif lname.endswith(".bct") or e.ext == "":
                     other.setdefault(lname.removesuffix(".bct"), (join(cvp, e.name), e))
-            if own:
-                self._scanned.append(own)
-            self._scanned.append(other)
-        self._scanned += self._scan_folder(stem)
+            if self.lod:
+                self._scanned += [d for d in (own_lod, own, other_lod, other) if d]
+            else:
+                self._scanned += [d for d in (own, other) if d]
+                small += [d for d in (own_lod, other_lod) if d]
+        self._scanned += self._scan_folder(stem) + small
         return self._scanned
+
+    def _stem(self) -> str:
+        """The model's name as its own texture pack is named: ``chest_default`` for
+        ``…/chest_default.big``; ``z05_bowling_struc`` for a level piece's
+        ``…/z05_bowling_struc.big/_COMP_z05_bowling_struc.big``."""
+        parts = split(self.vpath)
+        stem = parts[-1].rsplit(".", 1)[0].lower()
+        if stem.startswith("_comp_") and len(parts) > 1:
+            outer = parts[-2].rsplit(".", 1)[0].lower()
+            if outer == stem[len("_comp_"):]:
+                return outer
+        return stem
 
     def _scan_folder(self, stem: str) -> list[dict[str, tuple[str, object]]]:
         """Texture packs (``.tex`` files) next to the model's file on disk.
@@ -110,6 +136,8 @@ class TextureFinder:
             folder_parts.append(nxt.name)
         own: dict = {}
         other: dict = {}
+        lod_own: dict = {}
+        lod_other: dict = {}
         for f in sorted(here.glob("*")) if here.is_dir() else []:
             if f.suffix.lower() != ".tex" or not f.is_file():
                 continue
@@ -118,10 +146,15 @@ class TextureFinder:
                 pack = self.tree.open_archive(vp)
             except Dr2Error:
                 continue
-            target = own if f.stem.lower() == stem else other
+            low = f.stem.lower()
+            is_lod = low.endswith("_lod")
+            if is_lod != self.lod:               # the copies not asked for: last
+                target = lod_own if low.removesuffix("_lod") == stem else lod_other
+            else:
+                target = own if low.removesuffix("_lod") == stem else other
             for t in pack.entries:
                 target.setdefault(t.name.lower().removesuffix(".bct"), (join(vp, t.name), t))
-        return [d for d in (own, other) if d]
+        return [d for d in (own, other, lod_own, lod_other) if d]
 
     def _from_index(self, name: str) -> tuple[str, bytes] | None:
         if self.game is None:

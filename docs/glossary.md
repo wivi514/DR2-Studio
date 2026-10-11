@@ -366,6 +366,11 @@ pieces, their textures, and the list of where each piece goes.
 **Piece (level piece).** One model a level is built from: a wall section, a floor, a
 sign, a row of lights. The Library lists them under *Environments*.
 
+**LOD textures (`_LOD.tex`).** Small copies of a model's textures (a quarter of the
+size) that the game uses when the model is far away. "LOD" means *level of detail*.
+DR2 Studio's Maps tab uses them for zones far from the camera, so a whole level fits in
+memory; exports use the full-size ones.
+
 **Placement.** Where the game puts a piece or an item: a position, a rotation and a
 scale. Pieces are placed by `ZONE_ORGANIZATION.big`, items and doors by the level's
 `.txt` file (`cItemPlacement`).
