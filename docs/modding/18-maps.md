@@ -54,6 +54,12 @@ game, not like grey boxes.
      and dresses them itself while you play, so the exact spots differ. Click one to see
      its type and the mission that puts it there.
    - **Navigation mesh** (green): where zombies and survivors can walk.
+   - **Collision** (see-through orange, edges drawn): the invisible walls and floors the
+     player and zombies bump into, the game's *collision mesh*. It is simpler than what
+     you see (a tree is a rough cone, a shop a few boxes), and it shows where an invisible
+     wall stops you or where you can stand on a roof. Untick *Buildings* to see it alone.
+     A handful of Case Zero shapes are left out because where they go isn't known
+     (`dr2 census --levels` names them).
    - **Lighting areas** (yellow), **Sound areas** (cyan boxes: which echo applies where)
      and **Acoustics points**.
 6. **Items and markers from:** some levels have more than one set of items. Case Zero's
@@ -96,7 +102,8 @@ to tell someone where something is).
 10. In Blender, open a zone with **File → Import → glTF 2.0**, or better with the DR2
     add-on's **Import zone** ([`13-blender-addon.md`](13-blender-addon.md)), which sorts it
     into collections (Buildings, Items and doors, Markers by kind) and wires the
-    lightmaps in. With the plain importer, Blender shows each surface's colour map only.
+    lightmaps in. Its *Zombies* and *Collision* boxes add those (the collision starts
+    hidden: switch its collection on in the Outliner). With the plain importer, Blender shows each surface's colour map only.
 
 ## Your mods in the map
 
@@ -127,6 +134,7 @@ dr2 export prologue --whole --lod -g cz -o out   # one .glb, small textures
 dr2 export prologue --markers all --script prologue_safehouse -g cz -o out
 dr2 export living_research --no-items --markers none -g cw -o out   # buildings only
 dr2 export prologue --zone z06 --zombies -g cz -o out   # with example zombie crowds
+dr2 export prologue --zone z02 --collision -g cz -o out # with the collision mesh
 ```
 
 ## Check it worked

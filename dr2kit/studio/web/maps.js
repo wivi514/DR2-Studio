@@ -4,7 +4,7 @@
 // with console lines starting "dr2:" (maps_view.py reads them):
 //   dr2:ready                      the page is up
 //   dr2:status <text>              for the status line
-//   dr2:want {zone, part, detail, script}   build/send this zone's pieces or items
+//   dr2:want {zone, part, detail, script}   build/send one part of a zone: pieces, items, zombies, collision
 //   dr2:pick {...}                 the user clicked something (a piece, an item, a marker)
 //   dr2:camera {position, yaw}     where the camera is (for "Copy position")
 //
@@ -142,14 +142,15 @@ const layers = {};                // kind -> visible
 const DEFAULT_ON = new Set(['pieces', 'items', 'door', 'item', 'spawn', 'map_area', 'map_point']);
 const piecesRoot = new THREE.Group(), itemsRoot = new THREE.Group(), markerRoot = new THREE.Group();
 const zombiesRoot = new THREE.Group();
-scene.add(piecesRoot, itemsRoot, markerRoot, zombiesRoot);
+const collisionRoot = new THREE.Group();
+scene.add(piecesRoot, itemsRoot, markerRoot, zombiesRoot, collisionRoot);
 const markerGroups = {};          // kind -> Group
 const labels = [];                // sprites, hidden when far
 let pending = 0;
 let selected = null, selBox = null;
 
 function slot() { return { detail: null, wanted: null, object: null, asked: null }; }
-const PARTS = ['pieces', 'items', 'zombies'];
+const PARTS = ['pieces', 'items', 'zombies', 'collision'];
 const ROOTS = {};
 
 function layerOn(kind) { return layers[kind] !== undefined ? layers[kind] : DEFAULT_ON.has(kind); }
@@ -393,9 +394,9 @@ function schedule() {
   if (!meta) return;
   const asks = [];
   for (const z of zones.values()) {
-    const want = desired(z);
     for (const part of PARTS) {
       if (part !== 'pieces' && !layerOn(part)) continue;
+      const want = part === 'collision' ? 'full' : desired(z);   // one size only
       const s = z[part];
       if (s.missing) continue;
       if (s.detail === want || s.asked === want) continue;
@@ -422,6 +423,25 @@ function loadedCount() {
 
 const loader = new GLTFLoader();
 
+// Collision: see-through orange faces with their edges drawn, over the buildings, so
+// both what you bump into and what's behind it stay visible.
+function collisionLook(root) {
+  const fill = new THREE.MeshBasicMaterial({ color: 0xff7319, transparent: true,
+    opacity: 0.22, side: THREE.DoubleSide, depthWrite: false,
+    polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+  const edges = new THREE.MeshBasicMaterial({ color: 0xffa040, wireframe: true,
+    transparent: true, opacity: 0.55, depthWrite: false });
+  const meshes = [];
+  root.traverse(o => { if (o.isMesh) meshes.push(o); });
+  for (const o of meshes) {
+    for (const m of [].concat(o.material)) m.dispose();
+    o.material = fill;
+    const wire = new THREE.Mesh(o.geometry, edges);
+    wire.renderOrder = 2;
+    o.add(wire);
+  }
+}
+
 function markMaterials(root) {
   root.traverse(o => {
     if (!o.isMesh) return;
@@ -437,13 +457,14 @@ window.dr2 = {
     for (const z of zones.values()) {
       for (const part of PARTS) if (z[part].object) { dispose(z[part].object); }
     }
-    piecesRoot.clear(); itemsRoot.clear(); zombiesRoot.clear();
+    piecesRoot.clear(); itemsRoot.clear(); zombiesRoot.clear(); collisionRoot.clear();
     zones.clear();
     pending = 0;
     clearSelection();
     for (const zm of m.zones) {
       const box = new THREE.Box3(v3(zm.min), v3(zm.max));
-      zones.set(zm.name, { meta: zm, box, pieces: slot(), items: slot(), zombies: slot() });
+      zones.set(zm.name, { meta: zm, box, pieces: slot(), items: slot(), zombies: slot(),
+                              collision: slot() });
     }
     buildMarkers();
     setOverview();
@@ -472,9 +493,13 @@ window.dr2 = {
       const obj = gltf.scene;
       obj.userData.zone = name;
       obj.userData.part = part;
-      await applyLevelMaterials(gltf);           // lightmaps and blends, as the game
-      markMaterials(obj);
-      const root = { pieces: piecesRoot, items: itemsRoot, zombies: zombiesRoot }[part];
+      if (part === 'collision') collisionLook(obj);
+      else {
+        await applyLevelMaterials(gltf);         // lightmaps and blends, as the game
+        markMaterials(obj);
+      }
+      const root = { pieces: piecesRoot, items: itemsRoot, zombies: zombiesRoot,
+                     collision: collisionRoot }[part];
       if (s.object) { root.remove(s.object); dispose(s.object); }
       s.object = obj; s.detail = detail; s.asked = null;
       root.add(obj);
@@ -500,6 +525,7 @@ window.dr2 = {
     else if (kind === 'pieces') piecesRoot.visible = !!on;
     else if (kind === 'items') { itemsRoot.visible = !!on; schedule(); }
     else if (kind === 'zombies') { zombiesRoot.visible = !!on; schedule(); }
+    else if (kind === 'collision') { collisionRoot.visible = !!on; schedule(); }
     else if (markerGroups[kind]) markerGroups[kind].visible = !!on;
   },
   goTo(x, y, z, heading) {

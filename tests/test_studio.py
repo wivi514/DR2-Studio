@@ -389,6 +389,14 @@ def test_maps_tab_on_a_synthetic_level(tmp_path, monkeypatch):
         time.sleep(0.05)
     (req, path, err), = built
     assert err == "" and path.endswith(".glb") and os.path.isfile(path)
+    built.clear()                               # a zone without collision: nothing, no error
+    mv._message("want " + json.dumps({"zone": "town_z01", "part": "collision",
+                                      "detail": "full", "script": "town"}))
+    deadline = time.time() + 30
+    while not built and time.time() < deadline:
+        app.processEvents()
+        time.sleep(0.05)
+    assert built == [(built[0][0], "", "")] and built[0][0]["part"] == "collision"
     mv._message("pick " + json.dumps({"type": "item", "name": "HotDog3", "item": "HotDog",
                                       "vpath": "data/streamedassets.big/HotDog.big/hotdog.big",
                                       "file": "town.txt", "line": 1}))

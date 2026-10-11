@@ -124,11 +124,12 @@ def zombie(s):
 def level(s):
     """Phase 10: Import zone puts Case Zero's bowling alley zone in collections by zone
     and layer, each piece where the game places it, items and markers in their own
-    collections, and the lightmaps wired into the materials."""
+    collections, the lightmaps wired into the materials, and the collision mesh in its
+    own collection, hidden at first."""
     s.game = "cz"
     s.level = "prologue"
     s.zone = "prologue_z05"
-    s.level_items = s.level_markers = s.level_lightmaps = True
+    s.level_items = s.level_markers = s.level_lightmaps = s.level_collision = True
     if bpy.ops.dr2.import_level() != {"FINISHED"}:
         fail("level import")
     top = next(c for c in bpy.data.collections if c.get("dr2_zone") == "prologue_z05")
@@ -136,7 +137,7 @@ def level(s):
     if zone is None:
         fail(f"no zone collection in {[c.name for c in top.children]}")
     layers = {c.name.split(".")[0] for c in zone.children}
-    if not {"Buildings", "Items and doors", "Markers"} <= layers:
+    if not {"Buildings", "Items and doors", "Markers", "Collision"} <= layers:
         fail(f"zone layers {sorted(layers)}")
     build = next(c for c in zone.children if c.name.startswith("Buildings"))
     pieces = [o for o in build.all_objects if o.get("dr2_piece")]
@@ -155,6 +156,11 @@ def level(s):
         n.type == "MIX" and n.blend_type == "MULTIPLY" for n in m.node_tree.nodes))
     if len(placed) != 113 or not kinds or wired == 0:
         fail(f"{len(placed)} items, marker kinds {kinds}, {wired} lightmaps wired")
+    col = next(c for c in zone.children if c.name.startswith("Collision"))
+    (cmesh,) = [o for o in col.all_objects if o.get("dr2_kind") == "collision"]
+    if not cmesh.hide_get() or len(cmesh.data.polygons) < 1000:
+        fail(f"collision: hidden {cmesh.hide_get()}, {len(cmesh.data.polygons)} faces")
+    print("DR2GATE collision", len(cmesh.data.polygons), "faces, hidden at first", flush=True)
     print("DR2GATE level import", len(pieces), "pieces placed,", len(placed), "items,",
           "markers:", ", ".join(sorted(kinds)), ",", wired, "materials with lightmaps",
           flush=True)

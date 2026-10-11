@@ -251,7 +251,8 @@ called it much bigger than phase 9: built in steps, each usable on its own.
 - **Gate:** CZ `prologue` and CW `living_research` assembled and compared with recomp
   frames; every placement and level file parsed (census); a zone opens in Blender as in
   Studio; a texture and a model mod show in Studio exactly as deployed and as in game.
-- Stretch: collision; time of day.
+- Stretch (done 2026-10-11): upper floor / basement map pictures; zombies in their areas;
+  time of day and the sky; the collision mesh.
 
 ## Phase 11 (potential): edit levels, saved as mods (user, 2026-10-11)
 Researched and planned 2026-10-11, **not approved** (the user decides after phase 10);

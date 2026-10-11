@@ -73,6 +73,10 @@ level the game loads at once ([`18-maps.md`](18-maps.md) shows them in DR2 Studi
 4. **Lightmaps** multiplies each surface's baked light into its colour, as the game does:
    switch the viewport to **Material Preview** (Z key) to see it. The scene's own
    lights still add to it, so a level can look darker or brighter than in the game.
+5. Tick **Zombies** for the crowds the missions put in the zone (example figures in their
+   rest pose) and **Collision** for the invisible walls and floors the player bumps into:
+   one see-through orange mesh in a *Collision* collection, hidden at first (click its eye
+   in the Outliner).
 
 Changing a level and putting it back in the game is not possible yet (a possible
 phase 11); the import is for looking, measuring, and making renders or new models that

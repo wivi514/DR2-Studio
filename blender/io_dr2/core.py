@@ -143,9 +143,11 @@ def level_scripts(game: str, level: str) -> list[str]:
 
 def export_level_zone(game: str, level: str, zone: str, script: str = "",
                       items: bool = True, markers: bool = True,
-                      lod: bool = False) -> tuple[bytes, str, list[str]]:
-    """One zone as ``.glb`` bytes (pieces, items, markers: dr2kit's ``dr2 export <level>
-    --zone``), a summary and notes (what could not be exported)."""
+                      lod: bool = False, zombies: bool = False,
+                      collision: bool = False) -> tuple[bytes, str, list[str]]:
+    """One zone as ``.glb`` bytes (pieces, items, markers, and with ``zombies`` /
+    ``collision`` those too: dr2kit's ``dr2 export <level> --zone``), a summary and notes
+    (what could not be exported)."""
     from dr2kit.catalog.level_export import DEFAULT_MARKERS, LevelExport, level_glb
     from dr2kit.convert import mapdata, placed
     from dr2kit.convert.level import Level
@@ -154,10 +156,16 @@ def export_level_zone(game: str, level: str, zone: str, script: str = "",
     scripts = mapdata.scripts_of(t, L.name)
     script = script or (scripts[0] if scripts else "")
     ls = placed.read_script(t, script, placed.ItemModels(t), mapdata._strings(t)) \
-        if script and (items or markers) else None
+        if script and (items or markers or zombies) else None
     res = LevelExport(Path("."))
     data = level_glb(t, game, L, [L.find_zone(zone)], ls, items=items,
-                     markers=DEFAULT_MARKERS if markers else (), lod=lod, result=res)
+                     markers=DEFAULT_MARKERS if markers else (), lod=lod, result=res,
+                     zombies=zombies, collision=collision)
     summary = (f"{res.pieces} pieces, {res.items} items and doors, {res.markers} markers, "
-               f"{res.triangles:,} triangles")
-    return data, summary, [f"{a}: {b}" for a, b in res.failed]
+               + (f"{res.zombies} zombies, " if zombies else "")
+               + (f"{res.collision:,} collision triangles, " if collision else "")
+               + f"{res.triangles:,} triangles")
+    notes = [f"{a}: {b}" for a, b in res.failed]
+    notes += [f"collision shape {n}: where it goes is unknown, left out"
+              for n in res.unplaced_collision]
+    return data, summary, notes

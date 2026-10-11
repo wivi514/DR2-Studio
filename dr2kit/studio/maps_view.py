@@ -8,13 +8,13 @@ Two widgets, wired by `app.MainWindow`:
   QWebEngineView, the same ``dr2:`` scheme as the 3D view, `model_view`) and a side
   panel: which level script's items to show, the **Layers** (pieces, items and doors,
   spawn points, zombie / map / lighting areas, triggers, sound areas, map points, the
-  navigation mesh), **Go to** (a spawn point, a map area, a map point, a zone) and what
+  navigation mesh, the zombies, the collision mesh), **Go to** (a spawn point, a map area, a map point, a zone) and what
   was clicked, with *Open in Library*, *Open in Blender* and *Export .glb…* for a piece
   or an item.
 
 How a level loads: `MapsView.open_level` sends the page `convert.mapdata.overview`
-(zones, markers, start). The page asks for each zone's **pieces** and **items**
-(``dr2:want``), nearest the camera first, with small textures far away and full-size
+(zones, markers, start). The page asks for each zone's **pieces** and **items** (and,
+when their layers are on, **zombies** and **collision**: one size only) (``dr2:want``), nearest the camera first, with small textures far away and full-size
 ones near; `_Builder` (one worker thread, its own `AssetTree`) makes each file with
 `convert.mapdata.MapCache` (cached on disk, so a second visit is instant) and the page
 gets its URL (``dr2://studio/maps/…``). A level change bumps a generation number, so
@@ -54,6 +54,7 @@ LAYER_ORDER = [("pieces", "Buildings (level pieces)", True),
                ("zombies", "Zombies (crowds the missions put in the areas)", False),
                ("trigger", "Triggers (doors to other levels…)", False),
                ("navmesh", "Navigation mesh", False),
+               ("collision", "Collision (what the player bumps into)", False),
                ("light_area", "Lighting areas", False),
                ("sound_area", "Sound areas", False),
                ("acoustics", "Acoustics points", False),
@@ -148,6 +149,8 @@ class _Builder(QObject):
             if req["part"] == "zombies":
                 path = cache.zombies(req["level"], req["zone"], req["script"], req["detail"]) \
                     if req.get("script") else None
+            elif req["part"] == "collision":
+                path = cache.collision(req["level"], req["zone"])
             elif req["part"] == "items":
                 path = cache.items(req["level"], req["zone"], req["script"], req["detail"]) \
                     if req.get("script") else None

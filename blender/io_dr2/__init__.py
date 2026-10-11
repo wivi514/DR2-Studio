@@ -19,6 +19,8 @@ A sidebar tab (**View3D > Sidebar > DR2**) over the DR2 toolkit:
   items and doors and its markers (spawn points, areas, the navigation mesh), sorted into
   collections (the zone, then Buildings, Items and doors, Markers by kind); *Lightmaps*
   multiplies each level material's baked light into its colour, as the game draws it.
+  *Zombies* adds the crowds the missions put in the zone, *Collision* the surfaces the
+  player bumps into (a see-through orange mesh, hidden at first).
 
 Licence: this add-on is GPL-3.0-or-later (``LICENSE``). It does **not** include dr2kit,
 which has its own licence; `toolkit.load` imports it from the folder set in the
@@ -132,6 +134,12 @@ class DR2Settings(bpy.types.PropertyGroup):
                               description="The items and doors placed in the zone")
     level_markers: BoolProperty(name="Markers", default=True,
                                 description="Spawn points, areas, triggers, the navigation mesh")
+    level_zombies: BoolProperty(name="Zombies", default=False,
+                                description="Zombies where the missions put crowds "
+                                            "(example spots)")
+    level_collision: BoolProperty(name="Collision", default=False,
+                                  description="The collision mesh: what the player and "
+                                              "zombies bump into (hidden at first)")
     level_lightmaps: BoolProperty(name="Lightmaps", default=True,
                                   description="Multiply each level material's baked light "
                                               "(its lightmap) into its colour, as the game does")
@@ -241,7 +249,8 @@ class DR2_OT_import_level(bpy.types.Operator):
             dr2(context)
             from . import core
             glb, summary, notes = core.export_level_zone(
-                s.game, s.level, s.zone, items=s.level_items, markers=s.level_markers)
+                s.game, s.level, s.zone, items=s.level_items, markers=s.level_markers,
+                zombies=s.level_zombies, collision=s.level_collision)
         except Exception as e:  # noqa: BLE001 - dr2kit errors, shown to the user
             self.report({"ERROR"}, f"{s.level} {s.zone}: {e}")
             return {"CANCELLED"}
@@ -269,7 +278,8 @@ def organise_level(coll) -> int:
     (``dr2_layer``: zone, pieces, items, markers, or a marker kind); make one collection
     per group, nested like the groups, and put every object in the collection of its
     nearest group. Parenting is kept, so everything stays where the game puts it. The
-    navigation mesh starts hidden (it lies over every floor). Returns how many
+    navigation mesh and the collision start hidden (they lie over every floor and wall).
+    Returns how many
     collections were made."""
     made = {}
 
@@ -290,7 +300,7 @@ def organise_level(coll) -> int:
         if target is not coll:
             target.objects.link(obj)
             coll.objects.unlink(obj)
-        if obj.get("dr2_kind") == "navmesh":     # it covers every floor: hidden at first
+        if obj.get("dr2_kind") in ("navmesh", "collision"):   # over every floor: hidden
             obj.hide_set(True)
             obj.hide_render = True
     return len(made)
@@ -518,6 +528,9 @@ class DR2_PT_main(bpy.types.Panel):
         row.prop(s, "level_items")
         row.prop(s, "level_markers")
         row.prop(s, "level_lightmaps")
+        row = box.row(align=True)
+        row.prop(s, "level_zombies")
+        row.prop(s, "level_collision")
         box.operator(DR2_OT_import_level.bl_idname, icon="IMPORT")
 
 

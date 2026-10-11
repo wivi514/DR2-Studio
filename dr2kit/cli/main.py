@@ -668,15 +668,20 @@ def _export_levels(args, tree, names: list[str]) -> int:
         res = export_level(tree, args.game, name, args.out, zones=args.zone or None,
                            script=args.script, items=not args.no_items, markers=markers,
                            whole=args.whole, lod=args.lod, db_path=args.db,
-                           progress=progress, dry_run=args.list, zombies=args.zombies)
+                           progress=progress, dry_run=args.list, zombies=args.zombies,
+                           collision=args.collision)
         for p in res.files:
             print(("would write " if args.list else "") + str(p))
         for a, b in res.failed:
             print(f"FAILED {a}: {b}")
         failed += len(res.failed)
+        for n in res.unplaced_collision:
+            print(f"note: collision shape {n} left out (where it goes is unknown)",
+                  file=sys.stderr)
         print(f"{name}: {len(res.files)} files ({len(res.skipped)} already there), "
               f"{res.pieces} pieces, {res.items} items and doors, {res.markers} markers, "
               f"{res.zombies} zombies, "
+              + (f"{res.collision:,} collision triangles, " if args.collision else "") +
               f"{res.triangles:,} triangles -> {res.folder}", file=sys.stderr)
     return 1 if failed else 0
 
@@ -1212,6 +1217,8 @@ def build_parser() -> argparse.ArgumentParser:
     lg.add_argument("--lod", action="store_true", help="the game's small textures (smaller files)")
     lg.add_argument("--zombies", action="store_true",
                     help="zombies where the missions put crowds (example spots)")
+    lg.add_argument("--collision", action="store_true",
+                    help="the collision mesh (what the player bumps into)")
     variant_opts(p)
     p.add_argument("-q", "--quiet", action="store_true")
     p.add_argument("--db", help="index file (default: the per-user cache folder)")

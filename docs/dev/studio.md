@@ -266,7 +266,9 @@ what was clicked, *Open in Library / Blender*, *Export .glb…*, *How to use Map
 camera position*); leaving it gives back the viewer shown before.
 
 The page (`web/maps.html`, `maps.js`) talks with `dr2:` console lines like the 3D view:
-`ready`, `status`, `want {zone, part, detail, script}`, `pick {…}`, `camera {…}`; Python
+`ready`, `status`, `want {zone, part, detail, script}` (part: `pieces`, `items`, `zombies`,
+`collision`; the last two only while their layer is on, collision in one size, drawn by
+`collisionLook` as a see-through fill with its edges), `pick {…}`, `camera {…}`; Python
 calls `dr2.openLevel(meta)`, `zoneReady(zone, part, detail, url)`, `setLayer`, `goTo`,
 `setView` (an exact camera: a recomp capture's), `pickAt(x, y)` and `reload()`. Every 0.3 s
 the page works out which zones it wants at which detail (full size within 40 m of a

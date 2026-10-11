@@ -26,7 +26,7 @@ Case West census before they count as rules (CLAUDE.md rule 7).
 | `.bik` | **CW only**, `data/movies` | ✅ read (Bink) | `dr2kit/convert/video.py` through PyAV: all 10 movies decode, every frame and the sound (`census --audio`); export to `.mp4`. Replacing one needs a Bink encoder (§Movies) |
 | level zones (`zonelist.big`, `ZONE_ORGANIZATION.big`) | `models/environment/<level>/` | ✅ read | where each level piece is placed: 208-byte records, placement maths confirmed, written back identically; a few tail bytes unknown (§Levels, `formats/level.py`) |
 | level text files (`<level>.txt`, `waypoint_*`, `nm_*`, `fe_map_*`) | `datafile.big` | ✅ text | placed items, doors, spawn points, zombie areas, triggers, the navigation mesh, the in-game map; read losslessly, every item resolved to its model (§Levels) |
-| zone collision `MERGED_COLLISION.big` | every zone | ❓ | a scene with no drawable mesh; the geometry's form is unknown |
+| zone collision `MERGED_COLLISION.big` | every zone | ✅ read | Havok triangle meshes, placed by their piece; 5 of 1,514 shapes' place unknown (§Levels, "Collision", `formats/collision.py`) |
 | digest list | the XEX's `Digest` resource | ✅ | files the executable checks; mods can't touch them (§Digest-checked files) |
 
 ## `.big` container
@@ -1324,8 +1324,53 @@ them blue (seen by the user in game). So the toolkit's texture finder goes by ar
 order in a zone, and the mod build puts a level texture on every identical copy in the
 zone (`mods.build.level_texture_copies`).
 
-`MERGED_COLLISION.big` parses as a scene but has no drawable mesh (the collision
-geometry is in its `persistent.big` in a form not read ❓).
+~~`MERGED_COLLISION.big` parses as a scene but has no drawable mesh (the collision
+geometry is in its `persistent.big` in a form not read ❓).~~ *Read 2026-10-11, next.*
+
+**Collision** ✅ read (stretch, 2026-10-11; `formats/collision.py`,
+`convert.level.zone_collision`). `MERGED_COLLISION.big` is a scene whose skeleton has one
+node per piece that has collision (named like the piece) and whose `persistent.big` holds
+**Havok triangle meshes**, one group of entries per shape, `mesh<name>`:
+
+| Entry | What it holds |
+|---|---|
+| `mesh<name>` (60 bytes) | 8 big-endian words, then radius, bounds min, bounds max (the shape's own vertices' box). Words 0, 2–5 are 0 everywhere; word 7 is 1; **word 1 (= word 6) is a node number of the collision scene**, 0 for none |
+| `… hkCollisionShapeMesh` (44) | word 0: vertex count, word 1: triangle count; the rest kept |
+| `… CollisionVertices` | vertex count × 3 big-endian floats |
+| `… CollisionIndices` | triangle count × 3 indices: **1 byte each when the shape has at most 256 vertices, else 2** (big-endian; true for every shape of both games) |
+| `… CollisionMaterials` | one u32 per triangle: a surface type ❓ |
+| `… hkpMoppCode`, `WeldingHeader`, `WeldingInfo` | Havok's search tree and edge welding: kept, not read |
+
+`_COLLISIONLIST_` lists the shapes; `SceneDescription` lists the nodes, then the shapes in
+node order. Most names are `COL_<node>`; 3 CZ and 41 CW shapes aren't
+(`z03_COL_camera_only02`, `z04_floor_COL_loco`, `wash_collision`): names that suggest
+collision only the camera, or only walkers ("locomotion"), bump into ❓. **A shape is found
+by its `hkCollisionShapeMesh` part, never by the `meshCOL_` prefix**: a first reader that
+went by the prefix left out 45 shapes (465 / 1,049 now, CZ / CW).
+
+**Where a shape goes** (measured on every shape; no field says it outright):
+
+1. Its **piece**: a piece of the zone with a node of the shape's name (`<name>`, or a part
+   `piece.<name>`: `z05_glass08.z05_glass01`), else of its name without a trailing `_a` /
+   `_b` (CZ splits shapes that way), else the piece named by the collision node that
+   word 1 points to.
+2. The vertices are in that **piece's own space, node offsets included** (CW
+   `z01_winglass02` lies at z = −19.3, where its node is), *or* already in world space
+   (CZ `pro_z02_tank_a`), and nothing tells which ❓. The toolkit takes the placement when
+   the placed shape lands inside the zone's placed pieces (their bounds, 1 m around) or
+   the stored one doesn't, else the stored vertices. *Retracted on the way: the node's
+   rest matrix applied on top (it counts the offset twice), and word 7 as the node.*
+3. A shape with no piece is in world space (CZ 125, CW 150: grounds, fences, "decal"
+   floors).
+
+Measured: 330 CZ / 899 CW shapes placed by their piece, 130 / 150 in world space. **5 CZ
+shapes are left out and named** (`pro_237`, `pro_331`, `pro_109`, `z09_object`, menu
+`pro_12`: local-looking, no piece names them, word 1 is 0); and CW `storage_pens`'
+`z00_COL_floor_loco` (world-looking, outside the level) is probably local too ❓. Checks:
+the ground under every spawn point (CZ 18 of 20, the two misses on the menu levels; CW 29
+of 35, misses on cinematic / menu levels and three in `storage_pens`), the Maps view
+against the buildings in both games, and `dr2 census --levels` (every shape read, counts
+by rule, the left-out shapes named).
 
 **Materials** ✅ (step 3, 2026-10-11; read from the level shaders with XenosRecomp: a
 draw's shader name, `UsedShaders.txt`, is the hash of a `deadrising*-sd.big/<hash>.sdo`

@@ -39,7 +39,9 @@ shaders draw them), level export (`catalog/level_export.py`, `dr2 export <level>
 add-on's Import zone), and **With my mods** (`mods/preview.py`, Ctrl+M). Fixed on the way:
 `SHORT2N` decoded transposed, lightmaps taken for normal maps, level pieces using their
 `_LOD` textures, a zone's first texture copy rule (checked in game). Checked in both games
-(CW by eye by the user); owed: the stretch items (`docs/phase10-kickoff.md` §Status). Editing
+(CW by eye by the user). Stretch done the same day: upper floor / basement map pictures,
+zombies in their areas, time of day and the sky, the collision mesh (`formats/collision.py`).
+Owed: the user's own test of Maps (`docs/phase10-kickoff.md` §Status). Editing
 levels is a potential phase 11, researched in `docs/phase11-kickoff.md`, not approved.** Read these before writing code:
 
 | Doc | What it holds |
@@ -183,7 +185,7 @@ python tools/variant_table.py <recomp>/assets/game/default_image.bin --check cz 
 python tools/blender_variants_gate.py     # phase 9 gate in Blender (~20 s)
 dr2 level list|info|things -g cz          # levels: zones, placements, what the text files place
 dr2 census --levels                       # every zone, placement, level text file, item model (~50 s / game)
-dr2 export prologue [--zone z05] [--whole] -g cz -o out   # a level for Blender (phase 10)
+dr2 export prologue [--zone z05] [--whole] [--zombies] [--collision] -g cz -o out   # a level for Blender
 dr2 studio                                # the GUI (pip install -e ".[studio]")
 dr2 help [page] / dr2 help --search <words>          # the guides (= Studio's help)
 dr2 play -g cz [--no-mods] [--deploy-only]           # deploy switched-on mods, start the recomp

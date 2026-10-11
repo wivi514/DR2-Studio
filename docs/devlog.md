@@ -17,6 +17,32 @@ Entry template:
 
 ---
 
+## 2026-10-11 — Phase 10 stretch: floors, zombies, time of day, collision
+**Done:** the four stretch items, each a Maps layer or setting and in the level export:
+- the in-game map's upper floor and basement pictures (CZ `map_prologue_2f`, CW `map_2f`,
+  `map_b1`), placed by fitting them to the main map (profile `map_floors`);
+- zombies standing in their areas: the crowds `missions.txt` puts in each zombie area
+  (`convert/zombies.py`), example spots, a few looks per type; `--zombies`;
+- time of day: the level's lighting table by hour and area (sky gradient as the `Skybox`
+  shader draws it, fog, key and ambient light);
+- the collision mesh: `formats/collision.py` reads every Havok triangle mesh of every
+  zone (1,514 shapes); `level.zone_collision` places them; a *Collision* layer,
+  `--collision`, and the add-on's *Zombies* / *Collision* boxes.
+**Why:** the stretch list of `phase10-kickoff.md` (user: "do the stretch items").
+**Learned:** collision shapes are found by their `hkCollisionShapeMesh` entry, not the
+`meshCOL_` prefix (45 shapes don't have it). A shape's vertices are in its **piece's**
+space with the node offsets already in (applying the node's matrix counted them twice), or
+already in world space, and nothing in the file says which: the placement is kept when it
+lands among the zone's pieces. Header word 1 is a collision-scene node number that finds
+the piece of shapes named after nothing (CZ's street ground under the Start spawn was
+missing until then). 5 CZ shapes stay unplaced and named. Checked: ground under the
+spawn points, Studio pictures against the buildings in both games, census 0 problems,
+the Blender add-on gate.
+**Docs updated:** `formats.md` §Levels ("Collision"), `modding/18-maps.md`,
+`13-blender-addon.md`, `dev/code-tour.md`, `glossary.md`, `roadmap.md`,
+`phase10-kickoff.md` §Status, `CLAUDE.md`, this entry.
+**Next:** the user's own test of the Maps tab; phase 11 waits for approval.
+
 ## 2026-10-11 — Phase 10 step 5: see your mods without the game
 **Done:** `mods/preview.py`: the mod library's switched-on mods (Play's set and order,
 over the recomp's `game_patched`) applied to a view of the game, `ModdedTree`, with the

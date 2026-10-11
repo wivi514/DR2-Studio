@@ -76,6 +76,8 @@ Phase 10 adds levels (``levels=True``, `check_levels`; `dr2kit.formats.level`):
   bounds rotated, scaled and moved by it (the placement maths, worst error reported);
 * **pieces**: every piece's scene parses, and every texture it names is found (the
   ones the game doesn't ship are listed);
+* **collision** (`dr2kit.formats.collision`): every zone's shapes parse, counted by how
+  they are placed (`convert.level.zone_collision`); those whose place is unknown are named;
 * **level text files** (`dr2kit.formats.levelscript`, `dr2kit.convert.placed`): every
   script's ``.txt``, ``waypoint_`` and ``nm_`` files, ``items.txt`` and ``missions.txt``
   parse and write back to the same bytes; classes the toolkit doesn't know are named;
@@ -531,18 +533,9 @@ LEVEL_BOUNDS_TOLERANCE = 0.01
 
 
 def piece_bounds(sc) -> list[tuple[float, float, float]]:
-    """The 8 corners of every shape's stored bounds, in the piece's own space (a rigid
-    shape's bounds are relative to its node, `Scene.rigid_node`)."""
-    import itertools
-    world = sc.skeleton.world_matrices() if sc.skeleton.nodes else []
-    pts = []
-    for m in sc.meshes:
-        n = sc.rigid_node(m)
-        mat = world[n] if n is not None else [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]]
-        for c in itertools.product(*zip(m.bounds_min, m.bounds_max)):
-            pts.append(tuple(sum(mat[i][j] * c[j] for j in range(3)) + mat[i][3]
-                             for i in range(3)))
-    return pts
+    """The 8 corners of every shape's stored bounds (`convert.level.piece_corners`)."""
+    from .convert.level import piece_corners
+    return piece_corners(sc)
 
 
 def piece_vertices(sc) -> list[tuple[float, float, float]]:
@@ -712,6 +705,18 @@ def check_levels(rep: CensusReport, tree: AssetTree, game: str) -> None:
                     lc["placed vertices outside the stored bounds"] += 1
                     rep.level_notes.append(f"{zd.pieces[name]}: placed vertices {out:.2f} m "
                                            f"outside the stored bounds (unexplained)")
+            try:
+                col = clevel.zone_collision(tree, zd)
+            except Exception as ex:  # noqa: BLE001 - reported
+                rep.problems.append((f"{zd.vpath}/MERGED_COLLISION.big", f"collision: {ex}"))
+            else:
+                for rule, n in col.shapes.items():
+                    lc[f"collision shapes placed: {rule}"] += n
+                lc["collision triangles"] += len(col.triangles)
+                for name in col.unplaced:
+                    lc["collision shapes not placed (piece unknown)"] += 1
+                    rep.level_notes.append(f"{zd.vpath}: collision shape {name}: "
+                                           f"its piece is unknown, left out")
             for name, sc in scenes.items():
                 if sc is None:
                     continue

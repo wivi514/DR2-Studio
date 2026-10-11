@@ -334,3 +334,129 @@ def zombies_glb(tree: AssetTree, spots, *, game: str, detail: str = "medium",
         return None
     return asm.to_bytes()
 
+
+COLLISION_COLOUR = (1.0, 0.45, 0.1)
+
+
+@dataclass
+class ZoneCollision:
+    """A zone's collision in world space: shapes placed by the rule of
+    `zone_collision`, and the ones whose placement isn't known (named, not drawn)."""
+    vertices: list = field(default_factory=list)
+    triangles: list = field(default_factory=list)
+    shapes: dict = field(default_factory=dict)        # how many by rule
+    unplaced: list = field(default_factory=list)      # shape names
+
+
+def zone_collision(tree: AssetTree, zone: ZoneData) -> ZoneCollision:
+    """The zone's ``MERGED_COLLISION.big`` (`formats.collision`) in world space.
+
+    A shape belongs to a piece: the one with a node of the shape's name (``<name>``, or a
+    part ``piece.<name>``), else of its name without a trailing ``_a`` / ``_b`` (CZ splits
+    a shape that way), else the piece the collision file's node number ``words[1]``
+    names (0: none). Its vertices are in that **piece's** space (node offsets included)
+    or already in world space, and nothing in the file says which ❓: the one that lands
+    inside the zone's placed pieces (their bounds, 1 m around) is taken, the piece's
+    placement first. A shape with no piece is in world space, unless its box lies far
+    from the zone (more than 1.5 radii from its centre): those few look local but their
+    piece is unknown ❓, so they are left out and named (docs/formats.md §Levels,
+    "Collision")."""
+    import re
+    from ..formats.collision import read_collision
+    from ..formats.scene import Scene
+    from .model import read_scene
+    out = ZoneCollision()
+    vp = join(zone.vpath, "MERGED_COLLISION.big")
+    try:
+        arc = tree.open_archive(vp)
+    except VPathError:
+        return out
+    try:
+        col_nodes = [n.name.lower() for n in Scene.from_archive(arc, vp).skeleton.nodes]
+    except Dr2Error:                      # no scene around the shapes: no node numbers
+        col_nodes = []
+    by_node: dict = {}
+    by_piece: dict = {}
+    boxes = []
+    for p in zone.placements:
+        name = piece_name(p, zone)
+        if name is None:
+            continue
+        by_piece.setdefault(name.lower(), p)
+        try:
+            ps = read_scene(tree, zone.pieces[name])
+        except Exception:  # noqa: BLE001 - the census names a piece that fails
+            continue
+        for nd in ps.skeleton.nodes:
+            for key in (nd.name.lower(), nd.name.lower().rsplit(".", 1)[-1]):
+                by_node.setdefault(key, p)
+        pts = [p.to_world(c) for c in piece_corners(ps)]
+        if pts:
+            boxes.append(([min(q[i] for q in pts) - 1 for i in range(3)],
+                          [max(q[i] for q in pts) + 1 for i in range(3)]))
+
+    def inside(verts) -> bool:
+        n = sum(1 for v in verts
+                if any(all(lo[i] <= v[i] <= hi[i] for i in range(3)) for lo, hi in boxes))
+        return n * 2 > len(verts)
+    for s in read_collision(arc, vp):
+        if not s.vertices:
+            continue
+        key = s.name.lower()
+        piece = by_node.get(key) or by_node.get(re.sub(r"_[a-z]$", "", key))
+        if piece is None and 0 < s.words[1] < len(col_nodes):
+            piece = by_piece.get(col_nodes[s.words[1]])
+        if piece is not None:
+            placed = [piece.to_world(v) for v in s.vertices]
+            if inside(placed) or not inside(s.vertices):
+                verts, rule = placed, "piece"
+            else:
+                verts, rule = list(s.vertices), "world"
+        else:
+            verts, rule = list(s.vertices), "world"
+            lo = [min(v[i] for v in verts) for i in range(3)]
+            hi = [max(v[i] for v in verts) for i in range(3)]
+            near = [min(max(zone.zone.centre[i], lo[i]), hi[i]) for i in range(3)]
+            if math.dist(near, zone.zone.centre) > zone.zone.radius * 1.5 + 5:
+                out.unplaced.append(s.name)
+                continue
+        base = len(out.vertices)
+        out.vertices += verts
+        out.triangles += [(a + base, b + base, d + base) for a, b, d in s.triangles]
+        out.shapes[rule] = out.shapes.get(rule, 0) + 1
+    return out
+
+
+def piece_corners(sc) -> list:
+    """The 8 corners of every shape's stored bounds, in the piece's own space (a rigid
+    shape's bounds are relative to its node, `Scene.rigid_node`)."""
+    import itertools
+    world = sc.skeleton.world_matrices() if sc.skeleton.nodes else []
+    pts = []
+    for m in sc.meshes:
+        n = sc.rigid_node(m)
+        for c in itertools.product(*zip(m.bounds_min, m.bounds_max)):
+            if n is None:
+                pts.append(c)
+            else:
+                w = world[n]
+                pts.append(tuple(sum(w[i][j] * c[j] for j in range(3)) + w[i][3]
+                                 for i in range(3)))
+    return pts
+
+
+def collision_glb(tree: AssetTree, zone: ZoneData, assembler=None,
+                  parent: int | None = None) -> bytes | None:
+    """The zone's collision as one see-through orange mesh (`zone_collision`); None
+    when the zone has none."""
+    from . import gltf
+    col = zone_collision(tree, zone)
+    if not col.triangles:
+        return None
+    own = assembler is None
+    asm = assembler or gltf.Assembler()
+    asm.mesh(f"{zone.name} collision", col.vertices, col.triangles, parent,
+             COLLISION_COLOUR, 0.35, {"dr2_kind": "collision", "dr2_zone": zone.name,
+                                      "dr2_unplaced": len(col.unplaced)})
+    return asm.to_bytes() if own else None
+

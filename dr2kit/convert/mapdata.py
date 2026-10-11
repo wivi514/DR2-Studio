@@ -30,7 +30,7 @@ from ..container.vpath import AssetTree, split
 from . import level as clevel
 from . import placed
 
-MAP_VERSION = 4            # bump when what goes into a zone file changes (4: lightmap UVs fixed)
+MAP_VERSION = 5            # bump when what goes into a zone file changes (5: collision)
 FULL, LOD = "full", "lod"
 PNG_LEVEL = 1              # fast PNGs for the cache (exports keep level 6)
 BACKDROP_RADIUS = 300.0    # zones larger than this are backdrops (CZ z01): always small textures
@@ -163,6 +163,19 @@ class MapCache:
         if not path.is_file():
             data = clevel.zombies_glb(self.tree, spots, game=self.game, lod=detail == LOD,
                                       db_path=self.db_path, png_level=PNG_LEVEL)
+            _write(path, data)
+        return path
+
+    def collision(self, level: str, zone: str) -> Path | None:
+        """The zone's collision mesh (`level.collision_glb`; None when it has none)."""
+        L = self.level(level)
+        z = L.find_zone(zone)
+        zvp = f"{L.vpath}/{z.zone}.big"
+        path = self._path(level, f"{z.zone}-collision", stamp(self.tree, [zvp]))
+        if not path.is_file():
+            data = clevel.collision_glb(self.tree, L.zone(z))
+            if data is None:
+                return None
             _write(path, data)
         return path
 

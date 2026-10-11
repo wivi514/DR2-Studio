@@ -527,3 +527,87 @@ def test_light_table_by_hour(tmp_path):
     assert abs(table[0]["ambient"]["up"][0] - 0.6) < 1e-9
     assert abs(table[0]["ambient"]["down"][0] - 0.4) < 1e-9
     assert mapdata.light_table(AssetTree(tmp_path), "nope.csv") is None
+
+
+# --- stretch: the collision mesh ---------------------------------------------------------
+
+def collision_shape(name, verts, tris, words=(0, 0, 0, 0, 0, 0, 0, 1)):
+    """The entries of one ``mesh<name>`` group (docs/formats.md §Levels, "Collision")."""
+    lo = [min(v[i] for v in verts) for i in range(3)]
+    hi = [max(v[i] for v in verts) for i in range(3)]
+    small = len(verts) <= 256
+    flat = [i for t in tris for i in t]
+    return [(f"mesh{name}", struct.pack(">8I7f", *words, 1.0, *lo, *hi)),
+            (f"mesh{name} hkCollisionShapeMesh",
+             struct.pack(">2I", len(verts), len(tris)) + bytes(36)),
+            (f"mesh{name} CollisionVertices", b"".join(struct.pack(">3f", *v) for v in verts)),
+            (f"mesh{name} CollisionIndices",
+             struct.pack(f">{len(flat)}{'B' if small else 'H'}", *flat)),
+            (f"mesh{name} CollisionMaterials", bytes(4 * len(tris))),
+            (f"mesh{name} hkpMoppCode", b"")]
+
+
+def test_zone_collision_places_shapes_and_names_the_lost(tmp_path):
+    from dr2kit.formats.collision import read_collision
+    tree = make_level(tmp_path, pieces=("box",),
+                      placements=[placement_record("box", 0, (3.0, 0.0, 0.0))])
+    quad = [(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (1.0, 1.0, 0.0)]
+    floor = [(-8.0, 0.0, -8.0), (8.0, 0.0, -8.0), (-8.0, 0.0, 8.0)]
+    lost = [(100.0, 0.0, 100.0), (101.0, 0.0, 100.0), (100.0, 0.0, 101.0)]
+    pers = make_archive(*collision_shape("COL_dummy01", quad, [(0, 1, 2), (2, 1, 3)]),
+                        *collision_shape("floor", floor, [(0, 1, 2)]),
+                        *collision_shape("COL_lost", lost, [(0, 1, 2)]))
+    path = tmp_path / "data/models/environment/town/town_z01.big"
+    from dr2kit.container.big import BigArchive
+    zone = BigArchive.parse(path.read_bytes())
+    zone.add("MERGED_COLLISION.big", make_archive(("persistent.big", pers.to_bytes())).to_bytes())
+    path.write_bytes(zone.to_bytes())
+    tree = AssetTree(tmp_path)
+    vp = "data/models/environment/town/town_z01.big/MERGED_COLLISION.big"
+    shapes = read_collision(tree.open_archive(vp), vp)
+    assert [s.name for s in shapes] == ["dummy01", "floor", "lost"]   # "mesh", "COL_" off
+    assert shapes[0].triangles == [(0, 1, 2), (2, 1, 3)] and shapes[0].index_size == 1
+    z = clevel.Level.open(tree, "town").zone("z01")
+    col = clevel.zone_collision(tree, z)
+    assert col.shapes == {"piece": 1, "world": 1} and col.unplaced == ["lost"]
+    assert col.vertices[:4] == [(3.0, 0.0, 0.0), (4.0, 0.0, 0.0), (3.0, 1.0, 0.0),
+                                (4.0, 1.0, 0.0)]                       # placed like box
+    assert col.vertices[4:] == floor                                   # world as stored
+    assert col.triangles[2] == (4, 5, 6)
+    g = gltf.Glb.parse(clevel.collision_glb(tree, z))
+    (node,) = [n for n in g.gltf["nodes"] if "mesh" in n]
+    assert node["extras"]["dr2_kind"] == "collision" and node["extras"]["dr2_unplaced"] == 1
+
+
+@pytest.mark.gamedata
+def test_collision_under_the_prologue_start(game_root):
+    """Every shape of CZ's prologue is read; the ground under Start (a shape stored in its
+    piece's space, found by the collision node number) is in place."""
+    from dr2kit.convert import placed
+    tree = AssetTree(game_root("cz"))
+    L = clevel.Level.open(tree, "prologue")
+    from dr2kit.formats.collision import read_collision
+    cols, read = [], 0
+    for zd in L.zone_data():
+        cols.append(clevel.zone_collision(tree, zd))
+        vp = f"{zd.vpath}/MERGED_COLLISION.big"
+        read += sum(1 for s in read_collision(tree.open_archive(vp), vp) if s.vertices)
+    assert read == 402                       # every shape drawn or named, none dropped
+    assert sum(sum(c.shapes.values()) + len(c.unplaced) for c in cols) == read
+    start = next(t for t in placed.read_script(tree, "prologue", None, None).things
+                 if t.kind == "spawn" and t.name == "Start")
+    px, py, pz = start.position
+
+    def ground(c):
+        for a, b, d in c.triangles:
+            A, B, C = c.vertices[a], c.vertices[b], c.vertices[d]
+            det = (B[2] - C[2]) * (A[0] - C[0]) + (C[0] - B[0]) * (A[2] - C[2])
+            if abs(det) < 1e-9:
+                continue
+            l1 = ((B[2] - C[2]) * (px - C[0]) + (C[0] - B[0]) * (pz - C[2])) / det
+            l2 = ((C[2] - A[2]) * (px - C[0]) + (A[0] - C[0]) * (pz - C[2])) / det
+            if min(l1, l2, 1 - l1 - l2) >= 0 and \
+                    abs(l1 * A[1] + l2 * B[1] + (1 - l1 - l2) * C[1] - py) < 1.5:
+                return True
+        return False
+    assert any(ground(c) for c in cols)

@@ -346,6 +346,11 @@ look, bare arms, glasses, chest accessories.
 parts; a part is hidden when one of its bits is set. A look in the toolkit converts to
 this number (shown in the Variants panel), to compare with what a recomp reports.
 
+**Collision mesh.** The invisible, simplified shapes the game uses to stop the player,
+zombies and thrown things: walls, floors, a rough cone for a tree. Never drawn in game.
+Each zone keeps its own in `MERGED_COLLISION.big` (Havok triangle meshes); DR2 Studio's
+Maps tab shows it as see-through orange ([`modding/18-maps.md`](modding/18-maps.md)).
+
 **Colour choice.** Another set of colours for a piece of clothing (`jersey 3`): another
 **value set** the game can swap in for the material's own. Only the numbers change, so
 the toolkit bakes it the same way as the own colours.

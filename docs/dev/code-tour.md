@@ -30,6 +30,7 @@ dr2kit/
     bcs.py             string banks (str_<lang>.bcs): read, write, JSON, apply changes (phase 6)
     level.py           levels: the zone list and each zone's placement table (phase 10)
     levelscript.py     the block text files (level, items, missions), kept byte for byte (phase 10)
+    collision.py       a zone's collision: Havok triangle meshes in MERGED_COLLISION.big (phase 10)
   convert/
     png.py             pure-Python PNG reader/writer (Pillow used when present)
     dxt.py             DXT1/DXT5/DXN block decode + encode (numpy, pure-Python fallback)
@@ -421,6 +422,14 @@ Stretch: `convert.zombies.crowds(tree, script)` reads the zombie factories of
 polygons (ear-clipped, seeded); `level.zombies_glb` makes each type's model once per look
 and places it (`gltf.Assembler.add(static=True)`: rest pose, no bones). `MapCache.zombies`
 caches a zone's; the Maps page asks for them as a third part.
+Stretch: `formats.collision.read_collision(arc, vpath)` reads every shape of a zone's
+`MERGED_COLLISION.big` (found by its `hkCollisionShapeMesh` entry); `level.zone_collision
+(tree, zone)` puts them in world space (the shape's piece, by name or the collision node
+number, then the placement when the placed shape lands among the zone's pieces; no piece:
+world; the few whose place is unknown are left out and named) and `level.collision_glb`
+makes one see-through orange mesh. `MapCache.collision` caches it (one size); the Maps
+page's fourth part, drawn with `collisionLook` (fill + wireframe); `level_glb(collision=
+True)` adds a *Collision* group to exports; `census.check_levels` counts shapes by rule.
 
 Step 3: `convert.mapdata.MapCache(tree, game)` builds and keeps a zone's `pieces(level,
 zone, detail)` and `items(level, zone, script, detail)` files on disk (named by
