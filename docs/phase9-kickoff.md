@@ -47,6 +47,8 @@ warning is moot for the same reason.
 - **Step 0 / the in-game gate:** a captured frame whose zombies each draw one choice
   per slot. The capture save starts in the safehouse bathroom (no zombies; tried
   2026-10-10); needs a save outside, or the user playing with a capture key.
+- **The user's own test of Studio** in a real window (Studio was only driven headless
+  for the gate). Started 2026-10-11; fixes from it go in the devlog.
 - How the game picks a look (the writer of the spawn record's mask, `formats.md` ❓), so
   **Default** and **Random** can follow it; whether CW uses its colour choices; whether
   CZ varies `_3`'s colours (its list has no `_3` sections).

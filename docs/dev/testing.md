@@ -251,6 +251,7 @@ tab: groups, filter, a model's rig and textures, *Export all…* and a group exp
 | **Blender** (`tools/blender_variants_gate.py`: Studio's own Open-in-Blender script, Blender 5.2 headless) | as shown: exactly the look's 18 parts; organised: 18 group collections, only the look's parts visible, 39 colour choices in glTF Variants, `shirt2 3` switches the shirt's material | as shown: 20 parts; organised: 28 collections, only the look visible, 14 colour choices, `cleavgshirt 2` switches |
 | **Add-on** (`tools/blender_addon_gate.py`, now with a zombie) | `zombie_skinny_2` imports into 18 group collections with 79 parts hidden; a visible shirt pushed out 2 cm checks OK (the hidden parts kept) and exports; `dr2 mod check` accepts | — |
 | Library pictures (contact sheet of every zombie item, both games) | one look each, no overlapping clothes | the same |
+| **Studio by a person** (a real window, not headless) | started for the user on 2026-10-11 (commit `89d8862`); their findings pending | the same |
 | **In game** (captured zombies draw one choice per slot) | **not done**: the capture save starts in the safehouse bathroom, with no zombie in view (a run on 2026-10-10 confirmed it); needs a save outside or a person playing | not done |
 
 Earlier evidence for the in-game behaviour is the CZ recomp's own measurement (a live

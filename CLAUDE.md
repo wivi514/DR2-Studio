@@ -25,7 +25,7 @@ everything at once (`catalog/export.py`, *Export all…*, `dr2 export`); gate pa
 games. Fixed 2026-10-10 from the user's tests: model colours (shader bakes, see-through
 hair/opacity maps), rigid parts placed by their node, Play's renderer for source builds,
 Open in Blender. Owed: `docs/phase8-kickoff.md` §Status and `phase7-kickoff.md` §Status.
-Phase 9 (user-set 2026-10-10, variants) done the same day: `convert/variants.py` (the game's
+Phase 9 (user-set 2026-10-10, variants, commit `89d8862`) done the same day: `convert/variants.py` (the game's
 shape-group table as profile data, looks, hide mask, colour choices), the Variants panel,
 default-look pictures, detail levels folded in the Library, as-shown / organised exports
 (Blender collections, `KHR_materials_variants`), `dr2 variants`, `census --variants`; gate

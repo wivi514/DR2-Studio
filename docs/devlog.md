@@ -17,6 +17,17 @@ Entry template:
 
 ---
 
+## 2026-10-11 — Phase 9 handed to the user for testing
+**Done:** started DR2 Studio (commit `89d8862`, index schema 5 already built for both
+games) so the user can try the Variants panel, Detail, colour choices, *Export .glb…*
+(as shown) and *Open in Blender* / *Export all…* (organised) in a real window.
+**Why:** the phase 9 gate drove Studio headless only; a person's test in a real window
+has caught what the gates missed before (phase 8's colours, Open in Blender).
+**Learned:** nothing new yet.
+**Docs updated:** `phase9-kickoff.md` §Status (owed: the user's test), `dev/testing.md`
+§Phase 9 results (a row for it).
+**Next:** fix what the user reports; then the in-game zombie check.
+
 ## 2026-10-10 — Phase 9: variants (one look per zombie, exported as shown or organised)
 **Done:** built phase 9 from `phase9-kickoff.md`. `dr2kit/convert/variants.py` classifies a
 model's parts the way the game does (its 53-record shape-group table, copied into the
