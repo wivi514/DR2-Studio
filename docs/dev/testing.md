@@ -276,7 +276,9 @@ and one-look exports import back byte-identical); `test_studio.py` (the Variants
 | **Maps vs the game** (Studio from the camera of a recomp capture, `c0`–`c3` of Chuck's VS dump) | safehouse bathroom: same walls, door and framing; lightmap shading matches once `SHORT2N` was fixed; game warmer (exposure, time of day) | the safehouse, by eye (the user, 2026-10-11): matches; no exact camera (no vertex dump in the CW recomp) |
 | Blender (`tools/blender_addon_gate.py`, Import zone) | `prologue_z05`: 19 pieces in place, 113 items, markers by kind, 66 lightmaps wired | — |
 | **Mods** (`tests/test_preview.py`, the deployed files, in game) | texture + model mod: Studio = Play byte for byte; in game the bottle showed at once, the wall only on the zone's first copy (now automatic) | safehouse walls recoloured by a mod: magenta in game (the user's screenshot, 2026-10-11) as in the Maps tab |
-| Full tests | 372 passed (slow and game-data included) | |
+| **Collision** (stretch; `census --levels`, `tests/test_level.py`, Studio pictures) | 465 shapes read, 330 placed by their piece, 130 world, 5 named (place unknown); ground under 18 of 20 spawn points (the 2 misses on menu levels) | 1,049 read, 899 by piece, 150 world; ground under 29 of 35 (misses: cinematic / menu levels, 3 in `storage_pens`) |
+| Blender, collision (`tools/blender_addon_gate.py`) | `prologue_z05`: 15,951 faces in a *Collision* collection, hidden at first | — |
+| Full tests | 372 passed (slow and game-data included); after the stretch, 369 non-slow passed | |
 
 ## Writing a test for new code
 

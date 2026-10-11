@@ -20,7 +20,7 @@ So, three goals:
 The research (2026-10-11) is below, then the plan. The facts are also in
 [`formats.md`](formats.md) §Levels, with how each was found.
 
-## Status (2026-10-11): built and checked in both games; owed: the stretch items
+## Status (2026-10-11): built and checked in both games, stretch items done; owed: the user's own test of Maps
 
 The user approved the plan and every decision below (2026-10-11), stressing: show the
 switched-on mods, and make switching to **without mods** easy. Editing levels moves to a
@@ -238,7 +238,7 @@ Each step ends usable and committed with its docs.
 - A mod that fails its checks (`dr2 mod check`) is drawn as the original, with the
   error shown, not as a broken model.
 
-### 6. Stretch (if time allows)
+### 6. Stretch (if time allows) — all done 2026-10-11 (§Status)
 
 - The collision mesh (`MERGED_COLLISION`) as a layer.
 - Time of day from the lighting table; the sky and backdrop.
