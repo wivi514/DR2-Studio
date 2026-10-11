@@ -1301,6 +1301,7 @@ class MainWindow(QMainWindow):
                                f"{', '.join(mod.games)} — {folder}")
         self._refresh_mod()
         self._update_buttons()
+        self.maps_view._refresh_edit_panel()
 
     def _refresh_mod(self) -> None:
         """The open mod's changes, one row each: what kind, which asset, and whether the
@@ -1316,10 +1317,10 @@ class MainWindow(QMainWindow):
             self.mod_files.addItem(str(e))
             return
         labels = {"texture-png": "texture", "model-glb": "model", "audio": "sound",
-                  "strings": "strings", "raw": "file"}
+                  "strings": "strings", "edits": "level", "raw": "file"}
         for rel, _src in mod.files():
             kind, target = _kind_of(rel)
-            it = QListWidgetItem(f"{labels[kind]:<8}  {target}")
+            it = QListWidgetItem(f"{labels.get(kind, kind):<8}  {target}")
             it.setData(ROLE_VPATH, target)
             it.setData(Qt.UserRole + 4, rel)
             self.mod_files.addItem(it)

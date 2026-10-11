@@ -7,6 +7,10 @@
 //   dr2:want {zone, part, detail, script}   build/send one part of a zone: pieces, items, zombies, collision
 //   dr2:pick {...}                 the user clicked something (a piece, an item, a marker)
 //   dr2:camera {position, yaw}     where the camera is (for "Copy position")
+//   dr2:edit {op, name, file, …}   editing (phase 11): move {position, rotation}, delete,
+//                                  duplicate, undo, redo (studio/maps_edit.py answers with
+//                                  dr2.itemState)
+//   dr2:place {point}              where to put a new item (the answer to dr2.askPlace)
 //
 //   dr2.openLevel(meta, keep)      a level: zones, markers, nav mesh, start (convert/mapdata.py)
 //   dr2.zoneReady(zone, part, detail, url)   a requested file is ready at url
@@ -17,6 +21,15 @@
 //   dr2.setView(eye, fwd, up, fovY) an exact camera (a recomp capture's, for comparing)
 //   dr2.pickAt(x, y)               what a click at page pixel x, y would pick (tests)
 //   dr2.setHour(h)                 time of day 0-23 (null: Studio's own neutral light)
+//   dr2.setEditing(on)             edit mode: a clicked item or door gets move / turn
+//                                  handles (T move, R turn, F onto the floor, Delete,
+//                                  Ctrl+D copy, Ctrl+Z / Ctrl+Y undo / redo)
+//   dr2.itemState([state…])        placed items after a change: moved, gone, or a new
+//                                  model to load (url); kept, and applied again to every
+//                                  zone file that loads later
+//   dr2.askPlace()                 answer with dr2:place: the floor point in the middle
+//                                  of the view
+//   dr2.selectItem(name)           select a placed item by name (as a click would)
 // Time of day (meta.lighting, convert/mapdata.py lighting): the lighting context whose
 // area holds the camera gives, for the hour, the sky (the game's Skybox shader: a
 // gradient by elevation, colour 1 at the horizon, 2 at the midpoint, 3 at the zenith),
@@ -31,6 +44,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from './vendor/three/examples/jsm/loaders/GLTFLoader.js';
 import { applyLevelMaterials } from './levelmaterials.js';
+import { TransformControls } from './vendor/three/examples/jsm/controls/TransformControls.js';
 
 const NEAR = 40;              // metres from a zone's bounds: full-size textures inside this
 const MAX_PENDING = 3;        // requests in flight at once (maps_view.BUILDERS threads)
@@ -143,7 +157,8 @@ const DEFAULT_ON = new Set(['pieces', 'items', 'door', 'item', 'spawn', 'map_are
 const piecesRoot = new THREE.Group(), itemsRoot = new THREE.Group(), markerRoot = new THREE.Group();
 const zombiesRoot = new THREE.Group();
 const collisionRoot = new THREE.Group();
-scene.add(piecesRoot, itemsRoot, markerRoot, zombiesRoot, collisionRoot);
+const addedRoot = new THREE.Group();     // items an edit added or turned into another item
+scene.add(piecesRoot, itemsRoot, markerRoot, zombiesRoot, collisionRoot, addedRoot);
 const markerGroups = {};          // kind -> Group
 const labels = [];                // sprites, hidden when far
 let pending = 0;
@@ -395,7 +410,8 @@ function schedule() {
   const asks = [];
   for (const z of zones.values()) {
     for (const part of PARTS) {
-      if (part !== 'pieces' && !layerOn(part)) continue;
+      // editing snaps onto the collision mesh, so it is loaded (hidden) while editing
+      if (part !== 'pieces' && !layerOn(part) && !(editing && part === 'collision')) continue;
       const want = part === 'collision' ? 'full' : desired(z);   // one size only
       const s = z[part];
       if (s.missing) continue;
@@ -458,6 +474,9 @@ window.dr2 = {
       for (const part of PARTS) if (z[part].object) { dispose(z[part].object); }
     }
     piecesRoot.clear(); itemsRoot.clear(); zombiesRoot.clear(); collisionRoot.clear();
+    detachGizmo();
+    for (const o of addedRoot.children) dispose(o);
+    addedRoot.clear(); added.clear(); overrides.clear();
     zones.clear();
     pending = 0;
     clearSelection();
@@ -500,9 +519,13 @@ window.dr2 = {
       }
       const root = { pieces: piecesRoot, items: itemsRoot, zombies: zombiesRoot,
                      collision: collisionRoot }[part];
-      if (s.object) { root.remove(s.object); dispose(s.object); }
+      if (s.object) {
+        if (editTarget && isInside(editTarget.node, s.object)) detachGizmo();
+        root.remove(s.object); dispose(s.object);
+      }
       s.object = obj; s.detail = detail; s.asked = null;
       root.add(obj);
+      if (part === 'items') for (const st of overrides.values()) applyOverride(st, obj);
       const [n, full] = loadedCount();
       say(`${meta.level}: ${n}/${zones.size} zones shown (${full} full size)`);
       schedule();
@@ -549,6 +572,34 @@ window.dr2 = {
   },
   pickAt(x, y) { pick(x, y); },
   setHour(h) { hour = (h === null || h === undefined) ? null : h; lastLight = null; applyLight(); },
+  setEditing(on) {
+    editing = !!on;
+    if (!editing) detachGizmo();
+    else if (selected && selected.userData && selected.userData.dr2_item) attachGizmo(selected);
+    schedule();
+  },
+  itemState(states) {
+    for (const st of states) {
+      overrides.set(st.name.toLowerCase(), st);
+      applyOverride(st, null);
+    }
+  },
+  askPlace() {
+    const r = renderer.domElement.getBoundingClientRect();
+    const hit = floorHit(r.left + r.width / 2, r.top + r.height / 2);
+    const p = hit ? hit.point : camera.position.clone().add(
+      new THREE.Vector3(0, 0, -4).applyEuler(camera.rotation)).setY(camera.position.y - EYE);
+    post('place', { point: p.toArray().map(c => Math.round(c * 1000) / 1000) });
+  },
+  selectItem(name) {
+    const n = itemNodes(name, addedRoot)[0] || itemNodes(name).find(o => o.visible);
+    if (n) pickNode(n);
+    return !!n;
+  },
+  editInfo() {
+    return { editing, target: editTarget && editTarget.name, mode: gizmo.getMode(),
+             overrides: overrides.size, added: added.size };
+  },
   camera() {
     return { position: camera.position.toArray(), yaw };
   },
@@ -564,6 +615,10 @@ window.addEventListener('keyup', e => { keys.delete(e.code); });
 window.addEventListener('blur', () => keys.clear());
 let drag = null;
 renderer.domElement.addEventListener('pointerdown', e => {
+  if (editing && editTarget && (gizmo.axis !== null || gizmo.dragging)) {   // the handles
+    drag = null;
+    return;
+  }
   drag = { x: e.clientX, y: e.clientY, moved: 0, button: e.button };
   renderer.domElement.setPointerCapture(e.pointerId);
 });
@@ -596,6 +651,149 @@ renderer.domElement.addEventListener('pointermove', e => {
 renderer.domElement.addEventListener('pointerup', e => {
   if (drag && drag.moved < 4 && drag.button === 0) pick(e.clientX, e.clientY);
   drag = null;
+});
+
+// --- editing (phase 11): move / turn handles, edit keys, what Python says changed -----------
+let editing = false;
+let editTarget = null;            // {node, name, file}
+const overrides = new Map();      // lower name -> the last itemState for it
+const added = new Map();          // lower name -> the object loaded for it (addedRoot)
+const gizmo = new TransformControls(camera, renderer.domElement);
+gizmo.setSpace('world');
+gizmo.setSize(0.9);
+const gizmoHelper = gizmo.getHelper();
+scene.add(gizmoHelper);
+gizmo.addEventListener('objectChange', () => { if (selBox) selBox.update(); });
+gizmo.addEventListener('dragging-changed', e => {
+  if (!e.value && editTarget) sendMove(editTarget);     // a drag ended: save it
+});
+function setGizmoMode(mode) {
+  gizmo.setMode(mode);
+  gizmo.showX = gizmo.showZ = mode !== 'rotate';        // turn about the up axis only
+  gizmo.showY = true;
+}
+setGizmoMode('translate');
+function isInside(o, root) { for (let p = o; p; p = p.parent) if (p === root) return true; return false; }
+function attachGizmo(node) {
+  const u = node.userData;
+  editTarget = { node, name: u.dr2_name, file: u.dr2_file };
+  gizmo.attach(node);
+}
+function detachGizmo() { gizmo.detach(); editTarget = null; }
+function sendMove(t) {
+  const p = new THREE.Vector3(), q = new THREE.Quaternion();
+  t.node.getWorldPosition(p);
+  t.node.getWorldQuaternion(q);
+  post('edit', { op: 'move', name: t.name, file: t.file,
+                 position: p.toArray().map(c => Math.round(c * 1000) / 1000),
+                 rotation: [q.x, q.y, q.z, q.w].map(c => Math.round(c * 10000) / 10000) });
+}
+// The floor under a point: a ray down onto the collision mesh (what the game stands on),
+// or onto the buildings while the collision isn't loaded.
+const down = new THREE.Raycaster();
+function floorBelow(p, skip) {
+  down.set(p.clone().add(new THREE.Vector3(0, 1.5, 0)), new THREE.Vector3(0, -1, 0));
+  const roots = collisionRoot.children.length ? [collisionRoot] : [piecesRoot];
+  const hits = down.intersectObjects(roots, true).filter(h => h.object.isMesh &&
+    (!skip || !isInside(h.object, skip)) && !(h.object.material && h.object.material.wireframe));
+  return hits.length ? hits[0].point : null;
+}
+function floorHit(x, y) {
+  const r = renderer.domElement.getBoundingClientRect();
+  ray.setFromCamera(new THREE.Vector2(((x - r.left) / r.width) * 2 - 1,
+                                      -((y - r.top) / r.height) * 2 + 1), camera);
+  const roots = collisionRoot.children.length ? [collisionRoot, piecesRoot] : [piecesRoot];
+  const hits = ray.intersectObjects(roots, true).filter(h => h.object.isMesh &&
+    !(h.object.material && h.object.material.wireframe));
+  return hits[0] || null;
+}
+function snapToFloor(t) {
+  const box = new THREE.Box3().setFromObject(t.node);
+  const at = new THREE.Vector3();
+  t.node.getWorldPosition(at);
+  const floor = floorBelow(new THREE.Vector3(at.x, box.min.y, at.z), t.node);
+  if (!floor) { say('no floor under it (load the zone first)'); return; }
+  const world = at.clone().setY(at.y + floor.y - box.min.y);
+  t.node.position.copy(t.node.parent ? t.node.parent.worldToLocal(world) : world);
+  if (selBox) selBox.update();
+  sendMove(t);
+}
+function itemNodes(name, within) {
+  const out = [], low = name.toLowerCase();
+  (within || itemsRoot).traverse(o => {
+    if (o.userData && o.userData.dr2_name && o.userData.dr2_name.toLowerCase() === low) out.push(o);
+  });
+  return out;
+}
+function setTransform(node, st) {
+  const world = v3(st.position);
+  node.position.copy(node.parent ? node.parent.worldToLocal(world) : world);
+  if (st.rotation) {
+    const q = new THREE.Quaternion(...st.rotation).normalize();
+    if (node.parent) {
+      const pq = new THREE.Quaternion();
+      node.parent.getWorldQuaternion(pq);
+      q.premultiply(pq.invert());
+    }
+    node.quaternion.copy(q);
+  }
+}
+// Show one item as the last change left it; ``within`` (a zone file just loaded) only
+// hides or moves its own nodes (a model to load is loaded once, by itemState).
+function applyOverride(st, within) {
+  const key = st.name.toLowerCase();
+  const originals = itemNodes(st.name, within || itemsRoot);
+  if (st.removed) {
+    for (const n of originals) n.visible = false;
+    if (!within && added.has(key)) { const o = added.get(key); addedRoot.remove(o); dispose(o); added.delete(key); }
+    if (editTarget && editTarget.name.toLowerCase() === key) { detachGizmo(); clearSelection(); }
+    return;
+  }
+  if (st.url && !within) {                       // a new model: load it, hide the original
+    loader.load(st.url, async gltf => {
+      await applyLevelMaterials(gltf);
+      markMaterials(gltf.scene);
+      if (added.has(key)) { const o = added.get(key); addedRoot.remove(o); dispose(o); }
+      added.set(key, gltf.scene);
+      addedRoot.add(gltf.scene);
+      for (const n of itemNodes(st.name)) n.visible = false;
+      const node = itemNodes(st.name, gltf.scene)[0];
+      if (node && editing) { pickNode(node); }
+    });
+    return;
+  }
+  if (added.has(key) || (overrides.get(key) || {}).url) {    // shown by its added copy
+    for (const n of originals) n.visible = false;
+    if (within) return;
+    for (const n of itemNodes(st.name, addedRoot)) setTransform(n, st);
+  } else {
+    for (const n of originals) { setTransform(n, st); n.visible = true; }
+  }
+  if (selBox) selBox.update();
+}
+function pickNode(node) {
+  clearSelection();
+  selected = node;
+  selBox = new THREE.BoxHelper(node, 0xffff00);
+  selBox.material.depthTest = false;
+  selBox.renderOrder = 20;
+  scene.add(selBox);
+  if (editing) attachGizmo(node);
+  const u = node.userData;
+  post('pick', { type: u.dr2_kind || 'item', name: u.dr2_name, item: u.dr2_item,
+                 vpath: u.dr2_vpath, file: u.dr2_file, line: u.dr2_line });
+}
+window.addEventListener('keydown', e => {
+  if (!editing) return;
+  const ctrl = e.ctrlKey || e.metaKey;
+  if (ctrl && e.code === 'KeyZ') { post('edit', { op: e.shiftKey ? 'redo' : 'undo' }); e.preventDefault(); return; }
+  if (ctrl && e.code === 'KeyY') { post('edit', { op: 'redo' }); e.preventDefault(); return; }
+  if (!editTarget) return;
+  if (e.code === 'KeyT') setGizmoMode('translate');
+  else if (e.code === 'KeyR') setGizmoMode('rotate');
+  else if (e.code === 'KeyF') snapToFloor(editTarget);
+  else if (e.code === 'Delete' || e.code === 'Backspace') post('edit', { op: 'delete', name: editTarget.name, file: editTarget.file });
+  else if (ctrl && e.code === 'KeyD') { post('edit', { op: 'duplicate', name: editTarget.name, file: editTarget.file }); e.preventDefault(); }
 });
 renderer.domElement.addEventListener('wheel', e => {
   speed = Math.max(0.5, Math.min(200, speed * (e.deltaY < 0 ? 1.25 : 0.8)));
@@ -634,7 +832,7 @@ function pick(x, y) {
   ray.setFromCamera(new THREE.Vector2(((x - r.left) / r.width) * 2 - 1,
                                       -((y - r.top) / r.height) * 2 + 1), camera);
   ray.camera = camera;
-  const hits = ray.intersectObjects([piecesRoot, itemsRoot, markerRoot], true)
+  const hits = ray.intersectObjects([piecesRoot, itemsRoot, addedRoot, markerRoot], true)
     .filter(h => !h.object.userData.isLabel && h.object.isMesh && visibleChain(h.object));
   clearSelection();
   for (const h of hits) {
@@ -647,6 +845,8 @@ function pick(x, y) {
       else if (u.dr2_item) { info = { type: u.dr2_kind || 'item', name: u.dr2_name, item: u.dr2_item, vpath: u.dr2_vpath, file: u.dr2_file, line: u.dr2_line }; target = o; }
     }
     if (!info) continue;
+    if (editing && target && target.userData && target.userData.dr2_item) attachGizmo(target);
+    else detachGizmo();
     for (let o = h.object; o; o = o.parent) if (o.userData && o.userData.zone) { info.zone = o.userData.zone; break; }
     info.point = h.point.toArray().map(c => Math.round(c * 1000) / 1000);
     pivot = h.point.clone();
@@ -658,6 +858,7 @@ function pick(x, y) {
     post('pick', info);
     return;
   }
+  detachGizmo();
   post('pick', { type: 'none', point: hits.length ? hits[0].point.toArray() : null });
 }
 

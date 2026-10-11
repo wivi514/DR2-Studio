@@ -18,6 +18,21 @@ this is a picture of *where* and *what*, not of the exact spots (which aren't st
 
 Which missions run when is the game's business: by default every factory of the level
 counts, each crowd capped (``per_area``) so the view stays light.
+
+Phase 11 (the zombie editor) reads every other way zombies appear, each with its **block
+path** in ``missions.txt`` (`leveledits` addresses blocks by it): `spawns` lists
+``cMissionSpawnZombie`` (single zombies at a spot: type, count, held item, facing;
+``when`` says if they wait inside a timer or a cinematic), ``cMissionSpawnZombieCrate``
+(respawns into a floor polygon of the level file, ``ShapeName``),
+``cMissionZombieRemoval`` (clears a circle) — `mission_spawns` gives all three and the
+crowds of a level at once. `load_sets` is in `convert.levelcheck` (``zombiesets.txt``).
+Measured 2026-10-11: CZ 82 single zombies sit straight under their level's
+``cMissionLevelReady``, 55 inside a ``cMissionTimer``; CW 136 and 14 (+5 in cinematics);
+every crate's ``ShapeName`` is a ``cPolygonLarge`` / ``cPolygonSmall`` of the level file.
+
+**Saves** (in game, CZ, 2026-10-11): a mod that *adds* a block inside one of the game's
+missions makes existing saves fail to load; changing a value does not
+(docs/formats.md §Levels, "Mission edits and saves").
 """
 
 from __future__ import annotations
@@ -42,6 +57,97 @@ class Crowd:
     area: str
     amounts: dict[str, int] = field(default_factory=dict)
     line: int = 0
+    path: str = ""                   # its block path in missions.txt
+    props: dict = field(default_factory=dict)
+
+
+@dataclass
+class MissionSpawn:
+    """A single zombie (``kind`` "single"), a respawn crate ("crate") or a clearing
+    ("removal") of a mission, by its block path."""
+    kind: str
+    mission: str
+    path: str
+    line: int
+    props: dict = field(default_factory=dict)
+    when: str = ""                   # "" straight away, else the blocks it waits in
+
+    @property
+    def position(self) -> tuple[float, ...] | None:
+        v = self.props.get("SpawnPoint") or self.props.get("Location")
+        try:
+            out = tuple(float(c) for c in v.split(",")) if v else None
+        except ValueError:
+            return None
+        return out if out and len(out) == 3 else None
+
+    @property
+    def yaw(self) -> float:
+        try:
+            return float(self.props.get("Rotation", "0"))
+        except ValueError:
+            return 0.0
+
+    def to_dict(self) -> dict:
+        d = {"kind": self.kind, "mission": self.mission, "path": self.path,
+             "line": self.line, "props": self.props, "when": self.when}
+        if self.position:
+            d["position"] = self.position
+        return d
+
+
+SPAWN_KINDS = {"cMissionSpawnZombie": "single", "cMissionSpawnZombieCrate": "crate",
+               "cMissionZombieRemoval": "removal"}
+
+
+def mission_spawns(tree: AssetTree, script: str) -> tuple[list[Crowd], list[MissionSpawn]]:
+    """Every crowd and every single zombie, respawn crate and clearing that
+    ``missions.txt`` puts on the level of ``script`` (module docstring)."""
+    try:
+        doc = Document.parse(tree.resolve(join(placed.DATAFILE, "missions.txt")).data(),
+                             "missions.txt")
+    except VPathError:
+        return [], []
+    want = f"level_{script}".lower()
+    crowds_out: list[Crowd] = []
+    spawns: list[MissionSpawn] = []
+
+    def go(b, path, mission, level, chain):
+        here = f"{path}/{b.cls} {b.name}".lstrip("/") if b.name else f"{path}/{b.cls}".lstrip("/")
+        if b.cls == "cMissionDefinition":
+            mission = b.name
+        if b.cls == "cMissionLevelReady":
+            level, chain = (b.get("LevelName") or "").lower(), []
+        elif level is not None:
+            chain = chain + [b.cls]
+        if level == want and b.cls == "cMissionZombieFactory":
+            c = _crowd(b, mission)
+            c.path = here
+            if c.area:
+                crowds_out.append(c)
+        elif level == want and b.cls in SPAWN_KINDS:
+            spawns.append(MissionSpawn(SPAWN_KINDS[b.cls], mission or "", here, b.line + 1,
+                                       {p.key: p.value for p in b.props},
+                                       "/".join(chain[:-1])))
+        for ch in b.children:
+            go(ch, here, mission, level, chain)
+    for b in doc.blocks:
+        go(b, "", None, None, [])
+    return crowds_out, spawns
+
+
+def _crowd(b, mission) -> Crowd:
+    c = Crowd(mission or "", b.get("ZombieWarehouseName") or "", line=b.line + 1,
+              props={p.key: p.value for p in b.props})
+    for p in b.props:
+        if p.key.startswith("Type") and p.key[4:].isdigit():
+            try:
+                n = int(b.get(f"Amount{p.key[4:]}") or 0)
+            except ValueError:
+                n = 0
+            if p.value and n > 0:
+                c.amounts[p.value] = c.amounts.get(p.value, 0) + n
+    return c
 
 
 @dataclass
@@ -70,15 +176,7 @@ def crowds(tree: AssetTree, script: str) -> list[Crowd]:
         if b.cls == "cMissionLevelReady":
             level = (b.get("LevelName") or "").lower()
         if b.cls == "cMissionZombieFactory" and level == want:
-            c = Crowd(mission or "", b.get("ZombieWarehouseName") or "", line=b.line + 1)
-            for p in b.props:
-                if p.key.startswith("Type") and p.key[4:].isdigit():
-                    try:
-                        n = int(b.get(f"Amount{p.key[4:]}") or 0)
-                    except ValueError:
-                        n = 0
-                    if p.value and n > 0:
-                        c.amounts[p.value] = c.amounts.get(p.value, 0) + n
+            c = _crowd(b, mission)
             if c.area and c.amounts:
                 out.append(c)
         for ch in b.children:

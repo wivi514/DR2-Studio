@@ -17,6 +17,32 @@ Entry template:
 
 ---
 
+## 2026-10-11 — Phase 11 step 2: in-game tests (CZ) and the Maps editor for items
+**Done:** the early in-game tests of the plan, in the CZ recomp: the user played each
+build, and when the first one crashed a headless bisect (scripted presses loading a copy
+of the user's save, then new games; `=== guest fault` / which files loaded in
+`cz_runtime.log`) found the cause in five rounds. Built the Maps tab's editing
+(`studio/maps_edit.py`, the panel's Edit section, the page's move / turn handles with
+three.js `TransformControls` vendored from the same 0.186.1 tarball, checked by its SHA-1)
+and `zombies.mission_spawns` (every single zombie, crate and clearing with its block
+path). `levelcheck` now refuses a block added inside a game mission and counts what it
+says about the game's own blocks (the census: CW's `ArenaStairs` is the only refusal).
+**Why:** the plan said to test what could change the plan before building the editor
+around it, and it did change: zombies can't be added inside the game's missions.
+**Learned:** an added weapon, workbench and save point work and keep saves; an unmovable
+item with collision blocks the player (so own walls and buildings can be items); changed
+values and keys in missions work (the whole street turned into cops); **a block added
+inside a game mission stops saves from loading and stalls a new game at its first save**;
+a mission of the mod's own loads and runs, but only in a new game; a zombie type the level
+doesn't load still showed. Also: the game ships 30 placements whose quaternion isn't
+length 1 (now a warning), and save points' corner points are sometimes in world space (the
+action point check now uses the shipped save points' measured spread).
+**Docs updated:** `formats.md` §Levels ("Level edits in game"), `dev/studio.md`
+("Editing"), `dev/code-tour.md`, guides 19 (Studio steps, zombies), 15 (level limits) and
+12 (troubleshooting), `roadmap.md`, `phase11-kickoff.md`, `THIRD_PARTY.md`.
+**Next:** the zombie editor in the Maps tab (crowds and the game's zombies by value, new
+ones into the mod's own mission), then prefabs; the same tests in CW.
+
 ## 2026-10-11 — Phase 11 step 1: level edits as mods (`.edits.json`)
 **Done:** asked the phase's open decisions (the user took every proposed default;
 `phase11-kickoff.md` §Status). Built the base everything else stands on:

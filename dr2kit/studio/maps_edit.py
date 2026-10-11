@@ -1,0 +1,273 @@
+"""The Maps tab's level editor (phase 11 step 2): move, turn, add, delete and change
+placed items and doors, saved into the **mod being edited** as ``.edits.json``.
+
+`LevelEditor` holds no Qt: one `dr2kit.mods.leveledit.TextEdits` per text file of the mod
+(``prologue.txt``…), and every change goes through it, so the mod always holds exactly the
+difference from the game's file (saved after each change). Undo and redo are a stack
+across files (each file keeps its own text snapshots).
+
+After a change the editor says what the page must show (`ItemState`): for every placed
+item whose block changed, appeared or went away, its new place, its turn, what it is,
+or that it is gone. The page (``web/maps.js``, ``dr2.itemState``) moves the item's node,
+hides it, or, for an item that is new or became another item, loads its model from a
+small ``.glb`` (`item_glb`). So nothing is rebuilt while editing; a level opened again
+later is built from the game with the mods (``mods.preview``) as before.
+
+Numbers are written like the game's tool writes them: three decimals
+(``"-140.911,3.399,-89.938"``).
+"""
+
+from __future__ import annotations
+
+import math
+import re
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from ..container.vpath import AssetTree
+from ..convert import placed
+from ..errors import Dr2Error
+from ..formats.levelscript import Block, Document
+from ..mods.leveledit import TextEdits
+
+ITEM_CLASSES = ("cItemPlacement", "cDoorPlacement", "cItemWithAttachedPropsPlacement")
+
+
+def fmt(values) -> str:
+    """``(1, 2.5, -3)`` → ``"1.000,2.500,-3.000"`` (the game's three decimals)."""
+    return ",".join(f"{float(v):.3f}" for v in values)
+
+
+def yaw_quaternion(degrees: float) -> tuple[float, float, float, float]:
+    """A turn of ``degrees`` about the up axis (Y) as a quaternion ``x, y, z, w``."""
+    h = math.radians(degrees) / 2
+    return (0.0, math.sin(h), 0.0, math.cos(h))
+
+
+def yaw_of(q) -> float:
+    """The turn about Y, in degrees, of a quaternion (its heading)."""
+    x, y, z, w = q
+    return math.degrees(math.atan2(2 * (w * y + x * z), 1 - 2 * (y * y + x * x)))
+
+
+@dataclass
+class ItemState:
+    """What the page shows for one placed item after a change."""
+    name: str
+    file: str
+    removed: bool = False
+    item: str | None = None
+    position: tuple[float, ...] | None = None
+    rotation: tuple[float, ...] | None = None
+    props: dict = field(default_factory=dict)
+    model: str | None = None            # its scene, when the page must load a new one
+    new_model: bool = False
+
+    def to_dict(self) -> dict:
+        d = {"name": self.name, "file": self.file, "removed": self.removed}
+        if not self.removed:
+            d.update(item=self.item, position=self.position, rotation=self.rotation,
+                     props=self.props, model=self.model, new_model=self.new_model)
+        return d
+
+
+def _snapshot(doc: Document) -> dict[str, tuple]:
+    out = {}
+    for b in doc.blocks:
+        if b.cls in ITEM_CLASSES:
+            out[b.name.lower()] = (b.cls, b.name, tuple((p.key, p.value) for p in b.props))
+    return out
+
+
+class LevelEditor:
+    """Edits of placed things in one mod (module docstring)."""
+
+    def __init__(self, tree: AssetTree, mod_dir: str | Path, base_dirs=()):
+        self.tree = tree
+        self.mod_dir = Path(mod_dir)
+        self.base_dirs = list(base_dirs)
+        self.sessions: dict[str, TextEdits] = {}
+        self._undo: list[str] = []              # file names, newest last
+        self._redo: list[str] = []
+        self.models = placed.ItemModels(tree)
+
+    # ---- files -------------------------------------------------------------------------
+
+    def session(self, file: str) -> TextEdits:
+        key = file.lower()
+        if key not in self.sessions:
+            self.sessions[key] = TextEdits(self.mod_dir, file, self.tree, self.base_dirs)
+        return self.sessions[key]
+
+    def placement(self, file: str, name: str) -> Block:
+        """The item or door placed as ``name`` in ``file``."""
+        doc = self.session(file).doc
+        for b in doc.blocks:
+            if b.cls in ITEM_CLASSES and b.name.lower() == name.lower():
+                return b
+        raise Dr2Error(f"{file}: nothing is placed as {name!r}")
+
+    def count(self) -> int:
+        """How many changes the mod holds in the files opened here."""
+        return sum(s.edits().count() for s in self.sessions.values())
+
+    # ---- changes -------------------------------------------------------------------------
+
+    def _change(self, file: str, fn) -> list[ItemState]:
+        s = self.session(file)
+        before = _snapshot(s.doc)
+        s.checkpoint()
+        try:
+            fn(s.doc)
+        except Exception:
+            s.undo()                             # put the text back, drop the snapshot
+            s._redo.clear()
+            raise
+        s.save()
+        self._undo.append(file)
+        self._redo.clear()
+        return self._states(file, before, _snapshot(s.doc))
+
+    def _states(self, file: str, before: dict, after: dict) -> list[ItemState]:
+        out = []
+        for key in sorted(set(before) | set(after)):
+            a, b = before.get(key), after.get(key)
+            if a == b:
+                continue
+            if b is None:
+                out.append(ItemState(a[1], file, removed=True))
+                continue
+            blk = self.placement(file, b[1])
+            props = dict(b[2])
+            item = props.get("ItemName")
+            st = ItemState(b[1], file, item=item, position=blk.floats("Location"),
+                           rotation=blk.floats("Rotation") or (0.0, 0.0, 0.0, 1.0),
+                           props=props)
+            was_item = dict(a[2]).get("ItemName") if a else None
+            if a is None or (was_item or "").lower() != (item or "").lower():
+                st.model = self.models.resolve(item) if item else None
+                st.new_model = True
+            out.append(st)
+        return out
+
+    def move(self, file: str, name: str, position, rotation=None) -> list[ItemState]:
+        """Put ``name`` at ``position`` (x, y, z), turned by ``rotation`` (a quaternion)."""
+        def fn(doc):
+            b = self.placement(file, name)
+            doc.set(b, "Location", fmt(position))
+            if rotation is not None:
+                doc.set(b, "Rotation", fmt(_unit(rotation)))
+        return self._change(file, fn)
+
+    def set_item(self, file: str, name: str, item: str) -> list[ItemState]:
+        """Make ``name`` another item (a bench → a chair)."""
+        if item.lower() not in self.models.blocks:
+            raise Dr2Error(f"{item!r} is not an item of this game's items.txt")
+        return self._change(file, lambda doc: doc.set(self.placement(file, name),
+                                                      "ItemName", self.models.blocks[
+                                                          item.lower()].name))
+
+    def set_key(self, file: str, name: str, key: str, value: str | None) -> list[ItemState]:
+        """Change (``None``: remove) one key of a placement (``PropState``, ``IsStatic``…)."""
+        def fn(doc):
+            b = self.placement(file, name)
+            if value is None:
+                doc.unset(b, key)
+            else:
+                doc.set(b, key, value)
+        return self._change(file, fn)
+
+    def delete(self, file: str, name: str) -> list[ItemState]:
+        return self._change(file, lambda doc: doc.remove(self.placement(file, name)))
+
+    def unique_name(self, file: str, base: str) -> str:
+        """``base`` made unique among the file's top-level names (``Katana`` →
+        ``Katana_1``), letters, digits and ``_`` only."""
+        base = re.sub(r"\W", "_", base) or "Item"
+        taken = {b.name.lower() for b in self.session(file).doc.blocks}
+        if base.lower() not in taken:
+            return base
+        stem = re.sub(r"_\d+$", "", base)
+        n = 1
+        while f"{stem}_{n}".lower() in taken:
+            n += 1
+        return f"{stem}_{n}"
+
+    def add(self, file: str, item: str, position, rotation=(0.0, 0.0, 0.0, 1.0),
+            like: str | None = None) -> tuple[str, list[ItemState]]:
+        """Place a new ``item`` (the keys of the placement ``like`` copied first when
+        given: a duplicate). Returns its name and the states."""
+        if item.lower() not in self.models.blocks:
+            raise Dr2Error(f"{item!r} is not an item of this game's items.txt")
+        real = self.models.blocks[item.lower()].name
+        name = self.unique_name(file, f"{real}")
+        cls = "cItemPlacement"
+        props: dict[str, str] = {}
+        if like:
+            src = self.placement(file, like)
+            cls = src.cls
+            props = {p.key: p.value for p in src.props}
+        props.update({"ItemName": real, "Location": fmt(position),
+                      "Rotation": fmt(_unit(rotation))})
+        states = self._change(file, lambda doc: doc.add(None, cls, name, props))
+        return name, states
+
+    def duplicate(self, file: str, name: str, offset=(1.0, 0.0, 0.0)) -> tuple[str, list[ItemState]]:
+        """A copy of ``name`` beside it."""
+        b = self.placement(file, name)
+        pos = b.floats("Location") or (0.0, 0.0, 0.0)
+        return self.add(file, b.get("ItemName") or "", tuple(p + o for p, o in zip(pos, offset)),
+                        b.floats("Rotation") or (0.0, 0.0, 0.0, 1.0), like=name)
+
+    # ---- undo ----------------------------------------------------------------------------
+
+    def can_undo(self) -> bool:
+        return bool(self._undo)
+
+    def can_redo(self) -> bool:
+        return bool(self._redo)
+
+    def undo(self) -> list[ItemState]:
+        return self._step(self._undo, self._redo, "undo")
+
+    def redo(self) -> list[ItemState]:
+        return self._step(self._redo, self._undo, "redo")
+
+    def _step(self, src: list, dst: list, how: str) -> list[ItemState]:
+        if not src:
+            return []
+        file = src.pop()
+        s = self.session(file)
+        before = _snapshot(s.doc)
+        getattr(s, how)()
+        s.save()
+        dst.append(file)
+        return self._states(file, before, _snapshot(s.doc))
+
+    def state(self, file: str, name: str) -> ItemState | None:
+        """What ``name`` is now (None: not placed in this file)."""
+        try:
+            b = self.placement(file, name)
+        except Dr2Error:
+            return None
+        props = {p.key: p.value for p in b.props}
+        return ItemState(b.name, file, item=props.get("ItemName"),
+                         position=b.floats("Location"),
+                         rotation=b.floats("Rotation") or (0.0, 0.0, 0.0, 1.0), props=props)
+
+
+def _unit(q) -> tuple[float, ...]:
+    n = math.sqrt(sum(c * c for c in q)) or 1.0
+    return tuple(c / n for c in q)
+
+
+def item_glb(tree: AssetTree, game: str, state: ItemState, db_path=None) -> bytes | None:
+    """One item's model placed where ``state`` says, as a small ``.glb`` for the page
+    (the same node extras as the zones' items, so clicking it works the same)."""
+    from ..convert.level import things_glb
+    if not state.model or not state.position:
+        return None
+    t = placed.Thing("item", "cItemPlacement", state.name, state.file, 0,
+                     position=tuple(state.position), rotation=tuple(state.rotation),
+                     item=state.item, model=state.model)
+    return things_glb(tree, [t], game=game, db_path=db_path, png_level=1)

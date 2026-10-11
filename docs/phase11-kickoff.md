@@ -41,6 +41,19 @@ co-op lines of `missions.txt` stay); `convert/levelcheck.py` (what edits mean);
 show|edit|diff`; census gate `check_level_edits` (0 failures in either game); guide 19
 (CLI part). Still to do: steps 2-7 (in-game tests first, then the Maps tab editor).
 
+**Step 2 (2026-10-11): in-game tests done in CZ, the Maps editor for items built.** The
+early tests (§Start here) answered in the CZ recomp (the user played each build;
+`formats.md` §Levels, "Level edits in game"): an added weapon, workbench and save point
+**work**; an unmovable item with collision (`MilitaryBarrier`) **blocks the player**; a
+type the level doesn't load (`pro_zombie_cop`) **showed**; changed values in the game's
+missions work and keep saves; **a block added inside a game mission breaks saves and
+stalls a new game** (refused now, `levelcheck.SAVE_BREAK`); a **mission of the mod's own**
+loads and runs in a **new game** only. This changes plan step 3: new single zombies and
+crowds go into the mod's own mission, the editor says they need a new game; the game's
+own zombies are edited by value. The added-pack test (own models, step 5) is still owed,
+and all of it in CW. Built: the Maps tab's Edit section (`studio/maps_edit.py`, the
+vendored `TransformControls`), `zombies.mission_spawns`.
+
 ### Earlier status: researched, re-checked against phase 10, prefabs added
 
 The user will start this phase **in a fresh conversation** (2026-10-11). Phase 10 is

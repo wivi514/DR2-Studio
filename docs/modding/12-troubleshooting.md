@@ -144,6 +144,16 @@ found", no index, rig check failures).
 
 More in [`16-library.md`](16-library.md#if-something-went-wrong).
 
+## Editing levels (phase 11)
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `adds a block inside one of the game's own missions` | The game would fail to load saves and stall a new game with it | Change the game's zombies' values instead, or add new ones in a mission of your own ([`19-edit-a-level.md`](19-edit-a-level.md)) |
+| New zombies don't appear | They are in a mission of your mod, which only runs in a new game | Start a new game |
+| The save doesn't load after you installed a level mod | An older mod (or a hand-made `missions.txt`) adds blocks inside the game's missions | Take that mod out (mod manager); the save comes back |
+| `ItemName '…' is not an item of this game's items.txt` | Case Zero doesn't have every Case West item | Pick another one (**Add item…** lists only items this game has) |
+| The Edit tick box opens *New mod…* | Edits are saved into the open mod | Create or open one |
+
 ## Texturing programs and limits (phase 7)
 
 See the tables in [`14-texturing-tools.md`](14-texturing-tools.md#if-something-went-wrong)

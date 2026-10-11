@@ -280,6 +280,26 @@ URL (`dr2://studio/maps/<n>-<file>`), and answers `zoneReady`. A level change bu
 generation number; answers of an older generation are dropped. `_MapsPage` keeps the
 page's own console errors (a shader that doesn't compile) in `errors`.
 
+**Editing (phase 11, `studio/maps_edit.py`).** The panel's *Edit* section: a checkbox
+(`edit_box`), which mod the edits go into (the bottom bar's `mod_dir`; ticking it without
+one offers *New mod…*), the selected item's **Item** (a completer of `items.txt`),
+**Place** and **Turn** fields, *Onto floor*, *Copy*, *Delete*, *Add item…*, *Undo*,
+*Redo*. More page messages: `edit {op, name, file, position, rotation}` (op `move`,
+`delete`, `duplicate`, `undo`, `redo`) and `place {point}`; Python calls
+`dr2.setEditing(on)`, `dr2.itemState([…])`, `dr2.askPlace()`, `dr2.selectItem(name)`.
+The page attaches three.js `TransformControls` (vendored) to a clicked item's node: T
+moves, R turns about the up axis, F drops it onto the floor (a ray down onto the collision
+mesh, which is loaded hidden while editing, else onto the pieces), Delete, Ctrl+D,
+Ctrl+Z / Ctrl+Y; a drag's end sends `edit move` with the node's world place and turn.
+`MapsView._edit` runs the change in the `LevelEditor` (one `mods.leveledit.TextEdits`
+per text file, saved as the diff after each change) and sends `dr2.itemState` the states
+of the items whose blocks changed: moved, removed, or with a new model, which it builds
+alone (`maps_edit.item_glb`, served like a zone part) for the page to load into
+`addedRoot` (the original node is hidden). The page keeps every state in `overrides` and
+applies them again to each items file that loads later (`applyOverride`). Saving makes
+the file watcher refresh the mods; `use_tree` then swaps trees without reloading the
+level for five seconds (`_own_write_until`).
+
 Checking it: a scratch driver opens the window in a real display, drives the page with
 `dr2.goTo` / `setView` / `pickAt` and saves `view.grab()` pictures; for the gate, the
 camera of a recomp capture (`c0`–`c3` of a vertex shader dump, row 1 divided by the

@@ -7,16 +7,23 @@ the game would do wrong with them, in plain words:
 * **Items and doors** (``cItemPlacement`` …): the ``ItemName`` must name a block of
   ``items.txt`` (error), and its model should ship in this game (warning: an item can
   exist in ``items.txt`` with no model in Case Zero, a demo); ``Location`` three numbers,
-  ``Rotation`` a unit quaternion (four numbers, length 1).
+  ``Rotation`` four numbers, not all zero (length 1 expected, but the game itself ships
+  CZ 12 / CW 18 placements whose quaternion isn't: a warning only).
+* **Missions and saves** (in game, CZ, 2026-10-11): a block added *inside* one of the
+  game's missions makes the game unable to load saves and stalls a new game, so it is an
+  error (`SAVE_BREAK`); values and keys of the game's blocks change freely, and a
+  mission of the mod's own loads fine (it runs in a new game only).
 * **Zombies** (``missions.txt``): a ``ZombieType`` / ``Type<n>`` must be a zombie model
   of ``data/models/zombies.big`` (error); one the level doesn't load in
-  ``zombiesets.txt`` gets a warning (likely skipped by the game, docs/phase11-kickoff.md;
-  allowed, decision 2026-10-11); ``SpawnWithItem`` must be an item; a factory's
+  ``zombiesets.txt`` gets a warning (allowed, decision 2026-10-11: CZ's street showed 8
+  ``pro_zombie_cop``, a type it doesn't load, in game; the load set's memory budget is
+  not measured); ``SpawnWithItem`` must be an item; a factory's
   ``ZombieWarehouseName`` must be an area (``cZombieWarehouse``) of the level's file;
   ``SpawnPoint`` three numbers, ``Rotation`` one angle (radians), amounts whole numbers.
-* **Triggers** (``cTriggerVolume``): a save point (``ActionType 4``) or a door to
-  another level (``3``) needs its ``ActionPoint`` (where Chuck stands) inside its box;
-  a door's ``Level`` must be a level of the game.
+* **Triggers** (``cTriggerVolume``): a save point (``ActionType 4``) needs its
+  ``ActionPoint`` (where Chuck stands) just below the trigger's ``Location``, as all the
+  game's own are (`action_point_fits`); a door's (``3``) ``Level`` must be a level of the
+  game.
 
 `check` returns `Finding` s, only about the keys a mod sets and the blocks it adds; `dr2kit.mods.build.plan_mods` turns errors into problems
 (nothing is built) and warnings into notes.
@@ -34,6 +41,10 @@ from ..formats.levelscript import Block, Document, split_path
 from . import placed
 
 ITEM_CLASSES = ("cItemPlacement", "cDoorPlacement", "cItemWithAttachedPropsPlacement")
+SAVE_BREAK = ("adds a block inside one of the game's own missions: the game then can't load "
+              "saves and a new game stalls (measured in Case Zero, 2026-10-11). Change the "
+              "game's blocks' values instead, or put new things in a mission of your own "
+              "(they then appear in a new game only)")
 ZOMBIES = "data/models/zombies.big"
 
 
@@ -143,11 +154,21 @@ def changed(e: Edits) -> dict[str, set[str] | None]:
     return out
 
 
-def check(facts: GameFacts, file_vpath: str, doc: Document, e: Edits) -> list[Finding]:
+def check(facts: GameFacts, file_vpath: str, doc: Document, e: Edits,
+          added_tops: set[str] | None = None) -> list[Finding]:
     """Check what ``e`` adds or sets in ``doc`` (already applied): a mod answers only for
-    the keys it sets and the blocks it adds, not for the game's own values around them."""
+    the keys it sets and the blocks it adds, not for the game's own values around them.
+    ``added_tops``: top-level blocks (lower-case paths) that mods add to this file, so a
+    block added inside one of them is not inside a mission of the game."""
     out: list[Finding] = []
     fname = file_vpath.rsplit("/", 1)[-1].lower()
+    if fname == "missions.txt":
+        tops = {p.lower() for p in (added_tops or set())} | \
+            {p.lower() for p in e.add if len(split_path(p)) == 1}
+        for p in e.add:
+            parts = split_path(p)
+            if len(parts) > 1 and parts[0].lower() not in tops:
+                out.append(Finding(True, p, SAVE_BREAK))
     for path, keys in changed(e).items():
         b = doc.get(path)
         if b is None:
@@ -202,8 +223,9 @@ def _check_block(facts: GameFacts, path: str, b: Block, level: str | None,
                 f"{', '.join(sorted(facts.zombie_types)[:6])}…)", key)
         elif level and level in facts.load_sets and not any(
                 t.lower() in en["types"] for en in facts.load_sets[level]):
-            warn(f"{key} {t!r} is not in {level}'s load set (zombiesets.txt), so the "
-                 f"game may not show it; add it to the load set", key)
+            warn(f"{key} {t!r} is not in {level}'s load set (zombiesets.txt): it showed in a "
+                 f"Case Zero test, but it costs memory the level didn't plan for; keep the "
+                 f"numbers small, or add it to the load set", key)
 
     if b.cls in ITEM_CLASSES:
         item = b.get("ItemName")
@@ -216,9 +238,13 @@ def _check_block(facts: GameFacts, path: str, b: Block, level: str | None,
                  f"({facts.models.why.get(item.lower(), 'not found')}): nothing will show", "ItemName")
         vec("Location", 3, required=True)
         q = vec("Rotation", 4)
-        if q and abs(math.sqrt(sum(c * c for c in q)) - 1) > 0.01:
-            err(f"Rotation {b.get('Rotation')} is not a turn (a quaternion of length 1)",
-                "Rotation")
+        n = math.sqrt(sum(c * c for c in q)) if q else 1.0
+        if n < 1e-6:
+            err(f"Rotation {b.get('Rotation')} is all zeros: not a turn", "Rotation")
+        elif abs(n - 1) > 0.01:
+            warn(f"Rotation {b.get('Rotation')} is a quaternion of length {n:.2f}, not 1 "
+                 f"(the game ships 30 such, so it seems to cope; copy a rotation from "
+                 f"another block to be safe)", "Rotation")
     elif b.cls == "cMissionSpawnZombie":
         t = b.get("ZombieType")
         if t:
@@ -249,11 +275,12 @@ def _check_block(facts: GameFacts, path: str, b: Block, level: str | None,
     elif b.cls == "cTriggerVolume":
         kind = b.get("ActionType")
         loc = vec("Location", 3, required=kind in ("3", "4"))
-        if kind in ("3", "4"):
-            ap = vec("ActionPoint", 3, required=True)
-            if loc and ap and not trigger_contains(b, ap):
-                warn("ActionPoint (where Chuck stands to use it) is outside the trigger's "
-                     "box: the prompt may never show", "ActionPoint")
+        if kind == "4" or (kind == "3" and b.get("ActionPoint")):
+            ap = vec("ActionPoint", 3, required=kind == "4")
+            if loc and ap and not action_point_fits(b, ap):
+                warn("ActionPoint (where Chuck stands to use it) is not just below the "
+                     "trigger's Location as in the game's own (0-1.5 m below, at most 1.5 m "
+                     "across): the prompt may not show", "ActionPoint")
         if kind == "3":
             lv = (b.get("Level") or "").lower().removeprefix("level_")
             if lv and lv not in facts.scripts:
@@ -264,27 +291,14 @@ def _check_block(facts: GameFacts, path: str, b: Block, level: str | None,
     return out
 
 
-def trigger_contains(b: Block, point: tuple[float, ...]) -> bool:
-    """Is ``point`` inside a ``cTriggerVolume``'s box (``Location``, ``Rotation`` and
-    the corner ``Vertex1…4`` in its own space, ``Height`` up), or its ``Radius``?"""
+def action_point_fits(b: Block, point: tuple[float, ...]) -> bool:
+    """Is ``point`` where the game's own save points and doors keep theirs: at most
+    1.5 m across from the trigger's ``Location`` and 0-1.5 m below it? (Every shipped
+    one: 0-1.3 m below, at most 1.2 m across, CZ 4 + CW 34, measured 2026-10-11. The
+    corner ``Vertex<n>`` keys can't say more: some are in the trigger's own space, some
+    in world space.)"""
     loc = _floats(b.get("Location"))
-    if not loc:
+    if not loc or len(loc) != 3:
         return False
-    q = _floats(b.get("Rotation")) or (0.0, 0.0, 0.0, 1.0)
-    d = [point[i] - loc[i] for i in range(3)]
-    x, y, z, w = (-q[0], -q[1], -q[2], q[3])           # rotate by the inverse turn
-    tx = 2 * (y * d[2] - z * d[1])
-    ty = 2 * (z * d[0] - x * d[2])
-    tz = 2 * (x * d[1] - y * d[0])
-    local = (d[0] + w * tx + y * tz - z * ty, d[1] + w * ty + z * tx - x * tz,
-             d[2] + w * tz + x * ty - y * tx)
-    corners = [c for c in (_floats(v) for v in b.numbered("Vertex")) if c and len(c) == 3]
-    h = (_floats(b.get("Height")) or (2.0,))[0]
-    radius = (_floats(b.get("Radius")) or (0.0,))[0]
-    if math.dist((0, 0, 0), local) <= radius:
-        return True
-    if len(corners) < 3 or not (-0.5 <= local[1] <= h + 0.5):
-        return False
-    xs = [c[0] for c in corners]
-    zs = [c[2] for c in corners]
-    return min(xs) <= local[0] <= max(xs) and min(zs) <= local[2] <= max(zs)
+    across = math.hypot(point[0] - loc[0], point[2] - loc[2])
+    return across <= 1.5 and -1.5 <= point[1] - loc[1] <= 0.2

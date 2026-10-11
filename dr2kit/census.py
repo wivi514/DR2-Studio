@@ -91,7 +91,8 @@ Phase 10 adds levels (``levels=True``, `check_levels`; `dr2kit.formats.level`):
   one that removes the block, one that adds a key and one that removes a key, each
   applied and then **reversed** (`leveledits.diff`), give the original file (byte for
   byte, or the same lines apart from blank ones where a file mixes gap sizes; both
-  counted).
+  counted); and the meaning checks (`convert.levelcheck`) run on every shipped block,
+  each finding named (the game's own data is the measure of a check that is too strict).
 
 Results for both games are recorded in docs/formats.md. Run it with ``dr2 census``.
 """
@@ -639,6 +640,8 @@ def check_level_edits(rep: CensusReport, tree: AssetTree, sample: int = 30) -> N
             [ln for ln in b.splitlines() if ln.strip()]
         return "same apart from blank lines" if strip[0] == strip[1] else "differs"
 
+    from .convert import levelcheck
+    facts = levelcheck.GameFacts(tree)
     for name in names:
         vp = f"{placed.DATAFILE}/{name}"
         try:
@@ -647,6 +650,14 @@ def check_level_edits(rep: CensusReport, tree: AssetTree, sample: int = 30) -> N
             continue
         doc = Document.parse(raw, name)
         blocks = list(doc.walk())
+        # the meaning checks on the game's own blocks: what they'd refuse in a mod
+        for b in blocks:
+            level = levelcheck._level_of(doc, doc.path(b)) \
+                if name == "missions.txt" and "Zombie" in b.cls else None
+            for f in levelcheck._check_block(facts, doc.path(b), b, level):
+                lc["shipped blocks the level checks " + ("refuse" if f.error
+                                                         else "warn about")] += 1
+                rep.level_notes.append(f"{name}: {f} (shipped)")
         styled = set()
         for b in blocks:
             depth = len(doc.lines[b.line]) - len(doc.lines[b.line].lstrip("\t"))

@@ -20,6 +20,13 @@ ones near; `_Builder` (one worker thread, its own `AssetTree`) makes each file w
 gets its URL (``dr2://studio/maps/…``). A level change bumps a generation number, so
 requests of the previous level are dropped, never shown.
 
+**Editing** (phase 11, `studio.maps_edit`): with *Edit* ticked, a clicked item or door
+gets move / turn handles and its name, place and turn in the panel; every change goes into
+the **mod being edited** (the bottom bar's open mod) as ``.edits.json`` through
+`maps_edit.LevelEditor`, and the page is told what changed (``dr2.itemState``) instead of
+rebuilding the level. The file watcher's refresh that follows a save swaps the trees
+without reloading the level (`use_tree`, ``_own_write_until``).
+
 Without QtWebEngine the tab shows a note (like the 3D view); `dr2 level` and the exports
 still work.
 """
@@ -29,12 +36,14 @@ from __future__ import annotations
 import json
 import math
 import os
+import time
 import traceback
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Qt, QThread, QUrl, Signal, Slot
-from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QGridLayout, QHBoxLayout,
-                               QLabel, QPushButton, QTextBrowser, QTreeWidget, QTreeWidgetItem,
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QCompleter, QDoubleSpinBox, QFileDialog,
+                               QGridLayout, QHBoxLayout, QInputDialog, QLabel, QLineEdit,
+                               QPushButton, QTextBrowser, QTreeWidget, QTreeWidgetItem,
                                QVBoxLayout, QWidget)
 
 from ..container.vpath import AssetTree
@@ -198,6 +207,8 @@ class MapsView(QWidget):
             outer.addWidget(self.view, 1)
         else:
             why = model_view.WEB_ENGINE_ERROR or "the dr2: scheme could not be registered"
+            from types import SimpleNamespace
+            self._handler = SimpleNamespace(files={})   # what the page would be served
             note = QLabel("The Maps view needs PySide6's QtWebEngine (" + why + ").\n\n"
                           "dr2 level and the exports still work.")
             note.setWordWrap(True)
@@ -249,6 +260,7 @@ class MapsView(QWidget):
         self.info = QTextBrowser()
         self.info.setOpenLinks(False)
         sl.addWidget(self.info, 1)
+        self._build_edit_panel(sl)
         row = QHBoxLayout()
         self.btn_library = QPushButton("Open in Library")
         self.btn_library.setToolTip("Show this model on its own, with its textures and actions")
@@ -319,9 +331,12 @@ class MapsView(QWidget):
         return sorted(clevel.list_levels(self.tree), key=level_sort_key)
 
     def use_tree(self, make_tree) -> None:
-        """Give every builder a tree made by ``make_tree(root)`` (the mods view, step 5)."""
+        """Give every builder a tree made by ``make_tree(root)`` (the mods view, step 5).
+        Right after the editor saved (the file watcher's refresh), the trees are swapped
+        but the level isn't reloaded: the page already shows the change."""
         if self.cache is None:
             return
+        quiet = time.monotonic() < self._own_write_until
         self._gen.value += 1
         for _th, b, _r in self._workers:
             b.cache = type(b.cache)(make_tree(b.cache.tree.root), self.game,
@@ -329,7 +344,8 @@ class MapsView(QWidget):
         self.tree = make_tree(self.tree.root)
         self._ui_cache = type(self._ui_cache)(self.tree, self.game,
                                               db_path=self._ui_cache.db_path)
-        self.reload()
+        if not quiet:
+            self.reload()
 
     def reload(self) -> None:
         """Drop what is shown and load it again (mods switched on or off)."""
@@ -479,6 +495,10 @@ class MapsView(QWidget):
             self._picked(json.loads(rest))
         elif word == "camera":
             self.camera = json.loads(rest)
+        elif word == "edit":
+            self._edit(json.loads(rest))
+        elif word == "place":
+            self._place(json.loads(rest))
 
     @Slot(dict, str, str)
     def _built(self, req: dict, path: str, err: str) -> None:
@@ -519,7 +539,9 @@ class MapsView(QWidget):
         elif t in ("item", "door"):
             rows = [("An item" if t == "item" else "A door", info.get("item")),
                     ("Placed as", info.get("name")),
-                    ("Placed by", f"{info.get('file')}, line {info.get('line')}"),
+                    ("Placed by", f"{info.get('file')}" + (f", line {info['line']}"
+                                                           if info.get("line") else
+                                                           " (by your mod)")),
                     ("Model", info.get("vpath"))]
         else:
             from ..convert.placed import LAYERS
@@ -542,6 +564,7 @@ class MapsView(QWidget):
             f"<tr><td><b>{_esc(k)}</b>&nbsp;</td><td>{_esc(v)}</td></tr>" for k, v in rows
             if v not in (None, "")) + "</table>")
         self._set_actions(info.get("vpath") if t in ("piece", "item", "door", "zombie") else None)
+        self._show_edit_target(info if t in ("item", "door") else None)
 
     def _set_actions(self, vpath: str | None) -> None:
         for b in (self.btn_library, self.btn_blender, self.btn_export):
@@ -646,6 +669,291 @@ class MapsView(QWidget):
             QApplication.clipboard().setText(text)
             self.status.emit(f"camera position copied: {text}")
 
+    # ---- editing (phase 11) -------------------------------------------------------------
+
+    def _build_edit_panel(self, sl) -> None:
+        self._own_write_until = 0.0
+        self.editor = None                        # maps_edit.LevelEditor of the open mod
+        self._editor_key = None
+        self._target: dict | None = None          # {file, name} being edited
+        self._adding: str | None = None           # the item waiting for dr2:place
+        self._usable: list[str] | None = None
+        sl.addWidget(QLabel("<b>Edit</b>"))
+        self.edit_box = QCheckBox("Edit items and doors (move, turn, add, delete)")
+        self.edit_box.setToolTip("Click an item or door, then drag its handles (T move, "
+                                 "R turn, F onto the floor, Delete, Ctrl+D copy, Ctrl+Z "
+                                 "undo). Saved into the mod open in the bottom bar.")
+        self.edit_box.toggled.connect(self._edit_toggled)
+        sl.addWidget(self.edit_box)
+        self.edit_mod = QLabel()
+        self.edit_mod.setWordWrap(True)
+        sl.addWidget(self.edit_mod)
+        grid = QGridLayout()
+        self.ed_item = QLineEdit()
+        self.ed_item.setToolTip("What it is: an item of items.txt (a bench → Chair_3…)")
+        self.ed_item.editingFinished.connect(self._item_typed)
+        grid.addWidget(QLabel("Item"), 0, 0)
+        grid.addWidget(self.ed_item, 0, 1, 1, 3)
+        self.ed_pos = []
+        for i, axis in enumerate("xyz"):
+            sb = QDoubleSpinBox()
+            sb.setRange(-5000, 5000)
+            sb.setDecimals(3)
+            sb.setSingleStep(0.1)
+            sb.setToolTip(f"{axis} in metres (y is up)")
+            sb.editingFinished.connect(self._fields_changed)
+            grid.addWidget(sb, 1, i + 1)
+            self.ed_pos.append(sb)
+        grid.addWidget(QLabel("Place"), 1, 0)
+        self.ed_turn = QDoubleSpinBox()
+        self.ed_turn.setRange(-360, 360)
+        self.ed_turn.setDecimals(1)
+        self.ed_turn.setSingleStep(15)
+        self.ed_turn.setSuffix("°")
+        self.ed_turn.setToolTip("Its turn about the up axis")
+        self.ed_turn.editingFinished.connect(self._fields_changed)
+        grid.addWidget(QLabel("Turn"), 2, 0)
+        grid.addWidget(self.ed_turn, 2, 1)
+        sl.addLayout(grid)
+        row = QHBoxLayout()
+        self.btn_floor = QPushButton("Onto floor")
+        self.btn_floor.setToolTip("Drop it onto the floor below (the collision mesh): F")
+        self.btn_floor.clicked.connect(lambda: self._js("window.dispatchEvent(new KeyboardEvent"
+                                                        "('keydown', {code: 'KeyF'}))"))
+        self.btn_dup = QPushButton("Copy")
+        self.btn_dup.setToolTip("Another one beside it: Ctrl+D")
+        self.btn_dup.clicked.connect(lambda: self._target and self._edit(
+            {"op": "duplicate", **self._target}))
+        self.btn_del = QPushButton("Delete")
+        self.btn_del.setToolTip("Take it out of the level: Delete")
+        self.btn_del.clicked.connect(lambda: self._target and self._edit(
+            {"op": "delete", **self._target}))
+        for b in (self.btn_floor, self.btn_dup, self.btn_del):
+            row.addWidget(b)
+        sl.addLayout(row)
+        row = QHBoxLayout()
+        self.btn_add = QPushButton("Add item…")
+        self.btn_add.setToolTip("Choose an item, it goes where the middle of the view "
+                                "meets the floor")
+        self.btn_add.clicked.connect(self._add_item)
+        self.btn_undo = QPushButton("Undo")
+        self.btn_undo.clicked.connect(lambda: self._edit({"op": "undo"}))
+        self.btn_redo = QPushButton("Redo")
+        self.btn_redo.clicked.connect(lambda: self._edit({"op": "redo"}))
+        for b in (self.btn_add, self.btn_undo, self.btn_redo):
+            row.addWidget(b)
+        sl.addLayout(row)
+        self._refresh_edit_panel()
+
+    def _mod_dir(self):
+        return getattr(self.window, "mod_dir", None)
+
+    def _get_editor(self):
+        """The editor of the open mod (made again when the mod or the game changes)."""
+        from ..mods.deploy import recomp_folders
+        from .maps_edit import LevelEditor
+        mod = self._mod_dir()
+        if mod is None or self.tree is None:
+            self.editor = None
+            return None
+        key = (str(mod), self.game)
+        if self.editor is None or self._editor_key != key:
+            root = self.tree.root
+            patched = recomp_folders(root)["patched"]
+            self.editor = LevelEditor(AssetTree(root), mod,
+                                      [patched] if patched.is_dir() else [])
+            self._editor_key = key
+        return self.editor
+
+    def _refresh_edit_panel(self) -> None:
+        mod = self._mod_dir()
+        on = self.edit_box.isChecked()
+        if mod is None:
+            self.edit_mod.setText("Open or create a mod (bottom bar) to save edits.")
+        else:
+            n = self.editor.count() if self.editor is not None else 0
+            self.edit_mod.setText(f"Saved into the mod <b>{Path(mod).name}</b>"
+                                  + (f": {n} change{'s' if n != 1 else ''} to the level "
+                                     f"files" if n else ""))
+        has = on and self._target is not None
+        for w in (self.ed_item, self.ed_turn, self.btn_floor, self.btn_dup, self.btn_del,
+                  *self.ed_pos):
+            w.setEnabled(has)
+        self.btn_add.setEnabled(on and mod is not None and bool(self.level))
+        ed = self.editor
+        self.btn_undo.setEnabled(on and ed is not None and ed.can_undo())
+        self.btn_redo.setEnabled(on and ed is not None and ed.can_redo())
+
+    def _edit_toggled(self, on: bool) -> None:
+        if on and self._mod_dir() is None:
+            ensure = getattr(self.window, "ensure_mod", None)
+            if ensure is None or not ensure():
+                self.edit_box.blockSignals(True)
+                self.edit_box.setChecked(False)
+                self.edit_box.blockSignals(False)
+                self._refresh_edit_panel()
+                return
+        if on:
+            self._get_editor()
+        self._js(f"dr2.setEditing({str(on).lower()})")
+        if not on:
+            self._target = None
+        self._refresh_edit_panel()
+
+    def _show_edit_target(self, info: dict | None) -> None:
+        """Fill the edit fields with what was clicked (an item or a door)."""
+        self._target = None
+        ed = self.editor if self.edit_box.isChecked() else None
+        if ed is not None and info and info.get("file") and info.get("name"):
+            try:
+                st = ed.state(info["file"], info["name"])
+            except Dr2Error:
+                st = None
+            if st is not None:
+                self._target = {"file": info["file"], "name": info["name"]}
+                self._fill_fields(st)
+        self._refresh_edit_panel()
+
+    def _fill_fields(self, st) -> None:
+        from .maps_edit import yaw_of
+        self.ed_item.setText(st.item or "")
+        for sb, v in zip(self.ed_pos, st.position or (0, 0, 0)):
+            sb.blockSignals(True)
+            sb.setValue(v)
+            sb.blockSignals(False)
+        self.ed_turn.blockSignals(True)
+        self.ed_turn.setValue(round(yaw_of(st.rotation or (0, 0, 0, 1)), 1))
+        self.ed_turn.blockSignals(False)
+        self._shown_turn = self.ed_turn.value()
+        if self.ed_item.completer() is None and self.editor is not None:
+            c = QCompleter(sorted(b.name for b in self.editor.models.blocks.values()), self)
+            c.setCaseSensitivity(Qt.CaseInsensitive)
+            c.setFilterMode(Qt.MatchContains)
+            self.ed_item.setCompleter(c)
+
+    def _fields_changed(self) -> None:
+        """Place or turn typed in the panel."""
+        if not self._target or self.editor is None:
+            return
+        from .maps_edit import yaw_quaternion
+        st = self.editor.state(**self._target)
+        if st is None:
+            return
+        pos = tuple(sb.value() for sb in self.ed_pos)
+        rot = st.rotation
+        delta = self.ed_turn.value() - getattr(self, "_shown_turn", self.ed_turn.value())
+        if abs(delta) > 1e-6:                     # turn by the difference: keep any tilt
+            qy = yaw_quaternion(delta)
+            rot = _qmul(qy, rot)
+        if all(abs(a - b) < 5e-4 for a, b in zip(pos, st.position or pos)) and rot == st.rotation:
+            return
+        self._edit({"op": "move", **self._target, "position": pos, "rotation": rot})
+
+    def _item_typed(self) -> None:
+        if not self._target or self.editor is None:
+            return
+        text = self.ed_item.text().strip()
+        st = self.editor.state(**self._target)
+        if st is None or not text or text.lower() == (st.item or "").lower():
+            return
+        self._edit({"op": "item", **self._target, "item": text})
+
+    def usable_items(self) -> list[str]:
+        """Items whose model ships in this game, by name (for *Add item…*)."""
+        if self._usable is None:
+            ed = self._get_editor()
+            if ed is None:
+                return []
+            self._usable = sorted((b.name for b in ed.models.blocks.values()
+                                   if ed.models.resolve(b.name)), key=str.lower)
+        return self._usable
+
+    def _add_item(self) -> None:
+        names = self.usable_items()
+        if not names:
+            return
+        item, ok = QInputDialog.getItem(self, "Add an item", "Item (type to search):",
+                                        names, 0, True)
+        if not ok or not item:
+            return
+        self._adding = item
+        self._js("dr2.askPlace()")
+
+    def _place(self, msg: dict) -> None:
+        if not self._adding:
+            return
+        item, self._adding = self._adding, None
+        script = self.script_box.currentData() or self.level
+        self._edit({"op": "add", "file": f"{script}.txt", "item": item,
+                    "position": msg["point"]})
+
+    def _edit(self, msg: dict) -> None:
+        """One change from the page or the panel: apply, save, tell the page."""
+        ed = self._get_editor() if self.edit_box.isChecked() else None
+        if ed is None:
+            return
+        op = msg.get("op")
+        try:
+            if op == "move":
+                states = ed.move(msg["file"], msg["name"], msg["position"], msg.get("rotation"))
+            elif op == "delete":
+                states = ed.delete(msg["file"], msg["name"])
+            elif op == "duplicate":
+                name, states = ed.duplicate(msg["file"], msg["name"])
+                self._target = {"file": msg["file"], "name": name}
+            elif op == "add":
+                name, states = ed.add(msg["file"], msg["item"], msg["position"])
+                self._target = {"file": msg["file"], "name": name}
+            elif op == "item":
+                states = ed.set_item(msg["file"], msg["name"], msg["item"])
+            elif op == "undo":
+                states = ed.undo()
+            elif op == "redo":
+                states = ed.redo()
+            else:
+                return
+        except Dr2Error as e:
+            self.status.emit(f"Maps: {e}")
+            if self._target:
+                st = ed.state(**self._target)
+                if st is not None:                # put the page back where the file is
+                    self._send_states([st])
+            return
+        self._own_write_until = time.monotonic() + 5.0
+        self._send_states(states)
+        if self._target:
+            st = ed.state(**self._target)
+            if st is None:
+                self._target = None
+            else:
+                self._fill_fields(st)
+        what = {"move": "moved", "delete": "deleted", "duplicate": "copied", "add": "added",
+                "item": "changed", "undo": "undone", "redo": "redone"}[op]
+        names = ", ".join(s.name for s in states) or "nothing"
+        self.status.emit(f"Maps: {what} {names} (saved into {Path(ed.mod_dir).name})")
+        self._refresh_edit_panel()
+        if hasattr(self.window, "_refresh_mod"):      # the bottom bar's list of changes
+            self.window._refresh_mod()
+
+    def _send_states(self, states) -> None:
+        from .maps_edit import item_glb
+        out = []
+        for st in states:
+            d = st.to_dict()
+            if st.new_model and not st.removed:
+                data = item_glb(AssetTree(self.tree.root), self.game, st)
+                if data:
+                    self._served += 1
+                    url_path = f"/maps/{self._served}-edit-{st.name}.glb"
+                    self._handler.files[url_path] = data
+                    d["url"] = f"dr2://studio{url_path}"
+                else:
+                    self.status.emit(f"Maps: {st.item}: no model in this game, so it can't "
+                                     f"be shown")
+            out.append(d)
+        if out:
+            self._js(f"dr2.itemState({json.dumps(out)})")
+
     def shutdown(self) -> None:
         """Stop the builder threads (the window is closing): what they are building is
         finished (a few seconds at most), then they end."""
@@ -685,3 +993,13 @@ class _Ask(QObject):
 def _esc(v) -> str:
     import html
     return html.escape(str(v))
+
+
+def _qmul(a, b):
+    """The quaternion ``a × b`` (turn by ``b``, then by ``a``), ``x, y, z, w``."""
+    ax, ay, az, aw = a
+    bx, by, bz, bw = b
+    return (aw * bx + ax * bw + ay * bz - az * by,
+            aw * by - ax * bz + ay * bw + az * bx,
+            aw * bz + ax * by - ay * bx + az * bw,
+            aw * bw - ax * bx - ay * by - az * bz)

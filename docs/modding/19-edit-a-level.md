@@ -7,8 +7,9 @@ and a mod to put the changes in ([`06-mod-packages.md`](06-mod-packages.md)). Lo
 level first in the **Maps** tab ([`18-maps.md`](18-maps.md)): it shows every item's name,
 file and line when you click it.
 
-> This guide grows with phase 11. Written so far: the edits files and the `dr2 level`
-> commands. Next: editing in the Maps tab, zombie spawns, adding things from prefabs.
+> This guide grows with phase 11. Written so far: editing items and doors in the Maps
+> tab, the edits files and the `dr2 level` commands. Next: zombie spawns, adding things
+> from prefabs.
 
 ## How the game places things
 
@@ -66,6 +67,42 @@ so the recomp's changes stay and several mods work together. Two mods only clash
 they change the *same setting of the same block*; then the one later in the load order
 wins, and the mod manager tells you.
 
+## Steps: move, turn, add and delete items in DR2 Studio
+
+1. Open or create the mod your changes go into (bottom bar: **New mod…** or **Open
+   mod…**). Every change is saved into it at once; there is no Save button.
+2. Click the **Maps** tab and open a level (see [`18-maps.md`](18-maps.md)), then fly to
+   the place you want to change.
+3. Tick **Edit items and doors** in the right panel (under *Edit*). The panel says which
+   mod the changes are saved into.
+4. **Click an item or door.** A yellow box marks it and **handles** appear on it, and
+   the panel shows what it is (**Item**), where (**Place**: x, y, z in metres, y is up)
+   and its **Turn** (degrees).
+5. **Move it:** drag one of the coloured arrows (red: x, green: y up, blue: z) or the
+   small squares between them (two directions at once). Or type a new **Place**.
+6. **Turn it:** press **R** (the handles become a green ring), drag the ring; **T**
+   goes back to moving. Or type a **Turn** in degrees.
+7. **Onto the floor:** press **F** (or **Onto floor**). It drops onto the floor below it,
+   the one the game walks on (the collision mesh, [glossary](../glossary.md)), so it
+   doesn't float or sink.
+8. **Copy:** **Ctrl+D** (or **Copy**) puts another one beside it, with the same
+   settings. **Delete:** **Delete** (or the button) takes it out of the level.
+9. **Make it something else:** type another item's name in **Item** (it suggests names
+   as you type), press Enter. The new model shows at once.
+10. **Add one:** **Add item…**, pick an item (type to search: only items whose model
+    this game has are listed). It goes where the middle of the view meets the floor;
+    move it from there.
+11. **Undo / Redo:** **Ctrl+Z / Ctrl+Y** (or the buttons), as many times as you like.
+12. Click **Play** to try it in the game.
+
+Click in the view first if the keys don't respond. While you move things, the level is
+not rebuilt: the change shows at once. The mod's file list (bottom left) shows the
+level files it changes.
+
+**Saves:** a mod that adds items (and a save point) to a level file still loads your
+saves (checked in Case Zero, 2026-10-11, with added items, a workbench and a save point;
+moving and deleting not yet checked).
+
 ## Steps: change a level with the `dr2` command
 
 1. Make a mod if you haven't: `dr2 mod new my_level_mod`.
@@ -111,14 +148,33 @@ empty value) to remove a setting.
 `dr2 level diff prologue my_prologue.txt --mod my_level_mod -g cz` keeps only what you
 changed (`dr2 level diff prologue my_prologue.txt` prints it instead).
 
+## Zombies: what you can change, and new zombies
+
+Zombies belong to the game's **missions** (`missions.txt`), and the game's saves remember
+every mission. Tested in Case Zero:
+
+- **Change the game's own zombies freely:** a crowd's types and amounts (and add a type
+  to it: `Type3` / `Amount3`), a single zombie's type, place, facing or number. Your saves
+  keep working. (Making every zombie of the street a cop, as a test, worked.)
+- **Never add a block inside one of the game's missions:** the game then can't load your
+  saves and a new game stalls. `dr2 mod check` and DR2 Studio refuse it.
+- **New zombies go in a mission of your own**, a new `cMissionDefinition` at the top of
+  `missions.txt`, with a `cMissionLevelReady` for the level and the zombies inside. It
+  appears in a **new game**; a save made without your mod doesn't start it. Copy the
+  settings of the level's main zombie mission (Case Zero's street: `PrologueZombies`):
+
+  ```
+  dr2 level show missions "cMissionDefinition PrologueZombies" -g cz
+  ```
+
 ## Zombie types and the load set
 
 A level only loads some zombie types (`zombiesets.txt`, by time of day: Case Zero's
 street loads `zombie_fat`, `zombie_skinny`, `zombie_skinny_female`, `pro_zombie_trucker`,
 `zombie_bertha`, `zombie_cop`, `zombie_waitress`, `zombie_soldier`, `pro_zombie_bowling`
-from 7:00). A crowd of a type the level doesn't load will probably not appear: `dr2 mod
-check` warns *"… is not in LEVEL_… 's load set"*. How much a level can load (a memory
-budget) is being measured; until then, prefer the types it already loads.
+from 7:00). Another type still showed in a test (8 `pro_zombie_cop` in the street), but
+it uses memory the level didn't plan for, so `dr2 mod check` warns *"… is not in LEVEL_…'s
+load set"*: keep such numbers small.
 
 ## Troubleshooting
 
@@ -129,3 +185,5 @@ budget) is being measured; until then, prefer the types it already loads.
 | `ItemName 'Katana' is not an item of this game's items.txt` | Case Zero doesn't have every Case West item | pick another (`dr2 level things prologue --kind item -g cz` lists the ones in use) |
 | `… replaces … as a whole, so the recomp's own changes to it are lost` | a mod has a whole `missions.txt` | turn it into an edits file with `dr2 level diff` |
 | `changed by both A and B at the same priority` | two mods set the same setting of the same block | change one, or order them in the mod manager |
+| `adds a block inside one of the game's own missions` | the game would fail to load saves | change the game's zombies' values, or put new ones in a mission of your own (above) |
+| New zombies don't show | they are in your own mission: it runs in a new game only | start a new game |

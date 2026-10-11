@@ -13,7 +13,7 @@ and how it is used. Checked 2026-10-08 (docs/phase1-kickoff.md, "Licensing of re
 | Xenia-Canary `xcontent_container_device.cc` | format description behind `dr2kit/container/stfs.py` | BSD | Read as a format reference by the original `extract_stfs.py`; no code copied. |
 | UnleashedRecomp `install/xcontent_file_system.cpp` | consulted for `stfs.py` | GPLv3 | Format reference only; no code copied. |
 
-| **three.js** 0.186.1 (`build/three.module.js`, `three.core.js`, `examples/jsm/loaders/GLTFLoader.js`, `controls/OrbitControls.js`, `utils/BufferGeometryUtils.js`, `utils/SkeletonUtils.js`), © 2010-2026 three.js authors | `dr2kit/studio/web/vendor/three/` (unmodified files from the npm package `three-0.186.1.tgz`, sha1 `6d50f70c2c437f844179bbb56d6f5b774e1ca38a`, with its `LICENSE`) | MIT | Loaded by DR2 Studio's 3D view page; shipped so Studio works offline. |
+| **three.js** 0.186.1 (`build/three.module.js`, `three.core.js`, `examples/jsm/loaders/GLTFLoader.js`, `controls/OrbitControls.js`, `controls/TransformControls.js` (phase 11: the Maps editor's move / turn handles), `utils/BufferGeometryUtils.js`, `utils/SkeletonUtils.js`), © 2010-2026 three.js authors | `dr2kit/studio/web/vendor/three/` (unmodified files from the npm package `three-0.186.1.tgz`, sha1 `6d50f70c2c437f844179bbb56d6f5b774e1ca38a`, with its `LICENSE`) | MIT | Loaded by DR2 Studio's 3D view page; shipped so Studio works offline. |
 | XenosRecomp (hedge-dev) | used once, outside the repo, to translate the game's `ProtoSkinnedClothRGB` vertex shader to HLSL | MIT | Read to learn how weights pair with bone indices (`formats.md` §Skinning); nothing copied. |
 
 | GPL-3.0 licence text | `blender/io_dr2/LICENSE` | GPL-3.0 (verbatim FSF text) | The Blender add-on's own licence (below). |

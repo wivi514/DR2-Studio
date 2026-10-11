@@ -70,7 +70,9 @@ dr2kit/
     app.py, viewers.py DR2 Studio (PySide6): tree, search, texture viewer, mod bar
     model_view.py      the 3D view: QWebEngineView + three.js over a dr2: URL scheme
     variant_panel.py   the Variants panel beside the 3D view: slots, colours, detail (phase 9)
-    maps_view.py       the Maps tab: level list, the 3D level page, layers, Go to, what is this (phase 10)
+    maps_view.py       the Maps tab: level list, the 3D level page, layers, Go to, what is this (phase 10);
+                       the Edit section (phase 11)
+    maps_edit.py       the Maps editor: LevelEditor (move, turn, add, delete, undo), item_glb (phase 11)
     audio_view.py      the audio view: waveform, playback (QAudioSink), loop (phase 5)
     text_view.py       text editor with a diff, and the string-bank table (phase 6)
     video_view.py      the movie view: Bink pictures + sound (phase 6)
@@ -462,7 +464,13 @@ build, warnings become notes); several overrides of one entry inside an archive 
 `patch_archive` as a list (`merged_bytes`). `mods/leveledit.TextEdits(mod, file, tree,
 base_dirs)` opens a file as the game has it with the mod's edits on top, keeps text
 snapshots for undo / redo, and `save()` writes `diff(game file, edited)`. The CLI is `dr2
-level show|edit|diff`; the census gate is `census.check_level_edits`.
+level show|edit|diff`; the census gate is `census.check_level_edits`. Step 2:
+`studio/maps_edit.LevelEditor` (move / set_item / set_key / delete / add / duplicate,
+undo / redo across files; each returns `ItemState`s of the changed placements) and
+`item_glb`; `MapsView`'s Edit section and `maps.js`'s gizmo (dev/studio.md, "Editing").
+Step 3: `convert.zombies.mission_spawns(tree, script)` gives a level's crowds and every
+single zombie, respawn crate and clearing (`MissionSpawn`, with block paths);
+`levelcheck.check` refuses a block added inside a game mission (`SAVE_BREAK`).
 
 ### `dr2kit/convert/variants.py` (phase 9)
 What a model can show, the way the game decides it ([`formats.md`](../formats.md)

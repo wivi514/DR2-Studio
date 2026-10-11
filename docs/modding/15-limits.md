@@ -51,6 +51,17 @@ versions may lift them). Every number below was measured on the games' own files
 | Strings | change any; new ids only below the last; markup needs a leading `@`; keep `%s`/`%d` | game ([`11-text.md`](11-text.md)) |
 | Locked files | `Prologue.txt` (CZ) and six files in CW: the game checks them and crashes on a change | game ([`11-text.md`](11-text.md#files-you-cant-change)) |
 
+## Levels and missions (phase 11, measured in Case Zero)
+
+| Limit | Value | Kind |
+|---|---|---|
+| Adding things inside one of the game's **missions** (a zombie inside `PrologueZombies`…) | **not possible**: the game can't load saves and a new game stalls; DR2 Studio and `dr2 mod check` refuse it | game ([`19-edit-a-level.md`](19-edit-a-level.md)) |
+| New zombies (a mission of your own) | appear in a **new game** only, not in a save made without the mod | game |
+| Changing the game's own zombies (types, amounts, places) and adding a type to a crowd | free; saves keep working | game |
+| A zombie type the level doesn't load | showed in a test (8 `pro_zombie_cop` in the street); its memory cost is not measured, keep numbers small | game |
+| Items, doors, save points added to a level | work, saves keep working | game |
+| A wall or building of your own | an unmovable item with collision (like `MilitaryBarrier`) blocks the player | game |
+
 ## Check it worked
 
 - `dr2 model check <your.glb> <model>` (or **Check rig** in Blender's DR2 tab, or the

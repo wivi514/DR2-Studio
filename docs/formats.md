@@ -1471,7 +1471,26 @@ block, adds a key and removes a key, each applied and then reversed with `diff`,
 the original: CZ 1,003 byte for byte + 37 the same apart from blank lines, CW 1,476 + 84,
 0 different. `convert/levelcheck.py` checks what the edits mean (an `ItemName` of
 `items.txt`, a zombie type of `zombies.big`, a factory's area in the level file, a type
-not in the level's load set → warning, quaternions of length 1…). **The CZ recomp's `game_patched/data/datafile.big` differs
+not in the level's load set → warning, quaternions of length 1…).
+
+**Level edits in game** ✅ (phase 11 step 2, Case Zero recomp, 2026-10-11; the user played
+each build, a headless bisect named the cause of the one that failed):
+
+| Change (all as `.edits.json`) | In game | An old save |
+|---|---|---|
+| Items added to `prologue.txt` (`SledgeHammer`, `Workbench`, `MilitaryBarrier`) | the hammer is picked up and used, the workbench combines, the barrier (`cUtilityItem`, `Unmoveable`, `CollisionType 3`) **blocks the player**: an item with engine-made collision works as a wall | loads |
+| A save point added to `waypoint_prologue.txt` (a clone of `UncleBills_SaveTrigger`, `ActionType 4`, moved) | the prompt shows, saving works | loads |
+| Values and new keys in the game's mission blocks (all 22 street crowds' `Type<n>` and 125 single zombies' `ZombieType` → `zombie_fat`, then `zombie_cop`; crates' `ZombiesPerSpawnTime 0`; a new `Type3`/`Amount3`) | the whole street showed the new type | loads |
+| **A block added inside one of the game's missions** (a `cMissionSpawnZombie` in `PrologueZombies/PrologueZombieReady`, any zombie type) | **a new game stalls when it first writes the save** (headless: nothing after `save:\DR2P000.DSF`; the user's run crashed, guest fault at address 8) | **doesn't load** |
+| A mission of the mod's own (a new top-level `cMissionDefinition` with the keys of `PrologueZombies`, a `cMissionLevelReady` and spawns) | **runs in a new game** (both packs of 8 showed); **doesn't run** from a save made without it | loads |
+| A zombie type the level doesn't load (`pro_zombie_cop` in `LEVEL_PROLOGUE`, 8 at once) | **showed** (no crash) | — |
+
+So the save holds the state of every mission, in a form that a block added inside a
+mission breaks (two missions of the same structure plus one: likely a fixed layout or
+count ❓), while it simply doesn't know a new mission (never started from that save).
+The toolkit refuses a block added inside a game mission (`levelcheck.SAVE_BREAK`) and puts
+new mission things in the mod's own mission, saying they need a new game. Case West not
+checked yet (rule 7: a CZ fact until CW agrees). **The CZ recomp's `game_patched/data/datafile.big` differs
 from the shipped one in `missions.txt` and `outfits.csv`** (its co-op edits); CW's recomp
 has no `game_patched`.
 

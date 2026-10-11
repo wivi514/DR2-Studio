@@ -262,8 +262,10 @@ def plan_mods(mods: list[Mod], game: str, tree: AssetTree) -> ModPlan:
             from ..formats.levelscript import Document
             facts = facts or levelcheck.GameFacts(tree)
             doc = Document.parse(out, items[0].vpath)
+            tops = {path.lower() for p in items for path in p.edits.add
+                    if "/" not in path}
             for p in items:
-                for f in levelcheck.check(facts, p.vpath, doc, p.edits):
+                for f in levelcheck.check(facts, p.vpath, doc, p.edits, tops):
                     (problems if f.error else notes).append(
                         f"{p.mod.id}: {p.vpath.rsplit('/', 1)[-1]}: {f}")
     if problems:

@@ -452,3 +452,65 @@ def test_with_my_mods_switch(tmp_path, monkeypatch):
     assert win.tex_view.tex.to_bytes() == modded
     assert win.wait_for_jobs()
     win.close()
+
+
+def test_maps_editing_saves_into_the_open_mod(tmp_path, monkeypatch):
+    """Phase 11 step 2: with Edit ticked, the page's edits (move, add, delete, undo) go
+    into the open mod's .edits.json and the page is told what changed. Without
+    QtWebEngine: the page's messages are fed in as it would send them."""
+    import json
+    from PySide6.QtWidgets import QApplication
+    from dr2kit.formats import leveledits as le
+    from dr2kit.mods.manifest import create
+    from dr2kit.studio.app import MainWindow
+    from test_level import make_datafile, make_level
+    root = tmp_path / "game"
+    root.mkdir()
+    make_datafile(root)
+    make_level(root)
+    monkeypatch.setenv("DR2_CZ_DATA", str(root))
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    db = tmp_path / "i.sqlite"
+    build_index("cz", AssetTree(root), db, thumbs=False)
+    app = QApplication.instance() or QApplication([])
+    win = MainWindow(db)
+    mv = win.maps_view
+    sent = []
+    mv._js = sent.append
+    win._map_chosen("town", "")
+    win._set_mod(create(tmp_path / "levelmod", "levelmod"))
+    mv.edit_box.setChecked(True)
+    assert mv.editor is not None and "levelmod" in mv.edit_mod.text()
+    mv._message("pick " + json.dumps({"type": "item", "name": "HotDog3", "item": "HotDog",
+                                      "file": "town.txt", "line": 1}))
+    assert mv._target == {"file": "town.txt", "name": "HotDog3"}
+    assert mv.ed_pos[0].value() == 1.0 and mv.btn_del.isEnabled()
+    mv._message("edit " + json.dumps({"op": "move", "name": "HotDog3", "file": "town.txt",
+                                      "position": [5, 2, 3], "rotation": [0, 0.7071, 0, 0.7071]}))
+    f = tmp_path / "levelmod" / "replace" / "data" / "datafile.big" / "town.txt.edits.json"
+    e = le.from_json(f.read_text())
+    assert e.set["cItemPlacement HotDog3"]["Location"] == "5.000,2.000,3.000"
+    assert any("dr2.itemState" in c and "HotDog3" in c for c in sent)
+    assert round(mv.ed_turn.value()) == 90
+    mv.ed_turn.setValue(180)                       # typed in the panel: turn by +90°
+    mv._fields_changed()
+    e = le.from_json(f.read_text())
+    assert e.set["cItemPlacement HotDog3"]["Rotation"] == "0.000,1.000,0.000,0.000"
+    sent.clear()                                   # Add item…: the page says where
+    mv._adding = "HotDog"
+    mv._message("place " + json.dumps({"point": [2, 0, 2]}))
+    e = le.from_json(f.read_text())
+    assert "cItemPlacement HotDog" in e.add or "cItemPlacement HotDog_1" in e.add
+    state = json.loads(next(c for c in sent if "dr2.itemState" in c)[len("dr2.itemState("):-1])
+    assert state[0]["url"].startswith("dr2://studio/maps/")           # its model, to load
+    mv._message("edit " + json.dumps({"op": "delete", "name": "HotDog3", "file": "town.txt"}))
+    assert "cItemPlacement HotDog3" in le.from_json(f.read_text()).remove
+    for _ in range(3):
+        mv._message("edit " + json.dumps({"op": "undo"}))
+    e = le.from_json(f.read_text())                # back to the first move only
+    assert not e.remove and not e.add and "Rotation" in e.set["cItemPlacement HotDog3"]
+    mv._message("edit " + json.dumps({"op": "undo"}))
+    assert not f.exists()                          # nothing changed: no file
+    assert win.wait_for_jobs()
+    win.close()

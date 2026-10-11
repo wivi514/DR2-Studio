@@ -207,10 +207,10 @@ def test_build_refuses_bad_edits(game, tmp_path):
     m = edits_mod(tmp_path, "bad2", "prologue.txt",
                   {"add": {"cItemPlacement New": {"ItemName": "NoSuchItem",
                                                   "Location": "0,0,0",
-                                                  "Rotation": "0,0,0,2"}}})
+                                                  "Rotation": "0,0,0,0"}}})
     with pytest.raises(ModError) as ex:
         mbuild.plan_mods([m], "cz", AssetTree(game))
-    assert "NoSuchItem" in str(ex.value) and "length 1" in str(ex.value)
+    assert "NoSuchItem" in str(ex.value) and "all zeros" in str(ex.value)
 
 
 def test_same_key_same_priority_is_a_conflict(game, tmp_path):
@@ -236,3 +236,25 @@ def test_unknown_zombie_type_is_refused(game, tmp_path):
                             "SpawnWithItem": "Katana"}}})
     with pytest.raises(ModError, match="zombie_dragon"):
         mbuild.plan_mods([m], "cz", AssetTree(game))
+
+
+def test_blocks_inside_game_missions_are_refused_own_missions_allowed(game, tmp_path):
+    """In game (CZ, 2026-10-11): a block added inside one of the game's missions breaks
+    saves and stalls a new game; a mission of the mod's own is fine."""
+    from dr2kit.container.vpath import AssetTree
+    inside = "cMissionDefinition Zeds/cMissionLevelReady Ready/cMissionSpawnZombie One"
+    spawn = {"ZombieType": "zombie_fat", "SpawnPoint": "1,2,3", "NumberOfZombies": "1"}
+    m = edits_mod(tmp_path, "inside", "missions.txt", {"add": {inside: spawn}})
+    with pytest.raises(ModError, match="can't load saves"):
+        mbuild.plan_mods([m], "cz", AssetTree(game))
+    own = {"cMissionDefinition MyZombies": {
+        "Duration": "100", "cMissionLevelReady MyReady": {
+            "LevelName": "LEVEL_PROLOGUE", "cMissionSpawnZombie One": spawn}}}
+    m = edits_mod(tmp_path, "own", "missions.txt", {"add": own})
+    plan = mbuild.plan_mods([m], "cz", AssetTree(game))
+    assert plan.planned and not any("can't load saves" in n for n in plan.notes)
+    # a second mod adding into the first mod's mission is not inside a game mission
+    m2 = edits_mod(tmp_path, "more", "missions.txt", {"add": {
+        "cMissionDefinition MyZombies/cMissionLevelReady MyReady/cMissionSpawnZombie Two":
+            spawn}}, priority=1)
+    assert mbuild.plan_mods([m, m2], "cz", AssetTree(game)).planned
