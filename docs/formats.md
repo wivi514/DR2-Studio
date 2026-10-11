@@ -24,6 +24,9 @@ Case West census before they count as rules (CLAUDE.md rule 7).
 | shader banks `.vo/.po/.vdo/.pdo/.sdo/.scv` | `shaders/*-{vs,ps,vd,pd,sc,sd,ss}.big` | 🟡 | `.vo`/`.po` are standard 360 D3D shader containers (`10 2A 11 01`, XenosRecomp translates them); `.sdo` = a shader name's permutations (`5cef4d20.sdo` → `ProtoSkinnedClothRGB`). Models carry their **own** vertex declarations, so the decoder doesn't need `-vd.big` (phase 0 guessed it did) |
 | mission / data `.txt`, `.csv` | `datafile.big`, CW loose `.csv` | ✅ text | engine scripting; edited for co-op in the CZ recomp |
 | `.bik` | **CW only**, `data/movies` | ✅ read (Bink) | `dr2kit/convert/video.py` through PyAV: all 10 movies decode, every frame and the sound (`census --audio`); export to `.mp4`. Replacing one needs a Bink encoder (§Movies) |
+| level zones (`zonelist.big`, `ZONE_ORGANIZATION.big`) | `models/environment/<level>/` | 🟡 | where each level piece is placed: 208-byte records, layout mostly read (§Levels); no reader in the toolkit yet (phase 10) |
+| level text files (`<level>.txt`, `waypoint_*`, `nm_*`, `fe_map_*`) | `datafile.big` | 🟡 text | placed items, doors, spawn points, zombie areas, triggers, the navigation mesh, the in-game map (§Levels) |
+| zone collision `MERGED_COLLISION.big` | every zone | ❓ | a scene with no drawable mesh; the geometry's form is unknown |
 | digest list | the XEX's `Digest` resource | ✅ | files the executable checks; mods can't touch them (§Digest-checked files) |
 
 ## `.big` container
@@ -1184,6 +1187,70 @@ What the game *does* with more than its own content (a 50,000-vertex character, 
 2048 textures) is not measured: memory and frame time are the unknowns. The toolkit's
 own v1 rules add: models are changed by replacing existing shapes (no new shapes,
 materials or bones), a texture keeps its size and format, a sound keeps its length.
+
+## Levels: zones, placements, level text files 🟡
+
+Researched 2026-10-11 for phase 10 (`phase10-kickoff.md`); nothing in the toolkit reads
+these yet except the pieces themselves. Measured on every zone of both games with
+throwaway scripts (redo them as `phase10-kickoff.md` §Start here says).
+
+**Layout.** A level is `data/models/environment/<level>/`: a `zonelist.big` and one
+archive per **zone** `<level>_zNN.big` (CZ `prologue` z01-z11, CW levels z00-z09). A zone
+holds, per piece, `<piece>.big` (one entry, `_COMP_<piece>.big`, an ordinary scene that
+`convert.model.read_scene` reads: 1,573 of 1,573 pieces of the five main levels, 0
+failures), `<piece>.tex` and `<piece>_LOD.tex` (its textures full size and small);
+plus `ZONE_ORGANIZATION.big`, `MERGED_COLLISION.big` and an empty `COMMON_TEXTURE.tex`.
+
+**`zonelist.big`**: `NumZones` (be32) and `ZoneList`, `NumZones` × 132 bytes:
+`char name[64]` (`prologue/prologue_z05`), `f32 min[3], max[3], centre[3], radius`, a
+be32 (−1, or 1 / 2 for CZ's z10 / z11), zeros. Checked against the zones' own
+`_ZONEINFO_` for CZ z05 (same bounds).
+
+**`ZONE_ORGANIZATION.big/ModelInstanceArray`**: `NumModelInstance` × 208 bytes (every
+record of both games is 208 bytes; `ModelInstanceArray_Dynamic` is empty in all zones):
+
+```
++0    char name[32]; char name2[32]      the piece (both names equal in every record)
++64   f32 scale[3]                       1,1,1 in every record seen
++76   f32 rotation[4]                    quaternion x,y,z,w
++92   f32 position[3]
++104  f32 bounds_min[3], bounds_max[3], centre[3], radius     world space
++144  f32 0, draw distance (20…110), 0, 0; u32 0xFFFFFFFF; 0; f32 (5…20); zeros
++200  u32 the piece's number in the zone; 0; 0      [tail fields: meaning unknown ❓]
+```
+
+A piece's mesh is stored around its centre (`z05_bowling_struc` local bounds ±18.8 m;
+placed at x −162, its world bounds centre): world = rotation × (scale × local) +
+position (to be confirmed by assembling a zone, phase 10 step 1). CZ: 922 placements in
+all its zones, CW: 972. `MERGED_COLLISION.big` parses as a scene but has no drawable mesh
+(the collision geometry is in its `persistent.big` in a form not read ❓).
+
+**Materials.** Level materials name a colour map, an **AO map** (`AO_<piece>`: baked
+shadows; the vertex data has two UV sets) and the engine's shadow / exposure samplers;
+many floors blend two colour maps through a mask (`sand_pebbles_brown_cm`,
+`gravel_dirty_gray_cm`, `page_grass_patch_mask_cm`). Today's export uses the first colour
+map only (§Materials).
+
+**Level text files** (`datafile.big`, not digest-checked): blocks
+`cClass Name { Key = "value" }`, nested, positions `"x,y,z"`, rotations `"x,y,z,w"`.
+
+| File | Classes (CZ `prologue` / CW `living_research`) |
+|---|---|
+| `<level>.txt` | `cItemPlacement` 886 / 902 (`ItemName`, `Location`, `Rotation`, optional `PropState`, `IsStatic`), `cDoorPlacement` 38 / 51, `cItemWithAttachedPropsPlacement` – / 21, `cSpawnPoint` 18 / 9, `cZombieWarehouse` 24 / 11 (polygons), `cPolygonSmall` 14 / 19 (map areas; `Text` = string id), `cPolygonLarge`, `cLightContextVolume` (→ a lighting `.csv`) |
+| `waypoint_<level>.txt` | `cTriggerVolume` (`Level`, `LevelSpawnPoint`: doors between levels), `cEnvironmentVolume`, `cEnvironmentAcoustics`, `cAudioMaterial`, `cWaypoint` |
+| `nm_<level>.txt` | the navigation mesh: `Vertices { "x,y,z" … }` then polygons |
+| `fe_map_points*.csv`, `fe_map_*_f1/f2/b1.csv` | the in-game map: each level's map rectangle; rooms (string ids) and points (safehouse, workbenches, save points) |
+| `prologue.csv`, CW `epilogue_*.csv` | light by hour: 24 columns of spherical-harmonic matrices (`mSHRenderMatrixRed.00`…) |
+| `zombiesets.txt` | zombie types and counts per level and time of day |
+
+CZ's levels in these files are `LEVEL_PROLOGUE`, `_SAFEHOUSE`, `_BOWLING`, `_DEPARTMENT`,
+`_MENU`: several share the `prologue` geometry.
+
+**Items → models.** `ItemName` names a block of `items.txt`; its `AssetFilename`
+(`data/models/weapons/scissors`) or `MergedFilename` (CW, `data/dynamicprops/gascanister`)
+gives the model as `<basename>.big` in `data/streamedassets.big` (case-insensitive).
+CW: 1,822 of 1,822 placements of its 4 main levels resolve; CZ: 577 of 1,059 (163 blocks
+name no file, 319 files are not in `streamedassets.big` ❓).
 
 ## Strings (`.bcs`) ✅
 

@@ -354,6 +354,28 @@ the toolkit bakes it the same way as the own colours.
 machine's damaged logo (`slot_logo_dmg` next to `slot_logo`), its win screen, a lower
 detail copy (`LOD_slot_machine`). Off by default.
 
+**Level.** One place of the game you can walk around: Case Zero's Fortune City street
+(`prologue`), Case West's labs (`living_research`, `storage_pens`…). Its buildings are in
+`data/models/environment/<level>/`; what lies in it (items, doors, spawn points) is in
+text files in `datafile.big`. (In the toolkit's Maps tab, phase 10, "map" means a level.)
+
+**Zone.** A part of a level that the game loads and unloads as you move (the bowling
+alley is zone 5 of `prologue`). Each zone is one archive, `<level>_zNN.big`, holding its
+pieces, their textures, and the list of where each piece goes.
+
+**Piece (level piece).** One model a level is built from: a wall section, a floor, a
+sign, a row of lights. The Library lists them under *Environments*.
+
+**Placement.** Where the game puts a piece or an item: a position, a rotation and a
+scale. Pieces are placed by `ZONE_ORGANIZATION.big`, items and doors by the level's
+`.txt` file (`cItemPlacement`).
+
+**Navigation mesh.** An invisible floor plan of where zombies and survivors can walk
+(`nm_<level>.txt`).
+
+**AO map (ambient occlusion).** A grey picture of the shadows baked into a level piece
+(dark in corners, light in the open), multiplied over its colours: `AO_<piece>`.
+
 **Detail level (LOD).** A simpler copy of a model the game draws when it is far away.
 Zombies come as `_2` (high), `_3` (medium) and `_4` (low detail). The Library shows the
 three files as one item with a **Detail** choice (before phase 9 it called them

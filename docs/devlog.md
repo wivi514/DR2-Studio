@@ -17,6 +17,33 @@ Entry template:
 
 ---
 
+## 2026-10-11 — Research for phase 10: Maps
+**Done:** the user asked for a much bigger phase: a tab to see the game's maps (levels)
+in 3D, extract them, and see them with the player's mods applied without launching the
+game. Researched the level data of both games and wrote `phase10-kickoff.md`. Not built.
+**Learned:**
+- A level is `models/environment/<level>/`: a `zonelist.big` (zone names, bounds,
+  centres) and one archive per zone. Every piece in a zone is an ordinary scene our
+  reader already handles (1,573 of 1,573 in the five main levels).
+- `ZONE_ORGANIZATION.big/ModelInstanceArray` places them: 208-byte records with name,
+  scale, quaternion, position, world bounds and a draw distance (CZ 922, CW 972). A piece
+  is stored around its centre.
+- Everything else is plain text in `datafile.big`: 886 / 902 placed items, doors, spawn
+  points, zombie areas, map areas, triggers between levels, the navigation mesh, the
+  in-game map's rooms and points, light by hour. Not digest-checked.
+- Items find their models through `items.txt` (`AssetFilename`, CW `MergedFilename`) in
+  `streamedassets.big`: all of CW's placements, 577 of 1,059 in CZ (a demo: the rest is
+  to find or absent).
+- Level materials add AO maps (second UV set) and two-texture blends that today's export
+  ignores; collision geometry's form is unknown.
+- Showing mods needs no new format work: `mods/build.py` already makes the exact bytes per
+  vpath; a tree layer in front of `AssetTree` can serve them to every viewer.
+**Docs updated:** `phase10-kickoff.md` (new), `formats.md` §Levels and status rows,
+`roadmap.md` (phase 10), `glossary.md` (level, zone, piece, placement, navigation mesh,
+AO map), `docs/README.md`, `CLAUDE.md`.
+**Next:** phase 10 step 1 (read a level and assemble a zone) once the user says go;
+phase 9's user test and in-game check are still owed.
+
 ## 2026-10-11 — Phase 9 handed to the user for testing
 **Done:** started DR2 Studio (commit `89d8862`, index schema 5 already built for both
 games) so the user can try the Variants panel, Detail, colour choices, *Export .glb…*

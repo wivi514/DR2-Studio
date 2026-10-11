@@ -234,9 +234,27 @@ they are different objects); colour-choice mods and Chuck's outfits are not star
 - **Gate:** a chosen look shows and exports as chosen, the organized export switches in
   Blender, every shape is grouped (census), and captured zombies match (in game).
 
-## Stretch (phase 10 or later)
+## Phase 10: Maps: see a whole level, extract it, see your mods in it (user, 2026-10-11)
+Planned 2026-10-11, nothing built (`phase10-kickoff.md`: research, plan, gate). The user
+called it much bigger than phase 9: built in steps, each usable on its own.
+- Read levels: zone lists, piece placements (`ZONE_ORGANIZATION.big`), `dr2 level`,
+  `census --levels`.
+- Placed things from the level text files: items and doors (with their models), spawn
+  points, zombie areas, map areas, triggers, the navigation mesh.
+- Studio's **Maps** tab: fly through a level, zones loaded near the camera first, layers,
+  click a piece or item; level materials (AO maps, two-texture blends).
+- Extract a zone or a level as `.glb` (pieces placed, collections per zone and layer),
+  `dr2 export <level>`.
+- **See your mods without the game**, Studio-wide: a `ModdedTree` that draws the bytes
+  Play would deploy; a "With my mods" switch and Compare.
+- **Gate:** CZ `prologue` and CW `living_research` assembled and compared with recomp
+  frames; every placement and level file parsed (census); a zone opens in Blender as in
+  Studio; a texture and a model mod show in Studio exactly as deployed and as in game.
+- Stretch: move items and spawn points and save it as a mod; collision; time of day.
+
+## Stretch (phase 11 or later)
 - In-game "identify": the recomp sends the textures/models under the crosshair to Studio.
-- Animation export (and later import); environment/zone browsing and editing.
+- Animation export (and later import); level editing beyond phase 10's stretch.
 - PC DR2/OTR read support.
 
 ## Decisions (user, 2026-10-08)

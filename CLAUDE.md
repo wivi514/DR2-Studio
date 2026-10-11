@@ -30,12 +30,16 @@ shape-group table as profile data, looks, hide mask, colour choices), the Varian
 default-look pictures, detail levels folded in the Library, as-shown / organised exports
 (Blender collections, `KHR_materials_variants`), `dr2 variants`, `census --variants`; gate
 passed in Studio and Blender in both games. Owed: the in-game zombie capture and how the
-game picks a look (`docs/phase9-kickoff.md` §Status).** Read these before writing code:
+game picks a look, and the user's own test of Studio (started 2026-10-11)
+(`docs/phase9-kickoff.md` §Status). Phase 10 (user-set 2026-10-11, Maps: levels in 3D,
+extract them, mods shown without the game) is researched and planned in
+`docs/phase10-kickoff.md`; nothing built.** Read these before writing code:
 
 | Doc | What it holds |
 |---|---|
 | `docs/ARCHITECTURE.md` | Components, data flow, the asset index, the mod package format, stack choices |
 | `docs/formats.md` | Everything known about every file format, with a status per format (cracked / partial / unknown) |
+| `docs/phase10-kickoff.md` | Phase 10 (Maps: see a whole level, extract it, see your mods in it without the game): research, plan, gate. **Planned, not built** |
 | `docs/phase9-kickoff.md` | Phase 9 (variants: one look per model, export as shown or organized): research, plan, gate, and §Status (what it still owes) |
 | `docs/phase8-kickoff.md` | Phase 8 (the Library, export everything at once): decisions, gate, and §Status (what it still owes) |
 | `docs/phase7-kickoff.md` | Phase 7 handoff and §Status: what phase 7 did and still owes |
