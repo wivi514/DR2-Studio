@@ -275,7 +275,7 @@ and one-look exports import back byte-identical); `test_studio.py` (the Variants
 | Vertex re-encode (`census --models`, after the `SHORT2N` fix) | 6,954 / 6,954 draws | 10,548 / 10,548 |
 | **Maps vs the game** (Studio from the camera of a recomp capture, `c0`–`c3` of Chuck's VS dump) | safehouse bathroom: same walls, door and framing; lightmap shading matches once `SHORT2N` was fixed; game warmer (exposure, time of day) | **owed** (no vertex dump in the CW recomp) |
 | Blender (`tools/blender_addon_gate.py`, Import zone) | `prologue_z05`: 19 pieces in place, 113 items, markers by kind, 66 lightmaps wired | — |
-| **Mods** (`tests/test_preview.py`, the deployed files, in game) | texture + model mod: Studio = Play byte for byte; in game the bottle showed at once, the wall only on the zone's first copy (now automatic) | not run |
+| **Mods** (`tests/test_preview.py`, the deployed files, in game) | texture + model mod: Studio = Play byte for byte; in game the bottle showed at once, the wall only on the zone's first copy (now automatic) | safehouse walls recoloured by a mod: magenta in game (the user's screenshot, 2026-10-11) as in the Maps tab |
 | Full tests | 372 passed (slow and game-data included) | |
 
 ## Writing a test for new code

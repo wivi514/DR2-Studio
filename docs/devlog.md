@@ -38,7 +38,8 @@ rebuild; then hand over for the user's test.
 *Later the same day:* the Maps overview picture (the in-game map in a corner, both games,
 placed by `fe_map_points`), and the index rebuilt (both games, 0 Library problems; the
 Library's world textures now have a *Lightmaps (levels)* group). The test mod was taken
-out of the recomp.
+out of the recomp. Then, for Case West: `dr2 studio --map LEVEL [--at]`, and a test mod
+recolouring the safehouse showed in game (the user's screenshot: magenta walls).
 
 ## 2026-10-11 — Phase 10 step 4: exporting levels
 **Done:** `catalog/level_export.py`: a level as one `.glb` per zone (or one for all),
