@@ -100,6 +100,8 @@ puts your PNG on every identical copy, whichever one you replaced.
 ## The same in the terminal
 
 ```
+dr2 studio --map living_research -g cw        # DR2 Studio straight on a level's map
+dr2 studio --map prologue --at -162,4,-30,0 -g cz   # …at a spot (x, y, z, heading°)
 dr2 level list -g cz                          # every level and its zones
 dr2 level info prologue -g cz                 # a level's zones: pieces, centres, sizes
 dr2 level info prologue z05 -g cz             # one zone: every piece and where it goes

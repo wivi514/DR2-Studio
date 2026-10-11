@@ -1848,13 +1848,30 @@ def install_error_hook(win: "MainWindow") -> None:
     sys.excepthook = hook
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, *, game: str | None = None,
+         map_level: str | None = None, at: str | None = None) -> int:
+    """Start DR2 Studio. ``game`` picks the game; ``map_level`` opens the Maps tab on
+    that level (``dr2 studio --map living_research -g cw``), ``at`` (``"x,y,z"`` or
+    ``"x,y,z,heading°"``) puts the camera there."""
     app = QApplication.instance() or QApplication(sys.argv[:1] + list(argv or []))
     app.setApplicationName("DR2 Studio")
     app.setWindowIcon(app_icon())
     win = MainWindow()
     install_error_hook(win)
     win.show()
+    if game:
+        i = win.game_box.findData(game)
+        if i >= 0:
+            win.game_box.setCurrentIndex(i)
+    if map_level:
+        def open_map():
+            win.left.setCurrentWidget(win.maps_list)
+            win._map_chosen(map_level, "")
+            if at:
+                v = [float(c) for c in at.split(",")]
+                h = "null" if len(v) < 4 else repr(v[3] * 3.141592653589793 / 180)
+                win.maps_view._js(f"dr2.goTo({v[0]}, {v[1]}, {v[2]}, {h})")
+        QTimer.singleShot(0, open_map)
     for arg in argv or []:                  # `dr2 studio x.dr2mod`, or a double-click
         if Path(arg).suffix.lower() in (".dr2mod", ".zip") and Path(arg).is_file():
             QTimer.singleShot(0, lambda a=arg: win.install_mod(a))

@@ -983,7 +983,8 @@ def cmd_studio(args) -> int:
         from ..studio.app import main as studio_main
     except ImportError as e:
         raise Dr2Error(f"DR2 Studio needs PySide6: pip install 'dr2kit[studio]' ({e})") from None
-    return studio_main(args.files)
+    return studio_main(args.files, game=args.game if args.map else None,
+                       map_level=args.map, at=args.at)
 
 
 # ---- census ---------------------------------------------------------------------------
@@ -1327,6 +1328,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("studio", help="start DR2 Studio, the graphical browser")
     p.add_argument("files", nargs="*", help="a .dr2mod to install")
+    p.add_argument("--map", metavar="LEVEL", help="open the Maps tab on this level "
+                   "(prologue, living_research…; with -g for the game)")
+    p.add_argument("--at", metavar="X,Y,Z[,HEADING]",
+                   help="with --map: put the camera there (heading in degrees)")
+    game_opt(p)
     p.set_defaults(func=cmd_studio)
 
     p = sub.add_parser("census", help="read everything, report it, and run the format gates")
