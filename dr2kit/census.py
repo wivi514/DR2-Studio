@@ -75,7 +75,12 @@ Phase 10 adds levels (``levels=True``, `check_levels`; `dr2kit.formats.level`):
   seen so far (others named); and the world bounds it stores equal the piece's own
   bounds rotated, scaled and moved by it (the placement maths, worst error reported);
 * **pieces**: every piece's scene parses, and every texture it names is found (the
-  ones the game doesn't ship are listed).
+  ones the game doesn't ship are listed);
+* **level text files** (`dr2kit.formats.levelscript`, `dr2kit.convert.placed`): every
+  script's ``.txt``, ``waypoint_`` and ``nm_`` files, ``items.txt`` and ``missions.txt``
+  parse and write back to the same bytes; classes the toolkit doesn't know are named;
+  every placed item and door finds its model and that model's scene parses; every
+  navigation-mesh polygon names existing vertices.
 
 Results for both games are recorded in docs/formats.md. Run it with ``dr2 census``.
 """
@@ -555,9 +560,70 @@ def piece_vertices(sc) -> list[tuple[float, float, float]]:
     return out
 
 
+def check_level_scripts(rep: CensusReport, tree: AssetTree) -> None:
+    """The level text files (module docstring); counts in ``rep.level_counts``."""
+    from .convert import placed
+    from .convert.model import read_scene
+    from .formats.levelscript import Document
+    lc = rep.level_counts
+    for name in ("items.txt", "missions.txt"):
+        try:
+            raw = tree.resolve(f"{placed.DATAFILE}/{name}").data()
+        except Exception:  # noqa: BLE001 - a game without it: nothing to check
+            continue
+        try:
+            same = Document.parse(raw, name).to_bytes() == raw
+        except Exception as ex:  # noqa: BLE001 - reported
+            rep.problems.append((f"{placed.DATAFILE}/{name}", f"text: {ex}"))
+            continue
+        if not same:
+            rep.problems.append((f"{placed.DATAFILE}/{name}", "text: written back, it differs"))
+        lc["text files read and written back"] += 1
+    models = placed.ItemModels(tree)
+    scenes_ok: dict[str, bool] = {}
+    for name in placed.script_names(tree):
+        try:
+            ls = placed.read_script(tree, name, models)
+        except Exception as ex:  # noqa: BLE001 - reported
+            rep.problems.append((f"{placed.DATAFILE}/{name}.txt", f"level script: {ex}"))
+            continue
+        for fname, doc in ls.documents.items():
+            raw = tree.resolve(f"{placed.DATAFILE}/{fname}").data()
+            if doc.to_bytes() != raw:
+                rep.problems.append((f"{placed.DATAFILE}/{fname}", "text: written back, it differs"))
+            lc["text files read and written back"] += 1
+        for cls, n in ls.unknown.items():
+            rep.level_notes.append(f"{name}: {n} × {cls} (a class the Maps tab doesn't draw)")
+        info = rep.levels.setdefault(f"script {name}", Counter())
+        info.update(ls.counts())
+        for t in ls.things:
+            if not t.item:
+                continue
+            if t.model is None:
+                lc["items without a model"] += 1
+                rep.problems.append((f"{placed.DATAFILE}/{name}.txt",
+                                     f"{t.name}: {t.item}: {models.why.get(t.item.lower())}"))
+                continue
+            if t.model not in scenes_ok:
+                try:
+                    read_scene(tree, t.model)
+                    scenes_ok[t.model] = True
+                except Exception as ex:  # noqa: BLE001 - reported
+                    scenes_ok[t.model] = False
+                    rep.problems.append((t.model, f"item model: {ex}"))
+            lc["items and doors with their model" if scenes_ok[t.model]
+               else "items and doors whose model fails"] += 1
+            if t.position is None:
+                rep.problems.append((f"{placed.DATAFILE}/{t.file}", f"{t.name}: no Location"))
+        lc["item models (different scenes)"] = len(scenes_ok)
+        if ls.navmesh:
+            lc["navigation polygons"] += len(ls.navmesh.polygons)
+
+
 def check_levels(rep: CensusReport, tree: AssetTree, game: str) -> None:
     """The phase 10 level census (module docstring); results in ``rep.levels``."""
     from .convert import level as clevel
+    check_level_scripts(rep, tree)
     from .convert.model import TextureFinder, read_scene
     from .formats import level as lvlfmt
     lc = rep.level_counts
@@ -1057,10 +1123,14 @@ def format_report(rep: CensusReport) -> str:
           f"{'same' if len(counts) == 1 else 'DIFFERENT'} ids count: "
           f"{_fmt(rep.strings, sort_keys=True) if len(counts) > 1 else counts.pop()}")
     if rep.levels:
-        w(f"levels: {len(rep.levels)}; " + "; ".join(
+        geo = {k: v for k, v in rep.levels.items() if not k.startswith("script ")}
+        w(f"levels: {len(geo)}; " + "; ".join(
             f"{k}: {v['zones']} zones, {v['pieces']} pieces, {v['placements']} placed"
             + (f", {v['textures missing']} textures missing" if v['textures missing'] else "")
-            for k, v in rep.levels.items()))
+            for k, v in geo.items()))
+        for k, v in rep.levels.items():
+            if k.startswith("script "):
+                w(f"    {k}: {_fmt(v)}")
         w(f"    {_fmt(rep.level_counts)}")
         w(f"    placement maths (world bounds = piece bounds placed): worst error "
           f"{rep.level_bounds_error * 1000:.2f} mm")

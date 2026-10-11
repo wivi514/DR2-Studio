@@ -173,9 +173,118 @@ def test_level_census(game, game_root):
     rep = CensusReport(game, str(tree.root))
     check_levels(rep, tree, game)
     assert rep.problems == []
+    assert rep.level_counts["items and doors with their model"] == {"cz": 1060, "cw": 1835}[game]
     placements = {"cz": 922, "cw": 972}[game]
     assert rep.level_counts["placements"] == placements
     assert rep.level_counts["pieces read"] == placements
     explained = (rep.level_counts["placed bounds = stored bounds"]
                  + rep.level_counts["placed vertices inside the stored bounds (loose shape bounds)"])
     assert placements - explained == {"cz": 1, "cw": 2}[game]   # named in docs/formats.md
+
+
+# --- step 2: level text files ------------------------------------------------------------
+
+LEVEL_TXT = (
+    'cItemPlacement HotDog3\r\n{\r\n\tItemName = "HotDog"\r\n'
+    '\tLocation = "1.0,2.0,3.0"\r\n\tRotation = "0,0,0,1"\r\n'
+    '\tcItemPlacement Soda\r\n\t{\r\n\t\tItemName = "Soda"\r\n'
+    '\t\tLocation = "4,5,6"\r\n\t\tRotation = "0,0,0,1"\r\n\t}\r\n\r\n}\r\n\r\n'
+    'cSpawnPoint Start\r\n{\r\n\tLocation0 = "1,0,1"\r\n\tRotation0 = "3.14159"\r\n}\r\n\r\n'
+    'cZombieWarehouse Roof\r\n{\r\n\tcPolygonLarge Ground\r\n\t{\r\n\t\tHeight = "2.0"\r\n'
+    '\t\tNumVertex = "3"\r\n\t\tVertex0 = "0,0,0"\r\n\t\tVertex1 = "1,0,0"\r\n'
+    '\t\tVertex10 = "9,9,9"\r\n\t\tVertex2 = "0,0,1"\r\n\t}\r\n}\r\n\r\n'
+    'cPolygonSmall PR102\r\n{\r\n\tText = "7"\r\n\tVertex0 = "0,0,0"\r\n}\r\n'
+    'cLightContextVolume LC\r\n{\r\n\tQuadName = "L_out"\r\n}\r\n'
+    'cPolygonLarge L_out\r\n{\r\n\tVertex0 = "0,0,0"\r\n}\r\n'
+    'cMysteryThing X\r\n{\r\n\tA = "1" // a comment\r\n}\r\n')
+NAVMESH = ('Vertices\r\n{\r\n\t"0,0,0"\r\n\t"1,0,0"\r\n\t"1,0,1"\r\n\t"0,0,1"\r\n}\r\n'
+           'Polyhedrons\r\n{\r\n\tPolyhedronEdges\r\n\t{\r\n\t\tmask = "3"\r\n'
+           '\t\t"0"\r\n\t\t"1"\r\n\t\t"2"\r\n\t\t"3"\r\n\t}\r\n}\r\n\r\nConnections\r\n{\r\n}\r\n')
+ITEMS = ('cFoodItem HotDog\r\n{\r\n\tAssetFilename = "data/models/food/hotdog"\r\n}\r\n'
+         'cFoodItem Soda\r\n{\r\n\tMergedFilename = "data/dynamicprops/soda"\r\n'
+         '\tAssetFilename = "bigsoda"\r\n}\r\n')
+MAP_CSV = ('# wid_name,\tname string\r\npr101,\t1709,\t1710,\t1711,\t1700,\r\n'
+           'savepoint,\t-85.4,\t0.0,\t109.3,\tLEVEL_TOWN,\r\n')
+
+
+def make_datafile(root):
+    data = root / "data"
+    data.mkdir(exist_ok=True)
+    df = make_archive(("town.txt", LEVEL_TXT.encode()), ("waypoint_town.txt", b"\r\n"),
+                      ("nm_town.txt", NAVMESH.encode()), ("items.txt", ITEMS.encode()),
+                      ("fe_map_f1.csv", MAP_CSV.encode()))
+    (data / "datafile.big").write_bytes(df.to_bytes())
+    scene = make_scene(combined=True)
+    sa = make_archive(("HotDog.big", make_archive(("hotdog.big", scene)).to_bytes()),
+                      ("soda.big", make_archive(("bigsoda.big", scene),
+                                                ("bigsoda_cherry.big", b"")).to_bytes()))
+    (data / "streamedassets.big").write_bytes(sa.to_bytes())
+    return AssetTree(root)
+
+
+def test_levelscript_keeps_every_byte_and_edits_one_line():
+    from dr2kit.formats.levelscript import Document
+    doc = Document.parse(LEVEL_TXT.encode(), "town.txt")
+    assert doc.to_bytes() == LEVEL_TXT.encode()
+    hot = doc.blocks[0]
+    assert hot.children[0].name == "Soda"
+    roof = doc.blocks[2].children[0]
+    assert roof.numbered("Vertex") == ["0,0,0", "1,0,0", "0,0,1", "9,9,9"]   # by number
+    doc.set(hot, "Location", "7,8,9")
+    doc.set(hot, "PropState", "-1")                       # a new key, before the brace
+    out = doc.to_bytes().decode("latin-1")
+    assert '\tLocation = "7,8,9"\r\n' in out and '\tPropState = "-1"\r\n' in out
+    again = Document.parse(out, "town.txt")
+    assert again.blocks[0].get("PropState") == "-1"
+    assert again.blocks[0].children[0].get("Location") == "4,5,6"
+    # only the changed line and the added one differ
+    assert len(out.splitlines()) == len(LEVEL_TXT.splitlines()) + 1
+
+
+def test_levelscript_reports_what_it_cannot_read():
+    from dr2kit.errors import FormatError
+    from dr2kit.formats.levelscript import Document
+    with pytest.raises(FormatError, match="town.txt:2"):
+        Document.parse('cA B\r\n= "x"\r\n', "town.txt")
+    with pytest.raises(FormatError, match="ends inside a block"):
+        Document.parse('cA B\r\n{\r\n', "town.txt")
+
+
+def test_placed_things_and_item_models(tmp_path):
+    from dr2kit.convert import placed
+    tree = make_datafile(tmp_path)
+    assert placed.script_names(tree) == ["town"]
+    assert placed.geometry_of("town_safehouse", ["town", "other"]) == "town"
+    ls = placed.read_script(tree, "town", placed.ItemModels(tree), {7: "Main Street"})
+    items = ls.of_kind("item")
+    assert [(t.name, t.parent) for t in items] == [("HotDog3", None), ("Soda", "HotDog3")]
+    # CZ style: the pack named after the item; CW style: after MergedFilename, the empty
+    # texture-variant placeholder ignored
+    assert items[0].model == "data/streamedassets.big/HotDog.big/hotdog.big"
+    assert items[1].model == "data/streamedassets.big/soda.big/bigsoda.big"
+    (spawn,) = ls.of_kind("spawn")
+    assert abs(spawn.rotation[1] - 1.0) < 1e-4            # half a turn about Y
+    area, zone = ls.of_kind("zombie_area")               # the area, then each polygon
+    assert area.name == "Roof" and not area.polygon
+    assert zone.name == "Roof/Ground" and len(zone.polygon) == 4
+    assert [t.label for t in ls.of_kind("map_area")] == ["Main Street"]
+    assert [t.name for t in ls.of_kind("light_area") if t.polygon] == ["L_out"]
+    assert ls.unknown == {"cMysteryThing": 1}             # named, not dropped
+    assert ls.navmesh.triangles() == [(0, 1, 2), (0, 2, 3)]
+    (point,) = ls.of_kind("map_point")
+    assert point.label == "Save point" and point.position == (-85.4, 0.0, 109.3)
+
+
+@pytest.mark.gamedata
+def test_every_placed_item_finds_its_model(game_root):
+    from dr2kit.convert import placed
+    for game in ("cz", "cw"):
+        tree = AssetTree(game_root(game))
+        models = placed.ItemModels(tree)
+        n = 0
+        for s in placed.script_names(tree):
+            for t in placed.read_script(tree, s, models).things:
+                if t.item:
+                    assert t.model, (game, s, t.name, models.why.get(t.item.lower()))
+                    n += 1
+        assert n == {"cz": 1060, "cw": 1835}[game]

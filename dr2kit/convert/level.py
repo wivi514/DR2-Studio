@@ -214,3 +214,58 @@ def zone_glb(tree: AssetTree, zone: ZoneData, *, game: str, textures: bool = Tru
     asm.extras = {"level": zone.level, "zone": zone.name, "source": zone.vpath,
                   "lod": lod}
     return asm.to_bytes()
+
+
+def zone_of(position, zones: list[lvl.Zone]) -> lvl.Zone | None:
+    """The smallest zone whose bounds hold ``position`` (Case Zero's z01 is the whole
+    backdrop, 886 m across, so "smallest" matters), or None."""
+    best = None
+    for z in zones:
+        if all(lo - 0.5 <= c <= hi + 0.5 for c, lo, hi in zip(position, z.bounds_min, z.bounds_max)):
+            if best is None or z.radius < best.radius:
+                best = z
+    return best
+
+
+def things_glb(tree: AssetTree, things, *, game: str, textures: bool = True,
+               lod: bool = False, db_path=None, stats: ZoneStats | None = None,
+               assembler=None, parent: int | None = None, progress=None) -> bytes | None:
+    """Placed items and doors (`dr2kit.convert.placed.Thing` with a ``model``) as one
+    ``.glb``, each model exported once in its default look and placed at every spot.
+    With ``assembler``, they go into it under ``parent`` (None returned)."""
+    from . import gltf
+    from .model import TextureFinder, model_glb, read_scene
+    st = stats if stats is not None else ZoneStats()
+    own = assembler is None
+    asm = assembler or gltf.Assembler()
+    by_model: dict[str, list] = {}
+    for t in things:
+        if t.model and t.position:
+            by_model.setdefault(t.model, []).append(t)
+    for i, (vp, places) in enumerate(by_model.items()):
+        if progress:
+            progress(i, len(by_model), vp)
+        try:
+            sc = read_scene(tree, vp)
+            es = gltf.ExportStats()
+            finder = TextureFinder(tree, vp, game, db_path, lod=lod) if textures else None
+            data = model_glb(tree, sc, game=game, finder=finder, textures=textures,
+                             db_path=db_path, stats=es, mode="shown", colour_variants=False)
+        except Exception as e:  # noqa: BLE001 - named in stats.failed
+            st.failed.append((vp, str(e)))
+            continue
+        nodes = [{"name": t.name, "translation": t.position,
+                  "rotation": unit(t.rotation or (0.0, 0.0, 0.0, 1.0)),
+                  "extras": {"dr2_item": t.item, "dr2_name": t.name, "dr2_kind": t.kind,
+                             "dr2_vpath": vp, "dr2_line": t.line, "dr2_file": t.file}}
+                 for t in places]
+        asm.add(data, nodes, parent, vp)
+        st.pieces += 1
+        st.placements += len(places)
+        st.triangles += es.triangles * len(places)
+        st.textures += es.textures
+        st.missing_textures.update(es.missing_textures or ())
+    if not own:
+        return None
+    return asm.to_bytes()
+

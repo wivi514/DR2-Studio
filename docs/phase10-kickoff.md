@@ -29,7 +29,7 @@ possible **phase 11** (below); phase 10 only shows and extracts.
 | Step | State |
 |---|---|
 | 1. Read a level | ✅ 2026-10-11: `formats/level.py`, `convert/level.py` (a zone → one `.glb`), `gltf.Assembler`, `dr2 level list/info`, `dr2 census --levels` (0 problems, both games). Placement maths confirmed (census + pictures of CZ z05 inside and out, all of CZ `prologue` and CW `living_research`). Fixed on the way: level pieces exported their small `_LOD` textures. Owed: the recomp frame from the same spot (with the gate's capture) |
-| 2. Placed things | — |
+| 2. Placed things | ✅ 2026-10-11: `formats/levelscript.py` (lossless: every level file, `items.txt`, `missions.txt` written back byte for byte), `convert/placed.py` (items, doors, spawn points, zombie / map / lighting areas, triggers, sound areas, map points, nav mesh; 0 unknown classes), every item and door of both games finds its model (CZ 1,060, CW 1,835: the research's 482 "missing" were a wrong lookup), `level.things_glb`, `dr2 level things`. Items checked in pictures (bowling alley) |
 | 3. Maps tab | — |
 | 4. Extract | — |
 | 5. See your mods | — |

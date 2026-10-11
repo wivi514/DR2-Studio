@@ -17,6 +17,30 @@ Entry template:
 
 ---
 
+## 2026-10-11 — Phase 10 step 2: what the level text files place
+**Done:** `formats/levelscript.py` reads the engine's block text files keeping every
+line (so they write back byte for byte, and a later editor changes only the lines it
+must); `convert/placed.py` turns a level's files into items, doors, spawn points, zombie
+areas, map and lighting areas, triggers, sound areas, map points and the navigation
+mesh, and finds every item's model; `level.things_glb` places the items; `dr2 level
+things`; the level census reads every level file.
+**Why:** the Maps tab shows these as layers, and phase 11 (editing) needs files that
+come back unchanged when nothing changed.
+**Learned:**
+- Every placed item and door of both games finds its model (CZ 1,060, CW 1,835). The
+  research thought 482 CZ items had none: CZ names its prop packs after the item
+  (`Chair_3.big`), and a pack can be the scene itself or hold it under the asset's name.
+- Some packs hold empty `.big` placeholders for texture variants (`adboard_cafe`),
+  chosen by `TextureSubType` (not drawn yet).
+- Item placements nest (a hot dog stand's sodas), with world positions.
+- Polygons named by a lighting volume are lighting areas, not map areas.
+- Rendered the bowling alley with its items: balls on the ball returns, bottles on the
+  tables, pins at the lane ends: the item rotation convention is the zone one.
+**Docs updated:** `formats.md` §Levels (grammar, classes, items → models with a
+retraction), `dev/code-tour.md`, `glossary.md` (level script, spawn point, trigger, nav
+mesh, map area / point), `phase10-kickoff.md` §Status, this entry.
+**Next:** step 3, the Maps tab.
+
 ## 2026-10-11 — Phase 10 step 1: levels read and assembled
 **Done:** `formats/level.py` reads the zone list and every zone's placement table (and
 writes them back identically); `convert/level.py` lists levels, reads a zone and builds

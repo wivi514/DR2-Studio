@@ -29,6 +29,7 @@ dr2kit/
     shader.py          shader constant tables (.po) and material value sets (.scv)
     bcs.py             string banks (str_<lang>.bcs): read, write, JSON, apply changes (phase 6)
     level.py           levels: the zone list and each zone's placement table (phase 10)
+    levelscript.py     the block text files (level, items, missions), kept byte for byte (phase 10)
   convert/
     png.py             pure-Python PNG reader/writer (Pillow used when present)
     dxt.py             DXT1/DXT5/DXN block decode + encode (numpy, pure-Python fallback)
@@ -42,6 +43,7 @@ dr2kit/
     variants.py        which parts and colours a model shows: the game's shape classifier,
                        slots, looks, colour choices, prop states (phase 9)
     level.py           levels: list them, read a zone, put its pieces in place → .glb (phase 10)
+    placed.py          what the level text files place: items (→ models), doors, markers (phase 10)
     video.py           Bink movies (Case West): probe, frames, sound, .mp4 export (phase 6)
   index/
     schema.sql         the SQLite tables
@@ -392,7 +394,18 @@ world = rotation × (scale × local) + position. `convert.level` finds the level
 `ZoneData`: pieces by name → scene vpath, placements, `unplaced`, `missing`) and builds
 it as one `.glb` (`zone_glb`: each piece through `model.model_glb` in its default look,
 placed by `gltf.Assembler`; `lod=True` for the small textures). The level census is
-`census.check_levels` (`dr2 census --levels`); the CLI is `dr2 level list|info`.
+`census.check_levels` (`dr2 census --levels`); the CLI is `dr2 level list|info|things`.
+
+Step 2: `formats.levelscript.Document.parse(bytes)` reads the block text format keeping
+every line (`to_bytes()` is the file again; `set(block, key, value)` edits one line, for
+phase 11), `Block.get/floats/numbered` read values. `convert.placed` turns a **script**
+(`script_names`, `geometry_of`: which level folder it sits on) into `Thing`s by kind
+(`read_script` → `LevelScript`: items, doors, spawn points, zombie areas, map / lighting
+areas, triggers, sound areas, map points, `NavMesh`), naming unknown classes;
+`ItemModels.resolve(item)` finds an item's scene through `items.txt` and the
+`streamedassets.big` packs. `level.things_glb` places item models like `zone_glb`
+places pieces, and `level.zone_of(position, zones)` says which zone a thing is in;
+`census.check_level_scripts` is the text half of the level census.
 
 ### `dr2kit/convert/variants.py` (phase 9)
 What a model can show, the way the game decides it ([`formats.md`](../formats.md)

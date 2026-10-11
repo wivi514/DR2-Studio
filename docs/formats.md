@@ -25,7 +25,7 @@ Case West census before they count as rules (CLAUDE.md rule 7).
 | mission / data `.txt`, `.csv` | `datafile.big`, CW loose `.csv` | ✅ text | engine scripting; edited for co-op in the CZ recomp |
 | `.bik` | **CW only**, `data/movies` | ✅ read (Bink) | `dr2kit/convert/video.py` through PyAV: all 10 movies decode, every frame and the sound (`census --audio`); export to `.mp4`. Replacing one needs a Bink encoder (§Movies) |
 | level zones (`zonelist.big`, `ZONE_ORGANIZATION.big`) | `models/environment/<level>/` | ✅ read | where each level piece is placed: 208-byte records, placement maths confirmed, written back identically; a few tail bytes unknown (§Levels, `formats/level.py`) |
-| level text files (`<level>.txt`, `waypoint_*`, `nm_*`, `fe_map_*`) | `datafile.big` | 🟡 text | placed items, doors, spawn points, zombie areas, triggers, the navigation mesh, the in-game map (§Levels) |
+| level text files (`<level>.txt`, `waypoint_*`, `nm_*`, `fe_map_*`) | `datafile.big` | ✅ text | placed items, doors, spawn points, zombie areas, triggers, the navigation mesh, the in-game map; read losslessly, every item resolved to its model (§Levels) |
 | zone collision `MERGED_COLLISION.big` | every zone | ❓ | a scene with no drawable mesh; the geometry's form is unknown |
 | digest list | the XEX's `Digest` resource | ✅ | files the executable checks; mods can't touch them (§Digest-checked files) |
 
@@ -1286,6 +1286,20 @@ map only (§Materials).
 
 **Level text files** (`datafile.big`, not digest-checked): blocks
 `cClass Name { Key = "value" }`, nested, positions `"x,y,z"`, rotations `"x,y,z,w"`.
+**Read since step 2** (2026-10-11) by `dr2kit/formats/levelscript.py`, which keeps every
+line so a file writes back byte for byte (census: every level script's `.txt`,
+`waypoint_`, `nm_` file, `items.txt` and `missions.txt` of both games, 36 files), and
+interpreted by `dr2kit/convert/placed.py`. The grammar, measured on every `.txt` of both
+`datafile.big`: a header line (`cClass Name`, or a bare word such as `Vertices`), `{` and
+`}` on lines of their own, `Key = "value"` (also unquoted, and with a `// comment` after
+it), bare `"value"` lines (nav meshes), `//` and `#` comment lines. Five `.txt` files of
+`datafile.big` are other formats (`curves.txt`, `padmap.txt`, the INI-style
+`zombie_pdv_variations.txt`, CW's `sgraph_d.txt` / `sgraph_zombie_d.txt`).
+
+A **level script** is one set `<x>.txt` + `waypoint_<x>.txt` (+ `nm_<x>.txt`): CZ
+`prologue`, `prologue_safehouse` (on the `prologue` geometry: a script whose name starts
+with a level folder's name uses that folder), `prologue_menu`, `prologue_menu2`; CW one
+per level folder. 0 classes outside the list below in either game.
 
 | File | Classes (CZ `prologue` / CW `living_research`) |
 |---|---|
@@ -1313,11 +1327,54 @@ has no `game_patched`.
 CZ's levels in these files are `LEVEL_PROLOGUE`, `_SAFEHOUSE`, `_BOWLING`, `_DEPARTMENT`,
 `_MENU`: several share the `prologue` geometry.
 
-**Items → models.** `ItemName` names a block of `items.txt`; its `AssetFilename`
-(`data/models/weapons/scissors`) or `MergedFilename` (CW, `data/dynamicprops/gascanister`)
-gives the model as `<basename>.big` in `data/streamedassets.big` (case-insensitive).
-CW: 1,822 of 1,822 placements of its 4 main levels resolve; CZ: 577 of 1,059 (163 blocks
-name no file, 319 files are not in `streamedassets.big` ❓).
+**Items → models** (step 2, 2026-10-11: **every placed item and door of both games
+resolves**, CZ 1,060, CW 1,835, and each model parses; `convert.placed.ItemModels`).
+`ItemName` names a block of `items.txt`, which may give `MergedFilename`
+(`data/dynamicprops/arifle`) and `AssetFilename` (`m16`, or a path). The model is a
+**pack** `data/streamedassets.big/<X>.big`, X being the first found of: the
+`MergedFilename`'s name, the item's own name (CZ `Chair_3.big`, `CardboardBox.big`), the
+`AssetFilename`'s name. The pack is either the scene itself (it has a `SceneHeader`: CZ
+`HotDog.big`, `atm.big`) or holds it as `<AssetFilename's name>.big` (CZ `arifle.big` →
+`m16.big`; `Beer.big` → `beerbottle.big`), else the entry named like the pack, else its
+only scene; beside it are `<name>.tex`, `<name>_LOD.tex` and an icon `w_<name>.bct`.
+*Retraction:* the research's "CZ: 577 of 1,059 resolve" looked for `<AssetFilename's
+name>.big` at the top of `streamedassets.big`; CZ's packs are named after the item.
+**Texture variants:** some packs hold empty `.big` entries beside the scene
+(`adboard_cafe.big`, `pool_ball_blue.big`, `door_standardknob_burnt.big`) and a `.tex`
+per variant; placements choose one with `TextureSubType` (1…7) ❓ (the toolkit shows the
+default texture).
+
+What the classes hold (counts: CZ `prologue` / CW `living_research`):
+
+* `cItemPlacement` (891 / 923 with nested and attached-prop ones): `ItemName`,
+  `Location`, `Rotation` (quaternion, same convention as the zone placements: items
+  rendered on their tables and shelves), optional `PropState` (−8…4), `IsStatic`,
+  `TextureSubType`, `SpawnPropFromCategory` (a random item of a category ❓). Placements
+  **nest** (CZ `HotDog3` holds 5 more, world positions too). `cItemWithAttachedPropsPlacement`
+  adds `AttachedProp0…5` (item names put on the item's locators ❓; not drawn yet).
+* `cDoorPlacement` (38 / 51): as items, plus `InitialState`, `Level` / `LevelSpawnPoint`
+  (doors to other levels), `SiblingDoorName`, `KeyItem`, `LockedMessage`.
+* `cSpawnPoint` (18 / 9): `Location0` (player 1; `Location1…3` in a few: other players),
+  `Rotation0` an angle about Y in **radians**, `CameraHeading` / `CameraPitch` in degrees;
+  a few have a second `Location` (CZ `184.750,3.734,-319.031`, far outside the street ❓).
+* `cZombieWarehouse` (24 / 11): named floor polygons (`cPolygonSmall`/`Large` children).
+* `cPolygonSmall` / `cPolygonLarge`: `Vertex0…N` (the keys are sorted as text, so
+  `Vertex10` comes before `Vertex2`), `Height` (a prism upwards), `Text` or
+  `LevelRegionText` = a string id: **map areas** (`PR102` = 1712 "Junkyard"). A
+  polygon named by a `cLightContextVolume`'s `QuadName` is that **lighting area**
+  (`ContextFileName = "/prologue.csv"`), not a map area.
+* `cTriggerVolume` (13 / 34): `Location`, `Rotation`, a unit quad `Vertex1…4` and
+  `Height` or a `Radius`, `ActionType` (3: go to `Level` at `LevelSpawnPoint`; 4, 28, 36,
+  57, 58 ❓), `DisplayName` (a string id).
+* `cEnvironmentVolume` (223 / 178): boxes (`Translation`, `Rotation`, `Scale`) that pick
+  the acoustics (`AcousticsName`); `cEnvironmentAcoustics`, `cAudioMaterial`: reverb
+  settings; `cWaypoint`: two per file, at the origin.
+* `nm_<x>.txt`: `Vertices { "x,y,z" … }`, `Polyhedrons { PolyhedronEdges { mask = "3"
+  "12" "13" … } … }` (each a polygon of vertex numbers, all in range), `Connections { }`
+  (empty everywhere). CZ `prologue` 729 polygons, CW `living_research` 690.
+* `fe_map*.csv`: map rectangles per `LEVEL_*` (`fe_map_points*.csv`), room rows
+  (`pr101, 1709, …`: string ids), and **points**: `workbench_1, -186.4, 3.4, -114.2,
+  LEVEL_PROLOGUE` (workbenches, save points, the safehouse).
 
 ## Strings (`.bcs`) ✅
 

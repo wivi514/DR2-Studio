@@ -375,6 +375,23 @@ memory; exports use the full-size ones.
 scale. Pieces are placed by `ZONE_ORGANIZATION.big`, items and doors by the level's
 `.txt` file (`cItemPlacement`).
 
+**Level script.** One level's set of text files in `datafile.big`: `<x>.txt` (items,
+doors, spawn points, areas), `waypoint_<x>.txt` (triggers, sound areas) and `nm_<x>.txt`
+(the navigation mesh). Several can share one level's buildings: Case Zero's
+`prologue_safehouse` is the street with the safehouse story's items.
+
+**Spawn point.** A place the game puts the player (Chuck) when a level starts or when
+a door to another level leads there (`Start`, `SafehouseBedroom`).
+
+**Trigger.** An invisible box or circle that does something when you walk in or press a
+button there: a door to another level, an interaction.
+
+**Navigation mesh (nav mesh).** Invisible floor shapes that say where zombies and
+survivors can walk; they find their way along them.
+
+**Map area / map point.** A named floor shape the in-game map and the HUD use ("Junkyard",
+"Cafeteria"), and a marked spot on the map (workbench, save point).
+
 **Zombie factory / zombie area.** How the game fills a place with a crowd: a *zombie
 area* (`cZombieWarehouse`, in the level file) is a set of floor shapes; a *factory*
 (`cMissionZombieFactory`, in `missions.txt`) says how many zombies of which types to put

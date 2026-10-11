@@ -277,6 +277,8 @@ def cmd_level(args) -> int:
             print(f"{L.name:<22} {len(L.zones):>2} zones   {L.vpath}")
             print("    " + " ".join(L.zone_names()))
         return 0
+    if args.action == "things":
+        return _level_things(args, tree)
     L = clevel.Level.open(tree, args.level)
     if not args.zone:
         print(f"{L.name}: {len(L.zones)} zones ({L.vpath})")
@@ -302,6 +304,36 @@ def cmd_level(args) -> int:
         scale = "" if p.scale == (1.0, 1.0, 1.0) else f"  scale {' '.join(f'{c:.3f}' for c in p.scale)}"
         flags = f"  flags {p.flags:#x}" if p.flags else ""
         print(f"  {p.index:>3} {p.piece:<32} at {x:8.2f} {y:7.2f} {z:8.2f}{rot}{scale}{flags}")
+    return 0
+
+
+def _level_things(args, tree) -> int:
+    """``dr2 level things``: what a level's text files place, by kind."""
+    from ..convert import level as clevel
+    from ..convert import placed
+    scripts = placed.script_names(tree)
+    if not args.script:
+        levels = [L.name for L in clevel.list_levels(tree)]
+        for s in scripts:
+            print(f"{s:<24} on the level {placed.geometry_of(s, levels) or '?'}")
+        return 0
+    strings = None
+    try:
+        from ..convert.strings import load_bank
+        strings = load_bank(tree, "en").strings
+    except Dr2Error:
+        pass
+    ls = placed.read_script(tree, args.script, placed.ItemModels(tree), strings)
+    print(f"{args.script}: " + ", ".join(f"{placed.LAYERS.get(k, k).lower()}: {n}"
+                                         for k, n in ls.counts().most_common()))
+    for t in ls.things:
+        if args.kind and t.kind != args.kind:
+            continue
+        pos = " ".join(f"{c:.2f}" for c in t.position) if t.position else (
+            f"{len(t.polygon)} corners" if t.polygon else "")
+        extra = t.item or t.label or t.props.get("Level") or ""
+        model = f"  -> {t.model}" if t.model and args.models else ""
+        print(f"  {t.kind:<12} {t.name:<34} {pos:<28} {extra}{model}")
     return 0
 
 
@@ -1035,9 +1067,17 @@ def build_parser() -> argparse.ArgumentParser:
     game_opt(p)
     p.set_defaults(func=cmd_variants)
 
+    from ..convert.placed import LAYERS as placed_kinds
     p = sub.add_parser("level", help="the games' levels: zones, pieces and where they go")
     lsub = p.add_subparsers(dest="action", required=True, metavar="ACTION")
     pl = lsub.add_parser("list", help="every level and its zones")
+    game_opt(pl)
+    pl = lsub.add_parser("things", help="what a level's text files place: items, doors, "
+                         "spawn points, areas, triggers (no name: list the scripts)")
+    pl.add_argument("script", nargs="?", help="a level script, e.g. prologue or "
+                    "prologue_safehouse (Case Zero), living_research (Case West)")
+    pl.add_argument("--kind", choices=sorted(k for k in placed_kinds if k != "navmesh"), help="only this kind")
+    pl.add_argument("--models", action="store_true", help="show each item's model")
     game_opt(pl)
     pl = lsub.add_parser("info", help="a level's zones, or one zone's placements")
     pl.add_argument("level", help="a level, e.g. prologue (Case Zero) or living_research (Case West)")
