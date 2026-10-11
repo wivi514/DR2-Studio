@@ -20,6 +20,10 @@ points and map points as empties (an Empty's arrow is the way the player faces),
 and triggers as outlines, the navigation mesh as a see-through mesh. Every marker keeps
 its settings from the level file in its custom properties.
 
+With ``zombies``, a **Zombies** group holds the crowds the missions put in the zone's
+zombie areas (`convert.zombies`, `level.zombies_glb`: high-detail models in their rest
+pose, a few looks per type; example spots, the game spreads them itself).
+
 Level materials carry their lightmap (the occlusion texture on the lightmap's UV set)
 and two-texture blends in their extras (`convert.gltf.lightmap_slots`, `blend_slots`):
 Blender's importer shows the colour map; the add-on's *Level materials* option wires the
@@ -61,6 +65,7 @@ class LevelExport:
     pieces: int = 0
     items: int = 0
     markers: int = 0
+    zombies: int = 0
 
 
 def _write(path: Path, data: bytes) -> None:
@@ -163,7 +168,7 @@ def export_level(tree: AssetTree, game: str, level: str, out: str | Path, *,
                  zones: list[str] | None = None, script: str | None = None,
                  items: bool = True, markers=DEFAULT_MARKERS, whole: bool = False,
                  lod: bool = False, text: bool = True, db_path=None, progress=None,
-                 cancel=None, dry_run: bool = False) -> LevelExport:
+                 cancel=None, dry_run: bool = False, zombies: bool = False) -> LevelExport:
     """Write ``out/<game>/<level>/`` (module docstring). ``zones`` (names or ``z05``)
     limits it; ``script`` picks the item set (default: the level's own); ``markers`` the
     marker kinds (empty: none); ``whole``: one ``.glb`` for every zone chosen.
@@ -178,7 +183,7 @@ def export_level(tree: AssetTree, game: str, level: str, out: str | Path, *,
     folder = Path(out) / game / L.name
     res = LevelExport(folder)
     ls = None
-    if script and (items or markers):
+    if script and (items or markers or zombies):
         ls = placed.read_script(tree, script, placed.ItemModels(tree), mapdata._strings(tree))
     targets = [(f"{L.name}.glb", chosen)] if whole else \
         [(f"{z.zone}.glb", [z]) for z in chosen]
@@ -196,7 +201,7 @@ def export_level(tree: AssetTree, game: str, level: str, out: str | Path, *,
             res.files.append(path)
             continue
         data = level_glb(tree, game, L, zs, ls, items=items, markers=markers, lod=lod,
-                         db_path=db_path, result=res)
+                         db_path=db_path, result=res, zombies=zombies)
         _write(path, data)
         res.files.append(path)
     if text and not (cancel and cancel()):
@@ -210,7 +215,8 @@ def export_level(tree: AssetTree, game: str, level: str, out: str | Path, *,
 
 def level_glb(tree: AssetTree, game: str, L: clevel.Level, zones: list, ls, *,
               items: bool = True, markers=DEFAULT_MARKERS, lod: bool = False,
-              db_path=None, result: LevelExport | None = None) -> bytes:
+              db_path=None, result: LevelExport | None = None,
+              zombies: bool = False) -> bytes:
     """One ``.glb`` of ``zones`` (`formats.level.Zone` records of ``L``): pieces, the
     items of the level script ``ls`` (a `placed.LevelScript`, or None) and its markers,
     grouped by zone and layer (module docstring). Counts go into ``result``."""
@@ -240,6 +246,18 @@ def level_glb(tree: AssetTree, game: str, L: clevel.Level, zones: list, ls, *,
             res.items += st2.placements
             res.triangles += st2.triangles
             res.failed += [(f"{z.zone}/{a}", b) for a, b in st2.failed]
+        if zombies:
+            from ..convert import zombies as czomb
+            spots = [s for s in czomb.spots(ls, czomb.crowds(tree, ls.name))
+                     if mapdata._home(s.position, L.zones) is z]
+            if spots:
+                st3 = clevel.ZoneStats()
+                grp = asm.group("Zombies", top, {"dr2_layer": "zombies"})
+                clevel.zombies_glb(tree, spots, game=game, detail="high", lod=lod,
+                                   db_path=db_path, stats=st3, assembler=asm, parent=grp)
+                res.zombies += st3.placements
+                res.triangles += st3.triangles
+                res.failed += [(f"{z.zone}/{a}", b) for a, b in st3.failed]
         if markers:
             grp = asm.group("Markers", top, {"dr2_layer": "markers"})
             res.markers += add_markers(asm, mine, grp, markers, ls.navmesh,

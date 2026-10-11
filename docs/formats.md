@@ -1382,6 +1382,9 @@ clumping), `cMissionSpawnZombie` (137 / 155: `SpawnPoint`, one-angle `Rotation`,
 `cMissionZombieRemoval` (44 / 29), `cMissionAdjustZombieTuning` (2 / 7:
 `MaxNumUpdatingZombies` = 120 in CZ's street). A factory's area is a `cZombieWarehouse`
 of the level file (all of CZ's exist; CW names one undefined, `ArenaStairs`).
+Drawn (phase 10 stretch): every factory of a level resolves its type (`zombies.big/<type>.big`,
+detail `_2`/`_3`/`_4`) and its area in both games: CZ `prologue` 22 crowds, CW
+`living_research` 32 (9 types).
 `zombiesets.txt` (generated, "do not edit by hand") lists the zombie types each level
 loads, by time of day, with a memory cost per type. The text files use CRLF, tabs and
 alphabetically sorted keys. **The CZ recomp's `game_patched/data/datafile.big` differs

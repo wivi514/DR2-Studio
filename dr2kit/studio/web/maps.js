@@ -66,13 +66,16 @@ const zones = new Map();          // name -> {meta, box, pieces: slot, items: sl
 const layers = {};                // kind -> visible
 const DEFAULT_ON = new Set(['pieces', 'items', 'door', 'item', 'spawn', 'map_area', 'map_point']);
 const piecesRoot = new THREE.Group(), itemsRoot = new THREE.Group(), markerRoot = new THREE.Group();
-scene.add(piecesRoot, itemsRoot, markerRoot);
+const zombiesRoot = new THREE.Group();
+scene.add(piecesRoot, itemsRoot, markerRoot, zombiesRoot);
 const markerGroups = {};          // kind -> Group
 const labels = [];                // sprites, hidden when far
 let pending = 0;
 let selected = null, selBox = null;
 
 function slot() { return { detail: null, wanted: null, object: null, asked: null }; }
+const PARTS = ['pieces', 'items', 'zombies'];
+const ROOTS = {};
 
 function layerOn(kind) { return layers[kind] !== undefined ? layers[kind] : DEFAULT_ON.has(kind); }
 
@@ -316,12 +319,12 @@ function schedule() {
   const asks = [];
   for (const z of zones.values()) {
     const want = desired(z);
-    for (const part of ['pieces', 'items']) {
-      if (part === 'items' && !layerOn('items')) continue;
+    for (const part of PARTS) {
+      if (part !== 'pieces' && !layerOn(part)) continue;
       const s = z[part];
       if (s.missing) continue;
       if (s.detail === want || s.asked === want) continue;
-      asks.push({ z, part, want, d: zoneDistance(z) + (part === 'items' ? 1 : 0)
+      asks.push({ z, part, want, d: zoneDistance(z) + (part === 'pieces' ? 0 : 1)
                   + (s.detail ? 1000 : 0) });     // what isn't shown at all goes first
     }
   }
@@ -357,15 +360,15 @@ window.dr2 = {
   openLevel(m, keep) {
     meta = m;
     for (const z of zones.values()) {
-      for (const part of ['pieces', 'items']) if (z[part].object) { dispose(z[part].object); }
+      for (const part of PARTS) if (z[part].object) { dispose(z[part].object); }
     }
-    piecesRoot.clear(); itemsRoot.clear();
+    piecesRoot.clear(); itemsRoot.clear(); zombiesRoot.clear();
     zones.clear();
     pending = 0;
     clearSelection();
     for (const zm of m.zones) {
       const box = new THREE.Box3(v3(zm.min), v3(zm.max));
-      zones.set(zm.name, { meta: zm, box, pieces: slot(), items: slot() });
+      zones.set(zm.name, { meta: zm, box, pieces: slot(), items: slot(), zombies: slot() });
     }
     buildMarkers();
     setOverview();
@@ -395,9 +398,10 @@ window.dr2 = {
       obj.userData.part = part;
       await applyLevelMaterials(gltf);           // lightmaps and blends, as the game
       markMaterials(obj);
-      if (s.object) { (part === 'items' ? itemsRoot : piecesRoot).remove(s.object); dispose(s.object); }
+      const root = { pieces: piecesRoot, items: itemsRoot, zombies: zombiesRoot }[part];
+      if (s.object) { root.remove(s.object); dispose(s.object); }
       s.object = obj; s.detail = detail; s.asked = null;
-      (part === 'items' ? itemsRoot : piecesRoot).add(obj);
+      root.add(obj);
       const [n, full] = loadedCount();
       say(`${meta.level}: ${n}/${zones.size} zones shown (${full} full size)`);
       schedule();
@@ -419,6 +423,7 @@ window.dr2 = {
     if (kind === 'overview') ov.style.display = on && ovImg ? 'block' : 'none';
     else if (kind === 'pieces') piecesRoot.visible = !!on;
     else if (kind === 'items') { itemsRoot.visible = !!on; schedule(); }
+    else if (kind === 'zombies') { zombiesRoot.visible = !!on; schedule(); }
     else if (markerGroups[kind]) markerGroups[kind].visible = !!on;
   },
   goTo(x, y, z, heading) {
@@ -535,6 +540,7 @@ function pick(x, y) {
       const u = o.userData || {};
       if (u.marker) { info = { type: 'marker', ...u.marker }; delete info.polygon; target = h.object.parent; }
       else if (u.dr2_piece) { info = { type: 'piece', name: u.dr2_piece, vpath: u.dr2_vpath, index: u.dr2_index }; target = o; }
+      else if (u.dr2_zombie) { info = { type: 'zombie', name: u.dr2_zombie, vpath: u.dr2_vpath, area: u.dr2_area, mission: u.dr2_mission, line: u.dr2_line }; target = o; }
       else if (u.dr2_item) { info = { type: u.dr2_kind || 'item', name: u.dr2_name, item: u.dr2_item, vpath: u.dr2_vpath, file: u.dr2_file, line: u.dr2_line }; target = o; }
     }
     if (!info) continue;

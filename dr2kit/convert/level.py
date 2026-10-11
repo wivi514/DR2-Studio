@@ -24,6 +24,7 @@ Formats and how they were checked: docs/formats.md §Levels.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 
 from ..container.vpath import AssetTree, join
@@ -272,6 +273,63 @@ def things_glb(tree: AssetTree, things, *, game: str, textures: bool = True,
         st.triangles += es.triangles * len(places)
         st.textures += es.textures
         st.missing_textures.update(es.missing_textures or ())
+    if not own:
+        return None
+    return asm.to_bytes()
+
+
+def zombies_glb(tree: AssetTree, spots, *, game: str, detail: str = "medium",
+                textures: bool = True, lod: bool = False, db_path=None,
+                stats: ZoneStats | None = None, assembler=None, parent: int | None = None,
+                png_level: int = 6, looks: int = 3) -> bytes | None:
+    """Zombies standing where the missions put crowds (`convert.zombies.spots`): each
+    type's model (``detail``: high / medium / low) in a few looks (look 0 the default,
+    the others random choices of `convert.variants`, seeded), each made once and placed
+    at every spot, in the rest pose without bones (`gltf.Assembler.add` ``static``)."""
+    import random as _random
+    import zlib
+    from . import gltf
+    from . import variants as cvar
+    from . import zombies as czomb
+    from .model import TextureFinder, model_glb, read_scene
+    st = stats if stats is not None else ZoneStats()
+    own = assembler is None
+    asm = assembler or gltf.Assembler()
+    shared: dict = {"png_level": png_level}
+    groups: dict[tuple, list] = {}
+    for sp in spots:
+        groups.setdefault((sp.type, sp.look % max(1, looks)), []).append(sp)
+    for (ztype, look), places in sorted(groups.items()):
+        vp = czomb.model_vpath(tree, ztype, detail)
+        if vp is None:
+            st.failed.append((ztype, "no model for this zombie type"))
+            continue
+        try:
+            sc = read_scene(tree, vp)
+            mv = cvar.read_variants(tree, sc, game)
+            choice = mv.default() if look == 0 else mv.random(_random.Random(zlib.crc32(f"{ztype}/{look}".encode())))
+            es = gltf.ExportStats()
+            finder = TextureFinder(tree, vp, game, db_path, lod=lod, shared=shared) \
+                if textures else None
+            data = model_glb(tree, sc, game=game, finder=finder, textures=textures,
+                             db_path=db_path, stats=es, variant=choice, mode="shown",
+                             colour_variants=False, variants=mv)
+        except Exception as e:  # noqa: BLE001 - named in stats.failed
+            st.failed.append((vp, str(e)))
+            continue
+        nodes = [{"name": f"{ztype} ({sp.crowd.area if sp.crowd else ''})",
+                  "translation": sp.position,
+                  "rotation": (0.0, math.sin(sp.yaw / 2), 0.0, math.cos(sp.yaw / 2)),
+                  "extras": {"dr2_zombie": ztype, "dr2_vpath": vp, "dr2_kind": "zombie",
+                             "dr2_name": ztype, "dr2_area": sp.crowd.area if sp.crowd else "",
+                             "dr2_mission": sp.crowd.mission if sp.crowd else "",
+                             "dr2_line": sp.crowd.line if sp.crowd else 0,
+                             "dr2_file": "missions.txt"}}
+                 for sp in places]
+        asm.add(data, nodes, parent, vp, static=True)
+        st.pieces += 1
+        st.placements += len(places)
+        st.triangles += es.triangles * len(places)
     if not own:
         return None
     return asm.to_bytes()

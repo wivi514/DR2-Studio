@@ -48,6 +48,11 @@ game, not like grey boxes.
    - **Zombie areas** (red): the floor shapes the game fills with zombies.
    - **Triggers** (pink): doors to other levels and other places where pressing a button
      does something; a door to another level shows its name (*→ LEVEL_PROLOGUE_SAFEHOUSE*).
+   - **Zombies**: the crowds the game's missions put in each zombie area (`missions.txt`),
+     as example figures: the right types and numbers per area (up to 12 each), in a
+     few of each type's looks, standing in their rest pose (arms out). The game spreads
+     and dresses them itself while you play, so the exact spots differ. Click one to see
+     its type and the mission that puts it there.
    - **Navigation mesh** (green): where zombies and survivors can walk.
    - **Lighting areas** (yellow), **Sound areas** (cyan boxes: which echo applies where)
      and **Acoustics points**.
@@ -114,6 +119,7 @@ dr2 export prologue -g cz -o out              # every zone, one .glb each
 dr2 export prologue --whole --lod -g cz -o out   # one .glb, small textures
 dr2 export prologue --markers all --script prologue_safehouse -g cz -o out
 dr2 export living_research --no-items --markers none -g cw -o out   # buildings only
+dr2 export prologue --zone z06 --zombies -g cz -o out   # with example zombie crowds
 ```
 
 ## Check it worked

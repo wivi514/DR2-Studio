@@ -44,6 +44,7 @@ dr2kit/
                        slots, looks, colour choices, prop states (phase 9)
     level.py           levels: list them, read a zone, put its pieces in place → .glb (phase 10)
     placed.py          what the level text files place: items (→ models), doors, markers (phase 10)
+    zombies.py         zombie crowds from missions.txt, spread over their areas (phase 10)
     mapdata.py         the Maps tab's data: zone files cached on disk, a level's markers as JSON (phase 10)
     video.py           Bink movies (Case West): probe, frames, sound, .mp4 export (phase 6)
   index/
@@ -409,6 +410,12 @@ areas, triggers, sound areas, map points, `NavMesh`), naming unknown classes;
 `streamedassets.big` packs. `level.things_glb` places item models like `zone_glb`
 places pieces, and `level.zone_of(position, zones)` says which zone a thing is in;
 `census.check_level_scripts` is the text half of the level census.
+
+Stretch: `convert.zombies.crowds(tree, script)` reads the zombie factories of
+`missions.txt` for a level, `spots(ls, crowds)` spreads them over their area's floor
+polygons (ear-clipped, seeded); `level.zombies_glb` makes each type's model once per look
+and places it (`gltf.Assembler.add(static=True)`: rest pose, no bones). `MapCache.zombies`
+caches a zone's; the Maps page asks for them as a third part.
 
 Step 3: `convert.mapdata.MapCache(tree, game)` builds and keeps a zone's `pieces(level,
 zone, detail)` and `items(level, zone, script, detail)` files on disk (named by

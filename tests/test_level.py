@@ -458,3 +458,48 @@ def test_a_level_texture_mod_reaches_every_copy_in_the_zone(tmp_path):
     assert {p.vpath for p in plan.planned} == {f"{zone}/crate.tex/box_cm",
                                                 f"{zone}/box.tex/box_cm"}
     assert any("box.tex" in n for n in plan.notes)
+
+
+# --- stretch: zombies in their areas -------------------------------------------------------
+
+MISSIONS = ('cMissionDefinition Opening\r\n{\r\n\tcMissionLevelReady Town\r\n\t{\r\n'
+            '\t\tLevelName = "LEVEL_TOWN"\r\n\t\tcMissionZombieFactory Crowd\r\n\t\t{\r\n'
+            '\t\t\tAmount0 = "30"\r\n\t\t\tType0 = "zombie_test"\r\n'
+            '\t\t\tZombieWarehouseName = "Roof"\r\n\t\t}\r\n\t}\r\n}\r\n'
+            'cMissionDefinition Elsewhere\r\n{\r\n\tcMissionLevelReady X\r\n\t{\r\n'
+            '\t\tLevelName = "LEVEL_OTHER"\r\n\t\tcMissionZombieFactory C2\r\n\t\t{\r\n'
+            '\t\t\tAmount0 = "5"\r\n\t\t\tType0 = "zombie_test"\r\n'
+            '\t\t\tZombieWarehouseName = "Roof"\r\n\t\t}\r\n\t}\r\n}\r\n')
+
+
+def test_zombie_crowds_stand_in_their_area(tmp_path):
+    from dr2kit.container.big import BigArchive
+    from dr2kit.convert import placed, zombies
+    tree = make_datafile(tmp_path)
+    df = tmp_path / "data" / "datafile.big"
+    arc = BigArchive.parse(df.read_bytes())
+    arc.add("missions.txt", MISSIONS.encode())
+    df.write_bytes(arc.to_bytes())
+    tree = AssetTree(tmp_path)
+    crowds = zombies.crowds(tree, "town")
+    assert [(c.mission, c.area, c.amounts) for c in crowds] == [
+        ("Opening", "Roof", {"zombie_test": 30})]            # LEVEL_OTHER's isn't here
+    ls = placed.read_script(tree, "town")
+    spots = zombies.spots(ls, crowds, per_area=8)
+    assert len(spots) == 8 and {s.type for s in spots} == {"zombie_test"}
+    for s in spots:                                       # inside the floor (0..1 square)
+        x, y, z = s.position
+        assert -1e-6 <= x <= 9.0001 and -1e-6 <= z <= 9.0001 and abs(y) < 9.0001
+    assert zombies.spots(ls, crowds, per_area=8) == spots      # seeded: the same each time
+
+
+def test_floor_polygons_triangulate():
+    from dr2kit.convert.zombies import _triangulate_xz
+    square = [(0, 0, 0), (1, 0, 0), (1, 0, 1), (0, 0, 1)]
+    assert len(_triangulate_xz(square)) == 2
+    l_shape = [(0, 0, 0), (2, 0, 0), (2, 0, 1), (1, 0, 1), (1, 0, 2), (0, 0, 2)]
+    tris = _triangulate_xz(l_shape)
+    area = sum(abs((l_shape[b][0] - l_shape[a][0]) * (l_shape[c][2] - l_shape[a][2])
+                   - (l_shape[b][2] - l_shape[a][2]) * (l_shape[c][0] - l_shape[a][0])) / 2
+               for a, b, c in tris)
+    assert len(tris) == 4 and abs(area - 3.0) < 1e-9

@@ -51,6 +51,7 @@ LAYER_ORDER = [("pieces", "Buildings (level pieces)", True),
                ("map_area", "Map areas", True),
                ("map_point", "Map points (workbenches, save points)", True),
                ("zombie_area", "Zombie areas", False),
+               ("zombies", "Zombies (crowds the missions put in the areas)", False),
                ("trigger", "Triggers (doors to other levels…)", False),
                ("navmesh", "Navigation mesh", False),
                ("light_area", "Lighting areas", False),
@@ -144,7 +145,10 @@ class _Builder(QObject):
         if req.get("generation") != self.gen.value or cache is None:
             return                            # a request of a level no longer shown
         try:
-            if req["part"] == "items":
+            if req["part"] == "zombies":
+                path = cache.zombies(req["level"], req["zone"], req["script"], req["detail"]) \
+                    if req.get("script") else None
+            elif req["part"] == "items":
                 path = cache.items(req["level"], req["zone"], req["script"], req["detail"]) \
                     if req.get("script") else None
             else:
@@ -482,6 +486,12 @@ class MapsView(QWidget):
         if t == "piece":
             rows = [("A level piece", info.get("name")), ("Zone", info.get("zone")),
                     ("File", info.get("vpath"))]
+        elif t == "zombie":
+            rows = [("A zombie", info.get("name")), ("Model", info.get("vpath")),
+                    ("Crowd of the area", info.get("area")),
+                    ("Put there by mission", info.get("mission")),
+                    ("In", f"missions.txt, line {info.get('line')}"),
+                    ("Note", "the game spreads a crowd itself: these spots are examples")]
         elif t in ("item", "door"):
             rows = [("An item" if t == "item" else "A door", info.get("item")),
                     ("Placed as", info.get("name")),
@@ -507,7 +517,7 @@ class MapsView(QWidget):
         self.info.setHtml("<table>" + "".join(
             f"<tr><td><b>{_esc(k)}</b>&nbsp;</td><td>{_esc(v)}</td></tr>" for k, v in rows
             if v not in (None, "")) + "</table>")
-        self._set_actions(info.get("vpath") if t in ("piece", "item", "door") else None)
+        self._set_actions(info.get("vpath") if t in ("piece", "item", "door", "zombie") else None)
 
     def _set_actions(self, vpath: str | None) -> None:
         for b in (self.btn_library, self.btn_blender, self.btn_export):

@@ -605,10 +605,12 @@ class Assembler:
             self.b.gltf["nodes"][parent].setdefault("children", []).append(i)
 
     def add(self, glb: bytes, placements: list[dict], parent: int | None = None,
-            source: str = "<glb>") -> list[int]:
+            source: str = "<glb>", static: bool = False) -> list[int]:
         """Copy ``glb`` in and place it once per item of ``placements``: dicts with
         ``name`` and optional ``translation``, ``rotation`` (x, y, z, w), ``scale`` and
-        ``extras``. Returns the placement nodes."""
+        ``extras``. Returns the placement nodes. ``static``: a skinned model is drawn in
+        its rest pose without its skeleton (no skin, no bone nodes, no joint data): a
+        crowd of zombies stays light."""
         import hashlib
         g = Glb.parse(glb, source)
         js, b = g.gltf, self.b
@@ -673,6 +675,9 @@ class Assembler:
                 if "material" in p:
                     p["material"] = mats[p["material"]]
                 p.pop("extensions", None)      # colour choices: not carried into a level
+                if static:
+                    p["attributes"].pop("JOINTS_0", None)
+                    p["attributes"].pop("WEIGHTS_0", None)
             meshes.append(b.add("meshes", me))
         nodes = js.get("nodes", [])
         roots = js["scenes"][js.get("scene", 0)].get("nodes", [])
@@ -688,7 +693,12 @@ class Assembler:
             self._attach(ti, parent)
             node_map: dict[int, int] = {}
 
-            def copy(i: int) -> int:
+            def has_mesh(i: int) -> bool:
+                return "mesh" in nodes[i] or any(has_mesh(c) for c in nodes[i].get("children", []))
+
+            def copy(i: int) -> int | None:
+                if static and not has_mesh(i):
+                    return None
                 n = dict(nodes[i])
                 n.pop("children", None)
                 if "mesh" in n:
@@ -697,12 +707,16 @@ class Assembler:
                 k = b.add("nodes", n)
                 node_map[i] = k
                 for c in nodes[i].get("children", []):
-                    b.gltf["nodes"][k].setdefault("children", []).append(copy(c))
-                if skin is not None:
+                    ck = copy(c)
+                    if ck is not None:
+                        b.gltf["nodes"][k].setdefault("children", []).append(ck)
+                if skin is not None and not static:
                     b.gltf["nodes"][k]["skin"] = skin          # remapped below
                 return k
             for r in roots:
-                b.gltf["nodes"][ti].setdefault("children", []).append(copy(r))
+                rk = copy(r)
+                if rk is not None:
+                    b.gltf["nodes"][ti].setdefault("children", []).append(rk)
             for i, k in node_map.items():                      # skins: one per copy
                 n = b.gltf["nodes"][k]
                 if "skin" in n:

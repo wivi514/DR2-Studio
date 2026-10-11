@@ -140,6 +140,32 @@ class MapCache:
             _write(path, data)
         return path
 
+    def zombie_spots(self, script: str):
+        """Where the missions put zombie crowds on the level of ``script``."""
+        key = f"zombies:{script}"
+        if key not in self._scripts:
+            from . import zombies as czomb
+            self._scripts[key] = czomb.spots(self.script(script),
+                                             czomb.crowds(self.tree, script))
+        return self._scripts[key]
+
+    def zombies(self, level: str, zone: str, script: str, detail: str = FULL) -> Path | None:
+        """The zone's zombies (`level.zombies_glb`; None when it has none). Medium detail
+        models, small textures far away."""
+        L = self.level(level)
+        z = L.find_zone(zone)
+        spots = [s for s in self.zombie_spots(script) if _home(s.position, L.zones) is z]
+        if not spots:
+            return None
+        key = stamp(self.tree, [f"{placed.DATAFILE}/missions.txt",
+                                f"{placed.DATAFILE}/{script}.txt", "data/models/zombies.big"])
+        path = self._path(level, f"{z.zone}-zombies-{script}-{detail}", key)
+        if not path.is_file():
+            data = clevel.zombies_glb(self.tree, spots, game=self.game, lod=detail == LOD,
+                                      db_path=self.db_path, png_level=PNG_LEVEL)
+            _write(path, data)
+        return path
+
 
 def _write(path: Path, data: bytes) -> None:
     tmp = path.with_suffix(".part")
