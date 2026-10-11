@@ -15,6 +15,11 @@ Phase 10 already *shows* zombie spawn areas and placed objects; phase 11 lets a 
 2. **Objects:** move, turn, remove and add placed items and doors (weapons, boxes,
    benches…), and change what they are (a bench → a chair).
 3. **Level pieces** (stretch): move, hide or copy pieces of the buildings.
+4. **Add your own things** (user, 2026-10-11): put new things on the map that **behave
+   like the real thing**: a usable item, a save point, a workbench, a door to another
+   level, zombies into a spawner, a spawn point, a building, a road… each from a
+   **prefab** (a ready-made template taken from the game's own working examples), so
+   an added save point saves and an added weapon can be picked up and used.
 
 The research (2026-10-11) is below, then the plan. Facts also in
 [`formats.md`](formats.md) §Levels.
@@ -53,7 +58,7 @@ builds on and what is still missing.
 | Collision (`formats/collision.py`, `level.zone_collision`) | Every zone's collision mesh in world space (5 CZ shapes' place unknown) | **Snap to floor** and "is this spot reachable": a ray down onto the collision, not onto the drawn pieces (what the game stands on) |
 | Nav mesh (`placed.read_navmesh`) | The polygons zombies walk on | A check that a zombie area or a single zombie stands on it |
 | `mods/preview.py` (`Preview`, `ModdedTree`) | Studio shows the switched-on mods with the build's own bytes; Ctrl+M shows the game without them; only the zones a mod touches rebuild | Nothing, once the build knows `.edits.json`: an edit shows "with my mods" for free |
-| `mods/build.py` | Whole-file replacements, `.bcs.json` merged by id over the recomp's copy (`base_dirs`) | **An `.edits.json` kind**: merge several mods' edits by block path, conflict only on the same key of the same block, applied over whatever file is underneath |
+| `mods/build.py` | Whole-file replacements, `.bcs.json` merged by id over the recomp's copy (`base_dirs`); refuses a vpath the game doesn't have | **An `.edits.json` kind**: merge several mods' edits by block path, conflict only on the same key of the same block, applied over whatever file is underneath; **adding new files** (own models: a new pack, a new zone entry) for step 5 |
 | `formats/level.py` placements | `ZONE_ORGANIZATION.big` records parse and write back identically (`placements_bytes`, census), placement maths checked to 0.8 mm (CZ) / 8 mm (CW) | For step 4 only: writing a changed table |
 | Time of day (`mapdata.light_table`) | The hour slider | `zombiesets.txt` entries have their own clock (`start` / `end` in seconds from Day 1 0:00): the zombie view should pick the load set by game time, not the light hour |
 
@@ -113,6 +118,32 @@ unknown.
   where it was) unless the shape moves too; moving the vertices without rebuilding the
   MOPP tree is untested ❓ and rebuilding it needs Havok's algorithm (not available).
   Items and doors are not in the merged collision (they are separate props).
+
+### What makes a thing work in game (researched 2026-10-11, for prefabs)
+
+Every "usable" thing is a block in a text file, sometimes two, never code:
+
+| Thing | Where | What makes it work | Shipped examples |
+|---|---|---|---|
+| **Usable item** (weapon, food, tool…) | `<level>.txt` `cItemPlacement` | `ItemName` names an `items.txt` block; its **class** gives the behaviour (`cPlayerWeaponItem` 130 CZ / 120 CW, `cFoodItem`, `cFirearmItem`, `cExplosiveItem`, `cToolItem`, `cSprayItem`…). The placement only says where, and flags (`IsStatic`, `SpawnPropFromCategory`, `FixedOnInitialPlacement`…) | every weapon in the street |
+| **Workbench** (combine weapons) | `<level>.txt` `cItemPlacement` | `ItemName = "Workbench"`, a `cComboStationItem` | CZ `Workbench1`, `Workbench2`, the safehouse's |
+| Vending / slot machine, clothing rack, pawn shop display | `<level>.txt` `cItemPlacement` | their item classes (`cVendingMachineItem`, `cSlotMachineItem`, `cClothingDispenserItem`, `cPawnShopDisplayItem`) | many |
+| **Save point** | `waypoint_<level>.txt` `cTriggerVolume` | **`ActionType = 4`**, `DisplayName = 55094` (the prompt's string id), a box (`Location`, `Rotation`, `Vertex1…4`, `Height`, `Radius`), `ActionPoint` + `ActionActorRotation` (where Chuck stands and faces), `InteractButton = true`, `InteractionRadius`; CW adds `ActionCameraHeading` / `Pitch` and `AnimationChooser` (urinal or stall ❓). The toilet itself is only scenery (a piece) | CZ 4 (`SafehouseSave`, `UncleBills_SaveTrigger`…), CW 34 |
+| Its icon on the in-game map | `fe_map*.csv` row (`LEVEL_<SCRIPT>`, kind, position) | phase 10's map points | — |
+| **Door to another level** | `waypoint_<level>.txt` `cTriggerVolume` (+ a `cDoorPlacement`) | `ActionType = 3`, `Level = LEVEL_…`, the box and action point | CZ `Safehouse_entrance`, CW `PensUpper` |
+| Other trigger actions | same | `ActionType` 28 (load upstairs), 36 (CZ zombification), 57 / 58 (CW Frank on / off) | — |
+| **Spawn point** (where Chuck appears) | `<level>.txt` `cSpawnPoint` | name, position, facing | CZ 18 |
+| **Zombies into a spawner** | `missions.txt` `cMissionZombieFactory` | another `Type<n>` / `Amount<n>`; the type must be in the level's **load set** (`zombiesets.txt`) | 33 / 72 |
+| Single zombie, respawn crate | `missions.txt` | `cMissionSpawnZombie`, `cMissionSpawnZombieCrate` | 137 / 155, 23 / 60 |
+| **Static model with collision** (wall, building, road part…) | `items.txt` + `<level>.txt` | an item that can't move: `cBlockingVolumeItem` `wall_long_blocking` (`Unmoveable = true`, `MeshVisible = true`, `CollisionBits`, `CollisionType = 3`); most items get their collision from the engine by `CollisionType` (3 on 316 CZ items), **not** from a Havok mesh (only 99 CZ / 76 CW item models carry one) ❓ to confirm in game | CZ `wall_long_blocking`, `wall_short_blocking` |
+| Building piece | the zone archive | a `ZONE_ORGANIZATION` record + the piece's `.big` / `.tex`; lightmapped like the level, but its collision would need a Havok search tree (§Where objects come from) | every building |
+
+**Own models need new files.** A new item model is a new pack
+(`streamedassets.big/<Name>.big`, or `MergedFilename`'s `data/dynamicprops/…`) and a new
+`items.txt` block; a new piece is new entries in a zone archive. **`mods/build.py` refuses
+any vpath the game doesn't have** today ("unknown vpath"), and whether the game finds an
+entry added to a `.big` (looked up by name hash) is untested ❓. A new item's on-screen name
+needs a string id: reuse one, or add one to the string bank (`.bcs.json` adds ❓).
 
 ### The text files as mods
 
@@ -185,7 +216,7 @@ addressing) and `mods/build.py` (add: the `.edits.json` kind next to `.bcs.json`
   and remove points); add a new area and a factory for it.
 - Edit single zombies: move, turn, type, item, count; add and delete.
 - Show the level's **load set** (`zombiesets.txt`) and its budget; adding a type the
-  level doesn't load offers to add it (with the measured budget, step 5).
+  level doesn't load offers to add it (with the measured budget, step 6).
 
 ### 4. Level pieces (stretch)
 
@@ -201,18 +232,65 @@ addressing) and `mods/build.py` (add: the `.edits.json` kind next to `.bcs.json`
   piece is shown in the Maps tab with a warning, and only *visual* edits (a piece with no
   collision shape: signs, decals, lights) are offered without one.
 
-### 5. In-game proof and limits (both games)
+### 5. Add your own things: prefabs
+
+A **prefab** is a template for one kind of thing, made from a working example the game
+ships, so what you add behaves like it:
+
+- **Prefab data, not code** (`dr2kit/catalog/prefabs.toml`, per game where they differ;
+  `ARCHITECTURE.md`: profiles are data): for each prefab, its name and group (*Usable
+  items*, *Save points*, *Stations*, *Doors*, *Spawn points*, *Zombies*, *Static
+  models*), the shipped block(s) it is cloned from (`waypoint_prologue_safehouse.txt /
+  cTriggerVolume SafehouseSave`), which file each block goes to (the level script,
+  `waypoint_<level>.txt`, `missions.txt`, `fe_map*.csv`), which keys the editor sets
+  (position, facing, the box, the action point: moved with the thing) and which it
+  keeps, and the checks it needs.
+- **Placing one** in the Maps tab: pick it from a *Add…* palette (pictures from the
+  Library), click on the floor (snapped to the collision), turn it; the editor clones the
+  template blocks with a new unique name, moves every position key with it (a save
+  point's box and its `ActionPoint` together), and saves them as `.edits.json` *adds*.
+  A save point also gets its map icon row; a door its target level.
+- **Usable items:** any `items.txt` item of a usable class; the palette groups them by
+  class and warns when the model doesn't ship in this game.
+- **Zombies into a spawner:** pick a crowd (or draw a new area: a `cZombieWarehouse`
+  polygon + a factory in the level's mission) and add a type and amount; adding a type
+  the level doesn't load also adds it to the load set, with the budget (step 6).
+- **Own models** (a new weapon, a building, a road): import a `.glb` (phase 4's model
+  import), choose the prefab it behaves like (a weapon class, a static model), and the
+  editor writes the new `items.txt` block (cloned from that prefab's item) and the new
+  pack. Needs the build to **add new files** (below) and an in-game test of each route.
+  Buildings and roads go in as **static items first** (engine-made collision, no Havok
+  tree to build); as zone pieces only once step 4's collision test allows. A new road
+  zombies should walk on also needs the **navigation mesh** (`nm_<level>.txt`, text)
+  extended: an editor for its polygons.
+- **Your own prefabs:** save a configured thing (a save point with its toilet, a weapon
+  rack) as a prefab file to reuse and share (`.dr2prefab`, plain JSON).
+- **Build: new files.** `mods/build.py` learns *adds* (a new pack in `streamedassets.big`,
+  a new entry in a zone archive), each checked: the name must not collide (by hash too),
+  the archive written back with the real encoder. First test in game: does the engine
+  find an added pack? (both games).
+- `dr2 mod check` per prefab: a save point has its action point inside the box and on
+  the floor; a door's level exists; an item's class is usable and its model ships; a
+  zombie type is loaded; names are unique.
+
+### 6. In-game proof and limits (both games)
 
 - Each kind of edit (moved item, added item, removed item, changed crowd, added single
   zombie, reshaped area, new zombie type in a level) **checked in the recomp**, with
   captures (on disk, copy of the save, `CZ_BUG_REPORTS=0`, `timeout -s KILL`).
 - Measure the limits that matter: how many items a level holds, how many zombies
   (`MaxNumUpdatingZombies`), the load-set budget, whether a factory's amounts are
-  capped. Write them into guide 15 (engine limits).
+  capped, how many triggers / save points a level takes. Write them into guide 15
+  (engine limits).
+- Prefabs, each in game: an added weapon picked up and used; an added save point saves
+  (and loads back there); an added workbench combines; an added door goes to its level;
+  zombies added to a crowd appear; a static model blocks the player (the
+  `CollisionType` question); an own-model item (a new pack) loads.
 
-### 6. A guide: `modding/19-edit-a-level.md` (after phase 10's `18-maps.md`)
+### 7. A guide: `modding/19-edit-a-level.md` (after phase 10's `18-maps.md`)
 
-Studio steps first (select, move, add, zombies), then the `.edits.json` format, then
+Studio steps first (select, move, add from a prefab, zombies, your own model), then the
+`.edits.json` and prefab formats, then
 `dr2` CLI (`dr2 level set/add/remove …`), troubleshooting (item not in this game,
 type not loaded, the recomp's co-op edits kept).
 
@@ -229,6 +307,11 @@ type not loaded, the recomp's co-op edits kept).
   limit piece edits to pieces without collision until the in-game test says more?
 - **New zombie types in a level:** allowed with a warning and the measured budget, or
   refused until the budget is known.
+- **Prefabs:** shipped as data (`prefabs.toml`, cloned from the game's own examples) plus
+  the modder's own `.dr2prefab` files, proposed default. Own models: as **static items
+  first** (engine collision), zone pieces only after the collision test?
+- **Adding new files** (own models): the build learns to add packs and zone entries,
+  after an in-game test that the engine finds them.
 - **Where edits are saved:** a "mod being edited" picked in the Maps tab (new mod or an
   existing one from the library), proposed default; or always a new mod per level.
 
@@ -239,9 +322,12 @@ type not loaded, the recomp's co-op edits kept).
   `.edits.json` applied then reversed gives the original.
 - Studio: move a weapon, add one, delete one, change a crowd's amounts and area, add a
   single zombie with an item; "without mods" (Ctrl+M) shows the original; `dr2 mod check`
-  passes; the moved weapon snapped to the collision floor.
+  passes; the moved weapon snapped to the collision floor; from prefabs: a weapon, a save
+  point, a workbench, zombies into a crowd, and a static model of your own.
 - In game: each of those edits seen in the recomp (captures), and in CZ the recomp's
-  co-op edits to `missions.txt` still present in the deployed file.
+  co-op edits to `missions.txt` still present in the deployed file; each prefab
+  **works**, not just shows (the added save point saves, the weapon is used, the static
+  model blocks the player).
 
 ## Facts to keep in mind
 

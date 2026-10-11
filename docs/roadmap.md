@@ -267,6 +267,11 @@ placements; phase 11 changes them.
 - Maps tab: move, turn, add, delete, change placed items and doors; undo; snap to floor.
 - Zombie spawns (in `missions.txt`): crowds in areas (types, amounts, area shape), single
   zombies (type, item), respawns; the level's zombie load set and its budget.
+- **Add your own things from prefabs** (user, 2026-10-11): templates cloned from the
+  game's working examples so an added thing behaves like the real one: usable items,
+  save points (a `cTriggerVolume`, `ActionType 4`), workbenches, doors to levels, spawn
+  points, zombies into spawners, static models (buildings, roads) as unmovable items;
+  own models need the build to add new files; the modder's own `.dr2prefab` files.
 - Stretch: level pieces (binary placements; a piece's collision lives in the zone's
   merged collision with a Havok search tree, so moving one needs an in-game test first).
   In-game proof of each edit, and the limits (items per level, zombies, load budget)

@@ -17,6 +17,24 @@ Entry template:
 
 ---
 
+## 2026-10-11 — Phase 11 plan: add your own things from prefabs
+**Done:** added to `phase11-kickoff.md` (user: add our own stuff to the map, a usable
+item, a save point, zombies to a spawner, a building, a road…, each behaving like the
+real thing, from prefabs): a research table of what makes each thing work, plan step 5
+(prefabs as data cloned from shipped examples, the *Add…* palette, own models, the
+modder's own `.dr2prefab`), decisions, gate and in-game checks.
+**Learned (checked in both games' data):** a **save point is a trigger**:
+`cTriggerVolume` with `ActionType = 4` in `waypoint_<level>.txt` (a box, the action point
+and facing, `DisplayName 55094`; CZ 4, CW 34), the toilet only scenery; doors to levels
+are `ActionType 3` with `Level`; a workbench is an item placement of the
+`cComboStationItem` `Workbench`; an item's behaviour is its `items.txt` class. Most items'
+collision is made by the engine from `CollisionType` (3 on 316 CZ items); only 99 CZ /
+76 CW item models carry a Havok mesh, so own buildings and roads can go in as unmovable
+items (like `wall_long_blocking`) without building a Havok search tree ❓ (in-game test).
+The mod build refuses new vpaths: own models need it to add files.
+**Docs updated:** `phase11-kickoff.md`, `roadmap.md`, this entry.
+**Next:** the user decides on phase 11.
+
 ## 2026-10-11 — Phase 11 plan re-checked against phase 10
 **Done:** `phase11-kickoff.md` updated (user: make it "properly ready"): a new §What
 phase 10 gives table (each piece phase 11 builds on, and what it still lacks), the plan
