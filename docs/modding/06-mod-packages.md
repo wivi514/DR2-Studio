@@ -28,6 +28,7 @@ asset inside the archives, see the [glossary](../glossary.md)):
 | `<any asset's vpath>` (no `.png` / `.glb` added) | Replaces that asset with your file's bytes, as they are. For text files (`.txt`, `.csv`) and anything you edited with another tool. A few files can't be replaced: the game checks them and crashes on a changed copy ([`11-text.md`](11-text.md#files-you-cant-change)). |
 
 | `<level text file's vpath>.edits.json` | Changes only the blocks it names in a level or mission file (`…/datafile.big/prologue.txt.edits.json`); several mods can change one file ([`19-edit-a-level.md`](19-edit-a-level.md)). |
+| `<zone>.big/ZONE_ORGANIZATION.big.pieces.json`, `<zone>.big/MERGED_COLLISION.big.pieces.json` | Hide, move, turn, resize and copy a zone's buildings, and move or hide their collision; several mods can change one zone, by building ([`19-edit-a-level.md`](19-edit-a-level.md)). |
 
 **New files** go under `add/` instead of `replace/`: `add/<archive's vpath>/<new name>`
 puts a new entry into that archive. A new item's model pack is

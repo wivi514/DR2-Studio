@@ -78,6 +78,10 @@ Phase 10 adds levels (``levels=True``, `check_levels`; `dr2kit.formats.level`):
   ones the game doesn't ship are listed);
 * **collision** (`dr2kit.formats.collision`): every zone's shapes parse, counted by how
   they are placed (`convert.level.zone_collision`); those whose place is unknown are named;
+  every shape's search tree starts at its lowest vertex corner (the fact that lets a mod
+  move collision, `move_shapes`), and one shape per zone, moved, reads back moved;
+* **buildings** (`dr2kit.convert.buildings`): how many buildings the zones' pieces make,
+  how many have collision, how many pieces stand alone;
 * **level text files** (`dr2kit.formats.levelscript`, `dr2kit.convert.placed`): every
   script's ``.txt``, ``waypoint_`` and ``nm_`` files, ``items.txt`` and ``missions.txt``
   parse and write back to the same bytes; classes the toolkit doesn't know are named;
@@ -699,6 +703,52 @@ def check_level_edits(rep: CensusReport, tree: AssetTree, sample: int = 30) -> N
                     rep.problems.append((vp, f"level edit of {path}: reversed, it differs"))
 
 
+def check_buildings(rep: CensusReport, lc, tree: AssetTree, zd) -> None:
+    """Phase 11 step 4: the search trees' origins, a moved shape, the buildings."""
+    import struct
+    from .container.big import BigArchive
+    from .convert import buildings as cb
+    from .convert import level as clevel
+    from .formats.collision import MOPP_ORIGIN, move_shapes, read_collision
+    vp = f"{zd.vpath}/MERGED_COLLISION.big"
+    try:
+        arc = tree.open_archive(vp)
+    except Exception:  # noqa: BLE001 - a zone without collision
+        arc = None
+    if arc is not None:
+        pers = next((e for e in arc.entries if e.name.lower() == "persistent.big"), None)
+        p = BigArchive.parse(pers.data(), vp) if pers is not None else None
+        shapes = [s for s in read_collision(arc, vp) if s.vertices]
+        for s in shapes:
+            mopp = p.get(f"{s.mesh} hkpMoppCode").data() if p is not None else b""
+            if len(mopp) < 21:
+                lc["collision shapes without a search tree"] += 1
+                continue
+            origin = MOPP_ORIGIN.unpack_from(mopp)
+            low = [min(v[i] for v in s.vertices) for i in range(3)]
+            if max(abs(a - b) for a, b in zip(origin, low)) <= 0.01 and \
+                    struct.unpack_from("<I", mopp, 16)[0] == len(mopp) - 21:
+                lc["collision search trees at their lowest corner"] += 1
+            else:
+                lc["collision search trees elsewhere"] += 1
+                rep.level_notes.append(f"{vp}: {s.mesh}: search tree origin {origin} is not "
+                                       f"the vertices' lowest corner {low}")
+        if shapes:
+            s = shapes[0]
+            moved = read_collision(BigArchive.parse(move_shapes(
+                tree.resolve(vp).data(), {s.mesh: (1.0, 2.0, 3.0)}, vp)), vp)
+            m = next(x for x in moved if x.mesh == s.mesh)
+            if all(abs(a + d - b) < 1e-3 for v, w in zip(s.vertices, m.vertices)
+                   for a, b, d in zip(v, w, (1.0, 2.0, 3.0))):
+                lc["zones whose moved collision reads back moved"] += 1
+            else:
+                rep.problems.append((vp, f"{s.mesh}: moved collision reads back wrong"))
+    bs = cb.zone_buildings(zd, clevel.zone_shapes(tree, zd))
+    lc["buildings"] += len(bs)
+    lc["buildings with collision"] += sum(1 for b in bs if b.shapes)
+    lc["pieces that are a building alone"] += sum(1 for b in bs if len(b.parts) == 1)
+
+
 def check_levels(rep: CensusReport, tree: AssetTree, game: str) -> None:
     """The phase 10 level census (module docstring); results in ``rep.levels``."""
     from .convert import level as clevel
@@ -804,6 +854,10 @@ def check_levels(rep: CensusReport, tree: AssetTree, game: str) -> None:
                     lc["collision shapes not placed (piece unknown)"] += 1
                     rep.level_notes.append(f"{zd.vpath}: collision shape {name}: "
                                            f"its piece is unknown, left out")
+                try:
+                    check_buildings(rep, lc, tree, zd)
+                except Exception as ex:  # noqa: BLE001 - reported
+                    rep.problems.append((zd.vpath, f"buildings: {ex}"))
             for name, sc in scenes.items():
                 if sc is None:
                     continue

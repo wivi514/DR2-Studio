@@ -24,9 +24,9 @@ Case West census before they count as rules (CLAUDE.md rule 7).
 | shader banks `.vo/.po/.vdo/.pdo/.sdo/.scv` | `shaders/*-{vs,ps,vd,pd,sc,sd,ss}.big` | 🟡 | `.vo`/`.po` are standard 360 D3D shader containers (`10 2A 11 01`, XenosRecomp translates them); `.sdo` = a shader name's permutations (`5cef4d20.sdo` → `ProtoSkinnedClothRGB`). Models carry their **own** vertex declarations, so the decoder doesn't need `-vd.big` (phase 0 guessed it did) |
 | mission / data `.txt`, `.csv` | `datafile.big`, CW loose `.csv` | ✅ text | engine scripting; edited for co-op in the CZ recomp |
 | `.bik` | **CW only**, `data/movies` | ✅ read (Bink) | `dr2kit/convert/video.py` through PyAV: all 10 movies decode, every frame and the sound (`census --audio`); export to `.mp4`. Replacing one needs a Bink encoder (§Movies) |
-| level zones (`zonelist.big`, `ZONE_ORGANIZATION.big`) | `models/environment/<level>/` | ✅ read | where each level piece is placed: 208-byte records, placement maths confirmed, written back identically; a few tail bytes unknown (§Levels, `formats/level.py`) |
+| level zones (`zonelist.big`, `ZONE_ORGANIZATION.big`) | `models/environment/<level>/` | ✅ read, edited | where each level piece is placed: 208-byte records, placement maths confirmed, written back identically; a few tail bytes unknown; pieces hidden, moved, turned, resized and copied by mods, checked in game (§Levels, "Piece edits", `formats/level.py`, `formats/pieceedits.py`) |
 | level text files (`<level>.txt`, `waypoint_*`, `nm_*`, `fe_map_*`) | `datafile.big` | ✅ text | placed items, doors, spawn points, zombie areas, triggers, the navigation mesh, the in-game map; read losslessly, every item resolved to its model (§Levels) |
-| zone collision `MERGED_COLLISION.big` | every zone | ✅ read | Havok triangle meshes, placed by their piece; 5 of 1,514 shapes' place unknown (§Levels, "Collision", `formats/collision.py`) |
+| zone collision `MERGED_COLLISION.big` | every zone | ✅ read, moved | Havok triangle meshes, placed by their piece; 5 of 1,514 shapes' place unknown; a shape can be moved or sent away (its search tree's origin), not turned, checked in game (§Levels, "Collision", "Piece edits", `formats/collision.py`) |
 | digest list | the XEX's `Digest` resource | ✅ | files the executable checks; mods can't touch them (§Digest-checked files) |
 
 ## `.big` container
@@ -1344,7 +1344,8 @@ node per piece that has collision (named like the piece) and whose `persistent.b
 | `… CollisionVertices` | vertex count × 3 big-endian floats |
 | `… CollisionIndices` | triangle count × 3 indices: **1 byte each when the shape has at most 256 vertices, else 2** (big-endian; true for every shape of both games) |
 | `… CollisionMaterials` | one u32 per triangle: a surface type ❓ |
-| `… hkpMoppCode`, `WeldingHeader`, `WeldingInfo` | Havok's search tree and edge welding: kept, not read |
+| `… hkpMoppCode` | Havok's search tree ("MOPP"). **Its first 12 bytes are 3 little-endian floats, the tree's origin**: the lowest corner of the shape's vertices (5 mm below at most), then a little-endian float scale (2²⁴ / the largest extent), a little-endian u32 code size (= the entry's size − 21), one byte, the code (not read). Little-endian inside big-endian data, like the `.big` header (rule 1). Checked on every shape: CZ 465, CW 1,049 (`dr2 census --levels`, 2026-10-11) |
+| `… WeldingHeader`, `WeldingInfo` | edge welding: kept, not read |
 
 `_COLLISIONLIST_` lists the shapes; `SceneDescription` lists the nodes, then the shapes in
 node order. Most names are `COL_<node>`; 3 CZ and 41 CW shapes aren't
@@ -1510,6 +1511,51 @@ Humvee's is its middle, so it sank; Studio now drops a newly placed item onto th
 its bottom. **The CZ recomp's `game_patched/data/datafile.big` differs
 from the shipped one in `missions.txt` and `outfits.csv`** (its co-op edits); CW's recomp
 has no `game_patched`.
+
+**Piece edits** ✅ (phase 11 step 4, Case Zero recomp, 2026-10-11/12; the user played
+each build; `formats/pieceedits.py`). A mod changes a zone's **buildings** (level
+pieces) with `ZONE_ORGANIZATION.big.pieces.json` next to the zone's
+`ZONE_ORGANIZATION.big` (per piece name: `position`, `rotation`, `scale`, `hidden`;
+`copies`: new records), and their **collision** with `MERGED_COLLISION.big.pieces.json`
+next to `MERGED_COLLISION.big` (per shape group `meshCOL_…`: `move` in the shape's own
+space, `hidden`). A hidden piece keeps its record, moved 1,000 m under the level (no
+record moves, the count stays); a copy is a new record appended (`NumModelInstance`
+grows) with the piece's name and number. World bounds of a changed record are worked out
+again (the shipped box taken back to the piece's space and placed anew). A collision
+shape is moved by adding the offset to its vertices, its search tree's origin (above)
+and its header bounds; the tree itself is left as it is, so collision can be **moved or
+sent away, never turned or resized** (that needs Havok's tool).
+
+| Change | In game |
+|---|---|
+| A sign hidden (its record parked), a car moved 4 m and made 1.5× bigger, a building (`z04_gen_e_structure`) hidden, all by record only | the pieces went or moved, no crash; **the hidden building's collision stayed** (an invisible wall), and so did its boarded windows and writing (other pieces: `_details`, `_decals`) |
+| A copy of a van (a new record) | **shows, but has no collision** (walked through) |
+| The store hidden as a whole building: its 3 pieces parked and its 2 collision shapes (`pro_351` world-space, `z04_camera`) sent 1,000 m down | **all gone, collision too**: walked through where it stood |
+| The next building (`z04_gen_f_*`, 3 pieces) moved 4 m toward the street with its 2 world-space shapes | walls and collision at the new place (checked by the user, 2026-10-12) |
+| The sheriff's office hidden as a whole (15 pieces, 29 shapes, many stored in their piece's space) | all gone, collision too |
+
+So **collision is not tied to a piece's placement record**: the engine places every
+shape from its own vertices (a world-space shape like `pro_351`), and a shape stored in its
+piece's space is not moved by the piece's record either (the sheriff's interior shapes
+went away only when they were sent away themselves). Studio therefore moves and hides a
+building's collision with it. Not measured: whether a copy can get collision (it would
+need new shapes in `persistent.big` and `_COLLISIONLIST_`).
+
+**Buildings** (`convert/buildings.py`, 2026-10-11/12). The game has no building object: a
+building is several pieces (walls, boarded windows, writing, roof units) and one or more
+collision shapes, often with no name in common (the store's walls are `pro_351`). The
+toolkit groups them, a guess checked on CZ's street: pieces biggest first; a piece joins
+the smallest building whose box (1 m larger) holds 80 % of its box, or whose first piece's
+name shares its stem and overlaps 30 %, or on whose top it rests (its footprint inside,
+its bottom within 0.5 m of the top: the store's air unit, left floating by the first
+grouping), and it must touch the building's collision (0.5 m) when the building has some
+(a car park's fence holds the cars in its box but doesn't touch them); a building whose
+collision it touches comes first. Pieces over 60 m wide, or flat (under 2.5 m high and
+over 8 m wide: slabs, car parks), never lead a building. A collision shape belongs to its
+piece's building, or to the smallest building whose box holds it. Counts (census): CZ
+`prologue` 297 buildings, 115 with collision, 221 single pieces; CW 247, 72, 187. Big
+enclosures (CW's lab rooms) take their contents: the modder can move a piece to another
+building or on its own in Studio (kept in the config folder, `buildings.json`).
 
 CZ's levels in these files are `LEVEL_PROLOGUE`, `_SAFEHOUSE`, `_BOWLING`, `_DEPARTMENT`,
 `_MENU`: several share the `prologue` geometry.

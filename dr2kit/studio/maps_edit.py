@@ -24,6 +24,12 @@ new zombies go into the mod's **own mission** (`add_zombie`: a ``cMissionDefinit
 after the mod, with the keys of the level's main zombie mission and a
 ``cMissionLevelReady`` for the level), which runs in a new game. `zombies` gives the page
 the crowds and spawns as the mod has them now.
+
+**Buildings** (level pieces, step 4) are edited through `dr2kit.mods.pieceedit` (one
+`PieceEdits` per zone, saved as the zone's ``.pieces.json``): `piece_move`, `piece_hide`,
+`piece_copy`, `piece_restore`. They share the undo stack with the text files (its
+entries are ``pieces:<zone vpath>``), and answer with `PieceState` lists the page applies
+(``dr2.pieceState``).
 """
 
 from __future__ import annotations
@@ -38,6 +44,7 @@ from ..convert import placed
 from ..errors import Dr2Error
 from ..formats.levelscript import Block, Document
 from ..mods.leveledit import TextEdits
+from ..mods.pieceedit import PieceEdits, PieceState
 
 ITEM_CLASSES = ("cItemPlacement", "cDoorPlacement", "cItemWithAttachedPropsPlacement")
 
@@ -62,6 +69,29 @@ def qmul(a, b):
             aw * by - ax * bz + ay * bw + az * bx,
             aw * bz + ax * by - ay * bx + az * bw,
             aw * bw - ax * bx - ay * by - az * bz)
+
+
+def euler_of(q) -> tuple[float, float, float]:
+    """A quaternion ``x, y, z, w`` as turns about X, Y and Z in degrees, applied Y first,
+    then X, then Z (three.js's ``'YXZ'`` order: the heading first, as the panel shows)."""
+    x, y, z, w = _unit(q)
+    m13, m23, m33 = 2 * (x * z + w * y), 2 * (y * z - w * x), 1 - 2 * (x * x + y * y)
+    m21, m22 = 2 * (x * y + w * z), 1 - 2 * (x * x + z * z)
+    m11, m31 = 1 - 2 * (y * y + z * z), 2 * (x * z - w * y)
+    ax = math.asin(-max(-1.0, min(1.0, m23)))
+    if abs(m23) < 0.9999999:
+        ay, az = math.atan2(m13, m33), math.atan2(m21, m22)
+    else:
+        ay, az = math.atan2(-m31, m11), 0.0
+    return tuple(math.degrees(a) for a in (ax, ay, az))
+
+
+def quat_of_euler(x: float, y: float, z: float) -> tuple[float, float, float, float]:
+    """`euler_of` reversed: degrees about X, Y, Z (``'YXZ'``) → quaternion ``x, y, z, w``."""
+    c1, c2, c3 = (math.cos(math.radians(a) / 2) for a in (x, y, z))
+    s1, s2, s3 = (math.sin(math.radians(a) / 2) for a in (x, y, z))
+    return (s1 * c2 * c3 + c1 * s2 * s3, c1 * s2 * c3 - s1 * c2 * s3,
+            c1 * c2 * s3 - s1 * s2 * c3, c1 * c2 * c3 + s1 * s2 * s3)
 
 
 def yaw_of(q) -> float:
@@ -271,6 +301,7 @@ class LevelEditor(ZombieEdits):
         self.base_dirs = list(base_dirs)
         self.game = game
         self.sessions: dict[str, TextEdits] = {}
+        self.zones: dict[str, PieceEdits] = {}   # zone vpath (lower) -> its building edits
         self._undo: list[str] = []              # file names, newest last
         self._redo: list[str] = []
         self.reload_models()
@@ -316,8 +347,95 @@ class LevelEditor(ZombieEdits):
         raise Dr2Error(f"{file}: nothing is placed as {name!r}")
 
     def count(self) -> int:
-        """How many changes the mod holds in the files opened here."""
-        return sum(s.edits().count() for s in self.sessions.values())
+        """How many changes the mod holds in the files and zones opened here."""
+        return (sum(s.edits().count() for s in self.sessions.values())
+                + sum(z.count() for z in self.zones.values()))
+
+    # ---- buildings (level pieces) -------------------------------------------------------
+
+    def zone(self, zone_vpath: str) -> PieceEdits:
+        """The building edits of one zone (``data/models/environment/<level>/<zone>.big``)."""
+        key = zone_vpath.lower()
+        if key not in self.zones:
+            self.zones[key] = PieceEdits.open(self.mod_dir, self.tree, zone_vpath)
+            self.zones[key].game = self.game
+        return self.zones[key]
+
+    def _piece_change(self, zone_vpath: str, fn) -> list[PieceState]:
+        z = self.zone(zone_vpath)
+        before = z.snapshot()
+        z.checkpoint()
+        try:
+            out = fn(z)
+            z.save()
+        except Exception:
+            z.undo()
+            z._redo.clear()
+            raise
+        self._undo.append("pieces:" + zone_vpath.lower())
+        self._redo.clear()
+        self.last_result = out
+        return self._piece_states(z, before)
+
+    def _piece_states(self, z: PieceEdits, before: dict) -> list[PieceState]:
+        """What the page must change: every piece whose state moved, pieces back as
+        shipped, then the zone's copies, all of them (numbered anew), ended by a state
+        with no name (the page drops the copies it had for the zone first)."""
+        after = z.snapshot()
+        out = []
+        for key in sorted(set(before) | set(after)):
+            if "#" in key or before.get(key) == after.get(key):
+                continue
+            if key in after:
+                out.append(z.state(after[key]["name"]))
+            else:                               # back as the game has it
+                p = z.shipped(before[key]["piece"])
+                out.append(PieceState(z.zone, p.piece, p.piece, tuple(p.position),
+                                      tuple(p.rotation), tuple(p.scale)))
+        out += [s for s in z.states() if s.copy]
+        out.append(PieceState(z.zone, "", "", removed=True, copy=True))   # end of copies
+        return out
+
+    def piece_move(self, zone_vpath: str, name: str, position=None, rotation=None,
+                   scale=None) -> list[PieceState]:
+        return self._piece_change(zone_vpath, lambda z: z.place(name, position, rotation,
+                                                                scale))
+
+    def piece_hide(self, zone_vpath: str, name: str, hidden: bool = True) -> list[PieceState]:
+        return self._piece_change(zone_vpath, lambda z: z.hide(name, hidden))
+
+    def piece_restore(self, zone_vpath: str, name: str) -> list[PieceState]:
+        return self._piece_change(zone_vpath, lambda z: z.restore(name))
+
+    def piece_copy(self, zone_vpath: str, name: str, position=None, rotation=None,
+                   scale=None) -> tuple[str, list[PieceState]]:
+        """A copy of a building; returns its name (``<piece>#<n>``) and the states."""
+        states = self._piece_change(zone_vpath, lambda z: z.copy(name, position, rotation,
+                                                                 scale))
+        return self.last_result, states
+
+    def building_move(self, zone_vpath: str, name: str, position, rotation=None,
+                      scale=None) -> tuple[list[PieceState], list[str]]:
+        """Move a whole building (`PieceEdits.place_building`): the states, and warnings."""
+        states = self._piece_change(zone_vpath, lambda z: z.place_building(
+            name, position, rotation, scale))
+        return states, self.last_result
+
+    def building_hide(self, zone_vpath: str, name: str, hidden: bool = True) -> list[PieceState]:
+        return self._piece_change(zone_vpath, lambda z: z.hide_building(name, hidden))
+
+    def building_restore(self, zone_vpath: str, name: str) -> list[PieceState]:
+        return self._piece_change(zone_vpath, lambda z: z.restore_building(name))
+
+    def building_copy(self, zone_vpath: str, name: str, position) -> tuple[list[str], list[PieceState]]:
+        states = self._piece_change(zone_vpath, lambda z: z.copy_building(name, position))
+        return self.last_result, states
+
+    def piece_state(self, zone_vpath: str, name: str) -> PieceState | None:
+        try:
+            return self.zone(zone_vpath).state(name)
+        except Dr2Error:
+            return None
 
     # ---- changes -------------------------------------------------------------------------
 
@@ -466,6 +584,13 @@ class LevelEditor(ZombieEdits):
         if not src:
             return []
         file = src.pop()
+        if file.startswith("pieces:"):
+            z = self.zone(file[len("pieces:"):])
+            before = z.snapshot()
+            getattr(z, how)()
+            z.save()
+            dst.append(file)
+            return self._piece_states(z, before)
         s = self.session(file)
         before = _snapshot(s.doc)
         getattr(s, how)()

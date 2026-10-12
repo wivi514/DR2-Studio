@@ -1,15 +1,17 @@
-# Edit a level: move items, change zombies, add your own things
+# Edit a level: move items and buildings, change zombies, add your own things
 
-**You will:** move, add and remove items in a level, change how many zombies of which
-types a crowd has, and save it all as a mod that keeps working beside other mods.   **Time:** ~10 min.   **Games:** both.
+**You will:** move, add and remove items and whole buildings in a level (drag things in
+from a list, nudge them with the arrow keys), change how many zombies of which types a
+crowd has, and save it all as a mod that keeps working beside other mods.   **Time:** ~10 min.   **Games:** both.
 **You need:** the toolkit with your game folders set ([`02-game-data.md`](02-game-data.md)),
 and a mod to put the changes in ([`06-mod-packages.md`](06-mod-packages.md)). Look at the
 level first in the **Maps** tab ([`18-maps.md`](18-maps.md)): it shows every item's name,
 file and line when you click it.
 
-> Phase 11. Written: editing items, doors and zombies in the Maps tab, adding things from
-> prefabs, items of your own, the edits files and the `dr2 level` commands. Checked in
-> Case Zero; Case West to come.
+> Phase 11. Written: editing items, doors, zombies and buildings in the Maps tab (the
+> Inspector, the Place and Hierarchy panels), adding things from prefabs, items of your
+> own, the edits files and the `dr2 level` commands. Items, prefabs and zombie types
+> checked in both games; buildings checked in Case Zero (2026-10-11/12).
 
 ## How the game places things
 
@@ -67,21 +69,43 @@ so the recomp's changes stay and several mods work together. Two mods only clash
 they change the *same setting of the same block*; then the one later in the load order
 wins, and the mod manager tells you.
 
+## The editor's panels
+
+The Maps tab has its own panels, laid out like a game editor's (Unity, Unreal). Each is a
+**window** you can resize by its edges, drag to another side, stack with another as tabs,
+or drag out on its own (the 3D view on a second screen, say). The **Windows** button in the
+toolbar shows or hides each one, puts every window back, and resets the layout. Studio
+remembers your layout.
+
+| Panel | Where it starts | What it holds |
+|---|---|---|
+| **Level (3D)** | the middle | the level; click to select, drag the handles to move |
+| **Inspector** | right | the selected thing: what it is, **Position**, **Rotation**, **Size**, its buttons |
+| **Map** | right, under the Inspector | layers, time of day, Go to, *What is this?*, exports |
+| **Hierarchy** | left, under Browse | everything in the level as a list: items, buildings (with their parts and collision inside), zombies, spawn and save points. Type in the filter, click a row to fly there and select it |
+| **Place** | bottom | things to add: **Prefabs**, **Items** (with pictures), **Zombies**, **Buildings**. Drag one onto the 3D view, or double-click to put it in the middle of the view |
+
 ## Steps: move, turn, add and delete items in DR2 Studio
 
 1. Open or create the mod your changes go into (bottom bar: **New mod…** or **Open
    mod…**). Every change is saved into it at once; there is no Save button.
 2. Click the **Maps** tab and open a level (see [`18-maps.md`](18-maps.md)), then fly to
-   the place you want to change.
-3. Tick **Edit items and doors** in the right panel (under *Edit*). The panel says which
-   mod the changes are saved into.
-4. **Click an item or door.** A yellow box marks it and **handles** appear on it, and
-   the panel shows what it is (**Item**), where (**Place**: x, y, z in metres, y is up)
-   and its **Turn** (degrees).
-5. **Move it:** drag one of the coloured arrows (red: x, green: y up, blue: z) or the
-   small squares between them (two directions at once). Or type a new **Place**.
-6. **Turn it:** press **R** (the handles become a green ring), drag the ring; **T**
-   goes back to moving. Or type a **Turn** in degrees.
+   the place you want to change (or click something in the **Hierarchy**).
+3. Tick **Edit the level** at the top of the **Inspector**. It says which mod the changes
+   are saved into. (Dragging something in from **Place** ticks it for you.)
+4. **Click an item or door.** A yellow box marks it and **handles** appear on it, and the
+   Inspector shows what it is (**Item**), its **Position** (x, y, z in metres, y is up)
+   and its **Rotation** (degrees about x, y and z; y is its heading).
+5. **Move it:**
+   - drag one of the coloured arrows (red: x, green: y up, blue: z) or the small squares
+     between them (two directions at once);
+   - or press the **arrow keys**: 10 cm a press along the ground, in the direction you
+     look (**Shift**: 1 m, **Alt**: 1 cm); **Page Up / Page Down** move it up and down.
+     A row of presses is saved as one change;
+   - or type a new **Position**.
+6. **Turn it:** **[** and **]** turn it 15° (**Shift**: 90°, **Alt**: 1°). Or press **R**
+   (or **Turn**) and drag the green ring; **T** (or **Move**) goes back to moving. Tick
+   **Turn handles tilt too** to tilt it about the other axes. Or type a **Rotation**.
 7. **Onto the floor:** press **F** (or **Onto floor**). It drops onto the floor below it,
    the one the game walks on (the collision mesh, [glossary](../glossary.md)), so it
    doesn't float or sink.
@@ -89,15 +113,51 @@ wins, and the mod manager tells you.
    settings. **Delete:** **Delete** (or the button) takes it out of the level.
 9. **Make it something else:** type another item's name in **Item** (it suggests names
    as you type), press Enter. The new model shows at once.
-10. **Add one:** **Add item…**, pick an item (type to search: only items whose model
-    this game has are listed). It goes where the middle of the view meets the floor;
-    move it from there.
+10. **Add one:** in **Place**, choose **Items**, find it (type in the filter: *katana*,
+    *bench*…) and **drag it onto the 3D view**: it lands where you drop it. Or
+    double-click it (it goes where the middle of the view meets the floor), or use
+    **Add item…**. Only items whose model this game has are listed.
 11. **Undo / Redo:** **Ctrl+Z / Ctrl+Y** (or the buttons), as many times as you like.
 12. Click **Play** to try it in the game.
 
-Click in the view first if the keys don't respond. While you move things, the level is
-not rebuilt: the change shows at once. The mod's file list (bottom left) shows the
-level files it changes.
+Items have no **Size**: the game's item placements can't be resized (only buildings can).
+Click in the 3D view first if the keys don't respond. While you move things, the level is
+not rebuilt: the change shows at once. The mod's file list (bottom left) shows the level
+files it changes.
+
+## Steps: move, hide, resize and copy buildings
+
+A **building** in the game is several pieces (walls, boarded windows, signs, writing, an
+air unit on the roof) and one or more **collision shapes** (what Chuck bumps into, often
+kept apart from the pieces: [glossary](../glossary.md)). Studio groups them for you, so a
+building moves, hides and copies as a whole, its collision too.
+
+1. With **Edit the level** ticked, **click any part of a building.** A yellow box goes
+   round the whole building, and the Inspector says *Building … : 4 parts, 2 collision
+   shapes*. In the **Hierarchy**, open *Buildings* to see each building's parts and
+   collision.
+2. **Move it** with the handles, the arrow keys or **Position**, as for items: every part
+   follows, and so does its collision.
+3. **Turn it** (**[ ]**, **R**) and **resize it** (**-** and **=** make it 10 % smaller or
+   bigger; **G** or **Size** gives size handles; or type a **Size**). Its collision can be
+   moved but **not turned or resized**: Studio says so, and the walls you bump into keep
+   the building's old angle and size. Move-only changes are the safe ones.
+4. **Hide it:** **Delete** (or the button). The building and its collision go: you can walk
+   where it stood. **Show** (the same button) brings it back; **Put back** undoes every
+   change to it.
+5. **Copy it:** **Ctrl+D**, or drag a building from **Place** → **Buildings** onto the
+   view. A copy has **no collision** (you can walk through it), and the game shows it only
+   while its own zone is loaded, so keep copies near the original (Studio warns you).
+6. **One piece only:** untick **Whole building** in the Inspector, then click a piece.
+   You edit that piece alone; its collision stays where it is.
+7. **Studio guessed wrong?** With **Whole building** off, select the piece and choose
+   another building in **Part of** (nearest first), or *a building of its own*. Studio
+   remembers it from then on (on this computer).
+
+**Edit with your own mod only.** Studio saves where you see a building. If another
+switched-on mod already moved or hid the same building, switch the mods view off
+(**Ctrl+M**) while you edit, or your mod would copy that mod's change. A building another
+mod hid can't be selected.
 
 **Saves:** a mod that adds items (and a save point) to a level file still loads your
 saves (checked in Case Zero, 2026-10-11, with added items, a workbench and a save point;
@@ -112,16 +172,18 @@ the game's saves set the rules.
    red cones facing their way, labelled *type ×number*; *(later)* when they wait for
    something in their mission; respawn floors in orange; blue circles where a mission
    clears zombies), **Zombies** (example crowds) and **Zombie areas**.
-2. **A single zombie:** click its cone. Drag the handles (or type **Place**, **Turn**)
-   to move and turn it, **F** puts it on the floor. Under the place: **Zombie** (its
+2. **A single zombie:** click its cone. Drag the handles, use the arrow keys and **[ ]**,
+   or type **Position** and the **Rotation**'s y (its heading) to move and turn it, **F**
+   puts it on the floor. Under the place: **Zombie** (its
    type; it suggests names as you type), **×** (how many), **Holds** (an item it carries,
    such as `HandGun`). **Delete** sets the number to 0: the game's own zombies are taken
    out this way, which keeps saves working.
 3. **A crowd:** click one of its zombies (or its zombie area). The panel shows the
    crowd's types and amounts as a line, `zombie_skinny 40, zombie_fat 30`. Type a new
    line (`zombie_fat 15, zombie_cop 10`) and press Enter.
-4. **New zombies:** **Add zombie…**, pick a type: they go where the middle of the view
-   meets the floor, in your mod's own mission. **They appear in a new game only**
+4. **New zombies:** drag a type from **Place** → **Zombies** onto the view (or **Add
+   zombie…**, pick a type: they go where the middle of the view meets the floor). They
+   go in your mod's own mission. **They appear in a new game only**
    (start one to see them); then move, turn and change them like the others.
 5. **Undo / Redo** and **Play** as for items.
 
@@ -131,8 +193,10 @@ A **prefab** is a ready-made thing copied from one the game already has, so it w
 like the real one: a save point saves, a door takes you to its level
 ([glossary](../glossary.md)).
 
-1. With **Edit** ticked, look at the spot where it should go (the middle of the view).
-2. **Add from prefab…** and pick one. The list says if a prefab hasn't been checked in the
+1. In **Place**, choose **Prefabs** and drag one onto the 3D view where it should go. Or,
+   with **Edit the level** ticked, look at the spot (the middle of the view) and use
+   **Add from prefab…**.
+2. Pick one. The list says if a prefab hasn't been checked in the
    game yet. All of these work in Case Zero (checked 2026-10-11):
 
    | Prefab | What it is | After placing it |
@@ -156,7 +220,7 @@ still) and a **model pack** the game finds by the item's name. A new item starts
 of one the game has, under a new name, then gets your shape and colours. Checked in Case
 Zero: a new item in its own pack shows, is picked up and works.
 
-**In DR2 Studio:** with **Edit** ticked, click the item to start from (a weapon to get a
+**In DR2 Studio:** with **Edit the level** ticked, click the item to start from (a weapon to get a
 weapon, a blocker to get a wall…), then **New item from this…**: type its name, then pick
 a `.glb` for its shape (or Cancel to keep the original's). It is placed beside the one
 you clicked; move it like any item. Its shape comes from Blender as for
@@ -222,6 +286,44 @@ empty value) to remove a setting.
 `dr2 level diff prologue my_prologue.txt --mod my_level_mod -g cz` keeps only what you
 changed (`dr2 level diff prologue my_prologue.txt` prints it instead).
 
+### Buildings without Studio
+
+There is no `dr2 level` command for buildings yet: write the two files by hand (Studio
+writes the same), then check the mod with `dr2 mod check my_mod -g cz`. `dr2 level info
+prologue -g cz` lists the zones and their pieces; the collision shapes' names are in
+Studio's Hierarchy (a building's children).
+
+`replace/data/models/environment/prologue/prologue_z04.big/ZONE_ORGANIZATION.big.pieces.json`
+moves, hides, resizes and copies pieces (positions in metres, rotations as quaternions
+`x, y, z, w`):
+
+```
+{"format": "dr2kit-piece-edits/1",
+ "pieces": {
+  "z04_gen_e_structure": {"hidden": true},
+  "z04_gen_f_struc": {"position": [-209.4, 7.44, -35.6], "scale": [1.5, 1.5, 1.5]}
+ },
+ "copies": [
+  {"piece": "z04_roof_vent_3", "position": [-240, 9.6, -16], "rotation": [0, 0, 0, 1], "scale": [1, 1, 1]}
+ ]
+}
+```
+
+`replace/…/prologue_z04.big/MERGED_COLLISION.big.pieces.json` moves (by an offset) or
+hides collision shapes:
+
+```
+{"format": "dr2kit-piece-edits/1",
+ "collision": {
+  "meshCOL_pro_351": {"hidden": true},
+  "meshCOL_pro_03": {"move": [0, 0, -4]}
+ }
+}
+```
+
+A shape stored in its piece's space (Studio's Hierarchy shows which belong to a piece)
+takes its offset in that piece's own directions; Studio works that out for you.
+
 ## Zombies: what you can change, and new zombies
 
 Zombies belong to the game's **missions** (`missions.txt`), and the game's saves remember
@@ -264,3 +366,8 @@ load set"*: keep such numbers small.
 | `changed by both A and B at the same priority` | two mods set the same setting of the same block | change one, or order them in the mod manager |
 | `adds a block inside one of the game's own missions` | the game would fail to load saves | change the game's zombies' values, or put new ones in a mission of your own (above) |
 | New zombies don't show | they are in your own mission: it runs in a new game only | start a new game |
+| An invisible wall where you hid or moved a building | you edited one piece alone (its collision stayed), or turned / resized it (collision is only moved) | select it with **Whole building** ticked, **Put back**, and hide or move it whole |
+| A copied building can be walked through | copies have no collision (the game keeps collision apart from the pieces) | put a **Blocker** prefab inside it if it must stop Chuck |
+| A copied building pops in and out | the game shows it only while its zone is loaded | keep it near the building it copies |
+| A roof unit, a sign or boards stay behind when you hide a building | Studio's guess left them out of it | select the piece (**Whole building** off), set **Part of**, then hide the building again |
+| Clicking a desk selects the whole room (Case West's labs) | a big room counts as a building with everything in it | untick **Whole building**, or set the desk's **Part of** to *a building of its own* |

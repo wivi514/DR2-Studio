@@ -152,9 +152,14 @@ def unit(q) -> tuple[float, float, float, float]:
 
 
 def placement_node(p: lvl.Placement, extras: dict | None = None) -> dict:
-    """A placement as `gltf.Assembler.add` takes it."""
+    """A placement as `gltf.Assembler.add` takes it. A piece a mod hid (moved
+    `formats.pieceedits.PARK_DROP` metres under the level) is marked ``dr2_parked``: the
+    Maps page doesn't show it."""
+    from ..formats.pieceedits import PARK_DROP
     out = {"name": p.piece, "translation": p.position, "rotation": unit(p.rotation),
            "extras": {"dr2_piece": p.piece, "dr2_index": p.index, **(extras or {})}}
+    if p.position[1] < -PARK_DROP / 2:
+        out["extras"]["dr2_parked"] = True
     if any(abs(s - 1.0) > 1e-7 for s in p.scale):
         out["scale"] = p.scale
     return out
@@ -349,8 +354,36 @@ class ZoneCollision:
     unplaced: list = field(default_factory=list)      # shape names
 
 
+@dataclass
+class PlacedShape:
+    """One collision shape of a zone, placed: ``rule`` "piece" (its vertices are in
+    ``piece``'s own space) or "world"; ``world`` its vertices in the world."""
+    shape: object                      # formats.collision.CollisionShape
+    rule: str
+    piece: object | None               # the formats.level.Placement it belongs to
+    world: list
+
+    @property
+    def bounds(self):
+        return (tuple(min(v[i] for v in self.world) for i in range(3)),
+                tuple(max(v[i] for v in self.world) for i in range(3)))
+
+
 def zone_collision(tree: AssetTree, zone: ZoneData) -> ZoneCollision:
-    """The zone's ``MERGED_COLLISION.big`` (`formats.collision`) in world space.
+    """The zone's ``MERGED_COLLISION.big`` (`formats.collision`) in world space
+    (`zone_shapes` merged into one mesh)."""
+    out = ZoneCollision()
+    for ps in zone_shapes(tree, zone, out.unplaced):
+        base = len(out.vertices)
+        out.vertices += ps.world
+        out.triangles += [(a + base, b + base, d + base) for a, b, d in ps.shape.triangles]
+        out.shapes[ps.rule] = out.shapes.get(ps.rule, 0) + 1
+    return out
+
+
+def zone_shapes(tree: AssetTree, zone: ZoneData, unplaced: list | None = None
+                ) -> list[PlacedShape]:
+    """Every collision shape of the zone, placed (`PlacedShape`).
 
     A shape belongs to a piece: the one with a node of the shape's name (``<name>``, or a
     part ``piece.<name>``), else of its name without a trailing ``_a`` / ``_b`` (CZ splits
@@ -360,13 +393,13 @@ def zone_collision(tree: AssetTree, zone: ZoneData) -> ZoneCollision:
     inside the zone's placed pieces (their bounds, 1 m around) is taken, the piece's
     placement first. A shape with no piece is in world space, unless its box lies far
     from the zone (more than 1.5 radii from its centre): those few look local but their
-    piece is unknown ❓, so they are left out and named (docs/formats.md §Levels,
-    "Collision")."""
+    piece is unknown ❓, so they are left out and their names added to ``unplaced``
+    (docs/formats.md §Levels, "Collision")."""
     import re
     from ..formats.collision import read_collision
     from ..formats.scene import Scene
     from .model import read_scene
-    out = ZoneCollision()
+    out: list[PlacedShape] = []
     vp = join(zone.vpath, "MERGED_COLLISION.big")
     try:
         arc = tree.open_archive(vp)
@@ -410,21 +443,19 @@ def zone_collision(tree: AssetTree, zone: ZoneData) -> ZoneCollision:
         if piece is not None:
             placed = [piece.to_world(v) for v in s.vertices]
             if inside(placed) or not inside(s.vertices):
-                verts, rule = placed, "piece"
-            else:
-                verts, rule = list(s.vertices), "world"
-        else:
-            verts, rule = list(s.vertices), "world"
-            lo = [min(v[i] for v in verts) for i in range(3)]
-            hi = [max(v[i] for v in verts) for i in range(3)]
-            near = [min(max(zone.zone.centre[i], lo[i]), hi[i]) for i in range(3)]
-            if math.dist(near, zone.zone.centre) > zone.zone.radius * 1.5 + 5:
-                out.unplaced.append(s.name)
+                out.append(PlacedShape(s, "piece", piece, placed))
                 continue
-        base = len(out.vertices)
-        out.vertices += verts
-        out.triangles += [(a + base, b + base, d + base) for a, b, d in s.triangles]
-        out.shapes[rule] = out.shapes.get(rule, 0) + 1
+            out.append(PlacedShape(s, "world", None, list(s.vertices)))
+            continue
+        verts = list(s.vertices)
+        lo = [min(v[i] for v in verts) for i in range(3)]
+        hi = [max(v[i] for v in verts) for i in range(3)]
+        near = [min(max(zone.zone.centre[i], lo[i]), hi[i]) for i in range(3)]
+        if math.dist(near, zone.zone.centre) > zone.zone.radius * 1.5 + 5:
+            if unplaced is not None:
+                unplaced.append(s.name)
+            continue
+        out.append(PlacedShape(s, "world", None, verts))
     return out
 
 

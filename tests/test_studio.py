@@ -369,7 +369,8 @@ def test_maps_tab_on_a_synthetic_level(tmp_path, monkeypatch):
     mv = win.maps_view
     assert win.maps_list.tree.topLevelItemCount() == 1             # the level "town"
     win.left.setCurrentWidget(win.maps_list)
-    assert win.centre.currentWidget() is mv and win.right_panel.isHidden()
+    assert win.panels.maps and win.panels.docks["details"].isHidden()
+    assert not win.panels.docks["map"].isHidden() and not win.panels.docks["inspector"].isHidden()
     win._map_chosen("town", "")
     assert mv.level == "town" and mv.meta["start"]["name"] == "Start"
     goto = [mv.goto_box.itemText(i) for i in range(mv.goto_box.count())]
@@ -410,7 +411,7 @@ def test_maps_tab_on_a_synthetic_level(tmp_path, monkeypatch):
     assert (out / "town_z01.glb").is_file() and (out / "info.txt").is_file()
     assert (out / "text" / "town.txt").is_file()
     win.left.setCurrentWidget(win.library_view)
-    assert not win.right_panel.isHidden() and win.centre.currentWidget() is not mv
+    assert not win.panels.docks["details"].isHidden() and win.panels.docks["map"].isHidden()
     assert win.wait_for_jobs()
     win.close()
 
@@ -512,5 +513,111 @@ def test_maps_editing_saves_into_the_open_mod(tmp_path, monkeypatch):
     assert not e.remove and not e.add and "Rotation" in e.set["cItemPlacement HotDog3"]
     mv._message("edit " + json.dumps({"op": "undo"}))
     assert not f.exists()                          # nothing changed: no file
+    assert win.wait_for_jobs()
+    win.close()
+
+
+def test_maps_buildings_place_and_hierarchy(tmp_path, monkeypatch):
+    """The editor's buildings (pieces: move, size, hide, copy), the Place panel (its rows,
+    a drop onto the view) and the Hierarchy, fed the page's messages as it sends them."""
+    import json
+    from PySide6.QtWidgets import QApplication
+    from dr2kit.mods.manifest import create
+    from dr2kit.mods.pieceedit import pieces_path
+    from dr2kit.studio.app import MainWindow
+    from test_level import make_datafile, make_level, placement_record
+    root = tmp_path / "game"
+    root.mkdir()
+    make_datafile(root)
+    make_level(root, pieces=("box", "shed", "sign"),
+               placements=[placement_record("box", 0, (0, 0, 0)),
+                           placement_record("sign", 2, (0, 0.5, 0), lo=(-0.5, 0, -0.5),
+                                            hi=(0.5, 1, 0.5)),       # on the box: its part
+                           placement_record("shed", 1, (5, 0, 0), lo=(4, -1, -1), hi=(6, 1, 1))])
+    monkeypatch.setenv("DR2_CZ_DATA", str(root))
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    db = tmp_path / "i.sqlite"
+    build_index("cz", AssetTree(root), db, thumbs=False)
+    app = QApplication.instance() or QApplication([])  # noqa: F841
+    win = MainWindow(db)
+    mv = win.maps_view
+    sent = []
+    mv._js = sent.append
+    win.left.setCurrentWidget(win.maps_list)
+    win._map_chosen("town", "")
+    mod = create(tmp_path / "levelmod", "levelmod")
+    win._set_mod(mod)
+    sent.clear()
+    mv.start_place({"kind": "item", "name": "HotDog"}, (120, 80))   # editing starts by itself
+    assert mv.edit_box.isChecked() and "dr2.placeAt(120.0, 80.0)" in sent
+    mv._message("place " + json.dumps({"point": [1, 0, 1]}))
+    assert mv._target and mv._target["file"] == "town.txt"
+    mv.whole_box.setChecked(False)                  # one piece alone
+    mv._message("pick " + json.dumps({"type": "piece", "name": "box", "zone": "town_z01",
+                                      "vpath": "x"}))
+    assert mv._ptarget == {"zone": "town_z01", "name": "box"} and mv._target is None
+    assert mv.ed_scale[0].isEnabled() and not mv.ed_item.isVisible()
+    sent.clear()
+    mv._message("edit " + json.dumps({"op": "pmove", "zone": "town_z01", "name": "box",
+                                      "position": [2, 0, 0], "rotation": [0, 0, 0, 1],
+                                      "scale": [1, 1, 1]}))
+    zv = "data/models/environment/town/town_z01.big"
+    f = pieces_path(mod, zv)
+    assert json.loads(f.read_text())["pieces"]["box"] == {"position": [2, 0, 0]}
+    assert any(c.startswith("dr2.pieceState(") for c in sent)
+    mv.ed_scale[0].setValue(3)                      # typed: the same size every way
+    mv.ed_scale[0].editingFinished.emit()
+    assert json.loads(f.read_text())["pieces"]["box"]["scale"] == [3, 3, 3]
+    mv._delete_clicked()                            # a building is hidden, then shown
+    assert json.loads(f.read_text())["pieces"]["box"]["hidden"] is True
+    assert mv.btn_del.text() == "Show"
+    mv._delete_clicked()
+    assert "hidden" not in json.loads(f.read_text())["pieces"]["box"]
+    mv._put_back()
+    assert not f.exists()
+    # the whole building: the box and the sign on it move together
+    mv.whole_box.setChecked(True)
+    sent.clear()
+    mv._message("pick " + json.dumps({"type": "piece", "name": "sign", "zone": "town_z01"}))
+    assert mv._ptarget == {"zone": "town_z01", "name": "box", "group": True}
+    assert any(c.startswith("dr2.selectGroup(") and '"sign"' in c for c in sent)
+    mv._message("edit " + json.dumps({"op": "pmove", "zone": "town_z01", "name": "box",
+                                      "position": [0, 0, 3], "group": True}))
+    pieces = json.loads(f.read_text())["pieces"]
+    assert pieces["box"]["position"] == [0, 0, 3] and pieces["sign"]["position"] == [0, 0.5, 3]
+    mv._delete_clicked()                            # hides every part
+    pieces = json.loads(f.read_text())["pieces"]
+    assert pieces["box"]["hidden"] and pieces["sign"]["hidden"]
+    mv._put_back()
+    assert not f.exists()
+    # Place: its rows, and a building dragged onto the view becomes a copy where it lands
+    rows = {k: mv.place_rows(k) for k in ("prefab", "item", "zombie", "piece")}
+    assert {r["name"] for r in rows["piece"]} == {"box", "shed"}
+    assert any(r["name"] == "HotDog" for r in rows["item"]) and rows["prefab"]
+    sent.clear()
+    mv.start_place({"kind": "piece", "name": "shed", "zone": "town_z01", "group": True}, (5, 6))
+    assert "dr2.placeAt(5.0, 6.0)" in sent
+    mv._message("place " + json.dumps({"point": [4, 0, 4]}))
+    copy = json.loads(f.read_text())["copies"][0]
+    assert copy["piece"] == "shed" and copy["position"] == [4, 1, 4]   # stands on the point
+    # Hierarchy: buildings with their parts and copies inside, clicking flies there
+    mv.fill_hierarchy()
+    groups = {mv.hierarchy.tree.topLevelItem(i).text(0).split(" (")[0]:
+              mv.hierarchy.tree.topLevelItem(i) for i in range(mv.hierarchy.tree.topLevelItemCount())}
+    top = groups["Buildings"]
+    names = [top.child(i).text(0) for i in range(top.childCount())]
+    assert names == ["box", "shed"]
+    box = top.child(0)
+    assert [box.child(i).text(0) for i in range(box.childCount())] == ["box", "sign"]
+    shed = top.child(1)
+    assert [shed.child(i).text(0) for i in range(shed.childCount())] == ["shed", "shed#1"]
+    sent.clear()
+    mv.hierarchy._clicked(shed)
+    assert any(c.startswith("dr2.focus(") and '"shed"' in c for c in sent)
+    assert mv.whole_box.isChecked()
+    mv.hierarchy.filter.setText("sign")
+    assert not box.isHidden() and shed.isHidden()
+    mv._message("edit " + json.dumps({"op": "undo"}))   # the copy goes
+    assert not f.exists()
     assert win.wait_for_jobs()
     win.close()

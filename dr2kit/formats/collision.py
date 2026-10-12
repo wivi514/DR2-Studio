@@ -19,8 +19,20 @@ the prefix (41 of CW's 1,049 shapes have no ``COL_``):
 ``… CollisionIndices``            triangle count × 3 indices, **1 byte each when the shape
                                   has at most 256 vertices, else 2** (big-endian)
 ``… CollisionMaterials``          one u32 per triangle (a surface type ❓; 0 on glass)
-``… hkpMoppCode``, ``Welding*``   Havok's search tree and edge welding: kept, not read
+``… hkpMoppCode``                 Havok's search tree ("MOPP"): **3 little-endian floats, the
+                                  tree's origin** (the lowest corner of the shape's vertices,
+                                  5 mm below at most), a little-endian float scale
+                                  (2^24 / the largest extent), a little-endian u32 code size
+                                  (the entry's size − 21), a byte, then the code (not read)
+``… Welding*``                    edge welding: kept, not read
 =============================== =============================================================
+
+**Moving a shape** (`move_shapes`, phase 11 step 4): the tree is stored relative to its
+origin, so adding the same offset to every vertex, to the tree's origin and to the
+header's bounds moves the collision without rebuilding the tree (Havok's own tool would
+be needed for that; so a shape can be moved or sent away, never turned or resized).
+Checked on every shape of both games: origin = lowest vertex corner (worst 5 mm), size
+and scale fields agree (2026-10-11); in game: docs/formats.md §Levels "Piece edits".
 
 ``_COLLISIONLIST_`` lists the shapes (a 32-byte name, a hash, a word). Checked on every
 zone of both games by ``dr2 census --levels`` (counts agree with the data sizes, every
@@ -49,6 +61,7 @@ class CollisionShape:
     materials: list[int] = field(default_factory=list)
     index_size: int = 2
     words: tuple = ()
+    mesh: str = ""          # the entry group's name in persistent.big (meshCOL_pro_351)
 
 
 def read_collision(arc: BigArchive, source: str = "MERGED_COLLISION.big") -> list[CollisionShape]:
@@ -101,5 +114,53 @@ def read_collision(arc: BigArchive, source: str = "MERGED_COLLISION.big") -> lis
             name = name[len("col_"):]
         out.append(CollisionShape(name, verts,
                                   [tuple(idx[i:i + 3]) for i in range(0, len(idx), 3)],
-                                  list(struct.unpack_from(f">{nt}I", mdata)), size, words))
+                                  list(struct.unpack_from(f">{nt}I", mdata)), size, words, n))
     return out
+
+
+MOPP_ORIGIN = struct.Struct("<3f")     # the first 12 bytes of an hkpMoppCode: little-endian
+
+
+def move_shapes(archive: bytes, moves: dict[str, tuple[float, float, float]],
+                source: str = "MERGED_COLLISION.big") -> bytes:
+    """``MERGED_COLLISION.big`` (its bytes) with each shape of ``moves`` (its group name,
+    ``meshCOL_pro_351``, any case → an offset in the shape's own space) moved: its
+    vertices, its search tree's origin and its header bounds (module docstring). Every
+    entry is compressed as it was. Raises `FormatError` naming a shape it doesn't have."""
+    arc = BigArchive.parse(archive, source)
+    pers = next((e for e in arc.entries if e.name.lower() == "persistent.big"), None)
+    if pers is None:
+        raise FormatError(f"{source}: no persistent.big")
+    p = BigArchive.parse(pers.data(), f"{source}/persistent.big")
+    by = {e.name.lower(): e for e in p.entries}
+    missing = [m for m in moves if f"{m} hkcollisionshapemesh".lower() not in by]
+    if missing:
+        raise FormatError(f"{source}: no collision shape {', '.join(sorted(missing))}")
+    for mesh, d in moves.items():
+        dx, dy, dz = (float(c) for c in d)
+        ve = by[f"{mesh} collisionvertices".lower()]
+        v = bytearray(ve.data())
+        top = 0.0
+        for i in range(0, len(v), 12):
+            x, y, z = struct.unpack_from(">3f", v, i)
+            x, y, z = x + dx, y + dy, z + dz
+            struct.pack_into(">3f", v, i, x, y, z)
+            top = max(top, (x * x + y * y + z * z) ** 0.5)
+        ve.set_data(bytes(v))
+        me = by.get(f"{mesh} hkpmoppcode".lower())
+        if me is not None:
+            m = bytearray(me.data())
+            ox, oy, oz = MOPP_ORIGIN.unpack_from(m)
+            MOPP_ORIGIN.pack_into(m, 0, ox + dx, oy + dy, oz + dz)
+            me.set_data(bytes(m))
+        he = by[mesh.lower()]
+        h = bytearray(he.data())
+        f = list(struct.unpack_from(">7f", h, 32))       # radius, bounds min, bounds max
+        f[1:4] = [a + b for a, b in zip(f[1:4], (dx, dy, dz))]
+        f[4:7] = [a + b for a, b in zip(f[4:7], (dx, dy, dz))]
+        if f[0] > 0:
+            f[0] = top                                   # the farthest vertex from the origin
+        struct.pack_into(">7f", h, 32, *f)
+        he.set_data(bytes(h))
+    pers.set_data(p.to_bytes())
+    return arc.to_bytes()

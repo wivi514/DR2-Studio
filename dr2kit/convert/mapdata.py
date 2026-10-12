@@ -30,7 +30,8 @@ from ..container.vpath import AssetTree, split
 from . import level as clevel
 from . import placed
 
-MAP_VERSION = 6            # bump when what goes into a zone file changes (5: collision, 6: zombie paths)
+MAP_VERSION = 7            # bump when what goes into a zone file changes (5: collision, 6: zombie
+#                            paths, 7: buildings a mod hid marked dr2_parked)
 FULL, LOD = "full", "lod"
 PNG_LEVEL = 1              # fast PNGs for the cache (exports keep level 6)
 BACKDROP_RADIUS = 300.0    # zones larger than this are backdrops (CZ z01): always small textures

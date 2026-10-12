@@ -26,6 +26,7 @@ def _isolated_user_folders(tmp_path_factory, monkeypatch):
     monkeypatch.setattr(userdirs, "_dir", lambda kind: base / kind)
     monkeypatch.setenv("DR2_STUDIO_NO_DIALOGS", "1")     # Studio: errors go to the log
     monkeypatch.setenv("DR2_STUDIO_NO_SETUP", "1")       # Studio: no welcome window
+    monkeypatch.setenv("DR2_STUDIO_NO_LAYOUT", "1")      # Studio: the default window layout
 
 
 def make_archive(*entries, alignment: int = 4) -> BigArchive:

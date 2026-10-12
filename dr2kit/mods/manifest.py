@@ -53,6 +53,7 @@ ADD_DIR = "add"
 AUDIO_EXTS = (".wav", ".ogg", ".flac", ".mp3")   # what can replace a sound
 STRINGS_EXT = ".bcs.json"                         # string changes for a string bank
 EDITS_EXT = ".edits.json"                         # block changes for a level text file
+PIECES_EXT = ".pieces.json"                       # building changes for a zone (level pieces)
 _ID = re.compile(r"^[a-z0-9][a-z0-9_.-]{0,63}$")
 
 TEMPLATE = '''# A DR2 Case Zero / Case West mod. Reference: docs/modding/06-mod-packages.md
@@ -77,8 +78,8 @@ class Override:
     """One file of a mod: ``vpath`` is the asset it replaces, ``kind`` how."""
     vpath: str            # as written under replace/ (minus .png / .glb)
     source: Path
-    kind: str             # "texture-png", "model-glb", "audio", "strings", "edits", "raw"
-                          # or "add" (a new entry, from add/)
+    kind: str             # "texture-png", "model-glb", "audio", "strings", "edits", "pieces",
+                          # "raw" or "add" (a new entry, from add/)
 
 
 @dataclass

@@ -10,8 +10,13 @@
 //   dr2:edit {op, name, file, …}   editing (phase 11): move {position, rotation}, delete,
 //                                  duplicate, undo, redo (studio/maps_edit.py answers with
 //                                  dr2.itemState); zombies: zmove {path, position, yaw},
-//                                  zdelete {path} (answered with dr2.setZombies)
-//   dr2:place {point}              where to put a new item (the answer to dr2.askPlace)
+//                                  zdelete {path} (answered with dr2.setZombies);
+//                                  buildings: pmove {zone, name, position, rotation,
+//                                  scale}, phide {zone, name}, pcopy {zone, name}
+//                                  (answered with dr2.pieceState)
+//   dr2:place {point}              where to put a new item (the answer to dr2.askPlace,
+//                                  or to dr2.placeAt: something dropped on the view)
+//   dr2:focused {kind, name}       dr2.focus found and selected what it was asked for
 //
 //   dr2.openLevel(meta, keep)      a level: zones, markers, nav mesh, start (convert/mapdata.py)
 //   dr2.zoneReady(zone, part, detail, url)   a requested file is ready at url
@@ -22,9 +27,28 @@
 //   dr2.setView(eye, fwd, up, fovY) an exact camera (a recomp capture's, for comparing)
 //   dr2.pickAt(x, y)               what a click at page pixel x, y would pick (tests)
 //   dr2.setHour(h)                 time of day 0-23 (null: Studio's own neutral light)
-//   dr2.setEditing(on)             edit mode: a clicked item or door gets move / turn
-//                                  handles (T move, R turn, F onto the floor, Delete,
-//                                  Ctrl+D copy, Ctrl+Z / Ctrl+Y undo / redo)
+//   dr2.setEditing(on)             edit mode: a clicked item, door or building gets move /
+//                                  turn handles (T move, R turn, G size (buildings), F onto
+//                                  the floor, Delete, Ctrl+D copy, Ctrl+Z / Ctrl+Y undo /
+//                                  redo; arrow keys nudge it along the ground, Page Up /
+//                                  Down up and down, [ ] turn, - = size; Shift: bigger
+//                                  steps, Alt: smaller)
+//   dr2.setGizmo(mode)             'translate', 'rotate' or 'scale' (as T, R, G)
+//   dr2.setRotateAll(on)           turn about every axis, not only the up axis
+//   dr2.pieceState([state…])       buildings after a change (mods/pieceedit.py
+//                                  PieceState): moved, hidden, and the zone's copies (the
+//                                  list of a zone's copies ends with a state with no name)
+//   dr2.selectPiece(zone, name)    select a building (or a copy, <piece>#<n>)
+//   dr2.pieceNames(zone)           the buildings of a loaded zone, copies included (tests)
+//   dr2.selectGroup(zone, first, parts)   select a whole building: the handles move its
+//                                  first piece and every part follows (dr2:edit pmove …
+//                                  with group: true)
+//   dr2.focus({kind, name, zone, position})   fly to a thing and select it when loaded
+//                                  (the Hierarchy panel)
+//   dr2.dragOver(x, y) / dr2.dragEnd()   something is dragged over the view: a marker
+//                                  where it would land
+//   dr2.placeAt(x, y)              answer with dr2:place: the floor point under page
+//                                  pixel x, y (a drop from the Place panel)
 //   dr2.itemState([state…])        placed items after a change: moved, gone, or a new
 //                                  model to load (url); kept, and applied again to every
 //                                  zone file that loads later
@@ -167,6 +191,8 @@ const piecesRoot = new THREE.Group(), itemsRoot = new THREE.Group(), markerRoot 
 const zombiesRoot = new THREE.Group();
 const collisionRoot = new THREE.Group();
 const addedRoot = new THREE.Group();     // items an edit added or turned into another item
+const copiesRoot = new THREE.Group();    // copies of buildings an edit added (under pieces)
+piecesRoot.add(copiesRoot);
 scene.add(piecesRoot, itemsRoot, markerRoot, zombiesRoot, collisionRoot, addedRoot);
 const markerGroups = {};          // kind -> Group
 const labels = [];                // sprites, hidden when far
@@ -574,6 +600,8 @@ window.dr2 = {
       for (const part of PARTS) if (z[part].object) { dispose(z[part].object); }
     }
     piecesRoot.clear(); itemsRoot.clear(); zombiesRoot.clear(); collisionRoot.clear();
+    copiesRoot.clear(); piecesRoot.add(copiesRoot);
+    pieceOverrides.clear(); pieceCopies.clear(); pendingFocus = null;
     detachGizmo();
     for (const o of addedRoot.children) dispose(o);
     addedRoot.clear(); added.clear(); overrides.clear();
@@ -626,6 +654,11 @@ window.dr2 = {
       s.object = obj; s.detail = detail; s.asked = null;
       root.add(obj);
       if (part === 'items') for (const st of overrides.values()) applyOverride(st, obj);
+      if (part === 'pieces') {
+        obj.traverse(o => { if (o.userData.dr2_parked) o.visible = false; });   // hidden by a mod
+        applyPieceOverrides(name); buildCopies(name);
+      }
+      if (pendingFocus) tryFocus();
       const [n, full] = loadedCount();
       say(`${meta.level}: ${n}/${zones.size} zones shown (${full} full size)`);
       schedule();
@@ -678,6 +711,88 @@ window.dr2 = {
     else if (selected && selected.userData && selected.userData.dr2_item) attachGizmo(selected);
     schedule();
   },
+  pieceState(states) {
+    const zonesWithCopies = new Set(states.filter(s => s.copy).map(s => s.zone));
+    for (const z of zonesWithCopies) pieceCopies.set(z, []);
+    for (const st of states) {
+      if (st.copy) { if (st.name) pieceCopies.get(st.zone).push(st); continue; }
+      pieceOverrides.set(`${st.zone}/${st.name}`.toLowerCase(), st);
+      applyPieceOverrides(st.zone);
+    }
+    for (const z of zonesWithCopies) buildCopies(z);
+    updateSelBox();
+  },
+  pieceNames(zone) {
+    const out = [], z = zones.get(zone);
+    if (z && z.pieces.object) z.pieces.object.traverse(o => { if (o.userData.dr2_piece) out.push(o.userData.dr2_piece); });
+    for (const o of copiesRoot.children) if (o.userData.dr2_zone === zone) out.push(o.userData.dr2_piece);
+    return out;
+  },
+  selectGroup(zone, first, parts) {
+    const lead = pieceNode(zone, first);
+    if (!lead) return false;
+    clearSelection();
+    selected = lead;
+    lead.updateMatrixWorld(true);
+    const inv = lead.matrixWorld.clone().invert();
+    const members = [];
+    for (const n of parts) {
+      const m = pieceNode(zone, n);
+      if (!m || m === lead) continue;
+      m.updateMatrixWorld(true);
+      members.push({ node: m, rel: inv.clone().multiply(m.matrixWorld) });
+    }
+    editTarget = { node: lead, kind: 'piece', group: true, name: lead.userData.dr2_piece, zone, members };
+    if (editing) gizmo.attach(lead);
+    selBox = new THREE.Box3Helper(groupBox(), 0xffff00);
+    selBox.material.depthTest = false;
+    selBox.renderOrder = 20;
+    scene.add(selBox);
+    return true;
+  },
+  selectPiece(zone, name) {
+    const n = pieceNode(zone, name);
+    if (!n) return false;
+    selectNode(n, { type: 'piece', name: n.userData.dr2_piece, vpath: n.userData.dr2_vpath,
+                    index: n.userData.dr2_index, zone });
+    return true;
+  },
+  focus(t) {
+    if (t.position) {
+      const p = v3(t.position);
+      const back = new THREE.Vector3(0, 0, 1).applyEuler(new THREE.Euler(0, yaw, 0)).multiplyScalar(t.kind === 'piece' ? 14 : 5);
+      camera.position.copy(p).add(back).add(new THREE.Vector3(0, t.kind === 'piece' ? 6 : 2.5, 0));
+      camera.lookAt(p);
+      const e = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
+      yaw = e.y; pitch = e.x;
+      applyLook();
+      pivot = p.clone();
+    }
+    pendingFocus = t;
+    tryFocus();
+    schedule();
+  },
+  setGizmo(mode) { if (editTarget) setGizmoMode(mode); else gizmoWanted = mode; },
+  setRotateAll(on) { rotateAll = !!on; setGizmoMode(gizmo.getMode()); },
+  dragOver(x, y) {
+    const hit = floorHit(x, y);
+    if (!ghost) {
+      ghost = new THREE.Mesh(new THREE.TorusGeometry(0.6, 0.06, 8, 32),
+                             new THREE.MeshBasicMaterial({ color: 0xffd400, depthTest: false }));
+      ghost.rotation.x = Math.PI / 2;
+      ghost.renderOrder = 30;
+      scene.add(ghost);
+    }
+    ghost.visible = !!hit;
+    if (hit) ghost.position.copy(hit.point).add(new THREE.Vector3(0, 0.05, 0));
+  },
+  dragEnd() { if (ghost) ghost.visible = false; },
+  placeAt(x, y) {
+    this.dragEnd();
+    const hit = floorHit(x, y);
+    if (!hit) { say('nothing there to put it on (drop it on the ground)'); return; }
+    post('place', { point: hit.point.toArray().map(c => Math.round(c * 1000) / 1000) });
+  },
   itemState(states) {
     for (const st of states) {
       overrides.set(st.name.toLowerCase(), st);
@@ -722,8 +837,10 @@ window.dr2 = {
     return !!n;
   },
   editInfo() {
-    return { editing, target: editTarget && editTarget.name, mode: gizmo.getMode(),
-             overrides: overrides.size, added: added.size };
+    return { editing, target: editTarget && editTarget.name, kind: editTarget && editTarget.kind,
+             mode: gizmo.getMode(), overrides: overrides.size, added: added.size,
+             pieces: pieceOverrides.size, copies: copiesRoot.children.length,
+             position: editTarget ? editTarget.node.getWorldPosition(new THREE.Vector3()).toArray() : null };
   },
   camera() {
     return { position: camera.position.toArray(), yaw };
@@ -778,37 +895,57 @@ renderer.domElement.addEventListener('pointerup', e => {
   drag = null;
 });
 
-// --- editing (phase 11): move / turn handles, edit keys, what Python says changed -----------
+// --- editing (phase 11): move / turn / size handles, edit keys, what Python says changed -----
 let editing = false;
-let editTarget = null;            // {node, name, file}
+let editTarget = null;            // {node, kind: 'item' | 'zombie' | 'piece', name, file | path | zone}
 const overrides = new Map();      // lower name -> the last itemState for it
 const added = new Map();          // lower name -> the object loaded for it (addedRoot)
+const pieceOverrides = new Map(); // lower "zone/piece" -> the last pieceState for it
+const pieceCopies = new Map();    // zone -> [pieceState of each copy]
+let pendingFocus = null;          // dr2.focus waiting for its zone to load
+let rotateAll = false;            // turn about every axis (dr2.setRotateAll)
+let gizmoWanted = null;           // a mode asked for while nothing was selected
+let ghost = null;                 // where a dragged thing would land
+let nudgeTimer = null;
 const gizmo = new TransformControls(camera, renderer.domElement);
 gizmo.setSpace('world');
 gizmo.setSize(0.9);
 const gizmoHelper = gizmo.getHelper();
 scene.add(gizmoHelper);
-gizmo.addEventListener('objectChange', () => { if (selBox) selBox.update(); });
+gizmo.addEventListener('objectChange', follow);
 gizmo.addEventListener('dragging-changed', e => {
   if (!e.value && editTarget) sendMove(editTarget);     // a drag ended: save it
 });
 function setGizmoMode(mode) {
+  if (mode === 'scale' && !(editTarget && editTarget.kind === 'piece')) {
+    say('only buildings can change size (the game\'s item placements have no size)');
+    mode = 'translate';
+  }
   gizmo.setMode(mode);
-  gizmo.showX = gizmo.showZ = mode !== 'rotate';        // turn about the up axis only
+  gizmo.setSpace(mode === 'scale' ? 'local' : 'world');
+  const flat = mode === 'rotate' && !rotateAll;          // turn about the up axis only
+  gizmo.showX = gizmo.showZ = !flat;
   gizmo.showY = true;
 }
 setGizmoMode('translate');
 function isInside(o, root) { for (let p = o; p; p = p.parent) if (p === root) return true; return false; }
 function attachGizmo(node) {
   const u = node.userData;
-  editTarget = { node, name: u.dr2_name, file: u.dr2_file };
+  editTarget = { node, kind: 'item', name: u.dr2_name, file: u.dr2_file };
   gizmo.attach(node);
+  if (gizmo.getMode() === 'scale') setGizmoMode('translate');
+}
+function attachPiece(node, zone) {
+  editTarget = { node, kind: 'piece', name: node.userData.dr2_piece, zone };
+  gizmo.attach(node);
+  if (gizmoWanted) { setGizmoMode(gizmoWanted); gizmoWanted = null; }
 }
 function attachZombie(group) {          // a single zombie's cone, or a clearing's circle
   const z = group.userData.zombie;
   if (!z || (z.spawn !== 'single' && z.spawn !== 'removal')) return false;
-  editTarget = { node: group, path: z.path, zombie: z };
+  editTarget = { node: group, kind: 'zombie', path: z.path, zombie: z };
   gizmo.attach(group);
+  if (gizmo.getMode() === 'scale') setGizmoMode('translate');
   if (selBox) { scene.remove(selBox); selBox.geometry.dispose(); }
   selBox = new THREE.BoxHelper(group, 0xffff00);
   selBox.material.depthTest = false;
@@ -817,20 +954,87 @@ function attachZombie(group) {          // a single zombie's cone, or a clearing
   return true;
 }
 function detachGizmo() { gizmo.detach(); editTarget = null; }
+// A whole building: its parts keep their place relative to the first piece
+function groupBox() {
+  const box = new THREE.Box3().setFromObject(editTarget.node);
+  for (const m of editTarget.members) box.expandByObject(m.node);
+  return box;
+}
+function follow() {
+  const t = editTarget;
+  if (t && t.group) {
+    t.node.updateMatrixWorld(true);
+    for (const m of t.members) {
+      const world = t.node.matrixWorld.clone().multiply(m.rel);
+      const local = m.node.parent ? m.node.parent.matrixWorld.clone().invert().multiply(world) : world;
+      local.decompose(m.node.position, m.node.quaternion, m.node.scale);
+    }
+  }
+  updateSelBox();
+}
+function updateSelBox() {
+  if (!selBox) return;
+  if (selBox.isBox3Helper && editTarget && editTarget.group) selBox.box.copy(groupBox());
+  else if (selBox.update) selBox.update();
+}
+const r3 = c => Math.round(c * 1000) / 1000;
+const r4 = c => Math.round(c * 10000) / 10000;
 function sendMove(t) {
-  const p = new THREE.Vector3(), q = new THREE.Quaternion();
+  const p = new THREE.Vector3(), q = new THREE.Quaternion(), sc = new THREE.Vector3();
   t.node.getWorldPosition(p);
   t.node.getWorldQuaternion(q);
-  if (t.path) {                                   // a zombie: place and facing (radians)
+  t.node.getWorldScale(sc);
+  if (t.kind === 'zombie') {                      // a zombie: place and facing (radians)
     const yaw = new THREE.Euler().setFromQuaternion(q, 'YXZ').y;
-    post('edit', { op: 'zmove', path: t.path,
-                   position: p.toArray().map(c => Math.round(c * 1000) / 1000),
-                   yaw: t.zombie.spawn === 'single' ? Math.round(yaw * 1000) / 1000 : null });
+    post('edit', { op: 'zmove', path: t.path, position: p.toArray().map(r3),
+                   yaw: t.zombie.spawn === 'single' ? r3(yaw) : null });
     return;
   }
-  post('edit', { op: 'move', name: t.name, file: t.file,
-                 position: p.toArray().map(c => Math.round(c * 1000) / 1000),
-                 rotation: [q.x, q.y, q.z, q.w].map(c => Math.round(c * 10000) / 10000) });
+  if (t.kind === 'piece') {
+    post('edit', { op: 'pmove', zone: t.zone, name: t.name, position: p.toArray().map(r3),
+                   rotation: [q.x, q.y, q.z, q.w].map(r4), scale: sc.toArray().map(r4),
+                   group: !!t.group });
+    return;
+  }
+  post('edit', { op: 'move', name: t.name, file: t.file, position: p.toArray().map(r3),
+                 rotation: [q.x, q.y, q.z, q.w].map(r4) });
+}
+// Arrow keys and [ ] / - =: small steps, saved once the keys rest (one undo step)
+function saveSoon() {
+  clearTimeout(nudgeTimer);
+  const t = editTarget;
+  nudgeTimer = setTimeout(() => { if (t && t === editTarget) sendMove(t); }, 450);
+}
+function groundAxis(v) {          // a direction snapped to the nearest world axis on the ground
+  return Math.abs(v.x) > Math.abs(v.z) ? new THREE.Vector3(Math.sign(v.x), 0, 0)
+                                       : new THREE.Vector3(0, 0, Math.sign(v.z) || 1);
+}
+function nudge(code, step) {
+  const fwd = groundAxis(new THREE.Vector3(0, 0, -1).applyEuler(camera.rotation));
+  const right = groundAxis(new THREE.Vector3(1, 0, 0).applyEuler(camera.rotation));
+  const d = { ArrowUp: fwd, ArrowDown: fwd.clone().negate(), ArrowRight: right,
+              ArrowLeft: right.clone().negate(), PageUp: new THREE.Vector3(0, 1, 0),
+              PageDown: new THREE.Vector3(0, -1, 0) }[code];
+  const n = editTarget.node;
+  const world = n.getWorldPosition(new THREE.Vector3()).addScaledVector(d, step);
+  n.position.copy(n.parent ? n.parent.worldToLocal(world) : world);
+  follow();
+  saveSoon();
+}
+function turn(degrees) {
+  const n = editTarget.node;
+  const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), degrees * Math.PI / 180);
+  const wq = n.getWorldQuaternion(new THREE.Quaternion()).premultiply(q);
+  if (n.parent) wq.premultiply(n.parent.getWorldQuaternion(new THREE.Quaternion()).invert());
+  n.quaternion.copy(wq);
+  follow();
+  saveSoon();
+}
+function grow(f) {
+  if (editTarget.kind !== 'piece') { say('only buildings can change size'); return; }
+  editTarget.node.scale.multiplyScalar(f);
+  follow();
+  saveSoon();
 }
 // The floor under a point: a ray down onto the collision mesh (what the game stands on),
 // or onto the buildings while the collision isn't loaded.
@@ -848,7 +1052,7 @@ function floorHit(x, y) {
                                       -((y - r.top) / r.height) * 2 + 1), camera);
   const roots = collisionRoot.children.length ? [collisionRoot, piecesRoot] : [piecesRoot];
   const hits = ray.intersectObjects(roots, true).filter(h => h.object.isMesh &&
-    !(h.object.material && h.object.material.wireframe));
+    visibleChain(h.object) && !(h.object.material && h.object.material.wireframe));
   return hits[0] || null;
 }
 function snapToFloor(t) {
@@ -859,7 +1063,7 @@ function snapToFloor(t) {
   if (!floor) { say('no floor under it (load the zone first)'); return; }
   const world = at.clone().setY(at.y + floor.y - box.min.y);
   t.node.position.copy(t.node.parent ? t.node.parent.worldToLocal(world) : world);
-  if (selBox) selBox.update();
+  follow();
   sendMove(t);
 }
 function itemNodes(name, within) {
@@ -881,6 +1085,7 @@ function setTransform(node, st) {
     }
     node.quaternion.copy(q);
   }
+  if (st.scale) node.scale.set(...st.scale);
 }
 // Show one item as the last change left it; ``within`` (a zone file just loaded) only
 // hides or moves its own nodes (a model to load is loaded once, by itemState).
@@ -890,7 +1095,7 @@ function applyOverride(st, within) {
   if (st.removed) {
     for (const n of originals) n.visible = false;
     if (!within && added.has(key)) { const o = added.get(key); addedRoot.remove(o); dispose(o); added.delete(key); }
-    if (editTarget && editTarget.name.toLowerCase() === key) { detachGizmo(); clearSelection(); }
+    if (editTarget && editTarget.kind === 'item' && editTarget.name.toLowerCase() === key) { detachGizmo(); clearSelection(); }
     return;
   }
   if (st.url && !within) {                       // a new model: load it, hide the original
@@ -917,19 +1122,95 @@ function applyOverride(st, within) {
   } else {
     for (const n of originals) { setTransform(n, st); n.visible = true; }
   }
-  if (selBox) selBox.update();
+  updateSelBox();
 }
-function pickNode(node) {
+// Buildings: a zone's piece by name (or a copy, <piece>#<n>, in copiesRoot)
+// (a building another mod hid, parked under the level, is not returned: its place there
+// isn't one to edit from; one the edited mod hid has its state, so it is)
+function pieceNode(zone, name) {
+  const low = name.toLowerCase();
+  let found = null;
+  if (!pieceOverrides.has(`${zone}/${name}`.toLowerCase())) {
+    const z = zones.get(zone);
+    let parked = false;
+    if (z && z.pieces.object) z.pieces.object.traverse(o => {
+      if (o.userData.dr2_parked && o.userData.dr2_piece && o.userData.dr2_piece.toLowerCase() === low) parked = true;
+    });
+    if (parked) return null;
+  }
+  const z = zones.get(zone);
+  const within = name.includes('#') ? copiesRoot : (z && z.pieces.object);
+  if (!within) return null;
+  within.traverse(o => {
+    if (!found && o.userData.dr2_piece && o.userData.dr2_piece.toLowerCase() === low &&
+        (!name.includes('#') || o.userData.dr2_zone === zone)) found = o;
+  });
+  return found;
+}
+function applyPieceOverrides(zone) {
+  const z = zones.get(zone);
+  if (!z || !z.pieces.object) return;
+  for (const st of pieceOverrides.values()) {
+    if (st.zone !== zone) continue;
+    const n = pieceNode(zone, st.name);
+    if (!n) continue;
+    setTransform(n, st);
+    n.visible = !st.hidden;
+    if (st.hidden && editTarget && editTarget.node === n) { detachGizmo(); clearSelection(); }
+  }
+}
+function buildCopies(zone) {
+  const keep = editTarget && editTarget.kind === 'piece' && editTarget.name.includes('#') &&
+    editTarget.zone === zone ? editTarget.name : null;
+  if (keep) { detachGizmo(); clearSelection(); }
+  for (const o of [...copiesRoot.children]) {
+    if (o.userData.dr2_zone === zone) copiesRoot.remove(o);    // shared geometry: no dispose
+  }
+  const z = zones.get(zone);
+  if (!z || !z.pieces.object) return;
+  for (const st of pieceCopies.get(zone) || []) {
+    const src = pieceNode(zone, st.piece);
+    if (!src) continue;
+    const c = src.clone(true);
+    c.userData = { ...src.userData, dr2_piece: st.name, dr2_copy: true, dr2_zone: zone };
+    c.visible = true;
+    setTransform(c, st);
+    copiesRoot.add(c);
+  }
+  if (keep && editing) {
+    const n = pieceNode(zone, keep);
+    if (n) selectNode(n, { type: 'piece', name: keep, vpath: n.userData.dr2_vpath, zone });
+  }
+}
+function selectNode(node, info) {
   clearSelection();
   selected = node;
   selBox = new THREE.BoxHelper(node, 0xffff00);
   selBox.material.depthTest = false;
   selBox.renderOrder = 20;
   scene.add(selBox);
-  if (editing) attachGizmo(node);
+  if (editing && info.type === 'piece') attachPiece(node, info.zone);
+  else if (editing && node.userData.dr2_item) attachGizmo(node);
+  post('pick', info);
+}
+function pickNode(node) {
   const u = node.userData;
-  post('pick', { type: u.dr2_kind || 'item', name: u.dr2_name, item: u.dr2_item,
-                 vpath: u.dr2_vpath, file: u.dr2_file, line: u.dr2_line });
+  selectNode(node, { type: u.dr2_kind || 'item', name: u.dr2_name, item: u.dr2_item,
+                     vpath: u.dr2_vpath, file: u.dr2_file, line: u.dr2_line });
+}
+// dr2.focus: select the thing once its zone is loaded
+function tryFocus() {
+  const t = pendingFocus;
+  if (!t) return;
+  let ok = false;
+  if (t.kind === 'piece') {
+    const z = zones.get(t.zone);
+    ok = window.dr2.selectPiece(t.zone, t.name) || !!(z && z.pieces.object);  // loaded: done
+  }
+  else if (t.kind === 'zombie') ok = window.dr2.selectZombie(t.name);
+  else if (t.kind === 'item' || t.kind === 'door') ok = window.dr2.selectItem(t.name);
+  else ok = true;                                      // a marker: flying there is all
+  if (ok) { pendingFocus = null; post('focused', { kind: t.kind, name: t.name }); }
 }
 window.addEventListener('keydown', e => {
   if (!editing) return;
@@ -937,12 +1218,36 @@ window.addEventListener('keydown', e => {
   if (ctrl && e.code === 'KeyZ') { post('edit', { op: e.shiftKey ? 'redo' : 'undo' }); e.preventDefault(); return; }
   if (ctrl && e.code === 'KeyY') { post('edit', { op: 'redo' }); e.preventDefault(); return; }
   if (!editTarget) return;
+  const t = editTarget;
+  const big = e.shiftKey, small = e.altKey;
+  if (/^Arrow|^Page(Up|Down)$/.test(e.code)) {
+    nudge(e.code, big ? 1 : small ? 0.01 : 0.1);
+    e.preventDefault();
+    return;
+  }
+  if (e.code === 'BracketLeft' || e.code === 'BracketRight') {
+    turn((e.code === 'BracketLeft' ? 1 : -1) * (big ? 90 : small ? 1 : 15));
+    if (t.kind === 'zombie' && t.zombie.spawn !== 'single') say('a clearing has no facing');
+    return;
+  }
+  if (e.code === 'Minus' || e.code === 'Equal' || e.code === 'NumpadSubtract' || e.code === 'NumpadAdd') {
+    const up = e.code === 'Equal' || e.code === 'NumpadAdd';
+    grow(up ? (big ? 2 : small ? 1.01 : 1.1) : 1 / (big ? 2 : small ? 1.01 : 1.1));
+    return;
+  }
   if (e.code === 'KeyT') setGizmoMode('translate');
   else if (e.code === 'KeyR') setGizmoMode('rotate');
-  else if (e.code === 'KeyF') snapToFloor(editTarget);
-  else if ((e.code === 'Delete' || e.code === 'Backspace') && editTarget.path) post('edit', { op: 'zdelete', path: editTarget.path });
-  else if (e.code === 'Delete' || e.code === 'Backspace') post('edit', { op: 'delete', name: editTarget.name, file: editTarget.file });
-  else if (ctrl && e.code === 'KeyD' && !editTarget.path) { post('edit', { op: 'duplicate', name: editTarget.name, file: editTarget.file }); e.preventDefault(); }
+  else if (e.code === 'KeyG') setGizmoMode('scale');
+  else if (e.code === 'KeyF') snapToFloor(t);
+  else if (e.code === 'Delete' || e.code === 'Backspace') {
+    if (t.kind === 'zombie') post('edit', { op: 'zdelete', path: t.path });
+    else if (t.kind === 'piece') post('edit', { op: 'phide', zone: t.zone, name: t.name, group: !!t.group });
+    else post('edit', { op: 'delete', name: t.name, file: t.file });
+  } else if (ctrl && e.code === 'KeyD' && t.kind !== 'zombie') {
+    if (t.kind === 'piece') post('edit', { op: 'pcopy', zone: t.zone, name: t.name, group: !!t.group });
+    else post('edit', { op: 'duplicate', name: t.name, file: t.file });
+    e.preventDefault();
+  }
 });
 renderer.domElement.addEventListener('wheel', e => {
   speed = Math.max(0.5, Math.min(200, speed * (e.deltaY < 0 ? 1.25 : 0.8)));
@@ -957,12 +1262,13 @@ function move(dt) {
   const fwd = new THREE.Vector3(0, 0, -1).applyEuler(camera.rotation);
   const right = new THREE.Vector3(1, 0, 0).applyEuler(camera.rotation);
   const v = new THREE.Vector3();
-  if (keys.has('KeyW') || keys.has('ArrowUp')) v.add(fwd);
-  if (keys.has('KeyS') || keys.has('ArrowDown')) v.sub(fwd);
-  if (keys.has('KeyD') || keys.has('ArrowRight')) v.add(right);
-  if (keys.has('KeyA') || keys.has('ArrowLeft')) v.sub(right);
-  if (keys.has('KeyE') || keys.has('PageUp')) v.y += 1;
-  if (keys.has('KeyQ') || keys.has('PageDown')) v.y -= 1;
+  const arrows = !(editing && editTarget);      // while editing, the arrows nudge the selection
+  if (keys.has('KeyW') || (arrows && keys.has('ArrowUp'))) v.add(fwd);
+  if (keys.has('KeyS') || (arrows && keys.has('ArrowDown'))) v.sub(fwd);
+  if (keys.has('KeyD') || (arrows && keys.has('ArrowRight'))) v.add(right);
+  if (keys.has('KeyA') || (arrows && keys.has('ArrowLeft'))) v.sub(right);
+  if (keys.has('KeyE') || (arrows && keys.has('PageUp'))) v.y += 1;
+  if (keys.has('KeyQ') || (arrows && keys.has('PageDown'))) v.y -= 1;
   if (v.lengthSq() > 0) camera.position.addScaledVector(v.normalize(), f);
 }
 
@@ -995,16 +1301,21 @@ function pick(x, y) {
       else if (u.dr2_item) { info = { type: u.dr2_kind || 'item', name: u.dr2_name, item: u.dr2_item, vpath: u.dr2_vpath, file: u.dr2_file, line: u.dr2_line }; target = o; }
     }
     if (!info) continue;
+    for (let o = h.object; o; o = o.parent) {
+      const u = o.userData || {};
+      if (u.zone || u.dr2_zone) { info.zone = u.zone || u.dr2_zone; break; }
+    }
     let zombieGroup = null;
     for (let o = target; o; o = o.parent) if (o.userData && o.userData.zombie) { zombieGroup = o; break; }
     if (editing && target && target.userData && target.userData.dr2_item) attachGizmo(target);
+    else if (editing && info.type === 'piece' && info.zone) attachPiece(target, info.zone);
     else if (editing && zombieGroup && attachZombie(zombieGroup)) {
       info = { type: 'marker', ...zombieGroup.userData.zombie };
       post('pick', info);
       return;
     }
     else detachGizmo();
-    for (let o = h.object; o; o = o.parent) if (o.userData && o.userData.zone) { info.zone = o.userData.zone; break; }
+    if (info.type === 'piece' && target.userData.dr2_copy) info.copy = true;
     info.point = h.point.toArray().map(c => Math.round(c * 1000) / 1000);
     pivot = h.point.clone();
     selected = target;

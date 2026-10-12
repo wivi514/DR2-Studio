@@ -35,13 +35,32 @@ game, not like grey boxes.
    keys), **Q / E** to go down and up, hold **Shift** to go faster, and turn the **mouse
    wheel** to change your speed. Right-drag turns around the last thing you clicked.
    Click in the view first if the keys don't respond.
-4. **Go to** (right panel) jumps to a spawn point, a map area ("Junkyard", "Cafeteria"),
-   a map point (workbench, save point) or a zone. In the list on the left, open a level
-   and double-click a zone to fly to it.
+4. **Go to** (the **Map** panel, right) jumps to a spawn point, a map area ("Junkyard",
+   "Cafeteria"), a map point (workbench, save point) or a zone. In the list on the left,
+   open a level and double-click a zone to fly to it. The **Hierarchy** panel (left,
+   under the list) lists everything in the level, buildings with their parts and collision
+   inside: type a name in its filter and click a row to fly there.
+
+## Arrange the windows
+
+Every panel of DR2 Studio is a window of its own: **Browse**, **Viewer**, **Level (3D)**,
+**Details**, **Map**, **Inspector**, **Hierarchy**, **Place** and **Mod and log**.
+
+- **Resize** one by dragging the line between two panels.
+- **Move** one by dragging its title bar to another side; drop it on another panel's title
+  to stack them as tabs.
+- **Its own window:** drag it out of DR2 Studio, or click the small window button at the
+  right of its title bar (double-click the title to put it back). The 3D level on a second
+  screen and the Inspector beside it is a good layout for editing.
+- **Windows** (toolbar) shows or hides each panel, **Put every window back** docks them
+  all, and **Reset layout** returns to how DR2 Studio started.
+
+DR2 Studio remembers your layout. The Maps panels show while the **Maps** tab is chosen and
+the Viewer and Details otherwise; a panel you dragged out as its own window stays open.
 
 ## Steps: layers, and what is this?
 
-5. **Layers** (right panel) switch each kind of thing on and off. On at first: the
+5. **Layers** (the **Map** panel) switch each kind of thing on and off. On at first: the
    buildings, items and doors, spawn points (green arrows: the way Chuck faces), map
    areas (blue outlines with their names) and map points. Off at first, tick them when you
    need them:
@@ -64,7 +83,7 @@ game, not like grey boxes.
      and **Acoustics points**.
 6. **Items and markers from:** some levels have more than one set of items. Case Zero's
    street has the story's (`prologue`) and the safehouse's (`prologue_safehouse`).
-7. **Click** anything: the right panel says what it is. A piece: its name, its zone and
+7. **Click** anything: the **Map** panel says what it is (*What is this?*). A piece: its name, its zone and
    its file. An item or a door: the item, its name in the level file and the line that
    places it, and its model. A marker: its name and settings.
 8. For a piece or an item: **Open in Library** shows that model on its own (with its
@@ -76,7 +95,7 @@ West's Phenotrans blueprint) with a red arrow where you are and the way you look
 the game's map, it shows the upper floor when you are upstairs and Case West's tunnels
 when you are in the basement. Click on it to jump there. Untick *In-game map* in Layers to hide it.
 
-**Time of day** (right panel): the slider picks the hour (00:00-23:00), and the view
+**Time of day** (the **Map** panel): the slider picks the hour (00:00-23:00), and the view
 takes the game's light for it from the level's lighting table: the sky's colours, the
 fog, the sun or moon on items and characters, the ambient light. Walls and floors keep
 their baked light (as in the game). In Case West each part of the facility has its own
@@ -89,7 +108,7 @@ to tell someone where something is).
 ## Steps: export a zone or the whole level
 
 9. Fly into the zone you want (the status line names the zones shown) and click **Export
-   zone…** in the right panel, or **Export level…** for every zone; pick a folder.
+   zone…** in the **Map** panel, or **Export level…** for every zone; pick a folder.
    DR2 Studio writes `<folder>/cz/prologue/`:
    - `prologue_z05.glb`: the zone for Blender, with its buildings placed, the items and
      doors (if *Items and doors* is ticked) and the markers whose layers are ticked;
@@ -158,8 +177,9 @@ and the big mural are there, with soft baked shadows.
 
 ## Going further
 
-- **Change the level:** tick **Edit** in the right panel to move, add and delete items,
-  change zombies, and add save points, doors and your own items:
+- **Change the level:** tick **Edit the level** in the **Inspector** to move, add and
+  delete items and whole buildings, change zombies, and add save points, doors and your
+  own items:
   [`19-edit-a-level.md`](19-edit-a-level.md).
 - What each level file holds, and how pieces are placed: [`formats.md`](../formats.md)
   §Levels.

@@ -50,7 +50,13 @@ tab's editor for items, doors and zombies (`studio/maps_edit.py`), prefabs (`cat
 your own (`mods/newitem.py`: a recipe, `add/` new entries), guide 19; checked in game in CZ (all) and CW
 (items, prefabs, zombie retypes). Measured: a block added inside a game mission breaks saves (refused); a mod's
 own mission runs in a new game only and its saves need it; a `.big` entry's `flags` is its declared
-alignment. Owed: level pieces (plan step 4, stretch) (`docs/phase11-kickoff.md` §Status).** Read these before writing code:
+alignment. Step 4 done 2026-10-11/12 (user: "closer to a real editor like Unity"): buildings
+(pieces grouped with their collision, `convert/buildings.py`) hidden / moved / resized /
+copied as `.pieces.json` (`formats/pieceedits.py`, `mods/pieceedit.py`), collision moved
+with them (`collision.move_shapes`: the Havok tree's origin), checked in CZ; every Studio
+panel a dock window (`studio/docks.py`), Inspector, Hierarchy, Place with drag and drop
+(`studio/maps_panels.py`), arrow-key nudging. Owed: CW building checks, collision for
+copies (`docs/phase11-kickoff.md` §Status).** Read these before writing code:
 
 | Doc | What it holds |
 |---|---|

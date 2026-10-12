@@ -4,9 +4,12 @@ Two widgets, wired by `app.MainWindow`:
 
 * `MapsList`, the left tab: the game's levels, each with its zones (double-click a zone
   to fly there).
-* `MapsView`, the centre: the Maps page (``web/maps.html`` + ``maps.js``, three.js in a
-  QWebEngineView, the same ``dr2:`` scheme as the 3D view, `model_view`) and a side
-  panel: which level script's items to show, the **Layers** (pieces, items and doors,
+* `MapsView`: the Maps page (``web/maps.html`` + ``maps.js``, three.js in a
+  QWebEngineView, the same ``dr2:`` scheme as the 3D view, `model_view`) and four panels
+  the window puts in dock windows of their own (each can be moved, resized, or floated
+  as a window): ``tools_panel`` (*Map*), ``inspector``, ``hierarchy`` and ``palette``
+  (*Place*; `maps_panels`). *Map*: which level script's items to show, the **Layers**
+  (pieces, items and doors,
   spawn points, zombie / map / lighting areas, triggers, sound areas, map points, the
   navigation mesh, the zombies, the collision mesh), **Go to** (a spawn point, a map area, a map point, a zone) and what
   was clicked, with *Open in Library*, *Open in Blender* and *Export .glb…* for a piece
@@ -20,12 +23,17 @@ ones near; `_Builder` (one worker thread, its own `AssetTree`) makes each file w
 gets its URL (``dr2://studio/maps/…``). A level change bumps a generation number, so
 requests of the previous level are dropped, never shown.
 
-**Editing** (phase 11, `studio.maps_edit`): with *Edit* ticked, a clicked item or door
-gets move / turn handles and its name, place and turn in the panel; every change goes into
-the **mod being edited** (the bottom bar's open mod) as ``.edits.json`` through
-`maps_edit.LevelEditor`, and the page is told what changed (``dr2.itemState``) instead of
-rebuilding the level. The file watcher's refresh that follows a save swaps the trees
-without reloading the level (`use_tree`, ``_own_write_until``).
+**Editing** (phase 11, `studio.maps_edit`): with *Edit* ticked, a clicked item, door,
+zombie or building gets move / turn (/ size, buildings) handles and its name, position,
+rotation and size in the **Inspector**; arrow keys nudge it. Every change goes into the
+**mod being edited** (the bottom bar's open mod) as ``.edits.json`` (items, doors,
+zombies) or ``.pieces.json`` (buildings) through `maps_edit.LevelEditor`, and the page is
+told what changed (``dr2.itemState``, ``dr2.pieceState``) instead of rebuilding the
+level. **Place** rows are dragged onto the 3D view (an event filter on the view takes the
+drop and asks the page for the floor point under the mouse, ``dr2.placeAt``) or
+double-clicked; the **Hierarchy** lists what the level holds and flies to a clicked row
+(``dr2.focus``). The file watcher's refresh that follows a save swaps the trees without
+reloading the level (`use_tree`, ``_own_write_until``).
 
 Without QtWebEngine the tab shows a note (like the 3D view); `dr2 level` and the exports
 still work.
@@ -40,7 +48,7 @@ import time
 import traceback
 from pathlib import Path
 
-from PySide6.QtCore import QObject, Qt, QThread, QUrl, Signal, Slot
+from PySide6.QtCore import QEvent, QObject, Qt, QThread, QTimer, QUrl, Signal, Slot
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QCompleter, QDoubleSpinBox, QFileDialog,
                                QGridLayout, QHBoxLayout, QInputDialog, QLabel, QLineEdit,
                                QPushButton, QTextBrowser, QTreeWidget, QTreeWidgetItem,
@@ -52,6 +60,7 @@ from . import model_view
 
 PAGE_URL = "dr2://studio/maps.html"
 ZOMBIE_OPS = ("zmove", "zdelete", "zset", "crowd", "zadd")
+PIECE_OPS = ("pmove", "phide", "pshow", "prestore", "pcopy")
 ROLE = Qt.UserRole + 1
 
 # The layers in the order the panel lists them, with whether they start on.
@@ -206,6 +215,9 @@ class MapsView(QWidget):
             self._page = _MapsPage(self._profile, self._message, self.view)
             self.view.setPage(self._page)
             self.view.load(QUrl(PAGE_URL))
+            self.view.setAcceptDrops(True)
+            self.view.installEventFilter(self)       # drops from the Place panel
+            self.view.loadFinished.connect(self._watch_drops)
             outer.addWidget(self.view, 1)
         else:
             why = model_view.WEB_ENGINE_ERROR or "the dr2: scheme could not be registered"
@@ -216,9 +228,9 @@ class MapsView(QWidget):
             note.setWordWrap(True)
             outer.addWidget(note, 1)
 
-        side = QWidget()
-        side.setMaximumWidth(330)
-        sl = QVBoxLayout(side)
+        from .maps_panels import HierarchyPanel, PlacePanel
+        self.tools_panel = QWidget()             # "Map": layers, go to, what is this
+        sl = QVBoxLayout(self.tools_panel)
         self.title = QLabel("<b>Maps</b><br>Pick a level on the left.")
         self.title.setWordWrap(True)
         sl.addWidget(self.title)
@@ -262,7 +274,19 @@ class MapsView(QWidget):
         self.info = QTextBrowser()
         self.info.setOpenLinks(False)
         sl.addWidget(self.info, 1)
-        self._build_edit_panel(sl)
+        self.inspector = QWidget()               # the selected thing, editable
+        il = QVBoxLayout(self.inspector)
+        self._build_edit_panel(il)
+        il.addStretch(1)
+        self.hierarchy = HierarchyPanel()
+        self.hierarchy.chosen.connect(self.focus)
+        self.palette = PlacePanel()
+        self.palette.place.connect(lambda spec: self.start_place(spec))
+        self._level_zones: dict[str, object] | None = None   # zone name -> ZoneData
+        self._hier_timer = QTimer(self)
+        self._hier_timer.setSingleShot(True)
+        self._hier_timer.setInterval(250)
+        self._hier_timer.timeout.connect(self.fill_hierarchy)
         row = QHBoxLayout()
         self.btn_library = QPushButton("Open in Library")
         self.btn_library.setToolTip("Show this model on its own, with its textures and actions")
@@ -296,7 +320,6 @@ class MapsView(QWidget):
         self.btn_copy.setToolTip("x, y, z of the camera, for notes or a bug report")
         self.btn_copy.clicked.connect(self._copy_position)
         sl.addWidget(self.btn_copy)
-        outer.addWidget(side)
         self._set_actions(None)
 
         self._gen = _Generation()
@@ -330,6 +353,8 @@ class MapsView(QWidget):
         self.cache = self._workers[0][1].cache if self._workers else None
         self._ui_cache = mapdata.MapCache(self.tree, game, db_path=db_path)
         self.level = None
+        self._level_zones = None
+        self.palette.set_source(self.place_rows, self.picture)
         return sorted(clevel.list_levels(self.tree), key=level_sort_key)
 
     def use_tree(self, make_tree) -> None:
@@ -361,6 +386,9 @@ class MapsView(QWidget):
             return
         same = level == self.level
         self.level = level
+        if not same:
+            self._level_zones = None
+            self.palette.forget("piece")
         self._gen.value += 1
         script = self.script_box.currentData() if same else None
         try:
@@ -404,6 +432,7 @@ class MapsView(QWidget):
             self.go_to_zone(zone)
         if self.edit_box.isChecked():
             self.sync_edits()
+        self._hier_timer.start()
 
     def _map_png(self, vpath: str) -> bytes | None:
         """The in-game map picture as PNG (made once per game and mod state)."""
@@ -579,7 +608,12 @@ class MapsView(QWidget):
             f"<tr><td><b>{_esc(k)}</b>&nbsp;</td><td>{_esc(v)}</td></tr>" for k, v in rows
             if v not in (None, "")) + "</table>")
         self._set_actions(info.get("vpath") if t in ("piece", "item", "door", "zombie") else None)
-        self._show_edit_target(info if t in ("item", "door") else None)
+        if t == "piece":
+            self._target = None
+            self._show_piece_target(info)
+        else:
+            self._ptarget = None
+            self._show_edit_target(info if t in ("item", "door") else None)
         self._show_zombie_target(info)
         self._btarget = None
         if self.edit_box.isChecked() and t == "marker" and info.get("cls") in (
@@ -699,45 +733,98 @@ class MapsView(QWidget):
         self.editor = None                        # maps_edit.LevelEditor of the open mod
         self._editor_key = None
         self._target: dict | None = None          # {file, name} being edited
+        self._ptarget: dict | None = None         # {zone, name}: a building being edited
         self._adding: str | None = None           # the item waiting for dr2:place
         self._usable: list[str] | None = None
-        sl.addWidget(QLabel("<b>Edit</b>"))
-        self.edit_box = QCheckBox("Edit items and doors (move, turn, add, delete)")
-        self.edit_box.setToolTip("Click an item or door, then drag its handles (T move, "
-                                 "R turn, F onto the floor, Delete, Ctrl+D copy, Ctrl+Z "
-                                 "undo). Saved into the mod open in the bottom bar.")
+        self.edit_box = QCheckBox("Edit the level (move, turn, add, delete)")
+        self.edit_box.setToolTip("Click an item, door, zombie or building, then drag its "
+                                 "handles or use the keys: arrows nudge it, Page Up / Down "
+                                 "up and down, [ ] turn, - = size (buildings); T move, R "
+                                 "turn, G size, F onto the floor, Delete, Ctrl+D copy, "
+                                 "Ctrl+Z undo. Shift: bigger steps, Alt: smaller. Saved "
+                                 "into the mod open in the bottom bar.")
         self.edit_box.toggled.connect(self._edit_toggled)
         sl.addWidget(self.edit_box)
         self.edit_mod = QLabel()
         self.edit_mod.setWordWrap(True)
         sl.addWidget(self.edit_mod)
+        self.sel_label = QLabel("Nothing selected: click something in the 3D view or "
+                                "the Hierarchy.")
+        self.sel_label.setWordWrap(True)
+        sl.addWidget(self.sel_label)
         grid = QGridLayout()
         self.ed_item = QLineEdit()
         self.ed_item.setToolTip("What it is: an item of items.txt (a bench → Chair_3…)")
         self.ed_item.editingFinished.connect(self._item_typed)
-        grid.addWidget(QLabel("Item"), 0, 0)
+        self.ed_item_label = QLabel("Item")
+        grid.addWidget(self.ed_item_label, 0, 0)
         grid.addWidget(self.ed_item, 0, 1, 1, 3)
-        self.ed_pos = []
-        for i, axis in enumerate("xyz"):
+
+        def spin(lo, hi, decimals, step, tip, suffix=""):
             sb = QDoubleSpinBox()
-            sb.setRange(-5000, 5000)
-            sb.setDecimals(3)
-            sb.setSingleStep(0.1)
-            sb.setToolTip(f"{axis} in metres (y is up)")
+            sb.setRange(lo, hi)
+            sb.setDecimals(decimals)
+            sb.setSingleStep(step)
+            sb.setSuffix(suffix)
+            sb.setToolTip(tip)
+            sb.setKeyboardTracking(False)
             sb.editingFinished.connect(self._fields_changed)
-            grid.addWidget(sb, 1, i + 1)
-            self.ed_pos.append(sb)
-        grid.addWidget(QLabel("Place"), 1, 0)
-        self.ed_turn = QDoubleSpinBox()
-        self.ed_turn.setRange(-360, 360)
-        self.ed_turn.setDecimals(1)
-        self.ed_turn.setSingleStep(15)
-        self.ed_turn.setSuffix("°")
-        self.ed_turn.setToolTip("Its turn about the up axis")
-        self.ed_turn.editingFinished.connect(self._fields_changed)
-        grid.addWidget(QLabel("Turn"), 2, 0)
-        grid.addWidget(self.ed_turn, 2, 1)
+            return sb
+        self.ed_pos = [spin(-5000, 5000, 3, 0.1, f"{a} in metres (y is up); the arrow keys "
+                            f"in the 3D view nudge it too") for a in "xyz"]
+        self.ed_rot = [spin(-360, 360, 1, 15, f"Turn about {a} in degrees" + (
+            " (its heading)" if a == "y" else " (a tilt)"), "°") for a in "xyz"]
+        self.ed_turn = self.ed_rot[1]              # the heading (zombies have only this)
+        self.ed_scale = [spin(0.01, 100, 3, 0.1, f"Size along {a} (1 = as the game has it; "
+                              f"buildings only: the game's items have no size)")
+                         for a in "xyz"]
+        for r, (label, boxes) in enumerate((("Position", self.ed_pos),
+                                            ("Rotation", self.ed_rot),
+                                            ("Size", self.ed_scale)), start=1):
+            grid.addWidget(QLabel(label), r, 0)
+            for i, sb in enumerate(boxes):
+                grid.addWidget(sb, r, i + 1)
+        self.same_size = QCheckBox("Same size in every direction")
+        self.same_size.setChecked(True)
+        grid.addWidget(self.same_size, 4, 1, 1, 3)
         sl.addLayout(grid)
+        row = QHBoxLayout()
+        self.mode_btns = {}
+        for mode, text, key in (("translate", "Move", "T"), ("rotate", "Turn", "R"),
+                                ("scale", "Size", "G")):
+            b = QPushButton(f"{text} ({key})")
+            b.setCheckable(True)
+            b.setAutoExclusive(True)
+            b.setToolTip(f"The handles in the 3D view {text.lower()} the selection (key {key})")
+            b.clicked.connect(lambda _c=False, m=mode: self._js(f"dr2.setGizmo('{m}')"))
+            self.mode_btns[mode] = b
+            row.addWidget(b)
+        self.mode_btns["translate"].setChecked(True)
+        sl.addLayout(row)
+        self.whole_box = QCheckBox("Whole building (all its parts and its collision)")
+        self.whole_box.setChecked(True)
+        self.whole_box.setToolTip("A building is several pieces (walls, boarded windows, signs, "
+                                  "writing…) and a collision shape: on, a click selects all of "
+                                  "it and they move, hide and copy together. Off: one piece "
+                                  "alone (its collision stays)")
+        self.whole_box.toggled.connect(lambda _on: self._reselect_piece())
+        sl.addWidget(self.whole_box)
+        self.part_of_row = QWidget()
+        prow = QHBoxLayout(self.part_of_row)
+        prow.setContentsMargins(0, 0, 0, 0)
+        prow.addWidget(QLabel("Part of"))
+        self.part_of = QComboBox()
+        self.part_of.setToolTip("Which building this piece belongs to. Studio guesses from "
+                                "shapes and names; put it right here (kept for next time)")
+        self.part_of.activated.connect(self._part_of_changed)
+        prow.addWidget(self.part_of, 1)
+        self.part_of_row.setVisible(False)
+        sl.addWidget(self.part_of_row)
+        self.tilt_box = QCheckBox("Turn handles tilt too (every axis)")
+        self.tilt_box.setToolTip("Off: the turn handle only turns about the up axis, which "
+                                 "is what most things need")
+        self.tilt_box.toggled.connect(lambda on: self._js(f"dr2.setRotateAll({str(on).lower()})"))
+        sl.addWidget(self.tilt_box)
         row = QHBoxLayout()
         self.btn_floor = QPushButton("Onto floor")
         self.btn_floor.setToolTip("Drop it onto the floor below (the collision mesh): F")
@@ -745,12 +832,15 @@ class MapsView(QWidget):
                                                         "('keydown', {code: 'KeyF'}))"))
         self.btn_dup = QPushButton("Copy")
         self.btn_dup.setToolTip("Another one beside it: Ctrl+D")
-        self.btn_dup.clicked.connect(lambda: self._target and self._edit(
-            {"op": "duplicate", **self._target}))
+        self.btn_dup.clicked.connect(self._copy_clicked)
         self.btn_del = QPushButton("Delete")
-        self.btn_del.setToolTip("Take it out of the level: Delete")
+        self.btn_del.setToolTip("Take it out of the level (a building is hidden): Delete")
         self.btn_del.clicked.connect(self._delete_clicked)
-        for b in (self.btn_floor, self.btn_dup, self.btn_del):
+        self.btn_putback = QPushButton("Put back")
+        self.btn_putback.setToolTip("A building back as the game has it (shown, in its place, "
+                                    "its size)")
+        self.btn_putback.clicked.connect(self._put_back)
+        for b in (self.btn_floor, self.btn_dup, self.btn_del, self.btn_putback):
             row.addWidget(b)
         sl.addLayout(row)
         self.z_panel = QWidget()
@@ -859,17 +949,33 @@ class MapsView(QWidget):
         else:
             n = self.editor.count() if self.editor is not None else 0
             self.edit_mod.setText(f"Saved into the mod <b>{Path(mod).name}</b>"
-                                  + (f": {n} change{'s' if n != 1 else ''} to the level "
-                                     f"files" if n else ""))
+                                  + (f": {n} change{'s' if n != 1 else ''} to the level"
+                                     if n else ""))
         has = on and self._target is not None
+        piece = self._ptarget if on else None
         z = self._ztarget if on else None
-        for w in (self.ed_item, self.btn_dup):
-            w.setEnabled(has)
-        movable = has or (z is not None and z["kind"] in ("single", "removal"))
-        for w in (self.ed_turn, self.btn_floor, *self.ed_pos):
+        self.ed_item.setEnabled(has)
+        self.ed_item.setVisible(not piece)
+        self.ed_item_label.setVisible(not piece)
+        self.btn_dup.setEnabled(has or piece is not None)
+        movable = has or piece is not None or (z is not None and z["kind"] in ("single", "removal"))
+        for w in (self.btn_floor, *self.ed_pos):
             w.setEnabled(movable)
-        self.ed_turn.setEnabled(has or (z is not None and z["kind"] == "single"))
-        self.btn_del.setEnabled(has or (z is not None and z["kind"] == "single"))
+        self.ed_turn.setEnabled(has or piece is not None or (z is not None and z["kind"] == "single"))
+        for w in (self.ed_rot[0], self.ed_rot[2]):
+            w.setEnabled(has or piece is not None)
+        for w in (*self.ed_scale, self.same_size):
+            w.setEnabled(piece is not None)
+        self.mode_btns["scale"].setEnabled(piece is not None)
+        hidden = False
+        if piece is not None and self.editor is not None:
+            st = self._piece_state()
+            hidden = bool(st and st.hidden)
+        self.btn_del.setText("Show" if hidden else "Delete")
+        self.btn_del.setEnabled(has or piece is not None or (z is not None and z["kind"] == "single"))
+        self.btn_putback.setVisible(piece is not None)
+        self.btn_putback.setEnabled(piece is not None and "#" not in piece["name"])
+        self.whole_box.setEnabled(piece is not None or on)
         self.z_panel.setVisible(z is not None and z["kind"] == "single")
         self.crowd_panel.setVisible(z is not None and z["kind"] == "crowd")
         self.btn_add_zombie.setEnabled(on and mod is not None and bool(self.level))
@@ -882,6 +988,28 @@ class MapsView(QWidget):
         ed = self.editor
         self.btn_undo.setEnabled(on and ed is not None and ed.can_undo())
         self.btn_redo.setEnabled(on and ed is not None and ed.can_redo())
+        if not on:
+            self.sel_label.setText("Tick <b>Edit the level</b> to change what you select.")
+        elif piece is not None and piece.get("group"):
+            b = self._building()
+            self.sel_label.setText(f"<b>Building</b> {_esc(piece['name'])} (zone "
+                                   f"{_esc(piece['zone'])}): {len(b.parts) if b else 1} parts, "
+                                   f"{len(b.shapes) if b else 0} collision shapes"
+                                   + (" — hidden" if hidden else ""))
+        elif piece is not None:
+            self.sel_label.setText(f"<b>Building part</b> {_esc(piece['name'])} (zone "
+                                   f"{_esc(piece['zone'])})" + (" — hidden" if hidden else "")
+                                   + "<br><small>its collision stays where it is</small>")
+        elif has:
+            self.sel_label.setText(f"<b>Placed</b> {_esc(self._target['name'])} "
+                                   f"({_esc(self._target['file'])})")
+        elif z is not None:
+            self.sel_label.setText({"single": "<b>Single zombie(s)</b>",
+                                    "removal": "<b>Clearing</b> (removes zombies around it)",
+                                    "crowd": "<b>Zombie crowd</b>"}.get(z["kind"], ""))
+        else:
+            self.sel_label.setText("Nothing selected: click something in the 3D view or "
+                                   "the Hierarchy, or drag something from Place.")
 
     def _edit_toggled(self, on: bool) -> None:
         if on and self._mod_dir() is None:
@@ -899,7 +1027,9 @@ class MapsView(QWidget):
             self.sync_edits()
         if not on:
             self._target = None
+            self._ptarget = None
         self._refresh_edit_panel()
+        self._hier_timer.start()
 
     def _show_edit_target(self, info: dict | None) -> None:
         """Fill the edit fields with what was clicked (an item or a door)."""
@@ -912,19 +1042,23 @@ class MapsView(QWidget):
                 st = None
             if st is not None:
                 self._target = {"file": info["file"], "name": info["name"]}
+                self._ptarget = None
                 self._fill_fields(st)
         self._refresh_edit_panel()
 
-    def _fill_fields(self, st) -> None:
-        from .maps_edit import yaw_of
-        self.ed_item.setText(st.item or "")
-        for sb, v in zip(self.ed_pos, st.position or (0, 0, 0)):
+    def _set_boxes(self, boxes, values) -> None:
+        for sb, v in zip(boxes, values):
             sb.blockSignals(True)
             sb.setValue(v)
             sb.blockSignals(False)
-        self.ed_turn.blockSignals(True)
-        self.ed_turn.setValue(round(yaw_of(st.rotation or (0, 0, 0, 1)), 1))
-        self.ed_turn.blockSignals(False)
+
+    def _fill_fields(self, st) -> None:
+        from .maps_edit import euler_of
+        self.ed_item.setText(st.item or "")
+        self._set_boxes(self.ed_pos, st.position or (0, 0, 0))
+        self._shown_rot = tuple(round(a, 1) for a in euler_of(st.rotation or (0, 0, 0, 1)))
+        self._set_boxes(self.ed_rot, self._shown_rot)
+        self._set_boxes(self.ed_scale, (1, 1, 1))
         self._shown_turn = self.ed_turn.value()
         if self.ed_item.completer() is None and self.editor is not None:
             c = QCompleter(sorted(b.name for b in self.editor.models.blocks.values()), self)
@@ -932,29 +1066,133 @@ class MapsView(QWidget):
             c.setFilterMode(Qt.MatchContains)
             self.ed_item.setCompleter(c)
 
+    def _rotation_typed(self, current):
+        """The rotation the fields ask for, or ``current`` when they show it unchanged
+        (so a quaternion isn't rounded through degrees for nothing)."""
+        from .maps_edit import quat_of_euler
+        rot = tuple(sb.value() for sb in self.ed_rot)
+        if all(abs(a - b) < 0.05 for a, b in zip(rot, getattr(self, "_shown_rot", rot))):
+            return current
+        return quat_of_euler(*rot)
+
     def _fields_changed(self) -> None:
-        """Place or turn typed in the panel."""
+        """Position, rotation or size typed in the Inspector."""
         z = self._ztarget
         if z and z["kind"] in ("single", "removal") and self.editor is not None:
             pos = [sb.value() for sb in self.ed_pos]
             yaw = math.radians(self.ed_turn.value()) if z["kind"] == "single" else None
             self._edit({"op": "zmove", "path": z["path"], "position": pos, "yaw": yaw})
             return
+        if self._ptarget and self.editor is not None:
+            st = self._piece_state()
+            if st is None:
+                return
+            sender = self.sender()
+            scale = [sb.value() for sb in self.ed_scale]
+            if self.same_size.isChecked() and sender in self.ed_scale:
+                scale = [sender.value()] * 3
+                self._set_boxes(self.ed_scale, scale)
+            pos = [sb.value() for sb in self.ed_pos]
+            rot = self._rotation_typed(st.rotation)
+            if (all(abs(a - b) < 5e-4 for a, b in zip(pos, st.position))
+                    and rot == st.rotation
+                    and all(abs(a - b) < 5e-4 for a, b in zip(scale, st.scale))):
+                return
+            self._edit({"op": "pmove", **self._ptarget, "position": pos,
+                        "rotation": list(rot), "scale": scale})
+            return
         if not self._target or self.editor is None:
             return
-        from .maps_edit import qmul, yaw_quaternion
         st = self.editor.state(**self._target)
         if st is None:
             return
         pos = tuple(sb.value() for sb in self.ed_pos)
-        rot = st.rotation
-        delta = self.ed_turn.value() - getattr(self, "_shown_turn", self.ed_turn.value())
-        if abs(delta) > 1e-6:                     # turn by the difference: keep any tilt
-            qy = yaw_quaternion(delta)
-            rot = qmul(qy, rot)
+        rot = self._rotation_typed(st.rotation)
         if all(abs(a - b) < 5e-4 for a, b in zip(pos, st.position or pos)) and rot == st.rotation:
             return
         self._edit({"op": "move", **self._target, "position": pos, "rotation": rot})
+
+    # ---- buildings (level pieces) --------------------------------------------------------
+
+    def zone_vpath(self, zone: str) -> str:
+        """``data/models/environment/<level>/<zone>.big`` of the open level."""
+        L = self._ui_cache.level(self.level)
+        return f"{L.vpath}/{L.find_zone(zone).zone}.big"
+
+    def level_zones(self) -> dict:
+        """The open level's zones as `convert.level.ZoneData` (read once per level)."""
+        if self._level_zones is None:
+            self._level_zones = {}
+            if self.level:
+                L = self._ui_cache.level(self.level)
+                for z in L.zones:
+                    try:
+                        self._level_zones[z.zone] = L.zone(z)
+                    except Dr2Error as e:
+                        self.status.emit(f"Maps: {e}")
+        return self._level_zones
+
+    def _piece_state(self):
+        p = self._ptarget
+        if p is None or self.editor is None:
+            return None
+        return self.editor.piece_state(self.zone_vpath(p["zone"]), p["name"])
+
+    def _show_piece_target(self, info: dict) -> None:
+        self._ptarget = None
+        ed = self.editor if self.edit_box.isChecked() else None
+        if ed is not None and info.get("type") == "piece" and info.get("zone") and info.get("name"):
+            self._ptarget = {"zone": info["zone"], "name": info["name"]}
+            self._clicked_piece = dict(self._ptarget)
+            if self.whole_box.isChecked() and "#" not in info["name"]:
+                b = self._building()
+                if b is not None:
+                    self._ptarget = {"zone": info["zone"], "name": b.name, "group": True}
+                    self._js(f"dr2.selectGroup({json.dumps(info['zone'])}, "
+                             f"{json.dumps(b.name)}, {json.dumps(b.parts)})")
+            st = self._piece_state()
+            if st is None:
+                self._ptarget = None
+            else:
+                self._target = None
+                self._fill_piece(st)
+        self._fill_part_of()
+        self._refresh_edit_panel()
+
+    def _building(self):
+        """The building of the selected piece (`convert.buildings.Building`), or None."""
+        p = self._ptarget
+        if p is None or self.editor is None:
+            return None
+        try:
+            return self.editor.zone(self.zone_vpath(p["zone"])).building(p["name"])
+        except Dr2Error:
+            return None
+
+    def _reselect_piece(self) -> None:
+        """Whole building switched on or off: select the clicked piece again."""
+        c = getattr(self, "_clicked_piece", None)
+        if c and self._ptarget:
+            if not self.whole_box.isChecked():
+                self._js(f"dr2.selectPiece({json.dumps(c['zone'])}, {json.dumps(c['name'])})")
+            self._show_piece_target({"type": "piece", **c})
+
+    def _fill_piece(self, st) -> None:
+        from .maps_edit import euler_of
+        self._set_boxes(self.ed_pos, st.position)
+        self._shown_rot = tuple(round(a, 1) for a in euler_of(st.rotation))
+        self._set_boxes(self.ed_rot, self._shown_rot)
+        self._set_boxes(self.ed_scale, st.scale)
+
+    def _copy_clicked(self) -> None:
+        if self._ptarget:
+            self._edit({"op": "pcopy", **self._ptarget})
+        elif self._target:
+            self._edit({"op": "duplicate", **self._target})
+
+    def _put_back(self) -> None:
+        if self._ptarget:
+            self._edit({"op": "prestore", **self._ptarget})
 
     def _item_typed(self) -> None:
         if not self._target or self.editor is None:
@@ -989,6 +1227,7 @@ class MapsView(QWidget):
                     self._ztarget = {"kind": "crowd", "path": crowds[0]["path"]}
         if self._ztarget:
             self._target = None
+            self._ptarget = None
             self._fill_zombie()
         self._refresh_edit_panel()
 
@@ -1111,7 +1350,11 @@ class MapsView(QWidget):
     # ---- prefabs and settings (step 5) ---------------------------------------------------
 
     def _delete_clicked(self) -> None:
-        if self._ztarget:
+        if self._ptarget:
+            st = self._piece_state()
+            self._edit({"op": "pshow" if st is not None and st.hidden else "phide",
+                        **self._ptarget})
+        elif self._ztarget:
             self._edit({"op": "zdelete", **self._ztarget})
         elif self._btarget and self._btarget.get("added"):
             self._edit({"op": "bremove", "file": self._btarget["file"],
@@ -1200,6 +1443,14 @@ class MapsView(QWidget):
             except Dr2Error:
                 continue
             states += ed._states(fname, _snapshot(s.original), _snapshot(s.doc))
+        from ..mods.pieceedit import pieces_path
+        for zname in self.level_zones():
+            zv = self.zone_vpath(zname)
+            if zv.lower() in ed.zones or pieces_path(ed.mod_dir, zv).is_file():
+                try:
+                    states += ed._piece_states(ed.zone(zv), {})
+                except Dr2Error as e:
+                    self.status.emit(f"Maps: {e}")
         self._send_states(states)
         self._send_markers()
         self._js(f"dr2.setZombies({json.dumps(ed.zombies(script))})")
@@ -1231,6 +1482,7 @@ class MapsView(QWidget):
         ed.forget("items.txt")
         ed.reload_models()
         self._usable = None
+        self.palette.forget("item")
         pos = [c + o for c, o in zip(st.position or (0, 0, 0), (1.0, 0.0, 0.0))]
         self._edit({"op": "add", "file": self._target["file"], "item": name, "position": pos})
         self.status.emit(f"Maps: {name} is your mod's own item (placed beside {st.item}); "
@@ -1251,6 +1503,274 @@ class MapsView(QWidget):
                                    if ed.models.resolve(b.name)), key=str.lower)
         return self._usable
 
+    # ---- Place and Hierarchy (maps_panels) ---------------------------------------------
+
+    def start_place(self, spec: dict, at: tuple[float, float] | None = None) -> None:
+        """Put what a Place row names into the level: at page pixel ``at`` (a drop), or
+        where the middle of the view meets the floor. Editing starts if it was off."""
+        if not self.level:
+            self.status.emit("Maps: open a level first (the Maps tab on the left)")
+            return
+        if not self.edit_box.isChecked():
+            self.edit_box.setChecked(True)
+            if not self.edit_box.isChecked():           # no mod chosen
+                return
+        kind, name = spec.get("kind"), spec.get("name", "")
+        if kind == "prefab":
+            pre = self._prefab_rows[spec["prefab"]] if spec.get("prefab") is not None and \
+                spec["prefab"] < len(getattr(self, "_prefab_rows", [])) else None
+            if pre is None:
+                return
+            self._adding = ("prefab", pre)
+        elif kind == "zombie":
+            self._adding = "zombie:" + name
+        elif kind == "piece":
+            self._adding = ("piece", spec["zone"], name, bool(spec.get("group")))
+        else:
+            self._adding = name
+        if at is None:
+            self._js("dr2.askPlace()")
+        else:
+            self._js(f"dr2.placeAt({at[0]:.1f}, {at[1]:.1f})")
+
+    def place_rows(self, kind: str) -> list[dict]:
+        """The Place panel's rows of one kind (`maps_panels.PlacePanel`)."""
+        if self.tree is None:
+            return []
+        if kind == "prefab":
+            self._prefab_rows = self.prefabs()
+            return [{"kind": "prefab", "name": p.name, "prefab": i, "label": p.name,
+                     "tip": f"{p.group}: {p.name}" + ("" if p.checked else
+                                                      " (not checked in game yet)")}
+                    for i, p in enumerate(self._prefab_rows)]
+        if kind == "item":
+            models = self.editor.models if self.editor is not None else self._item_models()
+            out = []
+            for b in sorted(models.blocks.values(), key=lambda b: b.name.lower()):
+                vp = models.resolve(b.name)
+                if vp:
+                    out.append({"kind": "item", "name": b.name, "vpath": vp,
+                                "tip": f"{b.name} ({b.cls})\n{vp}"})
+            return out
+        if kind == "zombie":
+            from ..convert.levelcheck import ZOMBIES
+            try:
+                arc = AssetTree(self.tree.root).open_archive(ZOMBIES)
+            except Dr2Error:
+                return []
+            return [{"kind": "zombie", "name": e.name[:-4],
+                     "tip": f"{e.name[:-4]}: goes in your mod's own mission (a new game)"}
+                    for e in sorted(arc.entries, key=lambda e: e.name.lower())
+                    if e.name.lower().endswith(".big")]
+        if kind == "piece":
+            out = []
+            for zname, zd in self.level_zones().items():
+                for b in self.zone_buildings(zname):
+                    out.append({"kind": "piece", "name": b.name, "zone": zname,
+                                "vpath": zd.pieces.get(b.name), "label": b.name,
+                                "group": True,
+                                "tip": f"{b.name} (zone {zname}): {len(b.parts)} parts. A "
+                                       f"copy has no collision, and stays with its zone"})
+            return out
+        return []
+
+    def zone_buildings(self, zone: str) -> list:
+        """A zone's buildings (`convert.buildings`): the mod's own when editing, else the
+        game's (read once per level)."""
+        if self.editor is not None and self.edit_box.isChecked():
+            return self.editor.zone(self.zone_vpath(zone)).buildings()
+        cache = self.__dict__.setdefault("_zone_buildings", {})
+        key = (self.level, zone, id(self.tree))
+        if key not in cache:
+            from ..convert import buildings as cb
+            from ..convert import level as cl
+            zd = self.level_zones()[zone]
+            cache[key] = cb.zone_buildings(zd, cl.zone_shapes(self.tree, zd),
+                                           cb.corrections(self.game, zone))
+        return cache[key]
+
+    def _part_of_changed(self, i: int) -> None:
+        """The modder put the selected part into another building (or alone): kept in
+        the config folder (`convert.buildings.set_correction`), used from now on."""
+        from ..convert import buildings as cb
+        p = getattr(self, "_clicked_piece", None)
+        target = self.part_of.itemData(i)
+        if p is None or i < 0 or target == "?":
+            return
+        cb.set_correction(self.game, p["zone"], p["name"], target)
+        self.__dict__.pop("_zone_buildings", None)
+        if self.editor is not None:
+            self.editor.zone(self.zone_vpath(p["zone"]))._buildings = None
+        self.palette.forget("piece")
+        self._hier_timer.start()
+        self.status.emit(f"Maps: {p['name']} is now " + (
+            "a building of its own" if target == "" else "as Studio guesses" if target is None
+            else f"part of {target}"))
+        self._fill_part_of()
+
+    def _fill_part_of(self) -> None:
+        """The *Part of* list: the buildings of the selected part's zone, nearest first."""
+        p = getattr(self, "_clicked_piece", None)
+        self.part_of.blockSignals(True)
+        self.part_of.clear()
+        show = bool(self._ptarget and not self._ptarget.get("group") and p
+                    and "#" not in p["name"])
+        self.part_of_row.setVisible(show)
+        if show:
+            from ..convert import buildings as cb
+            bs = self.zone_buildings(p["zone"])
+            mine = cb.building_of(bs, p["name"])
+            here = next((x.centre for x in bs if mine is x), (0, 0, 0))
+            self.part_of.addItem(f"{mine.name if mine else '?'} (now)", "?")
+            self.part_of.addItem("(a building of its own)", "")
+            self.part_of.addItem("(as Studio guesses)", None)
+            for b in sorted(bs, key=lambda b: math.dist(b.centre, here)):
+                if b is not mine:
+                    self.part_of.addItem(f"{b.name} ({len(b.parts)} parts)", b.name)
+        self.part_of.blockSignals(False)
+
+    def _item_models(self):
+        from ..convert import placed
+        if getattr(self, "_models_tree", None) is not self.tree:
+            self._models = placed.ItemModels(self.tree)
+            self._models_tree = self.tree
+        return self._models
+
+    def picture(self, vpath: str) -> bytes | None:
+        """The Library's picture of a model (None when the index has none)."""
+        con = getattr(self.window, "con", None)
+        if con is None:
+            return None
+        from ..index import query
+        try:
+            row = query.get(con, self.game, vpath)
+            return query.picture(con, row["id"]) if row is not None else None
+        except Exception:  # noqa: BLE001 - a missing picture is only a missing icon
+            return None
+
+    def focus(self, target: dict) -> None:
+        """Fly to a Hierarchy row and select it once it is loaded (``dr2.focus``): a
+        building by its first piece (the Inspector selects all of it), a part alone, a
+        collision shape by flying there with the collision layer shown."""
+        if target.get("position") is None:
+            return
+        t = {k: v for k, v in target.items() if k != "children"}
+        if t["kind"] == "building":
+            self.whole_box.setChecked(True)
+            t["kind"] = "piece"
+        elif t["kind"] == "piece" and "#" not in t["name"]:
+            self.whole_box.setChecked(False)
+        elif t["kind"] == "collision":
+            self.layer_boxes["collision"].setChecked(True)
+            t["kind"] = "marker"
+        self._js(f"dr2.focus({json.dumps(t)})")
+
+    def fill_hierarchy(self) -> None:
+        """What the open level holds, as the mod being edited has it (when editing)."""
+        if not self.level or not self.meta:
+            self.hierarchy.fill({})
+            return
+        ed = self.editor if self.edit_box.isChecked() else None
+        rows: dict[str, list[dict]] = {"item": [], "piece": [], "zombie": [], "marker": []}
+        script = self._script()
+        if ed is not None and script:
+            from .maps_edit import ITEM_CLASSES
+            try:
+                sess = ed.session(f"{script}.txt")
+                shipped = {b.name.lower() for b in sess.original.blocks}
+                for b in sess.doc.blocks:
+                    if b.cls in ITEM_CLASSES and b.floats("Location"):
+                        rows["item"].append({"kind": "door" if b.cls == "cDoorPlacement"
+                                             else "item", "name": b.name,
+                                             "what": b.get("ItemName") or "",
+                                             "position": list(b.floats("Location")),
+                                             "added": b.name.lower() not in shipped})
+            except Dr2Error:
+                pass
+        else:
+            rows["item"] = [{"kind": i["kind"], "name": i["name"], "what": i.get("item") or "",
+                             "position": i["position"]} for i in self.meta.get("items", [])]
+        for zname, zd in self.level_zones().items():
+            ze = ed.zone(self.zone_vpath(zname)) if ed is not None else None
+            centres = {p.piece.lower(): p.centre for p in zd.organization.placements}
+            copies = [st for st in (ze.states() if ze else []) if st.copy]
+            shapes = {}
+            if ze is not None:
+                ze.buildings()
+                shapes = ze._shapes or {}
+            for b in self.zone_buildings(zname):
+                kids = [{"kind": "piece", "name": n, "zone": zname, "what": "part",
+                         "position": list(centres.get(n.lower(), b.centre)),
+                         "hidden": bool(ze and ze.hidden(n))} for n in b.parts]
+                kids += [{"kind": "piece", "name": c.name, "zone": zname, "what": "copy",
+                          "position": list(c.position), "added": True}
+                         for c in copies if c.piece.lower() in {n.lower() for n in b.parts}]
+                for mesh in b.shapes:
+                    col = (ze.edits.collision.get(mesh) if ze else None) or {}
+                    ps = shapes.get(mesh.lower())
+                    pos = [(lo + hi) / 2 for lo, hi in zip(*ps.bounds)] if ps else list(b.centre)
+                    kids.append({"kind": "collision", "name": mesh, "zone": zname,
+                                 "label": mesh.removeprefix("mesh").removeprefix("COL_"),
+                                 "what": "collision" + (" (hidden)" if col.get("hidden") else
+                                                        " (moved)" if col.get("move") else ""),
+                                 "position": pos})
+                rows["piece"].append({"kind": "building", "name": b.name, "zone": zname,
+                                      "what": f"{len(b.parts)} parts, {len(b.shapes)} "
+                                              f"collision · {zname}",
+                                      "position": list(b.centre),
+                                      "hidden": bool(ze and ze.building_hidden(b.name)),
+                                      "children": kids})
+        zs = ed.zombies(script) if ed is not None and script else self.meta
+        for z in zs.get("zombie_spawns") or []:
+            if z.get("position") and z.get("path"):
+                p = z.get("props") or {}
+                rows["zombie"].append({"kind": "zombie", "name": z["path"],
+                                       "what": (p.get("ZombieType") or z.get("spawn") or "")
+                                       + (f" ×{p['NumberOfZombies']}"
+                                          if p.get("NumberOfZombies") else ""),
+                                       "position": z["position"]})
+        for z in rows["zombie"]:
+            z["label"] = z["name"].rsplit("/", 1)[-1]
+        for m in self.meta.get("markers", []):
+            if m.get("position") and m["kind"] in ("spawn", "map_point", "trigger"):
+                rows["marker"].append({"kind": "marker", "name": m.get("label") or m["name"],
+                                       "what": {"spawn": "spawn point", "map_point": "map point",
+                                                "trigger": "trigger"}[m["kind"]],
+                                       "position": m["position"]})
+        self.hierarchy.fill(rows)
+
+    def _watch_drops(self, _ok=True) -> None:
+        """The page's own widget (QtWebEngine's focus proxy) gets the drag events: watch
+        it too."""
+        fp = self.view.focusProxy() if self.view is not None else None
+        if fp is not None and fp is not getattr(self, "_drop_proxy", None):
+            fp.setAcceptDrops(True)
+            fp.installEventFilter(self)
+            self._drop_proxy = fp
+
+    def eventFilter(self, obj, ev):  # noqa: N802 - Qt's name
+        """Drops from the Place panel onto the 3D view."""
+        from .maps_panels import MIME
+        t = ev.type()
+        if t in (QEvent.DragEnter, QEvent.DragMove, QEvent.Drop) and \
+                ev.mimeData().hasFormat(MIME):
+            pos = ev.position()
+            if obj is not self.view and self.view is not None:
+                pos = obj.mapTo(self.view, pos.toPoint())
+            x, y = float(pos.x()), float(pos.y())
+            ev.acceptProposedAction()
+            if t == QEvent.Drop:
+                spec = json.loads(bytes(ev.mimeData().data(MIME)).decode())
+                self.start_place(spec, (x, y))
+            else:
+                self._js(f"dr2.dragOver({x:.1f}, {y:.1f})")
+            return True
+        if t == QEvent.DragLeave:
+            self._js("dr2.dragEnd()")
+        if t == QEvent.ChildAdded and obj is self.view:
+            QTimer.singleShot(0, self._watch_drops)
+        return super().eventFilter(obj, ev)
+
     def _add_item(self) -> None:
         names = self.usable_items()
         if not names:
@@ -1266,6 +1786,16 @@ class MapsView(QWidget):
         if not self._adding:
             return
         item, self._adding = self._adding, None
+        if isinstance(item, tuple) and item[0] == "piece":     # a copy of a building
+            _k, zone, name, group = item
+            self._edit({"op": "pcopy", "zone": zone, "name": name, "position": msg["point"],
+                        "group": group})
+            z = next((z for z in (self.meta or {}).get("zones", []) if z["name"] == zone), None)
+            if z and not all(lo - 1 <= c <= hi + 1 for c, lo, hi in
+                             zip(msg["point"], z["min"], z["max"])):
+                self.status.emit(f"Maps: {name} belongs to zone {zone}: the game shows the "
+                                 f"copy only while that zone is loaded (put it near its zone)")
+            return
         if isinstance(item, tuple):                # a prefab
             self._edit({"op": "prefab", "prefab": item[1], "position": msg["point"]})
             return
@@ -1284,6 +1814,8 @@ class MapsView(QWidget):
         op = msg.get("op")
         if op in ZOMBIE_OPS:
             return self._zombie_edit(ed, msg)
+        if op in PIECE_OPS:
+            return self._piece_edit(ed, msg)
         done: list[str] = []
         try:
             if op == "move":
@@ -1334,6 +1866,12 @@ class MapsView(QWidget):
             return
         self._own_write_until = time.monotonic() + 5.0
         self._send_states(states)
+        if op in ("undo", "redo") and self._ptarget:          # it may have been a building
+            st = self._piece_state()
+            if st is None:
+                self._ptarget = None
+            else:
+                self._fill_piece(st)
         if op in ("undo", "redo"):                # it may have been a zombie change
             self._js(f"dr2.setZombies({json.dumps(ed.zombies(self._script()))})")
             if self._ztarget and self._zombie_now() is None:
@@ -1351,11 +1889,62 @@ class MapsView(QWidget):
         what = {"move": "moved", "delete": "deleted", "duplicate": "copied", "add": "added",
                 "item": "changed", "undo": "undone", "redo": "redone", "prefab": "added",
                 "keys": "changed", "bremove": "removed"}[op]
-        names = ", ".join(done or [s.name for s in states]) or "nothing"
+        names = ", ".join(done or [s.name for s in states if s.name]) or "nothing"
         self.status.emit(f"Maps: {what} {names} (saved into {Path(ed.mod_dir).name})")
+        self._after_edit()
+
+    def _after_edit(self) -> None:
         self._refresh_edit_panel()
+        self._hier_timer.start()
         if hasattr(self.window, "_refresh_mod"):      # the bottom bar's list of changes
             self.window._refresh_mod()
+
+    def _piece_edit(self, ed, msg: dict) -> None:
+        """A building hidden, shown, moved, put back or copied (`maps_edit.LevelEditor`)."""
+        op, name = msg["op"], msg["name"]
+        if msg.get("group"):
+            return self._building_edit(ed, msg)
+        try:
+            zv = self.zone_vpath(msg["zone"])
+            if op == "pmove":
+                states = ed.piece_move(zv, name, msg.get("position"), msg.get("rotation"),
+                                       msg.get("scale"))
+                what = "moved"
+            elif op in ("phide", "pshow"):
+                states = ed.piece_hide(zv, name, op == "phide")
+                what = "hidden" if op == "phide" and "#" not in name else (
+                    "removed" if op == "phide" else "shown again")
+                if "#" in name:
+                    self._ptarget = None
+            elif op == "prestore":
+                states = ed.piece_restore(zv, name)
+                what = "put back as the game has it"
+            else:
+                pos = msg.get("position")
+                if pos is None:                            # Ctrl+D: beside it
+                    p = ed.zone(zv).placement(name)
+                    r = max(abs(a - b) for a, b in zip(p.bounds_max, p.bounds_min))
+                    pos = [p.position[0] + max(1.0, r / 2), p.position[1], p.position[2]]
+                new, states = ed.piece_copy(zv, name, pos, msg.get("rotation"),
+                                            msg.get("scale"))
+                self._ptarget = {"zone": msg["zone"], "name": new}
+                self._js(f"setTimeout(() => dr2.selectPiece({json.dumps(msg['zone'])}, "
+                         f"{json.dumps(new)}), 50)")
+                what, name = "copied", f"{name} → {new}"
+                self.status.emit("Maps: copies of buildings aren't checked in game yet")
+        except Dr2Error as e:
+            self.status.emit(f"Maps: {e}")
+            st = self._piece_state()
+            if st is not None:                    # put the page back where the file is
+                self._send_states([st])
+            return
+        self._own_write_until = time.monotonic() + 5.0
+        self._send_states(states)
+        st = self._piece_state()
+        if st is not None:
+            self._fill_piece(st)
+        self.status.emit(f"Maps: {what} {name} (saved into {Path(ed.mod_dir).name})")
+        self._after_edit()
 
     def _zombie_edit(self, ed, msg: dict) -> None:
         op = msg["op"]
@@ -1387,12 +1976,64 @@ class MapsView(QWidget):
                 self._fill_zombie()
         if op != "zadd":
             self.status.emit(f"Maps: zombies changed (saved into {Path(ed.mod_dir).name})")
-        self._refresh_edit_panel()
-        if hasattr(self.window, "_refresh_mod"):
-            self.window._refresh_mod()
+        self._after_edit()
+
+    def _building_edit(self, ed, msg: dict) -> None:
+        """A whole building moved, hidden, shown, put back or copied, with its collision."""
+        op, name, zone = msg["op"], msg["name"], msg["zone"]
+        warn: list[str] = []
+        try:
+            zv = self.zone_vpath(zone)
+            if op == "pmove":
+                states, warn = ed.building_move(zv, name, msg.get("position"),
+                                                msg.get("rotation"), msg.get("scale"))
+                what = "moved (with its collision)"
+            elif op in ("phide", "pshow"):
+                states = ed.building_hide(zv, name, op == "phide")
+                what = "hidden with its collision" if op == "phide" else "shown again"
+            elif op == "prestore":
+                states = ed.building_restore(zv, name)
+                what = "put back as the game has it"
+            else:
+                pos = msg.get("position")
+                lead = ed.zone(zv).placement(name)
+                if pos is None:                            # Ctrl+D: beside it
+                    b = ed.zone(zv).building(name)
+                    w = max(hi - lo for lo, hi in zip(b.bounds_min, b.bounds_max)) if b else 2
+                    pos = [lead.position[0] + max(2.0, w), lead.position[1], lead.position[2]]
+                else:                                      # dropped: stand it on the point
+                    b = ed.zone(zv).building(name)
+                    if b is not None:
+                        pos = [pos[0], pos[1] + lead.position[1] - b.bounds_min[1], pos[2]]
+                names, states = ed.building_copy(zv, name, pos)
+                what = f"copied as {names[0]} ({len(names)} parts; a copy has no collision)"
+                self._ptarget = None
+                self._js(f"setTimeout(() => dr2.selectPiece({json.dumps(zone)}, "
+                         f"{json.dumps(names[0])}), 50)")
+        except Dr2Error as e:
+            self.status.emit(f"Maps: {e}")
+            return
+        self._own_write_until = time.monotonic() + 5.0
+        self._send_states(states)
+        if self._ptarget and self._ptarget.get("group"):
+            b = self._building()
+            st = self._piece_state()
+            if st is not None:
+                self._fill_piece(st)
+            if b is not None and not (st and st.hidden):
+                self._js(f"dr2.selectGroup({json.dumps(zone)}, {json.dumps(b.name)}, "
+                         f"{json.dumps(b.parts)})")
+        self.status.emit(f"Maps: {name} {what} (saved into {Path(ed.mod_dir).name})"
+                         + ("; " + " ".join(warn) if warn else ""))
+        self._after_edit()
 
     def _send_states(self, states) -> None:
+        from ..mods.pieceedit import PieceState
         from .maps_edit import item_glb
+        pieces = [st.to_dict() for st in states if isinstance(st, PieceState)]
+        if pieces:
+            self._js(f"dr2.pieceState({json.dumps(pieces)})")
+        states = [st for st in states if not isinstance(st, PieceState)]
         out = []
         for st in states:
             d = st.to_dict()

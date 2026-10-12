@@ -60,6 +60,10 @@ versions may lift them). Every number below was measured on the games' own files
 | Changing the game's own zombies (types, amounts, places) and adding a type to a crowd | free; saves keep working | game |
 | A zombie type the level doesn't load | showed in a test (8 `pro_zombie_cop` in the street); its memory cost is not measured, keep numbers small | game |
 | Items, doors, save points added to a level | work, saves keep working | game |
+| Moving, hiding, resizing buildings | works; its collision is moved or hidden with it (DR2 Studio does it with **Whole building** on) | game, checked 2026-10-11/12 |
+| Turning or resizing a building's collision | **not possible**: collision keeps its shape and angle, only moved (Havok's search tree can't be rebuilt) | toolkit ([`19-edit-a-level.md`](19-edit-a-level.md)) |
+| Copies of buildings | show, but **have no collision**, and show only while their own zone is loaded | game, measured |
+| Item size | items can't be resized (their placements have no size) | game |
 | A wall or building of your own | an unmovable item with collision (like `MilitaryBarrier`) blocks the player | game |
 
 ## Check it worked

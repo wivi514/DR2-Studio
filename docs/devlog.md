@@ -17,6 +17,36 @@ Entry template:
 
 ---
 
+## 2026-10-12 — Phase 11 step 4: buildings, and an editor like Unity's
+**Done:** the user asked for DR2 Studio to be "closer to a real editor like Unity": drag
+and drop ready-made things, remove buildings and any item, select something and nudge it
+with the arrow keys, rotation and scale, and every window resizable and detachable.
+Built: every panel a dock window (`studio/docks.py`: a stage in the middle for the viewer
+and the 3D level, the Maps / assets modes, *Windows* menu, layout saved); the Maps
+editor's **Inspector** (position, rotation in three axes, size), **Hierarchy** and
+**Place** (`studio/maps_panels.py`: drag onto the view, `dr2.placeAt`); arrow keys, `[ ]`,
+`- =` on the selection (one undo step per burst); **buildings**: `.pieces.json` mods
+(`formats/pieceedits.py`, `mods/pieceedit.py`, build kind `pieces`), collision moved with
+them (`formats.collision.move_shapes`), whole-building selection (`convert/buildings.py`,
+`dr2.selectGroup`), the modder's grouping corrections (*Part of*); census
+`check_buildings`. Two in-game tests in CZ with the user.
+**Why:** making level mods should feel like a level editor; and a building is several
+pieces plus collision kept apart, so editing one piece left boards, writing and invisible
+walls behind.
+**Learned:** collision is not tied to a piece's placement record; each Havok shape's
+search tree stores its origin (the vertices' lowest corner, little-endian floats) so a
+shape can be moved or sent away, never turned or resized; a copied piece has no
+collision; hiding whole buildings with their shapes works (world-space and piece-space
+shapes alike). Studio's first dock layout gave the bottom area all the room (no central
+widget; fixed with a central "stage"), and `resizeDocks` does nothing before the window
+shows. Editing over *With my mods* records another mod's moves too (documented; a building
+another mod hid can't be selected).
+**Docs updated:** `formats.md` (status rows, `hkpMoppCode`, "Piece edits", "Buildings"),
+guides 18 and 19, `15-limits.md`, `06-mod-packages.md`, `glossary.md`, `ARCHITECTURE.md`,
+`roadmap.md`, `dev/studio.md`, `dev/code-tour.md`, `phase11-kickoff.md`, `README.md`,
+`CLAUDE.md`.
+**Next:** check building edits in Case West; collision for copies (new Havok shapes).
+
 ## 2026-10-11 — Phase 11 handed to the user for testing
 **Done:** started DR2 Studio for the user to test the Maps editor; installed (as they
 chose) two mods that keep their test saves loadable (the test missions with 0 zombies,

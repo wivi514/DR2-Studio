@@ -51,8 +51,8 @@ from PySide6.QtGui import QAction, QIcon, QImage, QPixmap, QStandardItem, QStand
 from PySide6.QtWidgets import (QApplication, QComboBox, QFileDialog, QHBoxLayout, QLabel,
                                QLineEdit, QListView, QListWidget, QListWidgetItem,
                                QMainWindow, QMessageBox, QPlainTextEdit, QPushButton,
-                               QSplitter, QStackedWidget, QTabWidget, QTextBrowser,
-                               QTreeView, QVBoxLayout, QWidget)
+                               QScrollArea, QStackedWidget, QTabWidget,
+                               QTextBrowser, QToolButton, QTreeView, QVBoxLayout, QWidget)
 
 from .. import __version__
 from ..container.vpath import AssetTree
@@ -288,9 +288,8 @@ class MainWindow(QMainWindow):
         self.empty.setAlignment(Qt.AlignCenter)
         self.centre = QStackedWidget()
         for w in (self.empty, self.tex_view, self.plain_view, self.model_view, self.audio_view,
-                  self.text_view, self.strings_view, self.video_view, self.maps_view):
+                  self.text_view, self.strings_view, self.video_view):
             self.centre.addWidget(w)
-        self._centre_before = self.empty
 
         # --- right: details, relations, actions
         self.details = QTextBrowser()
@@ -365,6 +364,8 @@ class MainWindow(QMainWindow):
 
         # --- bottom: mod bar + log
         self.mod_label = QLabel("No mod open: New mod… to start one.")
+        self.mod_label.setWordWrap(True)          # a long folder path never widens the window
+        self.mod_label.setMinimumWidth(120)
         self.mod_files = QListWidget()
         self.mod_files.setMaximumHeight(110)
         self.mod_files.setToolTip("The open mod's changes. Double-click to see the asset; "
@@ -404,16 +405,34 @@ class MainWindow(QMainWindow):
 
         self.right_panel = rw
         self.left.currentChanged.connect(self._left_tab_changed)
-        top = QSplitter(Qt.Horizontal)
-        top.addWidget(self.left)
-        top.addWidget(self.centre)
-        top.addWidget(rw)
-        top.setSizes([480, 700, 320])               # the Library grid needs the room
-        main = QSplitter(Qt.Vertical)
-        main.addWidget(top)
-        main.addWidget(bw)
-        main.setSizes([700, 180])
-        self.setCentralWidget(main)
+        # --- every panel is a dock window: resized, moved, tabbed, or its own window
+        from .docks import Layout
+        self.panels = P = Layout(self)
+        mv = self.maps_view
+        P.add("browse", "Browse", self.left,
+              tip="The Library, the Maps, the files and the search")
+        P.add("viewer", "Viewer", self.centre, mode="assets", stage=True,
+              tip="The selected asset: a picture, a model in 3D, a sound, a text…")
+        P.add("details", "Details", _scrolled(rw), mode="assets",
+              tip="What the selected asset is, what uses it, and what you can do with it")
+        P.add("map", "Level (3D)", mv, mode="maps", stage=True, tip="The open level in 3D")
+        P.add("map_tools", "Map", _scrolled(mv.tools_panel), mode="maps",
+              tip="Layers, time of day, go to, what you clicked, exports")
+        P.add("inspector", "Inspector", _scrolled(mv.inspector), mode="maps",
+              tip="Edit the selected item, door, zombie or building")
+        P.add("hierarchy", "Hierarchy", mv.hierarchy, mode="maps",
+              tip="Everything in the open level: click one to fly to it")
+        P.add("place", "Place", mv.palette, mode="maps",
+              tip="Prefabs, items, zombies and buildings to drag into the level")
+        P.add("mod", "Mod and log", bw, tip="The mod you are making, and what Studio did")
+        P.arrange()
+        P.restore()
+        windows = QToolButton()
+        windows.setText("Windows")
+        windows.setToolTip("Show or hide each panel; put every window back; reset the layout")
+        windows.setMenu(P.menu())
+        windows.setPopupMode(QToolButton.InstantPopup)
+        tb.addWidget(windows)
 
         self.deploy_status = QLabel()
         self.statusBar().addPermanentWidget(self.deploy_status)
@@ -1317,7 +1336,8 @@ class MainWindow(QMainWindow):
             self.mod_files.addItem(str(e))
             return
         labels = {"texture-png": "texture", "model-glb": "model", "audio": "sound",
-                  "strings": "strings", "edits": "level", "raw": "file"}
+                  "strings": "strings", "edits": "level", "pieces": "buildings",
+                  "raw": "file"}
         for rel, _src in mod.files():
             kind, target = _kind_of(rel)
             it = QListWidgetItem(f"{labels.get(kind, kind):<8}  {target}")
@@ -1632,7 +1652,13 @@ class MainWindow(QMainWindow):
         QApplication.processEvents()
         return not self._threads
 
+    def showEvent(self, ev):  # noqa: N802 - Qt's name
+        super().showEvent(ev)
+        if self.panels.sizes_pending:                 # the default layout's sizes
+            QTimer.singleShot(0, self.panels.fit)
+
     def closeEvent(self, ev):
+        self.panels.save()
         self.wait_for_jobs()
         self.maps_view.shutdown()
         super().closeEvent(ev)
@@ -1689,7 +1715,7 @@ class MainWindow(QMainWindow):
 
     def _reshow(self) -> None:
         """Show the current asset again (the 3D view keeps its camera: a compare)."""
-        if self.current is not None and self.centre.currentWidget() is not self.maps_view:
+        if self.current is not None:
             self._keep_view_once = True
             self.show_asset(self.current["id"])
 
@@ -1728,19 +1754,12 @@ class MainWindow(QMainWindow):
     # ---- the Maps tab (phase 10) ---------------------------------------------------------
 
     def _left_tab_changed(self, index: int) -> None:
-        """The Maps tab owns the centre and has its own side panel; the other tabs get
-        back the viewer they showed."""
-        if self.left.widget(index) is self.maps_list:
-            if self.centre.currentWidget() is not self.maps_view:
-                self._centre_before = self.centre.currentWidget()
-            self.centre.setCurrentWidget(self.maps_view)
-            self.right_panel.hide()
-        else:
-            self.right_panel.show()
-            if self.centre.currentWidget() is self.maps_view:
-                self.centre.setCurrentWidget(self._centre_before)
+        """The Maps tab shows the Maps panels (the level in 3D, Map, Inspector, Hierarchy,
+        Place); the other tabs the viewer and its details (`docks.Layout.mode`)."""
+        self.panels.mode(self.left.widget(index) is self.maps_list)
 
     def _map_chosen(self, level: str, zone: str) -> None:
+        self.panels.show_panel("map")
         if self.maps_view.level == level and zone:
             self.maps_view.go_to_zone(zone)
         else:
@@ -1789,6 +1808,16 @@ class MainWindow(QMainWindow):
             self.con = connect(self.db_path)
             self.set_game(self.game)
         self.run_job(work, done)
+
+
+def _scrolled(w: QWidget) -> QScrollArea:
+    """``w`` in a scroll area: a panel made short (docked under another) still shows all
+    of it."""
+    sa = QScrollArea()
+    sa.setWidget(w)
+    sa.setWidgetResizable(True)
+    sa.setFrameShape(QScrollArea.NoFrame)
+    return sa
 
 
 def _help_links(step: str) -> str:

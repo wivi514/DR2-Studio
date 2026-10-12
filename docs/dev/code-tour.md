@@ -49,6 +49,7 @@ dr2kit/
     placed.py          what the level text files place: items (→ models), doors, markers (phase 10)
     zombies.py         zombie crowds from missions.txt, spread over their areas (phase 10)
     levelcheck.py      what level edits mean: items, zombie types, load sets, areas, triggers (phase 11)
+    buildings.py       a zone's pieces grouped into buildings, each with its collision shapes (phase 11)
     mapdata.py         the Maps tab's data: zone files cached on disk, a level's markers as JSON (phase 10)
     video.py           Bink movies (Case West): probe, frames, sound, .mp4 export (phase 6)
   index/
@@ -65,6 +66,7 @@ dr2kit/
     play.py            Play: deploy the switched-on mods, start the recomp, what is deployed (phase 7)
     preview.py         see the switched-on mods without the game: a ModdedTree for every view (phase 10)
     leveledit.py       one mod's edits of one text file: edit, undo, save as the diff (phase 11)
+    pieceedit.py       one mod's building edits of one zone: pieces, copies, collision, undo (phase 11)
     newitem.py         a new item of your own: a recipe that copies a game item's pack (phase 11)
     texture_import.py  exports from Substance Painter / Blender / any program → the model's textures (phase 7)
   studio/
@@ -73,7 +75,9 @@ dr2kit/
     variant_panel.py   the Variants panel beside the 3D view: slots, colours, detail (phase 9)
     maps_view.py       the Maps tab: level list, the 3D level page, layers, Go to, what is this (phase 10);
                        the Edit section (phase 11)
-    maps_edit.py       the Maps editor: LevelEditor (move, turn, add, delete, undo), item_glb (phase 11)
+    maps_edit.py       the Maps editor: LevelEditor (move, turn, add, delete, undo; buildings), item_glb (phase 11)
+    maps_panels.py     the Maps editor's Place (drag things in) and Hierarchy (find things) panels
+    docks.py           every panel a dock window: layout, the two modes, Windows menu, saved layout
     audio_view.py      the audio view: waveform, playback (QAudioSink), loop (phase 5)
     text_view.py       text editor with a diff, and the string-bank table (phase 6)
     video_view.py      the movie view: Bink pictures + sound (phase 6)
@@ -445,7 +449,7 @@ it has one), and `overview(cache, level, script)` is the JSON a level opens with
 (`map_picture`: the in-game map and the world rectangle it covers, from `map_rects`). In
 `convert.gltf`, `lightmap_slots(scene)` and `blend_slots(scene)` say which materials
 carry a lightmap (occlusion texture on its UV set) or a two-texture blend (extras).
-`studio/maps_view.py` holds `MapsList` (left tab), `MapsView` (page + side panel) and
+`studio/maps_view.py` holds `MapsList` (left tab), `MapsView` (page + its panels) and
 `_Builder` threads; `web/maps.js` the page (zone streaming, fly / orbit camera, markers,
 picking) and `web/levelmaterials.js` the level materials, shared with `viewer.js`.
 
@@ -484,6 +488,29 @@ changes when a level opens. Own items: `mods/newitem.new_item` writes a `.copy.j
 `Planned.data` for recipes) and `add_entry` inserts them; `BigArchive.add` gives a new
 entry its siblings' declared alignment (`sibling_flags`); `ModdedTree._apply` shows adds;
 `LevelEditor.reload_models` sees the mod's own items (a `Preview` of the mod alone).
+
+### `formats/pieceedits.py`, `mods/pieceedit.py`, `convert/buildings.py` (phase 11 step 4)
+Building edits ([`formats.md`](../formats.md) §Levels, "Piece edits", "Buildings").
+`pieceedits` reads and writes `.pieces.json` (`Edits`: `pieces`, `copies`, `collision`),
+`apply(org, edits)` (a new `ZoneOrganization`: records placed anew by `placed`, hidden ones
+`parked`, copies appended), `zone_bytes` / `collision_bytes` / `target_bytes` (the nested
+archive written again) and `merge(layers)`. `formats.collision.move_shapes` moves shapes
+(vertices, the search tree's origin, the header). `mods/build.py` plans the kind `pieces`
+like `edits` (grouped by target, merged, dry-run; verified after the build).
+`convert.level.zone_shapes` gives each collision shape placed (`PlacedShape`: rule, piece,
+world vertices; `zone_collision` merges them). `buildings.zone_buildings(zone, shapes,
+moves)` groups pieces (`Building`: parts, shapes, bounds), `corrections` /
+`set_correction` keep the modder's own (`buildings.json`). `mods/pieceedit.PieceEdits`
+holds one zone's edits in a mod: `place`, `hide`, `restore`, `copy`, `drop_copy`, the
+whole-building calls (`place_building` moves the parts relative to the first and the
+collision by the first's offset, in each shape's own space), undo snapshots, `save` (two
+files). `maps_edit.LevelEditor` wraps them (`piece_*`, `building_*`, `_piece_states`).
+`census.check_buildings` checks every search tree's origin, a moved shape per zone, and
+counts the buildings.
+
+### `studio/docks.py`, `studio/maps_panels.py` (2026-10-11)
+The window's dock windows and the Maps editor's Place and Hierarchy panels: dev/studio.md,
+"Dock windows" and "The Maps tab".
 
 ### `dr2kit/convert/variants.py` (phase 9)
 What a model can show, the way the game decides it ([`formats.md`](../formats.md)

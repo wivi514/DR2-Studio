@@ -24,14 +24,32 @@ Phase 10 already *shows* zombie spawn areas and placed objects; phase 11 lets a 
 The research (2026-10-11) is below, then the plan. Facts also in
 [`formats.md`](formats.md) §Levels.
 
-## Status (2026-10-11): built and checked in game; the user's own test of Studio started
+## Status (2026-10-12): built and checked in game, buildings included
 
-**Summary (end of 2026-10-11):** steps 1, 2, 3, 5 and 7 done; step 6 done for what the
-in-game tests could show (CZ all; CW items, prefabs, zombie retypes). The user started
-testing DR2 Studio (Maps tab, Edit) the same evening: **their findings come first in the
-next session**. Owed: step 4 (level pieces: an in-game collision test first), CW's own
-mission pack and save rules, Studio textures for a new item (CLI `--texture` only), map
-icons for added save points, turning triggers after placing them. The user's newest CZ
+**Summary (2026-10-12):** steps 1-5 and 7 done; step 6 done for what the in-game tests
+could show (CZ all; CW items, prefabs, zombie retypes). **Step 4 done** (2026-10-11/12,
+user request "closer to a real editor like Unity"): buildings (level pieces grouped with
+their collision) hidden, moved, turned, resized and copied as `.pieces.json` mods, their
+collision moved or hidden with them, checked in CZ (`formats.md` §Levels "Piece edits",
+"Buildings"); Studio's panels are dock windows, the Maps editor has an Inspector
+(position / rotation / size), a Hierarchy, a Place panel (drag and drop) and arrow-key
+nudging. Owed: CW in-game checks of building edits; collision for copies (new shapes);
+turning collision (needs a rebuilt Havok search tree); CW's own mission pack and save
+rules, Studio textures for a new item (CLI `--texture` only), map icons for added save
+points, turning triggers after placing them; a `dr2 level` command for buildings.
+
+**Step 4 (2026-10-11/12): buildings.** First in-game test (record edits only): a hidden
+piece goes but its collision stays (and the building's other pieces: boards, writing), a
+copied piece shows without collision. Found: collision isn't tied to the placement
+record; each shape's Havok search tree starts at its lowest vertex corner (every shape of
+both games), so a shape can be moved by moving its vertices and that origin. Built:
+`formats/pieceedits.py` (+ collision edits), `formats.collision.move_shapes`,
+`convert/buildings.py` (grouping), `mods/pieceedit.py`, the `pieces` build kind, the
+editor's whole-building operations. Second test: a whole store hidden (collision gone),
+a building moved 4 m with its collision, the sheriff's office hidden (its piece-space
+collision gone too); the roof unit was left floating: fixed by the "rests on top" rule.
+Studio: `studio/docks.py`, `studio/maps_panels.py`, Inspector fields, `dr2.selectGroup`,
+pieces a mod hid not shown (`dr2_parked`). The user's newest CZ
 save and a CW new-game save need the test missions: the `keep-cz-test-save` /
 `keep-cw-test-save` mods (0 zombies) are installed and on in their library.
 

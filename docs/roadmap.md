@@ -286,8 +286,10 @@ placements; phase 11 changes them.
   save points (a `cTriggerVolume`, `ActionType 4`), workbenches, doors to levels, spawn
   points, zombies into spawners, static models (buildings, roads) as unmovable items;
   own models need the build to add new files; the modder's own `.dr2prefab` files.
-- Stretch: level pieces (binary placements; a piece's collision lives in the zone's
-  merged collision with a Havok search tree, so moving one needs an in-game test first).
+- Stretch, **done 2026-10-11/12**: level pieces as whole **buildings** (hide, move, turn,
+  resize, copy; their collision moved or hidden with them, checked in CZ), and a Studio
+  laid out like a game editor (dock windows, Inspector, Hierarchy, Place with drag and
+  drop, arrow keys), user request 2026-10-11.
   In-game proof of each edit, and the limits (items per level, zombies, load budget)
   measured.
 - **Gate:** every level text file round-trips byte-identical; each edit kind made in

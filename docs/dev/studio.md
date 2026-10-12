@@ -31,6 +31,9 @@ dr2kit/studio/
 
 ## The window
 
+*Since 2026-10-11 every panel below is a dock window (`studio/docks.py`, next section);
+the drawing shows the first layout.*
+
 ```
 ┌ Game [Case Zero ▾]  Build / refresh index  Mod manager… ─────────────────────────┐
 │ ┌ Browse | Search ─┐ ┌ Show [RGBA▾] mip [0] face [0] Zoom [fit▾] ┐ ┌ Details ───┐ │
@@ -69,6 +72,25 @@ dr2kit/studio/
 - **Mod bar**: *Open mod…* / *New mod…* select a mod folder (`mods.manifest`); *Build &&
   deploy* runs `mods.build.build` + `mods.deploy.deploy` into the recomp's
   `game_mods/` (on top of `game_patched`), the same as `dr2 mod deploy`.
+
+## Dock windows (2026-10-11)
+
+User request: "resize any window like maps, model and all, drag it and have it in a new
+window". `docks.Layout` makes every panel a `Dock` (a `QDockWidget`: movable, floatable,
+closable): *Browse* (the left tabs), *Details*, *Map*, *Inspector*, *Hierarchy*, *Place*,
+*Mod and log* around a **stage** in the middle, an inner `QMainWindow` (the main window's
+central widget) holding *Viewer* (the centre `QStackedWidget`) and *Level (3D)*
+(`MapsView`). The stage takes the room the side docks leave (a window with no central
+widget gave it to the bottom dock area); its two docks tab, split and float too. Default
+sizes are set once the window shows (`Layout.fit` from `MainWindow.showEvent`: Qt ignores
+`resizeDocks` before that) as parts of the window, and docks have minimum widths so none
+is squeezed to a sliver. `Layout.mode(maps)` shows the Maps set or the asset set (*Viewer*,
+*Details*) and hides the other's docked panels; a floating panel stays, and one the user
+closed (`Dock.user_closed`, set in `closeEvent`) stays closed until the *Windows* menu opens
+it. The *Windows* toolbar button lists every dock, *Put every window back*, *Reset layout*.
+The layout is saved on close and restored at start (`layout.ini` in the config folder:
+`saveState` of both windows, `LAYOUT_VERSION`), unless `DR2_STUDIO_NO_LAYOUT` is set (the
+tests set it).
 
 ## Threads and the index
 
@@ -260,10 +282,12 @@ between files. Results (and failures) go to the log; with `DR2_STUDIO_NO_DIALOGS
 
 ## The Maps tab (phase 10)
 
-**Maps** is the second left tab (`MapsList`: levels, zones). Choosing it hands the centre
-to `MapsView` and hides the right panel (the view has its own: item set, Layers, Go to,
-what was clicked, *Open in Library / Blender*, *Export .glb…*, *How to use Maps*, *Copy
-camera position*); leaving it gives back the viewer shown before.
+**Maps** is the second left tab (`MapsList`: levels, zones). Choosing it switches the
+window to the Maps panels (`docks.Layout.mode`, below): `MapsView` (the page, dock
+*Level (3D)*) and its panels `tools_panel` (*Map*: item set, Layers, Go to, what was
+clicked, *Open in Library / Blender*, *Export .glb…*, *How to use Maps*, *Copy camera
+position*), `inspector` (the edit fields), `hierarchy` and `palette` (*Place*,
+`studio/maps_panels.py`); leaving it shows the viewer and Details again.
 
 The page (`web/maps.html`, `maps.js`) talks with `dr2:` console lines like the 3D view:
 `ready`, `status`, `want {zone, part, detail, script}` (part: `pieces`, `items`, `zombies`,
@@ -280,17 +304,26 @@ URL (`dr2://studio/maps/<n>-<file>`), and answers `zoneReady`. A level change bu
 generation number; answers of an older generation are dropped. `_MapsPage` keeps the
 page's own console errors (a shader that doesn't compile) in `errors`.
 
-**Editing (phase 11, `studio/maps_edit.py`).** The panel's *Edit* section: a checkbox
-(`edit_box`), which mod the edits go into (the bottom bar's `mod_dir`; ticking it without
-one offers *New mod…*), the selected item's **Item** (a completer of `items.txt`),
-**Place** and **Turn** fields, *Onto floor*, *Copy*, *Delete*, *Add item…*, *Undo*,
-*Redo*. More page messages: `edit {op, name, file, position, rotation}` (op `move`,
+**Editing (phase 11, `studio/maps_edit.py`).** The **Inspector**: a checkbox
+(`edit_box`, *Edit the level*), which mod the edits go into (the bottom bar's `mod_dir`;
+ticking it without one offers *New mod…*), what is selected (`sel_label`), the selected
+item's **Item** (a completer of `items.txt`), **Position** (`ed_pos`), **Rotation**
+(`ed_rot`, degrees in three.js's `'YXZ'` order, `maps_edit.euler_of` / `quat_of_euler`;
+`ed_turn` is its y, the only one a zombie has) and **Size** (`ed_scale`, buildings only)
+fields, the *Move / Turn / Size* mode buttons (`dr2.setGizmo`), *Whole building*
+(`whole_box`) and *Part of* (`part_of`), *Turn handles tilt too* (`dr2.setRotateAll`),
+*Onto floor*, *Copy*, *Delete* / *Show*, *Put back*, *Add item…*, *Undo*, *Redo*. A rotation
+typed unchanged (within 0.05°) keeps the stored quaternion (`_rotation_typed`). More page messages: `edit {op, name, file, position, rotation}` (op `move`,
 `delete`, `duplicate`, `undo`, `redo`) and `place {point}`; Python calls
 `dr2.setEditing(on)`, `dr2.itemState([…])`, `dr2.askPlace()`, `dr2.selectItem(name)`.
 The page attaches three.js `TransformControls` (vendored) to a clicked item's node: T
 moves, R turns about the up axis, F drops it onto the floor (a ray down onto the collision
 mesh, which is loaded hidden while editing, else onto the pieces), Delete, Ctrl+D,
-Ctrl+Z / Ctrl+Y; a drag's end sends `edit move` with the node's world place and turn.
+Ctrl+Z / Ctrl+Y; a drag's end sends `edit move` with the node's world place and turn. The
+arrow keys nudge the selection along the world axis nearest the camera's look (`nudge`),
+Page Up / Down up and down, `[ ]` turn it, `- =` resize (buildings); a row of presses is
+sent once, 450 ms after the last (`saveSoon`), so it is one undo step. While something is
+selected the arrows don't move the camera (W A S D still do).
 `MapsView._edit` runs the change in the `LevelEditor` (one `mods.leveledit.TextEdits`
 per text file, saved as the diff after each change) and sends `dr2.itemState` the states
 of the items whose blocks changed: moved, removed, or with a new model, which it builds
@@ -319,6 +352,36 @@ game's markers, labelled *(your mod)*). *Settings…* edits a picked block's key
 (`set_keys`); *Save as prefab…* writes the selected item to `own_folder()`.
 `sync_edits` (on opening a level and on ticking Edit) sends the mod's item states,
 markers and zombies, whatever *With my mods* shows.
+
+**Buildings (step 4).** `dr2:edit` ops `pmove {zone, name, position, rotation, scale,
+group}`, `phide`, `pcopy` (and from the Inspector `pshow`, `prestore`); `MapsView._piece_edit`
+runs them in `LevelEditor` (`piece_move` …, one `mods.pieceedit.PieceEdits` per zone, on
+the same undo stack as the text files: entries `pieces:<zone vpath>`), or, with `group`,
+`_building_edit` (`building_move` / `_hide` / `_restore` / `_copy`: every part of
+`convert.buildings`' building, its collision moved along). Python answers
+`dr2.pieceState([PieceState…])`: per changed piece its place, turn, size, hidden; then the
+zone's copies, all of them, ended by a state with no name. The page keeps them in
+`pieceOverrides` / `pieceCopies` and applies them again whenever a zone's pieces file
+loads (`applyPieceOverrides`, `buildCopies`: a copy is a `clone()` of the piece's node in
+`copiesRoot`, under `piecesRoot`). A click on a piece with *Whole building* ticked makes
+Python call `dr2.selectGroup(zone, first, parts)`: the handles hold the first piece and
+the other parts follow (`follow`, their matrices relative to it kept), the selection box
+is a `Box3Helper` round all of them. A piece another mod hid (parked under the level,
+glTF extras `dr2_parked`, `MAP_VERSION` 7) is not shown and can't be selected
+(`pieceNode`).
+
+**Place and Hierarchy** (`studio/maps_panels.py`). `PlacePanel` lists `MapsView.place_rows(kind)`
+(prefabs, items with their Library pictures, zombie types, buildings), read when a kind is
+first shown; rows drag as `application/x-dr2-place` JSON. `MapsView.eventFilter` (on the
+view and its focus proxy, the widget that really gets QtWebEngine's events) takes the
+drag: `dr2.dragOver(x, y)` draws a ring where it would land, a drop runs `start_place(spec,
+(x, y))` (ticks *Edit* if needed, sets `_adding`, calls `dr2.placeAt(x, y)`, whose
+`dr2:place` answer goes through `_place` like *Add item…*); a double-click uses
+`dr2.askPlace()`. `HierarchyPanel.fill(rows)` shows items and doors, buildings (parts,
+copies and collision shapes as children), zombies and markers, as the mod being edited
+has them (`fill_hierarchy`, 250 ms after each change); a click calls `dr2.focus({kind,
+name, zone, position})`, which flies the camera there and selects the thing when its zone
+has loaded (`tryFocus`).
 
 Checking it: a scratch driver opens the window in a real display, drives the page with
 `dr2.goTo` / `setView` / `pickAt` and saves `view.grab()` pictures; for the gate, the

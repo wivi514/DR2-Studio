@@ -13,7 +13,11 @@ it. The build does that and nothing else:
    strings it lists (`dr2kit.formats.bcs`; several mods merge by string id); a
    ``.edits.json`` next to a level text file changes the blocks it names
    (`dr2kit.formats.leveledits`; several mods merge by block and key, applied over the
-   recomp's copy when there is one); any other file replaces the asset with the same
+   recomp's copy when there is one); a ``.pieces.json`` next to a zone's
+   ``ZONE_ORGANIZATION.big`` hides, moves, turns, resizes or copies its buildings, and one
+   next to its ``MERGED_COLLISION.big`` moves or hides their collision
+   (`dr2kit.formats.pieceedits`; several mods merge by piece and shape); any other file
+   replaces the asset with the same
    vpath, byte for byte. Files under ``add/`` are **new entries** of an archive
    (`manifest`; inserted in name order, compressed like their neighbours). Unknown paths, wrong
    sizes, files the game digest-checks and conflicts between mods at the same priority
@@ -44,9 +48,10 @@ from ..container.vpath import AssetTree, entry_component, find_entry, join, spli
 from ..container.vpath import entry_components as entry_components_of
 from ..errors import Dr2Error
 from ..formats.bct import Bct, is_bct
-from .manifest import ADD_DIR, AUDIO_EXTS, EDITS_EXT, STRINGS_EXT, Mod, ModError, Override
+from .manifest import (ADD_DIR, AUDIO_EXTS, EDITS_EXT, PIECES_EXT, STRINGS_EXT, Mod, ModError,
+                       Override)
 
-MERGED = ("strings", "edits")     # kinds that several mods apply to one file together
+MERGED = ("strings", "edits", "pieces")     # kinds that several mods apply to one file together
 
 BUILD_INFO = "dr2kit-build.json"
 
@@ -59,7 +64,8 @@ class Planned:
     vpath: str            # real letter case, as the game spells it
     disk_parts: int       # how many leading vpath components are folders/file on disk
     strings: dict | None = None   # kind "strings": id -> text, read from the .bcs.json
-    edits: object = None          # kind "edits": a leveledits.Edits, read from the .edits.json
+    edits: object = None          # kind "edits": a leveledits.Edits, read from the .edits.json;
+                                  # kind "pieces": a pieceedits.Edits (.pieces.json)
     data: bytes | None = None     # kind "add" from a .copy.json recipe: the entry's bytes
 
 
@@ -114,6 +120,8 @@ def _kind_of(rel: str) -> tuple[str, str]:
         return "strings", rel[:-len(".json")]
     if low.endswith(EDITS_EXT):
         return "edits", rel[:-len(EDITS_EXT)]
+    if low.endswith(PIECES_EXT):
+        return "pieces", rel[:-len(PIECES_EXT)]
     if low.endswith(AUDIO_EXTS) and rel.rsplit(".", 1)[0].lower().endswith(".xma"):
         return "audio", rel.rsplit(".", 1)[0]
     return "raw", rel
@@ -187,6 +195,13 @@ def plan_mods(mods: list[Mod], game: str, tree: AssetTree) -> ModPlan:
                     problems.append(f"{mod.id}: replace/{rel}: {e}")
                     continue
                 key = f"{low}|edits|{mod.id}"
+            elif kind == "pieces":
+                try:
+                    edits = _read_pieces(node, src)
+                except Dr2Error as e:
+                    problems.append(f"{mod.id}: replace/{rel}: {e}")
+                    continue
+                key = f"{low}|pieces|{mod.id}"
             else:
                 key = low
             if key in plan and plan[key].mod.priority == mod.priority:
@@ -320,6 +335,26 @@ def plan_mods(mods: list[Mod], game: str, tree: AssetTree) -> ModPlan:
                 for f in levelcheck.check(facts, p.vpath, doc, p.edits, tops):
                     (problems if f.error else notes).append(
                         f"{p.mod.id}: {p.vpath.rsplit('/', 1)[-1]}: {f}")
+    zones: dict[str, list[Planned]] = {}
+    for k in keys:
+        if plan[k].override.kind == "pieces":
+            zones.setdefault(plan[k].vpath.lower(), []).append(plan[k])
+    for low, items in zones.items():
+        if low in plan or any(k.startswith(low + "/") and plan[k].override.kind != "pieces"
+                              for k in plan):
+            other = plan.get(low) or next(plan[k] for k in plan if k.startswith(low + "/"))
+            problems.append(f"{other.mod.id} replaces {other.vpath} and {items[0].mod.id} "
+                            f"moves buildings in it ({PIECES_EXT}): only one can")
+            continue
+        from ..formats import pieceedits
+        _m, sh, pr = pieceedits.merge([_piece_layer(p) for p in items])
+        shadowed += [(f"{items[0].vpath}: {w}", a, b) for w, a, b in sh]
+        problems += [f"{items[0].vpath}: {x}" for x in pr]
+        if not pr:
+            try:
+                _apply_pieces(items, tree.resolve(items[0].vpath).data())
+            except Dr2Error as e:
+                problems.append(str(e))
     if problems:
         raise ModError("the mod set can't be built:\n  " + "\n  ".join(problems))
     planned = [plan[k] for k in keys]
@@ -388,6 +423,32 @@ def _read_edits(node, src: Path):
     return leveledits.from_json(src.read_text("utf-8-sig"), src.name)
 
 
+def _read_pieces(node, src: Path):
+    """A ``.pieces.json`` override, its target checked to be a zone's
+    ``ZONE_ORGANIZATION.big``."""
+    from ..formats import pieceedits
+    if split(node.vpath)[-1].lower() not in [t.lower() for t in pieceedits.TARGETS] or \
+            not is_big(node.data()):
+        raise ModError(f"{PIECES_EXT} goes next to a zone's {pieceedits.TARGET} or "
+                       f"{pieceedits.COLLISION}, not {node.vpath}")
+    return pieceedits.from_json(src.read_text("utf-8-sig"), src.name)
+
+
+def _piece_layer(p: Planned):
+    from ..formats.pieceedits import Layer
+    return Layer(p.mod.id, p.mod.priority, p.edits)
+
+
+def _apply_pieces(items: list[Planned], original: bytes) -> bytes:
+    """``ZONE_ORGANIZATION.big`` or ``MERGED_COLLISION.big`` with every ``.pieces.json``
+    in ``items`` merged and applied."""
+    from ..formats import pieceedits
+    merged, _sh, problems = pieceedits.merge([_piece_layer(p) for p in items])
+    if problems:
+        raise ModError(f"{items[0].vpath}: " + "; ".join(problems))
+    return pieceedits.target_bytes(original, merged, items[0].vpath)
+
+
 def _layer(p: Planned):
     from ..formats.leveledits import Layer
     return Layer(p.mod.id, p.mod.priority, p.edits)
@@ -408,6 +469,8 @@ def merged_bytes(items: list[Planned], original: bytes) -> bytes:
         return _apply_strings(items, original)
     if kind == "edits":
         return _apply_edits(items, original)[0]
+    if kind == "pieces":
+        return _apply_pieces(items, original)
     return new_bytes(items[-1], original)
 
 
@@ -602,6 +665,14 @@ def verify(res: BuildResult, tree: AssetTree, base_dirs=()) -> None:
     for items in texts.values():
         got = built.resolve(items[0].vpath).data()
         if got != _apply_edits(items, _original(tree, base_dirs, items[0]))[0]:
+            raise ModError(f"build check failed: {items[0].vpath} reads back differently")
+    zones: dict[str, list[Planned]] = {}
+    for p in res.overrides:
+        if p.override.kind == "pieces":
+            zones.setdefault(p.vpath.lower(), []).append(p)
+    for items in zones.values():
+        got = built.resolve(items[0].vpath).data()
+        if got != _apply_pieces(items, _original(tree, base_dirs, items[0])):
             raise ModError(f"build check failed: {items[0].vpath} reads back differently")
     for items in banks.values():
         got = built.resolve(items[0].vpath).data()

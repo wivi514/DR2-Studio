@@ -259,6 +259,9 @@ my_mod/
     data/audio/music.big/HB_Indemnify.xma.wav  # or .ogg/.flac/.mp3; played by the recomp
     data/frontend/str_en.bcs.json            # string overrides, by id
     data/datafile.big/prologue.txt.edits.json  # level / mission edits, by block (phase 11)
+    data/models/environment/prologue/prologue_z04.big/ZONE_ORGANIZATION.big.pieces.json
+    data/models/environment/prologue/prologue_z04.big/MERGED_COLLISION.big.pieces.json
+                              # buildings: hidden, moved, copied; their collision (phase 11)
   add/                        # new entries (phase 11): add/<archive vpath>/<name>, or a
     data/streamedassets.big/MyItem.big.copy.json   # recipe that makes it from the player's game
   sources/                    # the modder's own .glb / PNGs a recipe uses
@@ -307,6 +310,21 @@ other's file. The build applies them over the copy underneath, merges several mo
 the recomp's changes, and `dr2 level diff` turns one into an `.edits.json`. Editing
 tools hold the edited file and save its difference from the game's (`mods/leveledit.py`),
 so the mod always holds exactly its changes.
+
+**Building edits (phase 11 step 4).** The zones' buildings (binary placement records) and
+their collision (Havok shapes) are changed the same way: `.pieces.json` files next to a
+zone's `ZONE_ORGANIZATION.big` and `MERGED_COLLISION.big` hold only what a mod changes, by
+piece and by shape (`formats/pieceedits.py`), merged across mods. *Decisions (2026-10-11,
+from the in-game tests):* a hidden piece is parked under the level rather than removed
+(no other record moves); collision is not tied to a piece, so the editor works on whole
+**buildings** (`convert/buildings.py`: pieces and shapes grouped by shape, name and
+touch; the modder can correct the grouping) and moves their collision with them; collision
+is only moved or sent away, never turned, because Havok's search tree can't be rebuilt.
+
+**DR2 Studio's window (2026-10-11).** Every panel is a dock window (`studio/docks.py`):
+resized, moved, tabbed or floated, the layout kept between sessions; the Maps tab's editor
+works like a game editor's (Inspector, Hierarchy, Place with drag and drop, arrow-key
+nudging). dev/studio.md, "Dock windows".
 
 **New files (phase 11).** `add/` puts new entries into archives (inserted in name order,
 compressed like their neighbours, declaring their siblings' alignment in `flags`: the

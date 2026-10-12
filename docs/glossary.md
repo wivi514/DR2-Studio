@@ -458,3 +458,35 @@ an `info.txt`. Run again, it continues where it stopped.
 instead of bending with several: a box's lid, a door, a car's wheel, a gun. The game
 stores its shape relative to that node; the toolkit places it there (in Blender it is
 parented to the node, so rotating the node moves the part).
+
+**Dock window (panel).** One part of DR2 Studio's window (Browse, Viewer, Level (3D),
+Inspector, Hierarchy, Place…) that you can resize, drag to another side, stack with
+another as tabs, or drag out as a window of its own. **Windows** in the toolbar shows or
+hides each one and puts them back.
+
+**Inspector.** The Maps editor's panel for the selected thing: what it is, its position,
+rotation and size, and its buttons (copy, delete, put back).
+
+**Hierarchy.** The Maps editor's list of everything in the open level, grouped (items and
+doors, buildings with their parts and collision, zombies, markers). Click a row to fly
+there.
+
+**Place panel.** The Maps editor's list of things to add to a level (prefabs, items,
+zombies, buildings), which you drag onto the 3D view.
+
+**Building.** What a player sees as one building, made of several level pieces (walls,
+boarded windows, signs, writing, a roof unit) and one or more collision shapes. The game
+has no such object; DR2 Studio groups the pieces and shapes itself, so a building moves
+and hides as a whole.
+
+**Collision shape.** One block of the invisible walls and floors the player bumps into
+(the zone's collision mesh is made of them). It is stored apart from the pieces you see,
+so hiding a piece alone leaves its collision behind; DR2 Studio moves a building's shapes
+with it.
+
+**Search tree (MOPP).** Havok's quick index of a collision shape's triangles, made by the
+game's tools. The toolkit can't rebuild it, which is why collision can be moved (the tree
+moves with it) but not turned or resized.
+
+**Parked.** How a mod hides a building: its placement is moved 1,000 metres under the
+level, so nothing else in the zone's list has to change.
