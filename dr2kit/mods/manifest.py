@@ -27,6 +27,13 @@ What counts as an override, under ``replace/``:
   edited ``datafile.big/zombie_effects.txt``. The toolkit re-compresses it if the
   original entry was compressed.
 
+**New files**, under ``add/`` (phase 11): ``add/<archive vpath>/<new name>`` puts a new
+entry into that archive; ``<new name>.copy.json`` is a recipe that makes it from the
+player's own game when the mod is built (a new item's model pack copied from another
+item's, `dr2kit.mods.newitem`: the mod holds no game data). The name must be new in the archive; the entry goes in name order (every archive
+of both games is sorted by lower-case name) and is compressed like most of its
+neighbours.
+
 Paths are matched case-insensitively, like every vpath.
 """
 
@@ -42,6 +49,7 @@ from ..profiles import GAME_IDS
 
 MANIFEST = "mod.toml"
 REPLACE_DIR = "replace"
+ADD_DIR = "add"
 AUDIO_EXTS = (".wav", ".ogg", ".flac", ".mp3")   # what can replace a sound
 STRINGS_EXT = ".bcs.json"                         # string changes for a string bank
 EDITS_EXT = ".edits.json"                         # block changes for a level text file
@@ -69,7 +77,8 @@ class Override:
     """One file of a mod: ``vpath`` is the asset it replaces, ``kind`` how."""
     vpath: str            # as written under replace/ (minus .png / .glb)
     source: Path
-    kind: str             # "texture-png", "model-glb", "audio", "strings", "edits" or "raw"
+    kind: str             # "texture-png", "model-glb", "audio", "strings", "edits", "raw"
+                          # or "add" (a new entry, from add/)
 
 
 @dataclass
@@ -161,6 +170,14 @@ class Mod:
     def files(self) -> list[tuple[str, Path]]:
         """Every file under ``replace/`` as ``(path relative to replace/, file)``, sorted."""
         base = self.root / REPLACE_DIR
+        if not base.is_dir():
+            return []
+        out = [(p.relative_to(base).as_posix(), p) for p in base.rglob("*") if p.is_file()]
+        return sorted(out, key=lambda t: t[0].lower())
+
+    def added(self) -> list[tuple[str, Path]]:
+        """Every file under ``add/`` as ``(path relative to add/, file)``: new entries."""
+        base = self.root / ADD_DIR
         if not base.is_dir():
             return []
         out = [(p.relative_to(base).as_posix(), p) for p in base.rglob("*") if p.is_file()]

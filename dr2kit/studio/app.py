@@ -1324,7 +1324,11 @@ class MainWindow(QMainWindow):
             it.setData(ROLE_VPATH, target)
             it.setData(Qt.UserRole + 4, rel)
             self.mod_files.addItem(it)
-        if not mod.files():
+        for rel, _src in mod.added():
+            it = QListWidgetItem(f"{'new':<8}  {rel}")
+            it.setData(ROLE_VPATH, rel)
+            self.mod_files.addItem(it)
+        if not mod.files() and not mod.added():
             self.mod_files.addItem("(no changes yet: pick an asset and use the buttons on "
                                    "the right, or drop a file on this window)")
             return

@@ -258,17 +258,37 @@ class BigArchive:
                            + (f" #{occurrence}" if occurrence else ""))
         return found[occurrence]
 
+    def sibling_flags(self, name: str) -> int:
+        """The declared alignment (``flags``) a new entry called ``name`` gets: the most
+        common among entries with its extension, else among all, else 4."""
+        from collections import Counter
+        ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+        same = Counter(e.flags for e in self.entries
+                       if (e.name.rsplit(".", 1)[-1].lower() if "." in e.name else "") == ext)
+        every = Counter(e.flags for e in self.entries)
+        for c in (same, every):
+            if c:
+                return c.most_common(1)[0][0]
+        return 4
+
     def default_alignment(self) -> int:
         """Alignment for a new entry: the largest one among the archive's entries."""
         return max((e.alignment for e in self.entries if e.size), default=4)
 
     # ---- editing ------------------------------------------------------------------
 
-    def add(self, name: str, data: bytes, *, compression: int = STORED, flags: int = 0,
-            alignment: int | None = None) -> BigEntry:
-        """Append a new entry (its hash is computed from the name when writing)."""
+    def add(self, name: str, data: bytes, *, compression: int = STORED,
+            flags: int | None = None, alignment: int | None = None) -> BigEntry:
+        """Append a new entry (its hash is computed from the name when writing).
+
+        ``flags`` is the entry's **declared alignment** (every payload of both games
+        starts at a multiple of it; the game hangs reading a new entry declared 0, CZ
+        2026-10-11): by default the one its siblings of the same extension use, else the
+        archive's most common, else 4. The payload is laid out at least that aligned."""
+        if flags is None:
+            flags = self.sibling_flags(name)
         e = BigEntry(name=name, stored=b"", size2=0, flags=flags,
-                     alignment=alignment or self.default_alignment())
+                     alignment=max(alignment or self.default_alignment(), flags))
         e.set_data(data, compression)
         self.entries.append(e)
         return e

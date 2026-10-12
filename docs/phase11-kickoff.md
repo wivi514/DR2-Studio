@@ -72,6 +72,13 @@ Still owed: own models (a new item pack: the build must add files; untested whet
 engine finds them), map icons for added save points (`fe_map*.csv` isn't block format),
 turning triggers after placing, CW in-game checks of all of this.
 
+**Own models (2026-10-11): done and checked in CZ.** The build adds files (`add/`), a
+new item is a recipe copying a game item's pack (`mods/newitem.py`, `dr2 mod new-item`,
+Studio's *New item from this…*); in game a new pack is found and the item works, after
+fixing the new entry's `flags` (the declared alignment: a new entry declared 0 made the
+game load forever). Not done: new level pieces (step 4 stretch), textures of a new item
+from Studio (CLI `--texture` only).
+
 ### Earlier status: researched, re-checked against phase 10, prefabs added
 
 The user will start this phase **in a fresh conversation** (2026-10-11). Phase 10 is

@@ -77,6 +77,7 @@ class GameFacts:
         except Dr2Error:
             self.zombie_types = set()
         self.load_sets = load_sets(tree)
+        self.added_items: set[str] = set()       # items (lower) mods add, with their pack
         self._areas: dict[str, set[str] | None] = {}
         self.scripts = {s.lower() for s in placed.script_names(tree)}
 
@@ -250,9 +251,9 @@ def _check_block(facts: GameFacts, path: str, b: Block, level: str | None,
         item = b.get("ItemName")
         if not item:
             err("needs an ItemName (an item of items.txt)", "ItemName")
-        elif item.lower() not in facts.items:
+        elif item.lower() not in facts.items and item.lower() not in facts.added_items:
             err(f"ItemName {item!r} is not an item of this game's items.txt", "ItemName")
-        elif facts.models.resolve(item) is None:
+        elif item.lower() not in facts.added_items and facts.models.resolve(item) is None:
             warn(f"{item}'s model doesn't ship in this game "
                  f"({facts.models.why.get(item.lower(), 'not found')}): nothing will show", "ItemName")
         vec("Location", 3, required=True)

@@ -7,9 +7,9 @@ and a mod to put the changes in ([`06-mod-packages.md`](06-mod-packages.md)). Lo
 level first in the **Maps** tab ([`18-maps.md`](18-maps.md)): it shows every item's name,
 file and line when you click it.
 
-> This guide grows with phase 11. Written so far: editing items, doors and zombies in
-> the Maps tab, adding things from prefabs, the edits files and the `dr2 level` commands.
-> Next: your own models.
+> Phase 11. Written: editing items, doors and zombies in the Maps tab, adding things from
+> prefabs, items of your own, the edits files and the `dr2 level` commands. Checked in
+> Case Zero; Case West to come.
 
 ## How the game places things
 
@@ -148,6 +148,34 @@ like the real one: a save point saves, a door takes you to its level
 4. **Your own prefabs:** select an item you set up and click **Save as prefab…**. It
    appears in **Add from prefab…** under *My prefabs*. The files (`.dr2prefab`, plain
    text) are in your toolkit data folder under `prefabs/`; share them like any file.
+
+## Steps: an item of your own (your own model)
+
+An item is its settings in `items.txt` (what it does: a weapon swings, a blocker stands
+still) and a **model pack** the game finds by the item's name. A new item starts as a copy
+of one the game has, under a new name, then gets your shape and colours. Checked in Case
+Zero: a new item in its own pack shows, is picked up and works.
+
+**In DR2 Studio:** with **Edit** ticked, click the item to start from (a weapon to get a
+weapon, a blocker to get a wall…), then **New item from this…**: type its name, then pick
+a `.glb` for its shape (or Cancel to keep the original's). It is placed beside the one
+you clicked; move it like any item. Its shape comes from Blender as for
+[`08-edit-a-model.md`](08-edit-a-model.md) (export the original with **Export .glb…**,
+change it, keep the object names).
+
+**With the `dr2` command:**
+
+```
+dr2 mod new-item my_mod MyHammer --like SledgeHammer --glb myhammer.glb --texture Sledgehammer_cm=red.png -g cz
+```
+
+`--texture` puts a PNG over one of its textures (the same size as the original: `dr2
+extract --png` shows them). Then place it: **Add item…** in the Maps tab lists it.
+
+**Your mod holds no game files:** it keeps a *recipe* (`add/…/MyHammer.big.copy.json`:
+"copy the sledgehammer's pack, rename it, put in my shape and textures"), and your own
+`.glb` / PNGs in its `sources/` folder. The pack is made from each player's own game when
+the mod is built, so the mod is safe to share.
 
 ## Steps: change a level with the `dr2` command
 

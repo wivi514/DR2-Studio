@@ -17,6 +17,25 @@ Entry template:
 
 ---
 
+## 2026-10-11 — Phase 11: items of your own (new files in archives)
+**Done:** mods can add entries to archives (`add/`, kind `add` in `mods/build.py`,
+inserted in name order, compressed like their neighbours; shown by *With my mods*). A new
+item is made from one the game has: `mods/newitem.py` (`dr2 mod new-item … --like …
+[--glb] [--texture]`, Studio's *New item from this…*) writes a **recipe** (`.copy.json`:
+copy this pack, rename, my shape and PNGs) instead of game bytes, and the `items.txt`
+block. `LevelEditor` sees the mod's own items through a preview of the mod.
+**Why:** plan step 5's "own models"; the recipe because a shared mod may hold only the
+modder's own work.
+**Learned:** the first in-game try loaded forever. Headless, the full build's log stopped
+after the street's zones while its parts alone went on; the new index entry differed
+from all 1,110 of `streamedassets.big` only in `flags` (0 vs 2048). **`flags` is each
+entry's declared alignment**: every payload of both games starts at a multiple of it
+(293,894 entries). With its siblings' value the item shows and works in game.
+**Docs updated:** `formats.md` (the `flags` field, with a retraction; the in-game table),
+guide 19 (own items), guide 06 (`add/`, `sources/`), `ARCHITECTURE.md`, `dev/code-tour.md`,
+`phase11-kickoff.md`.
+**Next:** CW in-game checks; level pieces (stretch).
+
 ## 2026-10-11 — Phase 11 step 5: prefabs
 **Done:** `catalog/prefabs.toml` and `prefabs.py`: save point, workbench, door to another
 level, spawn point and a blocker, each cloned from a block the game ships (per game), every

@@ -339,3 +339,39 @@ def test_shipped_prefabs_are_complete():
         assert set(p.item) <= set(p.source)
         for g, (f, path) in p.source.items():
             assert f.endswith(".txt") and " " in path
+
+
+def test_new_item_and_added_entries(game, tmp_path):
+    """Phase 11 (own models): a new item from a template (its pack renamed, its items.txt
+    block), added to streamedassets.big as a NEW entry: in name order, compressed like its
+    neighbours, declaring their alignment (flags: the game hangs on 0, CZ 2026-10-11)."""
+    from dr2kit.container.big import LZX, BigArchive
+    from dr2kit.container.vpath import AssetTree
+    from dr2kit.mods.newitem import new_item
+    from dr2kit.studio.maps_edit import LevelEditor
+    inner = make_archive(("Scissors.big", b"scene" * 10), ("Scissors.tex", b"tex" * 10),
+                         ("Scissors_LOD.tex", b"lod"), ("w_scissors.bct", b"icon"))
+    sa = make_archive(("Katana.big", b"k" * 50, LZX), ("Scissors.big", inner.to_bytes(), LZX),
+                      ("Zebra.big", b"z" * 50, LZX))
+    for e in sa.entries:
+        e.flags = e.alignment = 2048
+    (game / "data" / "streamedassets.big").write_bytes(sa.to_bytes())
+    mod = create(tmp_path / "ni", "ni")
+    new_item(AssetTree(game), mod, "MyScissors", "Scissors")
+    recipe = mod / "add" / "data" / "streamedassets.big" / "MyScissors.big.copy.json"
+    assert json.loads(recipe.read_text())["copy"] == "data/streamedassets.big/Scissors.big"
+    assert not any(p.is_file() and p.suffix == ".big" for p in (mod / "add").rglob("*"))
+    ed = LevelEditor(AssetTree(game), mod, game="cz")
+    assert ed.models.resolve("MyScissors").endswith("MyScissors.big/MyScissors.big")
+    ed.add("prologue.txt", "MyScissors", (1, 2, 3))
+    res = mbuild.build([Mod.load(mod)], "cz", AssetTree(game), tmp_path / "out")
+    arc = AssetTree(tmp_path / "out").open_archive("data/streamedassets.big")
+    names = [e.name for e in arc.entries]
+    assert names == ["Katana.big", "MyScissors.big", "Scissors.big", "Zebra.big"]
+    new = arc.entries[1]
+    assert new.compression == LZX and new.flags == 2048 and new.data_offset % 2048 == 0
+    assert [e.name for e in BigArchive.parse(new.data()).entries] == [
+        "MyScissors.big", "MyScissors.tex", "MyScissors_LOD.tex", "w_scissors.bct"]
+    assert any(p.override.kind == "add" for p in res.overrides)
+    with pytest.raises(Exception, match="already an item"):
+        new_item(AssetTree(game), mod, "Scissors", "Scissors")

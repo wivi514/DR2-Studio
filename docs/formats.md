@@ -62,7 +62,12 @@ Verified over **every archive of both games, nested ones included** (`dr2 census
   never seen on 360, but the reader supports it.
 - **`hash`** is the engine's string hash (`dr2kit/hashing.py`) **of the lower-cased
   name**, for all 124,932 (CZ) + 172,322 (CW) entries. Recompute it for new entries.
-- **`flags`**: meaning still unknown, so it is **preserved on write**. Values and where they occur:
+- **`flags`** is the entry's **declared alignment**: every payload of both games starts
+  at a multiple of it (123,534 CZ + 170,360 CW entries with data, measured 2026-10-11), and
+  a new entry declared `0` made the game wait forever for it (an added item pack in
+  `streamedassets.big`, CZ, in game). Kept on write; a new entry takes the value of its
+  siblings with the same extension (`BigArchive.sibling_flags`). *Retraction:* this page
+  said "meaning still unknown" until phase 11. Values and where they occur:
 
   | flags | CZ | CW | on |
   |---|---|---|---|
@@ -1487,6 +1492,7 @@ each build, a headless bisect named the cause of the one that failed):
 | A spawn point added to `prologue.txt` (a clone of `BowlingExit`) and the safehouse's exit trigger pointed at it (`LevelSpawnPoint`) | leaving the safehouse puts Chuck there | loads |
 | A door to another level added to `waypoint_prologue.txt` (a clone of `Safehouse_entrance`, `ActionType 3`, `Level` / `LevelSpawnPoint` set) | the prompt shows, pressing it goes into the safehouse | loads |
 | **A save made while a mod's own mission runs, loaded without that mission** (no mods, or another mod) | **crashes while loading** (guest fault at address `0x78`, right after reading `DR2P000.DSF`) | — |
+| A new item: a new pack `streamedassets.big/Dr2kitHammer.big` (the sledgehammer's, its scene and texture packs renamed) + a new `items.txt` block, placed in `prologue.txt` | first **an endless loading screen** (the new entry declared `flags` 0); with its siblings' 2048 it **shows, is picked up and works** | loads |
 
 So a save made with a mod's own mission needs it from then on (the toolkit warns,
 `levelcheck.SAVE_NEEDS`; a "keep my save" mod is that mission with no zombies). The save

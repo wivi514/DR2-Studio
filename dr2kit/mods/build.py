@@ -14,7 +14,8 @@ it. The build does that and nothing else:
    ``.edits.json`` next to a level text file changes the blocks it names
    (`dr2kit.formats.leveledits`; several mods merge by block and key, applied over the
    recomp's copy when there is one); any other file replaces the asset with the same
-   vpath, byte for byte. Unknown paths, wrong
+   vpath, byte for byte. Files under ``add/`` are **new entries** of an archive
+   (`manifest`; inserted in name order, compressed like their neighbours). Unknown paths, wrong
    sizes, files the game digest-checks and conflicts between mods at the same priority
    are errors, reported all at once. Between different priorities the higher one wins,
    and `plan_mods` lists what lost (``ModPlan.shadowed``) for the mod manager.
@@ -43,7 +44,7 @@ from ..container.vpath import AssetTree, entry_component, find_entry, join, spli
 from ..container.vpath import entry_components as entry_components_of
 from ..errors import Dr2Error
 from ..formats.bct import Bct, is_bct
-from .manifest import AUDIO_EXTS, EDITS_EXT, STRINGS_EXT, Mod, ModError, Override
+from .manifest import ADD_DIR, AUDIO_EXTS, EDITS_EXT, STRINGS_EXT, Mod, ModError, Override
 
 MERGED = ("strings", "edits")     # kinds that several mods apply to one file together
 
@@ -59,6 +60,7 @@ class Planned:
     disk_parts: int       # how many leading vpath components are folders/file on disk
     strings: dict | None = None   # kind "strings": id -> text, read from the .bcs.json
     edits: object = None          # kind "edits": a leveledits.Edits, read from the .edits.json
+    data: bytes | None = None     # kind "add" from a .copy.json recipe: the entry's bytes
 
 
 @dataclass
@@ -236,6 +238,42 @@ def plan_mods(mods: list[Mod], game: str, tree: AssetTree) -> ModPlan:
                 elif i in owner:
                     shadowed.append((f"{p.vpath} id {i}", owner[i].mod.id, p.mod.id))
                 owner[i] = p
+    for mod in sorted(mods, key=lambda m: m.priority):    # new entries (add/)
+        if game not in mod.games:
+            continue
+        for rel, src in mod.added():
+            from .newitem import COPY_EXT, build_copy
+            recipe = None
+            if rel.lower().endswith(COPY_EXT):            # made from the player's game
+                rel = rel[:-len(COPY_EXT)]
+                try:
+                    recipe = build_copy(tree, json.loads(src.read_text("utf-8")), mod.root,
+                                        f"{mod.id}: {ADD_DIR}/{rel}{COPY_EXT}")
+                except (Dr2Error, ValueError) as e:
+                    problems.append(str(e))
+                    continue
+            parent, _, name = rel.rpartition("/")
+            try:
+                node = tree.resolve(parent)
+                arc = tree.open_archive(node.vpath)
+            except Dr2Error:
+                problems.append(f"{mod.id}: {ADD_DIR}/{rel}: {parent!r} is not an archive of "
+                                f"{game}")
+                continue
+            if any(e.name.lower() == name.lower() for e in arc.entries):
+                problems.append(f"{mod.id}: {ADD_DIR}/{rel}: {node.vpath} already has "
+                                f"{name}; put a changed copy under replace/ instead")
+                continue
+            vp = join(node.vpath, name)
+            key = vp.lower()
+            if key in plan and plan[key].mod.priority == mod.priority:
+                problems.append(f"{vp}: added by both {plan[key].mod.id} and {mod.id}")
+                continue
+            if key in plan:
+                shadowed.append((vp, plan[key].mod.id, mod.id))
+            plan[key] = Planned(Override(vp, src, "add"), mod, vp, _disk_parts(tree, vp),
+                                data=recipe)
+    keys = sorted(plan)
     texts: dict[str, list[Planned]] = {}
     for k in keys:
         if plan[k].override.kind == "edits":
@@ -271,6 +309,10 @@ def plan_mods(mods: list[Mod], game: str, tree: AssetTree) -> ModPlan:
                 facts = levelcheck.GameFacts(tree)
                 for stem, names in added_spawns.items():
                     facts.spawn_points(stem).update(names)
+                facts.added_items = {path.split(" ", 1)[1].lower()
+                                     for ps in texts.values() for p in ps
+                                     if p.vpath.lower().endswith("/items.txt")
+                                     for path in p.edits.add if "/" not in path}
             doc = Document.parse(out, items[0].vpath)
             tops = {path.lower() for p in items for path in p.edits.add
                     if "/" not in path}
@@ -400,7 +442,9 @@ def _check_model(node, src: Path) -> str | None:
 
 def new_bytes(p: Planned, original: bytes) -> bytes:
     """The replacement bytes for one override, given the asset's current bytes."""
-    if p.override.kind == "raw":
+    if p.override.kind == "add" and p.data is not None:
+        return p.data
+    if p.override.kind in ("raw", "add"):
         return p.override.source.read_bytes()
     if p.override.kind in MERGED:
         return merged_bytes([p], original)
@@ -435,6 +479,9 @@ def patch_archive(data: bytes, vpath: str, edits: dict) -> bytes:
     """
     arc = BigArchive.parse(data, vpath)
     for comp, sub in edits.items():
+        if isinstance(sub, list) and sub[0].override.kind == "add":
+            add_entry(arc, comp, new_bytes(sub[-1], b""))
+            continue
         entry = find_entry(arc, comp)
         evp = join(vpath, entry_component(arc, entry))
         current = entry.data()
@@ -446,6 +493,20 @@ def patch_archive(data: bytes, vpath: str, edits: dict) -> bytes:
             updated = merged_bytes(sub, current)
         entry.set_data(updated)
     return arc.to_bytes()
+
+
+def add_entry(arc: BigArchive, name: str, data: bytes) -> None:
+    """Put a new entry ``name`` into ``arc`` where the name order puts it (every archive
+    of both games is sorted by lower-case name), compressed like most of its neighbours
+    (the game expects an LZX entry where its siblings are; CLAUDE.md rule 4)."""
+    from ..container.big import LZX, STORED
+    comp = LZX if sum(e.compression == LZX for e in arc.entries) * 2 > len(arc.entries) \
+        else STORED
+    e = arc.add(name, data, compression=comp)
+    arc.entries.remove(e)
+    at = next((i for i, x in enumerate(arc.entries) if x.name.lower() > name.lower()),
+              len(arc.entries))
+    arc.entries.insert(at, e)
 
 
 def build(mods: list[Mod], game: str, tree: AssetTree, out_dir: str | Path,
@@ -557,8 +618,8 @@ def verify(res: BuildResult, tree: AssetTree, base_dirs=()) -> None:
         if p.override.kind in ("audio", *MERGED):     # audio: checked by build_audio
             continue
         got = built.resolve(p.vpath).data()
-        if p.override.kind == "raw":
-            want = p.override.source.read_bytes()
+        if p.override.kind in ("raw", "add"):
+            want = new_bytes(p, b"")
         else:
             original = _original(tree, base_dirs, p)
             want = new_bytes(p, original)

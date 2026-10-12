@@ -259,7 +259,9 @@ my_mod/
     data/audio/music.big/HB_Indemnify.xma.wav  # or .ogg/.flac/.mp3; played by the recomp
     data/frontend/str_en.bcs.json            # string overrides, by id
     data/datafile.big/prologue.txt.edits.json  # level / mission edits, by block (phase 11)
-  add/                        # new entries (later phase; needs loader/manifest support)
+  add/                        # new entries (phase 11): add/<archive vpath>/<name>, or a
+    data/streamedassets.big/MyItem.big.copy.json   # recipe that makes it from the player's game
+  sources/                    # the modder's own .glb / PNGs a recipe uses
 ```
 
 `dr2 mod build my_mod` converts each file to the native format (encode DXT, re-tile,
@@ -305,6 +307,12 @@ other's file. The build applies them over the copy underneath, merges several mo
 the recomp's changes, and `dr2 level diff` turns one into an `.edits.json`. Editing
 tools hold the edited file and save its difference from the game's (`mods/leveledit.py`),
 so the mod always holds exactly its changes.
+
+**New files (phase 11).** `add/` puts new entries into archives (inserted in name order,
+compressed like their neighbours, declaring their siblings' alignment in `flags`: the
+game hangs on a new entry declared 0). *Decision:* a new item copied from a game item is
+stored as a **recipe** (`.copy.json`, `mods/newitem.py`), never as the copied bytes, so a
+shared mod holds no game data; the build makes the pack from the player's own game.
 
 **Files mods can't touch.** The executables digest-check a few data files (CZ 1, CW 6;
 `formats.md` §Digest-checked files). Each game profile lists them (`digest_checked`) and

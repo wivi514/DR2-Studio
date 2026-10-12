@@ -27,6 +27,14 @@ asset inside the archives, see the [glossary](../glossary.md)):
 | `<string bank's vpath>.json` | Changes only the strings it lists, by id or label (`…/frontend/str_en.bcs.json`). Several mods can change one bank ([`11-text.md`](11-text.md)). |
 | `<any asset's vpath>` (no `.png` / `.glb` added) | Replaces that asset with your file's bytes, as they are. For text files (`.txt`, `.csv`) and anything you edited with another tool. A few files can't be replaced: the game checks them and crashes on a changed copy ([`11-text.md`](11-text.md#files-you-cant-change)). |
 
+| `<level text file's vpath>.edits.json` | Changes only the blocks it names in a level or mission file (`…/datafile.big/prologue.txt.edits.json`); several mods can change one file ([`19-edit-a-level.md`](19-edit-a-level.md)). |
+
+**New files** go under `add/` instead of `replace/`: `add/<archive's vpath>/<new name>`
+puts a new entry into that archive. A new item's model pack is
+`add/data/streamedassets.big/MyItem.big.copy.json`, a *recipe* that copies another item's
+pack from the player's game when the mod is built; your own `.glb` and PNGs for it sit in
+`sources/` ([`19-edit-a-level.md`](19-edit-a-level.md#steps-an-item-of-your-own-your-own-model)).
+
 Letter case doesn't matter (`DATA/Models/…` works). A mod only ever holds **your** files:
 no game archives, nothing copied from the game. That's what makes it safe to share.
 

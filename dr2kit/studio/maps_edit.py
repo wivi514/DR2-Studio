@@ -262,14 +262,33 @@ def _main_zombie_mission(doc: Document, script: str) -> Block | None:
 class LevelEditor(ZombieEdits):
     """Edits of placed things in one mod (module docstring)."""
 
-    def __init__(self, tree: AssetTree, mod_dir: str | Path, base_dirs=()):
+    def __init__(self, tree: AssetTree, mod_dir: str | Path, base_dirs=(),
+                 game: str | None = None):
         self.tree = tree
         self.mod_dir = Path(mod_dir)
         self.base_dirs = list(base_dirs)
+        self.game = game
         self.sessions: dict[str, TextEdits] = {}
         self._undo: list[str] = []              # file names, newest last
         self._redo: list[str] = []
-        self.models = placed.ItemModels(tree)
+        self.reload_models()
+
+    def reload_models(self) -> None:
+        """Items and their models as the game has them **with this mod** (its own items:
+        ``items.txt`` additions and new packs, `mods.newitem`), read again after the mod
+        gained an item."""
+        self.mod_tree = self.tree
+        if self.game:
+            from ..mods.manifest import Mod
+            from ..mods.preview import Preview
+            try:
+                pv = Preview(self.game, self.tree.root, [Mod.load(self.mod_dir)],
+                             base_dirs=self.base_dirs)
+                if pv.mods:
+                    self.mod_tree = pv.tree()
+            except Dr2Error:
+                pass
+        self.models = placed.ItemModels(self.mod_tree)
 
     # ---- files -------------------------------------------------------------------------
 
@@ -278,6 +297,13 @@ class LevelEditor(ZombieEdits):
         if key not in self.sessions:
             self.sessions[key] = TextEdits(self.mod_dir, file, self.tree, self.base_dirs)
         return self.sessions[key]
+
+    def forget(self, file: str) -> None:
+        """Drop the open copy of ``file`` (the mod's file was written elsewhere, by
+        `mods.newitem`): the next use reads it again. Its undo steps go with it."""
+        self.sessions.pop(file.lower(), None)
+        self._undo = [f for f in self._undo if f.lower() != file.lower()]
+        self._redo = [f for f in self._redo if f.lower() != file.lower()]
 
     def placement(self, file: str, name: str) -> Block:
         """The item or door placed as ``name`` in ``file``."""

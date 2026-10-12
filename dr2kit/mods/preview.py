@@ -248,6 +248,13 @@ class ModdedTree(AssetTree):
         return arc.to_bytes()
 
     def _apply(self, arc: BigArchive, vpath: str) -> None:
+        pre = vpath.lower() + "/"
+        for key, items in self.preview.overrides.items():      # new entries (add/)
+            if key.startswith(pre) and "/" not in key[len(pre):] and \
+                    items[-1].override.kind == "add" and \
+                    not any(e.name.lower() == key[len(pre):] for e in arc.entries):
+                arc.add(items[-1].vpath.rsplit("/", 1)[1],
+                        mbuild.new_bytes(items[-1], b""), compression=STORED)
         for comp, e in zip(entry_components(arc), arc.entries):
             child = join(vpath, comp)
             low = child.lower()

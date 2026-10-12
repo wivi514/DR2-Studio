@@ -65,6 +65,7 @@ dr2kit/
     play.py            Play: deploy the switched-on mods, start the recomp, what is deployed (phase 7)
     preview.py         see the switched-on mods without the game: a ModdedTree for every view (phase 10)
     leveledit.py       one mod's edits of one text file: edit, undo, save as the diff (phase 11)
+    newitem.py         a new item of your own: a recipe that copies a game item's pack (phase 11)
     texture_import.py  exports from Substance Painter / Blender / any program → the model's textures (phase 7)
   studio/
     app.py, viewers.py DR2 Studio (PySide6): tree, search, texture viewer, mod bar
@@ -477,7 +478,12 @@ draws, from the mod's `missions.txt`), `zombie_set`, `zombie_move`, `crowd_amoun
 mission), `remove_zombie`. Step 5: `LevelEditor.set_keys` / `remove_block` (*Settings…*,
 deleting what the mod added), `added_markers` (the triggers and spawn points a mod adds,
 for `dr2.setEditedMarkers`), `catalog.prefabs`; `MapsView.sync_edits` shows a mod's
-changes when a level opens.
+changes when a level opens. Own items: `mods/newitem.new_item` writes a `.copy.json` recipe
+(`build_copy` makes the pack: renamed, a `.glb` imported, PNGs over textures), the
+`items.txt` block and `sources/`; `mods/build.py` plans `add/` files (kind `add`,
+`Planned.data` for recipes) and `add_entry` inserts them; `BigArchive.add` gives a new
+entry its siblings' declared alignment (`sibling_flags`); `ModdedTree._apply` shows adds;
+`LevelEditor.reload_models` sees the mod's own items (a `Preview` of the mod alone).
 
 ### `dr2kit/convert/variants.py` (phase 9)
 What a model can show, the way the game decides it ([`formats.md`](../formats.md)

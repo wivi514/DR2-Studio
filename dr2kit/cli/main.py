@@ -774,6 +774,25 @@ def cmd_mod(args) -> int:
     game = args.game
     loc = locate(game)
     tree = AssetTree(loc.root)
+    if args.action == "new-item":
+        from ..mods import newitem
+        from ..mods.deploy import recomp_folders
+        patched = recomp_folders(loc.root)["patched"]
+        mod = manifest.Mod.load(args.mod)                 # a mod folder, or an error
+        textures = {}
+        for t in args.texture or []:
+            if "=" not in t:
+                raise Dr2Error(f"--texture {t!r}: write TEXTURE=file.png")
+            k, v = t.split("=", 1)
+            textures[k] = v
+        files = newitem.new_item(tree, mod.root, args.name, args.like, args.glb,
+                                 [patched] if patched.is_dir() else [], textures)
+        for f in files:
+            print(f"wrote {f}")
+        print(f"{args.name} is an item of the mod now: place it in a level (Maps tab, Add "
+              f"item…, or dr2 level edit {args.mod} <level> add \"cItemPlacement My{args.name}\" "
+              f"ItemName={args.name} Location=x,y,z)")
+        return 0
     if args.action == "import-textures":
         from ..mods import texture_import as ti
         mod = manifest.Mod.load(args.mod)
@@ -1341,6 +1360,17 @@ def build_parser() -> argparse.ArgumentParser:
                                  "(default: the recomp's game_patched)")
             pm.add_argument("--no-patched-base", action="store_true",
                             help="always start from the shipped files")
+    pm = msub.add_parser("new-item", help="a new item of your own, made from one the game "
+                         "has (its model pack and items.txt block, under a new name)")
+    pm.add_argument("mod", help="the mod folder")
+    pm.add_argument("name", help="the new item's name (letters, digits, _)")
+    pm.add_argument("--like", required=True, help="the game's item to start from "
+                    "(SledgeHammer, Workbench, MilitaryBarrier…)")
+    pm.add_argument("--glb", help="a .glb (from Blender) for its shape")
+    pm.add_argument("--texture", action="append", metavar="NAME=PNG",
+                    help="a PNG over one of its textures (same size), e.g. "
+                         "Sledgehammer_cm=red.png; repeat for more")
+    game_opt(pm)
     pm = msub.add_parser("import-textures",
                          help="put textures exported from Substance Painter, Blender… into a mod")
     pm.add_argument("mod", help="the mod folder")

@@ -822,6 +822,12 @@ class MapsView(QWidget):
         for b in (self.btn_prefab, self.btn_settings, self.btn_save_prefab):
             row.addWidget(b)
         sl.addLayout(row)
+        self.btn_new_item = QPushButton("New item from this…")
+        self.btn_new_item.setToolTip("Your own item, made from the selected one: a new name, "
+                                     "its own model (optionally the shape of a .glb from "
+                                     "Blender); placed beside it")
+        self.btn_new_item.clicked.connect(self._new_item)
+        sl.addWidget(self.btn_new_item)
         self._btarget: dict | None = None         # {file, path}: a picked trigger / spawn
         self._refresh_edit_panel()
 
@@ -841,7 +847,7 @@ class MapsView(QWidget):
             root = self.tree.root
             patched = recomp_folders(root)["patched"]
             self.editor = LevelEditor(AssetTree(root), mod,
-                                      [patched] if patched.is_dir() else [])
+                                      [patched] if patched.is_dir() else [], game=self.game)
             self._editor_key = key
         return self.editor
 
@@ -871,6 +877,7 @@ class MapsView(QWidget):
         self.btn_settings.setEnabled(on and (self._target is not None or
                                              self._btarget is not None))
         self.btn_save_prefab.setEnabled(on and self._target is not None)
+        self.btn_new_item.setEnabled(on and self._target is not None)
         self.btn_add.setEnabled(on and mod is not None and bool(self.level))
         ed = self.editor
         self.btn_undo.setEnabled(on and ed is not None and ed.can_undo())
@@ -1197,6 +1204,38 @@ class MapsView(QWidget):
         self._send_markers()
         self._js(f"dr2.setZombies({json.dumps(ed.zombies(script))})")
 
+    def _new_item(self) -> None:
+        from ..mods import newitem
+        ed = self.editor
+        if not self._target or ed is None:
+            return
+        st = ed.state(**self._target)
+        if st is None or not st.item:
+            return
+        name, ok = QInputDialog.getText(self, "New item", f"A new item made from {st.item}. "
+                                        f"Its name (letters, digits, _):",
+                                        text=f"My{st.item}")
+        if not ok or not name:
+            return
+        glb, _ = QFileDialog.getOpenFileName(self, "Its shape (optional: Cancel keeps "
+                                             f"{st.item}'s)", "", "glTF binary (*.glb)")
+        # the mod gets a recipe (copy this pack, with my .glb), never the game's bytes
+        try:
+            newitem.new_item(AssetTree(self.tree.root), ed.mod_dir, name, st.item,
+                             glb or None, ed.base_dirs)
+        except Dr2Error as e:
+            self.status.emit(f"Maps: {e}")
+            if hasattr(self.window, "error"):
+                self.window.error(str(e))
+            return
+        ed.forget("items.txt")
+        ed.reload_models()
+        self._usable = None
+        pos = [c + o for c, o in zip(st.position or (0, 0, 0), (1.0, 0.0, 0.0))]
+        self._edit({"op": "add", "file": self._target["file"], "item": name, "position": pos})
+        self.status.emit(f"Maps: {name} is your mod's own item (placed beside {st.item}); "
+                         f"change its textures with PNGs, its shape in Blender")
+
     def _send_markers(self) -> None:
         from .maps_edit import added_markers
         if self.editor is not None:
@@ -1354,7 +1393,8 @@ class MapsView(QWidget):
         for st in states:
             d = st.to_dict()
             if st.new_model and not st.removed:
-                data = item_glb(AssetTree(self.tree.root), self.game, st)
+                data = item_glb(self.editor.mod_tree if self.editor else
+                                AssetTree(self.tree.root), self.game, st)
                 if data:
                     self._served += 1
                     url_path = f"/maps/{self._served}-edit-{st.name}.glb"
