@@ -17,6 +17,26 @@ Entry template:
 
 ---
 
+## 2026-10-11 — Phase 11 step 5: prefabs
+**Done:** `catalog/prefabs.toml` and `prefabs.py`: save point, workbench, door to another
+level, spawn point and a blocker, each cloned from a block the game ships (per game), every
+position near the anchor moved with it (CW's save points keep their corners in world
+space), facings turned; own prefabs as `.dr2prefab`. In the Maps tab: *Add from prefab…*,
+*Settings…* (any block's keys as text), *Save as prefab…*, the mod's added triggers and
+spawn points drawn (`dr2.setEditedMarkers`), and `sync_edits` when a level opens.
+`levelcheck`: a door's `LevelSpawnPoint` must be a spawn point of its level (counting those
+mods add); a mod's own mission gets the `SAVE_NEEDS` warning.
+**Why:** plan step 5, the user's "add our own things that behave like the real thing".
+**Learned (CZ, in game):** a cloned spawn point, with the safehouse exit pointed at it,
+puts Chuck there; a cloned door takes him into the safehouse. And the hard way: the
+user's newest save, made during the new-game test, **crashed with no mods**: a save made
+while a mod's own mission runs needs that mission (a headless run with the test mission
+loads it), so it loads again with any mod that keeps that mission.
+**Docs updated:** `formats.md` §Levels, guide 19 (prefab steps, save warning), guides 15
+and 12, `glossary.md` (prefab), `dev/studio.md`, `dev/code-tour.md`, `roadmap.md`,
+`phase11-kickoff.md`.
+**Next:** own models (a new item pack, needs the build to add files), CW in-game checks.
+
 ## 2026-10-11 — Phase 11 step 3: the zombie editor
 **Done:** the Maps tab's *Zombie spawns* layer (every single zombie as a cone facing its
 way with *type ×n*, respawn floors, clearing circles) and zombie editing: move / turn a

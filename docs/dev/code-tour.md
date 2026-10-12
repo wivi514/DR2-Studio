@@ -474,7 +474,10 @@ single zombie, respawn crate and clearing (`MissionSpawn`, with block paths);
 `studio/maps_edit.ZombieEdits` (mixed into `LevelEditor`): `zombies(script)` (what the page
 draws, from the mod's `missions.txt`), `zombie_set`, `zombie_move`, `crowd_amounts`,
 `own_mission` / `add_zombie` (the mod's own mission, cloned from the level's main zombie
-mission), `remove_zombie`.
+mission), `remove_zombie`. Step 5: `LevelEditor.set_keys` / `remove_block` (*Settings…*,
+deleting what the mod added), `added_markers` (the triggers and spawn points a mod adds,
+for `dr2.setEditedMarkers`), `catalog.prefabs`; `MapsView.sync_edits` shows a mod's
+changes when a level opens.
 
 ### `dr2kit/convert/variants.py` (phase 9)
 What a model can show, the way the game decides it ([`formats.md`](../formats.md)
@@ -548,6 +551,11 @@ pictures are drawn: bump `index.build.THUMB_VERSION`, and the next build redraws
   `Exporter` takes a look (`variant`) and a `mode`; models get every part organised by
   default, `textures/colours/` holds each colour choice baked, and `info.txt` lists the
   detail levels and the variants.
+- `prefabs` (phase 11): `prefabs.toml` (data: per prefab its file kind, anchor key, the
+  example block per game, an item swap, whether it was checked in game), `load()`,
+  `place(editor, prefab, game, script, at, yaw)` (copies the example, `moved()` shifts
+  every position near the anchor and turns facings, adds it through the `LevelEditor`),
+  own prefabs `save_own` / `read_own` / `load_own` (`.dr2prefab` JSON in `own_folder()`).
 - `level_export` (phase 10): `export_level(tree, game, level, out, zones=, script=,
   items=, markers=, whole=, lod=)` writes `<out>/<game>/<level>/`: one `.glb` per zone
   (or one for all, `whole`), `text/` (the level's text files) and `info.txt`; resumable

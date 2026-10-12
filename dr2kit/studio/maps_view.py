@@ -402,6 +402,8 @@ class MapsView(QWidget):
         self._hour_changed(self.hour.value())
         if zone:
             self.go_to_zone(zone)
+        if self.edit_box.isChecked():
+            self.sync_edits()
 
     def _map_png(self, vpath: str) -> bytes | None:
         """The in-game map picture as PNG (made once per game and mod state)."""
@@ -579,6 +581,13 @@ class MapsView(QWidget):
         self._set_actions(info.get("vpath") if t in ("piece", "item", "door", "zombie") else None)
         self._show_edit_target(info if t in ("item", "door") else None)
         self._show_zombie_target(info)
+        self._btarget = None
+        if self.edit_box.isChecked() and t == "marker" and info.get("cls") in (
+                "cTriggerVolume", "cSpawnPoint") and info.get("file") and info.get("name"):
+            self._btarget = {"file": info["file"], "path": f"{info['cls']} {info['name']}",
+                             "added": bool(info.get("added"))}
+            self.btn_del.setEnabled(self._btarget["added"])
+            self.btn_settings.setEnabled(True)
 
     def _set_actions(self, vpath: str | None) -> None:
         for b in (self.btn_library, self.btn_blender, self.btn_export):
@@ -740,9 +749,7 @@ class MapsView(QWidget):
             {"op": "duplicate", **self._target}))
         self.btn_del = QPushButton("Delete")
         self.btn_del.setToolTip("Take it out of the level: Delete")
-        self.btn_del.clicked.connect(lambda: self._edit({"op": "zdelete", **self._ztarget})
-                                     if self._ztarget else self._target and self._edit(
-                                         {"op": "delete", **self._target}))
+        self.btn_del.clicked.connect(self._delete_clicked)
         for b in (self.btn_floor, self.btn_dup, self.btn_del):
             row.addWidget(b)
         sl.addLayout(row)
@@ -798,6 +805,24 @@ class MapsView(QWidget):
                                        "appear in a new game (docs: 19-edit-a-level)")
         self.btn_add_zombie.clicked.connect(self._add_zombie)
         sl.addWidget(self.btn_add_zombie)
+        row = QHBoxLayout()
+        self.btn_prefab = QPushButton("Add from prefab…")
+        self.btn_prefab.setToolTip("A save point, a workbench, a door to another level, a "
+                                   "spawn point, a blocker… copied from the game's own, "
+                                   "so it works like them")
+        self.btn_prefab.clicked.connect(self._add_prefab)
+        self.btn_settings = QPushButton("Settings…")
+        self.btn_settings.setToolTip("Every setting of the selected thing as text (a door's "
+                                     "Level, an item's flags…)")
+        self.btn_settings.clicked.connect(self._settings)
+        self.btn_save_prefab = QPushButton("Save as prefab…")
+        self.btn_save_prefab.setToolTip("Keep the selected item (with its settings) as your "
+                                        "own prefab, to place again or share")
+        self.btn_save_prefab.clicked.connect(self._save_prefab)
+        for b in (self.btn_prefab, self.btn_settings, self.btn_save_prefab):
+            row.addWidget(b)
+        sl.addLayout(row)
+        self._btarget: dict | None = None         # {file, path}: a picked trigger / spawn
         self._refresh_edit_panel()
 
     def _mod_dir(self):
@@ -842,6 +867,10 @@ class MapsView(QWidget):
         self.z_panel.setVisible(z is not None and z["kind"] == "single")
         self.crowd_panel.setVisible(z is not None and z["kind"] == "crowd")
         self.btn_add_zombie.setEnabled(on and mod is not None and bool(self.level))
+        self.btn_prefab.setEnabled(on and mod is not None and bool(self.level))
+        self.btn_settings.setEnabled(on and (self._target is not None or
+                                             self._btarget is not None))
+        self.btn_save_prefab.setEnabled(on and self._target is not None)
         self.btn_add.setEnabled(on and mod is not None and bool(self.level))
         ed = self.editor
         self.btn_undo.setEnabled(on and ed is not None and ed.can_undo())
@@ -859,6 +888,8 @@ class MapsView(QWidget):
         if on:
             self._get_editor()
         self._js(f"dr2.setEditing({str(on).lower()})")
+        if on:
+            self.sync_edits()
         if not on:
             self._target = None
         self._refresh_edit_panel()
@@ -904,7 +935,7 @@ class MapsView(QWidget):
             return
         if not self._target or self.editor is None:
             return
-        from .maps_edit import yaw_quaternion
+        from .maps_edit import qmul, yaw_quaternion
         st = self.editor.state(**self._target)
         if st is None:
             return
@@ -913,7 +944,7 @@ class MapsView(QWidget):
         delta = self.ed_turn.value() - getattr(self, "_shown_turn", self.ed_turn.value())
         if abs(delta) > 1e-6:                     # turn by the difference: keep any tilt
             qy = yaw_quaternion(delta)
-            rot = _qmul(qy, rot)
+            rot = qmul(qy, rot)
         if all(abs(a - b) < 5e-4 for a, b in zip(pos, st.position or pos)) and rot == st.rotation:
             return
         self._edit({"op": "move", **self._target, "position": pos, "rotation": rot})
@@ -1070,6 +1101,107 @@ class MapsView(QWidget):
         self._adding = "zombie:" + ztype
         self._js("dr2.askPlace()")
 
+    # ---- prefabs and settings (step 5) ---------------------------------------------------
+
+    def _delete_clicked(self) -> None:
+        if self._ztarget:
+            self._edit({"op": "zdelete", **self._ztarget})
+        elif self._btarget and self._btarget.get("added"):
+            self._edit({"op": "bremove", "file": self._btarget["file"],
+                        "path": self._btarget["path"]})
+            self._btarget = None
+        elif self._target:
+            self._edit({"op": "delete", **self._target})
+
+    def prefabs(self) -> list:
+        """The shipped prefabs this game has an example of, then the modder's own."""
+        from ..catalog import prefabs as pf
+        return [p for p in pf.load() if p.for_game(self.game)] + pf.load_own()
+
+    def _add_prefab(self) -> None:
+        if self._get_editor() is None:
+            return
+        items = self.prefabs()
+        labels = [f"{p.group}: {p.name}" + ("" if p.checked else "  (not checked in game "
+                                                                 "yet)") for p in items]
+        choice, ok = QInputDialog.getItem(self, "Add from prefab", "What to add (it goes "
+                                          "where the middle of the view meets the floor):",
+                                          labels, 0, False)
+        if not ok:
+            return
+        self._adding = ("prefab", items[labels.index(choice)])
+        self._js("dr2.askPlace()")
+
+    def _settings(self) -> None:
+        ed = self.editor
+        if ed is None:
+            return
+        if self._target:
+            file, path = self._target["file"], None
+            b = ed.placement(file, self._target["name"])
+            path = f"{b.cls} {b.name}"
+        elif self._btarget:
+            file, path = self._btarget["file"], self._btarget["path"]
+        else:
+            return
+        b = ed.session(file).doc.find(path)
+        before = {p.key: p.value for p in b.props}
+        text = "\n".join(f"{k} = {v}" for k, v in before.items())
+        new, ok = QInputDialog.getMultiLineText(
+            self, "Settings", f"{path} ({file}), one setting per line, Key = value:", text)
+        if not ok:
+            return
+        after = {}
+        for line in new.splitlines():
+            if "=" in line:
+                k, v = line.split("=", 1)
+                if k.strip():
+                    after[k.strip()] = v.strip().strip('"')
+        keys = {k: v for k, v in after.items() if before.get(k) != v}
+        keys.update({k: None for k in before if k not in after})
+        if keys:
+            self._edit({"op": "keys", "file": file, "path": path, "keys": keys})
+
+    def _save_prefab(self) -> None:
+        from ..catalog import prefabs as pf
+        if not self._target or self.editor is None:
+            return
+        b = self.editor.placement(self._target["file"], self._target["name"])
+        name, ok = QInputDialog.getText(self, "Save as prefab", "Its name in the list:",
+                                        text=b.get("ItemName") or b.name)
+        if not ok or not name:
+            return
+        props = {p.key: p.value for p in b.props}
+        path = pf.save_own(pf.own_folder() / name, name, "level",
+                           [{"cls": b.cls, "name": b.name, "props": props}],
+                           b.floats("Location") or (0, 0, 0))
+        self.status.emit(f"Maps: saved the prefab {name} ({path}); Add from prefab… lists it")
+
+    def sync_edits(self) -> None:
+        """Show on the page everything the mod being edited changes in this level (its
+        items, the triggers and spawn points it adds, its zombies), whatever the
+        *With my mods* view shows."""
+        from .maps_edit import _snapshot
+        ed = self._get_editor()
+        script = self._script()
+        if ed is None or not script:
+            return
+        states = []
+        for fname in (f"{script}.txt",):
+            try:
+                s = ed.session(fname)
+            except Dr2Error:
+                continue
+            states += ed._states(fname, _snapshot(s.original), _snapshot(s.doc))
+        self._send_states(states)
+        self._send_markers()
+        self._js(f"dr2.setZombies({json.dumps(ed.zombies(script))})")
+
+    def _send_markers(self) -> None:
+        from .maps_edit import added_markers
+        if self.editor is not None:
+            self._js(f"dr2.setEditedMarkers({json.dumps(added_markers(self.editor, self._script()))})")
+
     def usable_items(self) -> list[str]:
         """Items whose model ships in this game, by name (for *Add item…*)."""
         if self._usable is None:
@@ -1095,6 +1227,9 @@ class MapsView(QWidget):
         if not self._adding:
             return
         item, self._adding = self._adding, None
+        if isinstance(item, tuple):                # a prefab
+            self._edit({"op": "prefab", "prefab": item[1], "position": msg["point"]})
+            return
         if item.startswith("zombie:"):
             self._edit({"op": "zadd", "type": item[7:], "position": msg["point"]})
             return
@@ -1110,6 +1245,7 @@ class MapsView(QWidget):
         op = msg.get("op")
         if op in ZOMBIE_OPS:
             return self._zombie_edit(ed, msg)
+        done: list[str] = []
         try:
             if op == "move":
                 states = ed.move(msg["file"], msg["name"], msg["position"], msg.get("rotation"))
@@ -1123,6 +1259,23 @@ class MapsView(QWidget):
                 self._target = {"file": msg["file"], "name": name}
             elif op == "item":
                 states = ed.set_item(msg["file"], msg["name"], msg["item"])
+            elif op == "prefab":
+                from ..catalog import prefabs as pf
+                pre = msg["prefab"]
+                names, states = pf.place(ed, pre, self.game, self._script(), msg["position"])
+                done = names
+                if pre.file == "level" and states:
+                    self._target = {"file": pre.file_for(self._script()), "name": names[0]}
+                if pre.file == "waypoint" or pre.id == "spawn_point":
+                    kind = "spawn" if pre.id == "spawn_point" else "trigger"
+                    if kind in self.layer_boxes:
+                        self.layer_boxes[kind].setChecked(True)
+                if not pre.checked:
+                    self.status.emit(f"Maps: {pre.name} hasn't been checked in game yet")
+            elif op == "keys":
+                states = ed.set_keys(msg["file"], msg["path"], msg["keys"])
+            elif op == "bremove":
+                states = ed.remove_block(msg["file"], msg["path"])
             elif op == "undo":
                 states = ed.undo()
             elif op == "redo":
@@ -1150,9 +1303,12 @@ class MapsView(QWidget):
                 self._target = None
             else:
                 self._fill_fields(st)
+        if op in ("prefab", "keys", "bremove", "undo", "redo"):
+            self._send_markers()
         what = {"move": "moved", "delete": "deleted", "duplicate": "copied", "add": "added",
-                "item": "changed", "undo": "undone", "redo": "redone"}[op]
-        names = ", ".join(s.name for s in states) or "nothing"
+                "item": "changed", "undo": "undone", "redo": "redone", "prefab": "added",
+                "keys": "changed", "bremove": "removed"}[op]
+        names = ", ".join(done or [s.name for s in states]) or "nothing"
         self.status.emit(f"Maps: {what} {names} (saved into {Path(ed.mod_dir).name})")
         self._refresh_edit_panel()
         if hasattr(self.window, "_refresh_mod"):      # the bottom bar's list of changes
@@ -1251,12 +1407,3 @@ def _esc(v) -> str:
     import html
     return html.escape(str(v))
 
-
-def _qmul(a, b):
-    """The quaternion ``a × b`` (turn by ``b``, then by ``a``), ``x, y, z, w``."""
-    ax, ay, az, aw = a
-    bx, by, bz, bw = b
-    return (aw * bx + ax * bw + ay * bz - az * by,
-            aw * by - ax * bz + ay * bw + az * bx,
-            aw * bz + ax * by - ay * bx + az * bw,
-            aw * bw - ax * bx - ay * by - az * bz)

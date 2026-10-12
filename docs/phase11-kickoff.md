@@ -62,6 +62,16 @@ driver (pictures) and tests. Not done: reshaping zombie areas (polygon points), 
 picker (every mission's spawns show at once, each labelled with its mission), the
 load-set view.
 
+**Step 5 (2026-10-11): prefabs built and checked in CZ.** `catalog/prefabs.toml` +
+`prefabs.py` (save point, workbench, door to another level, spawn point, blocker; own
+`.dr2prefab`), the Maps tab's *Add from prefab…*, *Settings…*, *Save as prefab…*. In game
+(CZ): a new spawn point used by the safehouse's exit, a new door into the safehouse, both
+work (save point, workbench, blocker were checked in step 2). New finding: **a save made
+while a mod's own mission runs crashes when loaded without it** (warning `SAVE_NEEDS`).
+Still owed: own models (a new item pack: the build must add files; untested whether the
+engine finds them), map icons for added save points (`fe_map*.csv` isn't block format),
+turning triggers after placing, CW in-game checks of all of this.
+
 ### Earlier status: researched, re-checked against phase 10, prefabs added
 
 The user will start this phase **in a fresh conversation** (2026-10-11). Phase 10 is

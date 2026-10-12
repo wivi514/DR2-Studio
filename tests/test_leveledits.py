@@ -287,3 +287,55 @@ def test_zombie_editing_keeps_the_games_missions_whole(game, tmp_path):
     assert mbuild.plan_mods([Mod.load(mod)], "cz", AssetTree(game)).planned
     ed.remove_zombie(new)                                # the mod's own: removed
     assert all(s["kind"] != "single" for s in ed.zombies("prologue")["zombie_spawns"])
+
+
+def test_prefabs_move_together_and_own_prefabs(game, tmp_path):
+    """Phase 11 step 5 (catalog.prefabs): a clone keeps its parts together (positions
+    near the anchor move with it, far ones and the trigger's own corners don't), turns its
+    facings, gets a new name; own prefabs are saved and placed again."""
+    import math
+    from dr2kit.catalog import prefabs as pf
+    from dr2kit.container.vpath import AssetTree
+    from dr2kit.studio.maps_edit import LevelEditor
+    out = pf.moved({"Location": "100,1,100", "ActionPoint": "100,0,101", "Vertex1": "-1,0,1",
+                    "Vertex2": "101,0,102", "Far": "500,0,500", "ActionActorRotation": "0.5",
+                    "Rotation": "0,0,0,1"}, (100, 0, 101), (0, 0, 0), 90)
+    assert out["ActionPoint"] == "0.000,0.000,0.000"
+    assert out["Location"] == "-1.000,1.000,0.000"           # 1 m back, turned 90°
+    assert out["Vertex2"] == "1.000,0.000,-1.000"            # a corner in world space
+    assert out["Vertex1"] == "-1,0,1" and out["Far"] == "500,0,500"
+    assert out["ActionActorRotation"] == f"{0.5 + math.pi / 2:.3f}"
+    assert out["Rotation"] == "0.000,0.707,0.000,0.707"
+    toml = tmp_path / "p.toml"
+    toml.write_text('[[prefab]]\nid = "bench"\nname = "Bench"\ngroup = "Stations"\n'
+                    'file = "level"\nchecked = "yes"\n'
+                    'source.cz = ["prologue.txt", "cItemPlacement Scissors"]\n')
+    (p,) = pf.load(toml)
+    ed = LevelEditor(AssetTree(game), create(tmp_path / "pm", "pm"))
+    names, states = pf.place(ed, p, "cz", "prologue", (1, 2, 3))
+    assert names == ["bench_Scissors"] and states[0].position == (1.0, 2.0, 3.0)
+    assert states[0].new_model
+    b = ed.placement("prologue.txt", names[0])
+    f = pf.save_own(tmp_path / "own" / "My scissors", "My scissors", "level",
+                    [{"cls": b.cls, "name": "MyScissors",
+                      "props": {k.key: k.value for k in b.props}}], (1, 2, 3))
+    (own,) = pf.load_own(tmp_path / "own")
+    assert own.name == "My scissors" and own.path == f
+    names, _ = pf.place(ed, own, "cz", "prologue", (5, 2, 3))
+    assert ed.placement("prologue.txt", names[0]).get("Location") == "5.000,2.000,3.000"
+    names, _ = pf.place(ed, own, "cz", "prologue", (6, 2, 3))     # a second one: new name
+    assert names == ["MyScissors_1"]
+
+
+def test_shipped_prefabs_are_complete():
+    """Every shipped prefab names its file kind, a source for each game it has, and an
+    item swap only with a source."""
+    from dr2kit.catalog import prefabs as pf
+    ps = pf.load()
+    assert {p.id for p in ps} >= {"save_point", "workbench", "door_to_level", "spawn_point",
+                                 "wall"}
+    for p in ps:
+        assert p.file in ("level", "waypoint") and p.name and p.group
+        assert set(p.item) <= set(p.source)
+        for g, (f, path) in p.source.items():
+            assert f.endswith(".txt") and " " in path

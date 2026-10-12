@@ -43,14 +43,25 @@ ITEM_CLASSES = ("cItemPlacement", "cDoorPlacement", "cItemWithAttachedPropsPlace
 
 
 def fmt(values) -> str:
-    """``(1, 2.5, -3)`` → ``"1.000,2.500,-3.000"`` (the game's three decimals)."""
-    return ",".join(f"{float(v):.3f}" for v in values)
+    """``(1, 2.5, -3)`` → ``"1.000,2.500,-3.000"`` (the game's three decimals; a value
+    that rounds to zero is written ``0.000``, not ``-0.000``)."""
+    return ",".join(f"{(float(v) if abs(float(v)) >= 0.0005 else 0.0):.3f}" for v in values)
 
 
 def yaw_quaternion(degrees: float) -> tuple[float, float, float, float]:
     """A turn of ``degrees`` about the up axis (Y) as a quaternion ``x, y, z, w``."""
     h = math.radians(degrees) / 2
     return (0.0, math.sin(h), 0.0, math.cos(h))
+
+
+def qmul(a, b):
+    """The quaternion ``a × b`` (turn by ``b``, then by ``a``), ``x, y, z, w``."""
+    ax, ay, az, aw = a
+    bx, by, bz, bw = b
+    return (aw * bx + ax * bw + ay * bz - az * by,
+            aw * by - ax * bz + ay * bw + az * bx,
+            aw * bz + ax * by - ay * bx + az * bw,
+            aw * bw - ax * bx - ay * by - az * bz)
 
 
 def yaw_of(q) -> float:
@@ -202,6 +213,27 @@ class ZombieEdits:
             self.zombie_set(path, {"NumberOfZombies": "0"})
 
 
+MARKER_CLASSES = ("cTriggerVolume", "cSpawnPoint")
+
+
+def added_markers(editor, script: str) -> list[dict]:
+    """Triggers and spawn points the mod adds to the level of ``script`` (save points,
+    doors… placed from prefabs), as the page's marker dicts (`placed.Thing.to_dict`)."""
+    out = []
+    for fname in (f"{script}.txt", f"waypoint_{script}.txt"):
+        try:
+            s = editor.session(fname)
+        except Dr2Error:
+            continue
+        game = {(b.cls, b.name.lower()) for b in s.original.blocks}
+        tmp = placed.LevelScript(script)
+        for b in s.doc.blocks:
+            if b.cls in MARKER_CLASSES and (b.cls, b.name.lower()) not in game:
+                placed._things(b, fname, tmp, None)
+        out += [dict(t.to_dict(), added=True) for t in tmp.things]
+    return out
+
+
 def _mod_id(mod_dir: Path) -> str:
     from ..mods.manifest import Mod
     try:
@@ -324,6 +356,27 @@ class LevelEditor(ZombieEdits):
             else:
                 doc.set(b, key, value)
         return self._change(file, fn)
+
+    def set_keys(self, file: str, path: str, keys: dict) -> list[ItemState]:
+        """Change keys of any block of a level file (``None`` removes one): a door's
+        ``Level``, an item's flags (*Settings…*)."""
+        def fn(doc):
+            b = doc.find(path)
+            for k, v in keys.items():
+                if v is None:
+                    doc.unset(b, k)
+                else:
+                    doc.set(b, k, v)
+        return self._change(file, fn)
+
+    def remove_block(self, file: str, path: str) -> list[ItemState]:
+        """Take a block the mod added out again (a save point placed from a prefab)."""
+        s = self.session(file)
+        top = path.split("/")[0].lower()
+        if any(f"{b.cls} {b.name}".lower() == top for b in s.original.blocks):
+            raise Dr2Error(f"{path} is the game's own: it can only be changed, not taken "
+                           f"out here")
+        return self._change(file, lambda doc: doc.remove(doc.find(path)))
 
     def delete(self, file: str, name: str) -> list[ItemState]:
         return self._change(file, lambda doc: doc.remove(self.placement(file, name)))

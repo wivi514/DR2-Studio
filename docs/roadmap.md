@@ -267,7 +267,10 @@ and the census gate. **Step 2** (2026-10-11): the Maps tab edits items and doors
 turn, onto the floor, copy, delete, add, change, undo); the early in-game tests done in
 CZ. *Design change from them:* a block added inside one of the game's missions breaks
 saves, so the build refuses it and new zombies go in a mission of the mod's own (it runs
-in a new game only); the game's own zombies are edited by value. `phase11-kickoff.md`, re-checked against what phase 10 built (its §What phase
+in a new game only, and a save made with it needs the mod); the game's own zombies are
+edited by value. **Step 3** (zombie editor) and **step 5** (prefabs: save point,
+workbench, door to a level, spawn point, blocker, own `.dr2prefab`) done the same day,
+each checked in CZ. `phase11-kickoff.md`, re-checked against what phase 10 built (its §What phase
 10 gives: the lossless text reader, item nodes, the collision mesh for snapping, the mods
 preview; missing: block add/remove, single zombies / respawns / load sets, a move gizmo,
 a "mod being edited", the `.edits.json` build kind). Phase 10 shows spawns and

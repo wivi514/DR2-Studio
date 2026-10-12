@@ -242,6 +242,13 @@ def plan_mods(mods: list[Mod], game: str, tree: AssetTree) -> ModPlan:
             texts.setdefault(plan[k].vpath.lower(), []).append(plan[k])
     from ..formats import leveledits
     facts = None
+    added_spawns: dict[str, set[str]] = {}       # level file stem -> spawn points mods add
+    for low, items in texts.items():
+        stem = low.rsplit("/", 1)[-1].removesuffix(".txt")
+        for p in items:
+            for path in p.edits.add:
+                if path.lower().startswith("cspawnpoint ") and "/" not in path:
+                    added_spawns.setdefault(stem, set()).add(path.split(" ", 1)[1].lower())
     for low, items in texts.items():
         if low in plan:
             problems.append(f"{plan[low].mod.id} replaces {plan[low].vpath} as a whole and "
@@ -260,7 +267,10 @@ def plan_mods(mods: list[Mod], game: str, tree: AssetTree) -> ModPlan:
                 continue
             from ..convert import levelcheck
             from ..formats.levelscript import Document
-            facts = facts or levelcheck.GameFacts(tree)
+            if facts is None:
+                facts = levelcheck.GameFacts(tree)
+                for stem, names in added_spawns.items():
+                    facts.spawn_points(stem).update(names)
             doc = Document.parse(out, items[0].vpath)
             tops = {path.lower() for p in items for path in p.edits.add
                     if "/" not in path}

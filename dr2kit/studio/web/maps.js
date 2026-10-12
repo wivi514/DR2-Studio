@@ -32,6 +32,8 @@
 //                                  of the view
 //   dr2.selectItem(name)           select a placed item by name (as a click would)
 //   dr2.selectZombie(path)         select a single zombie or a clearing by block path
+//   dr2.setEditedMarkers([marker…]) save points, doors and spawn points the mod adds
+//                                  (placed from prefabs), drawn like the game's own
 //   dr2.setZombies({crowds, zombie_spawns})   the missions' zombies as they are now:
 //                                  single zombies (cones facing their way, "type ×n"),
 //                                  respawn crates (their floor polygon), clearings (circles),
@@ -401,6 +403,36 @@ function buildZombieSpawns() {
   }
 }
 
+// Markers the mod adds (dr2.setEditedMarkers): drawn like the others, in their kind's
+// group, tagged so the next call replaces them.
+function buildEditedMarkers(list) {
+  for (const k in markerGroups) {
+    const g = markerGroups[k];
+    for (const o of [...g.children]) if (o.userData.edited) { g.remove(o); dispose(o); }
+  }
+  for (const m of list) {
+    const colour = COLOURS[m.kind] || 0xffffff;
+    let made;
+    if (m.kind === 'spawn' && m.position) made = pinMarker(m, colour, true);
+    else if (m.kind === 'trigger' && m.position) made = boxMarker(m, colour, [1, 1, 1], true);
+    else continue;
+    const [obj, at] = made;
+    obj.userData.edited = true;
+    const isSave = m.props && m.props.ActionType === '4';
+    const text = (isSave ? 'save point' : m.props && m.props.Level ? '→ ' + m.props.Level : m.name) + ' (your mod)';
+    const s = label(text, colour, m.kind);
+    s.position.copy(at).sub(obj.position);
+    if (m.rotation) s.position.applyQuaternion(obj.quaternion.clone().invert());
+    obj.add(s);
+    if (!markerGroups[m.kind]) {
+      markerGroups[m.kind] = new THREE.Group();
+      markerGroups[m.kind].visible = layerOn(m.kind);
+      markerRoot.add(markerGroups[m.kind]);
+    }
+    markerGroups[m.kind].add(obj);
+  }
+}
+
 // --- the in-game map in the corner -----------------------------------------------------
 const ov = document.getElementById('overview');
 const ovCtx = ov.getContext('2d');
@@ -659,6 +691,7 @@ window.dr2 = {
       new THREE.Vector3(0, 0, -4).applyEuler(camera.rotation)).setY(camera.position.y - EYE);
     post('place', { point: p.toArray().map(c => Math.round(c * 1000) / 1000) });
   },
+  setEditedMarkers(list) { buildEditedMarkers(list || []); },
   setZombies(z) {
     if (!meta) return;
     const keep = editTarget && editTarget.path;

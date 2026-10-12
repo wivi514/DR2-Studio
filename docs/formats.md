@@ -1484,8 +1484,13 @@ each build, a headless bisect named the cause of the one that failed):
 | **A block added inside one of the game's missions** (a `cMissionSpawnZombie` in `PrologueZombies/PrologueZombieReady`, any zombie type) | **a new game stalls when it first writes the save** (headless: nothing after `save:\DR2P000.DSF`; the user's run crashed, guest fault at address 8) | **doesn't load** |
 | A mission of the mod's own (a new top-level `cMissionDefinition` with the keys of `PrologueZombies`, a `cMissionLevelReady` and spawns) | **runs in a new game** (both packs of 8 showed); **doesn't run** from a save made without it | loads |
 | A zombie type the level doesn't load (`pro_zombie_cop` in `LEVEL_PROLOGUE`, 8 at once) | **showed** (no crash) | — |
+| A spawn point added to `prologue.txt` (a clone of `BowlingExit`) and the safehouse's exit trigger pointed at it (`LevelSpawnPoint`) | leaving the safehouse puts Chuck there | loads |
+| A door to another level added to `waypoint_prologue.txt` (a clone of `Safehouse_entrance`, `ActionType 3`, `Level` / `LevelSpawnPoint` set) | the prompt shows, pressing it goes into the safehouse | loads |
+| **A save made while a mod's own mission runs, loaded without that mission** (no mods, or another mod) | **crashes while loading** (guest fault at address `0x78`, right after reading `DR2P000.DSF`) | — |
 
-So the save holds the state of every mission, in a form that a block added inside a
+So a save made with a mod's own mission needs it from then on (the toolkit warns,
+`levelcheck.SAVE_NEEDS`; a "keep my save" mod is that mission with no zombies). The save
+holds the state of every mission, in a form that a block added inside a
 mission breaks (two missions of the same structure plus one: likely a fixed layout or
 count ❓), while it simply doesn't know a new mission (never started from that save).
 The toolkit refuses a block added inside a game mission (`levelcheck.SAVE_BREAK`) and puts

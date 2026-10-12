@@ -12,7 +12,8 @@ the game would do wrong with them, in plain words:
 * **Missions and saves** (in game, CZ, 2026-10-11): a block added *inside* one of the
   game's missions makes the game unable to load saves and stalls a new game, so it is an
   error (`SAVE_BREAK`); values and keys of the game's blocks change freely, and a
-  mission of the mod's own loads fine (it runs in a new game only).
+  mission of the mod's own loads fine (it runs in a new game only). Warning
+  `SAVE_NEEDS`: a save made while such a mission runs crashes without it.
 * **Zombies** (``missions.txt``): a ``ZombieType`` / ``Type<n>`` must be a zombie model
   of ``data/models/zombies.big`` (error); one the level doesn't load in
   ``zombiesets.txt`` gets a warning (allowed, decision 2026-10-11: CZ's street showed 8
@@ -45,6 +46,9 @@ SAVE_BREAK = ("adds a block inside one of the game's own missions: the game then
               "saves and a new game stalls (measured in Case Zero, 2026-10-11). Change the "
               "game's blocks' values instead, or put new things in a mission of your own "
               "(they then appear in a new game only)")
+SAVE_NEEDS = ("a mission of your own: it runs in a new game, and a save made while it runs "
+              "crashes the game if it is loaded without this mod (measured in Case Zero, "
+              "2026-10-11); tell players to keep the mod on for those saves")
 ZOMBIES = "data/models/zombies.big"
 
 
@@ -75,6 +79,19 @@ class GameFacts:
         self.load_sets = load_sets(tree)
         self._areas: dict[str, set[str] | None] = {}
         self.scripts = {s.lower() for s in placed.script_names(tree)}
+
+    def spawn_points(self, script: str) -> set[str]:
+        """The names of the ``cSpawnPoint`` blocks of ``<script>.txt`` (lower case)."""
+        key = "spawns:" + script.lower()
+        if key not in self.__dict__.setdefault("_spawns", {}):
+            try:
+                doc = Document.parse(self.tree.resolve(
+                    join(placed.DATAFILE, f"{script}.txt")).data(), f"{script}.txt")
+                self._spawns[key] = {b.name.lower() for b in doc.blocks
+                                     if b.cls == "cSpawnPoint"}
+            except Dr2Error:
+                self._spawns[key] = set()
+        return self._spawns[key]
 
     def areas(self, level: str) -> set[str] | None:
         """The zombie areas of ``LEVEL_<SCRIPT>`` (None: no such level script)."""
@@ -169,6 +186,8 @@ def check(facts: GameFacts, file_vpath: str, doc: Document, e: Edits,
             parts = split_path(p)
             if len(parts) > 1 and parts[0].lower() not in tops:
                 out.append(Finding(True, p, SAVE_BREAK))
+            elif len(parts) == 1 and parts[0].lower().startswith("cmissiondefinition "):
+                out.append(Finding(False, p, SAVE_NEEDS))
     for path, keys in changed(e).items():
         b = doc.get(path)
         if b is None:
@@ -285,6 +304,11 @@ def _check_block(facts: GameFacts, path: str, b: Block, level: str | None,
             lv = (b.get("Level") or "").lower().removeprefix("level_")
             if lv and lv not in facts.scripts:
                 err(f"Level {b.get('Level')!r} is not a level of this game", "Level")
+            arrive = b.get("LevelSpawnPoint")
+            spawns = facts.spawn_points(lv) if lv in facts.scripts else None
+            if arrive and spawns is not None and arrive.lower() not in spawns:
+                warn(f"LevelSpawnPoint {arrive!r} is not a spawn point of {lv}.txt (unless "
+                     f"your mod adds it there)", "LevelSpawnPoint")
     elif b.cls == "cSpawnPoint":
         if b.get("Location0") is None:
             vec("Location", 3, required=True)

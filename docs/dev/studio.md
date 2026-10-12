@@ -312,6 +312,14 @@ zdelete {path}`). The panel's zombie fields (`z_type`, `z_count`, `z_item`) and 
 selection). `dr2.selectZombie(path)` selects one (the drivers use it). Zombie figures
 carry their crowd's path (`dr2_path`, `MAP_VERSION` 6).
 
+**Prefabs (step 5).** *Add from prefab…* lists `catalog.prefabs` (shipped and own),
+asks `dr2.askPlace()` and runs `prefabs.place`; a save point or door turns the Triggers
+layer on, and the page gets `dr2.setEditedMarkers(added_markers(…))` (drawn like the
+game's markers, labelled *(your mod)*). *Settings…* edits a picked block's keys as text
+(`set_keys`); *Save as prefab…* writes the selected item to `own_folder()`.
+`sync_edits` (on opening a level and on ticking Edit) sends the mod's item states,
+markers and zombies, whatever *With my mods* shows.
+
 Checking it: a scratch driver opens the window in a real display, drives the page with
 `dr2.goTo` / `setView` / `pickAt` and saves `view.grab()` pictures; for the gate, the
 camera of a recomp capture (`c0`–`c3` of a vertex shader dump, row 1 divided by the

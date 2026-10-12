@@ -56,7 +56,7 @@ versions may lift them). Every number below was measured on the games' own files
 | Limit | Value | Kind |
 |---|---|---|
 | Adding things inside one of the game's **missions** (a zombie inside `PrologueZombies`…) | **not possible**: the game can't load saves and a new game stalls; DR2 Studio and `dr2 mod check` refuse it | game ([`19-edit-a-level.md`](19-edit-a-level.md)) |
-| New zombies (a mission of your own) | appear in a **new game** only, not in a save made without the mod | game |
+| New zombies (a mission of your own) | appear in a **new game** only, not in a save made without the mod; a save made with it **crashes without the mod** | game |
 | Changing the game's own zombies (types, amounts, places) and adding a type to a crowd | free; saves keep working | game |
 | A zombie type the level doesn't load | showed in a test (8 `pro_zombie_cop` in the street); its memory cost is not measured, keep numbers small | game |
 | Items, doors, save points added to a level | work, saves keep working | game |

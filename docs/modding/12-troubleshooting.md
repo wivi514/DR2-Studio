@@ -150,6 +150,7 @@ More in [`16-library.md`](16-library.md#if-something-went-wrong).
 |---|---|---|
 | `adds a block inside one of the game's own missions` | The game would fail to load saves and stall a new game with it | Change the game's zombies' values instead, or add new ones in a mission of your own ([`19-edit-a-level.md`](19-edit-a-level.md)) |
 | New zombies don't appear | They are in a mission of your mod, which only runs in a new game | Start a new game |
+| A save crashes the game while loading, with no mods (or other mods) on | It was made while a mod's own mission ran (new zombies): it needs that mission | Switch that mod back on; to drop its zombies, keep the mission with 0 zombies |
 | The save doesn't load after you installed a level mod | An older mod (or a hand-made `missions.txt`) adds blocks inside the game's missions | Take that mod out (mod manager); the save comes back |
 | `ItemName '…' is not an item of this game's items.txt` | Case Zero doesn't have every Case West item | Pick another one (**Add item…** lists only items this game has) |
 | The Edit tick box opens *New mod…* | Edits are saved into the open mod | Create or open one |

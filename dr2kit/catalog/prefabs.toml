@@ -1,0 +1,68 @@
+# Prefabs: ready-made things a modder adds to a level, each cloned from a working example
+# the game ships (phase 11 step 5; dr2kit/catalog/prefabs.py, docs/modding/19-edit-a-level.md).
+#
+# id          stable name (files, the CLI)
+# name        what the Add... list shows
+# group       the list's heading
+# file        where the clone goes: "level" (<script>.txt) or "waypoint" (waypoint_<script>.txt)
+# anchor      the key whose position is where you click (default: Location); every other
+#             key holding x,y,z within 15 m of it moves with it (CW's save points keep their
+#             corners in world space)
+# keys        keys the panel offers to change after placing it (with their meaning)
+# checked     what was seen in game ("" = not checked yet: the list says so)
+# source.<game> = ["<file the example is in>", "<its block path>"]: the first one the game has
+
+[[prefab]]
+id = "save_point"
+name = "Save point (press to save)"
+group = "Save points"
+file = "waypoint"
+anchor = "ActionPoint"
+description = "Chuck stands at the clicked spot and presses the button to save, as at the game's toilets. Nothing is drawn: put a toilet or a sign there."
+checked = "Case Zero 2026-10-11: the prompt shows, saving works, the save loads"
+source.cz = ["waypoint_prologue.txt", "cTriggerVolume UncleBills_SaveTrigger"]
+source.cw = ["waypoint_living_research.txt", "cTriggerVolume LabsSave1"]
+
+[[prefab]]
+id = "workbench"
+name = "Workbench (combine weapons)"
+group = "Stations"
+file = "level"
+description = "The game's workbench: combine two items into a combo weapon."
+checked = "Case Zero 2026-10-11: combines (a baseball bat was put on it)"
+source.cz = ["prologue.txt", "cItemPlacement Workbench1"]
+source.cw = ["living_research.txt", "cItemPlacement Workbench1"]
+
+[[prefab]]
+id = "door_to_level"
+name = "Door to another level"
+group = "Doors"
+file = "waypoint"
+description = "Press the button here to go to another level, arriving at one of its spawn points. Set Level (LEVEL_...) and LevelSpawnPoint after placing it."
+keys = { Level = "the level it leads to (LEVEL_PROLOGUE_SAFEHOUSE...)", LevelSpawnPoint = "where you arrive there (a spawn point of that level)" }
+checked = "Case Zero 2026-10-11: the prompt shows and takes you into the safehouse"
+source.cz = ["waypoint_prologue.txt", "cTriggerVolume Safehouse_entrance"]
+source.cw = ["waypoint_living_research.txt", "cTriggerVolume PensUpper"]
+
+[[prefab]]
+id = "spawn_point"
+name = "Spawn point (where Chuck arrives)"
+group = "Spawn points"
+file = "level"
+anchor = "Location0"
+description = "A place a door to this level (LevelSpawnPoint) or a mission can put Chuck."
+checked = "Case Zero 2026-10-11: the safehouse's exit pointed at a new one puts Chuck there"
+source.cz = ["prologue.txt", "cSpawnPoint BowlingExit"]
+source.cw = ["living_research.txt", "cSpawnPoint Start"]
+
+[[prefab]]
+id = "wall"
+name = "Blocker (something the player can't pass)"
+group = "Static models"
+file = "level"
+description = "An item that can't be moved and that the player bumps into: Case Zero's road block, Case West's army Humvee (Case West ships no road block model). Turn it with the handles; copy it to make a longer wall."
+checked = "Case Zero 2026-10-11: the road block blocks the player"
+source.cz = ["prologue.txt", "cItemPlacement MilitaryHummer1"]
+source.cw = ["living_research.txt", "cItemPlacement Workbench1"]
+item.cz = "MilitaryBarrier"
+item.cw = "MilitaryHummer1"

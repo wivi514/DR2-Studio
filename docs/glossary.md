@@ -422,6 +422,10 @@ file that lists only what it changes, by block path (move this item, add that zo
 remove this box), instead of a whole copy of the file. Several mods can change one file
 this way, and the recomp's own changes to it stay.
 
+**Prefab.** A ready-made thing to add to a level, copied from one the game already has
+(a save point, a workbench, a door to another level…), so it works like the real one.
+DR2 Studio's **Add from prefab…** lists them; you can save your own (`.dr2prefab`).
+
 **Load set.** The zombie types a level loads into memory, by time of day
 (`zombiesets.txt`). A zombie of a type the level doesn't load probably doesn't appear,
 so adding a new type to a level means adding it to the load set too.

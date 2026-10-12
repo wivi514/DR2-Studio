@@ -8,8 +8,8 @@ level first in the **Maps** tab ([`18-maps.md`](18-maps.md)): it shows every ite
 file and line when you click it.
 
 > This guide grows with phase 11. Written so far: editing items, doors and zombies in
-> the Maps tab, the edits files and the `dr2 level` commands. Next: adding things from
-> prefabs (save points, workbenches…).
+> the Maps tab, adding things from prefabs, the edits files and the `dr2 level` commands.
+> Next: your own models.
 
 ## How the game places things
 
@@ -125,6 +125,30 @@ the game's saves set the rules.
    (start one to see them); then move, turn and change them like the others.
 5. **Undo / Redo** and **Play** as for items.
 
+## Steps: add a save point, a workbench, a door… from a prefab
+
+A **prefab** is a ready-made thing copied from one the game already has, so it works
+like the real one: a save point saves, a door takes you to its level
+([glossary](../glossary.md)).
+
+1. With **Edit** ticked, look at the spot where it should go (the middle of the view).
+2. **Add from prefab…** and pick one. The list says if a prefab hasn't been checked in the
+   game yet. All of these work in Case Zero (checked 2026-10-11):
+
+   | Prefab | What it is | After placing it |
+   |---|---|---|
+   | **Save point** | press the button there to save, as at the game's toilets; nothing is drawn, so put it by a toilet or a sign | the triggers layer shows its box; Chuck stands where you clicked |
+   | **Workbench** | combine two items into a combo weapon | move and turn it like any item |
+   | **Door to another level** | press the button there to go to another level | **Settings…**: set `Level` (where it leads, `LEVEL_PROLOGUE_SAFEHOUSE`…) and `LevelSpawnPoint` (where you arrive: a spawn point of that level) |
+   | **Spawn point** | a place Chuck can arrive at | point a door's `LevelSpawnPoint` at its name |
+   | **Blocker** | something the player can't walk through (Case Zero's road block, Case West's army Humvee) | turn it, **Copy** it to make a wall |
+
+3. **Settings…** shows every setting of the selected thing as text, `Key = value` per
+   line: change a door's `Level`, an item's flags; delete a line to remove a setting.
+4. **Your own prefabs:** select an item you set up and click **Save as prefab…**. It
+   appears in **Add from prefab…** under *My prefabs*. The files (`.dr2prefab`, plain
+   text) are in your toolkit data folder under `prefabs/`; share them like any file.
+
 ## Steps: change a level with the `dr2` command
 
 1. Make a mod if you haven't: `dr2 mod new my_level_mod`.
@@ -182,7 +206,10 @@ every mission. Tested in Case Zero:
   saves and a new game stalls. `dr2 mod check` and DR2 Studio refuse it.
 - **New zombies go in a mission of your own**, a new `cMissionDefinition` at the top of
   `missions.txt`, with a `cMissionLevelReady` for the level and the zombies inside. It
-  appears in a **new game**; a save made without your mod doesn't start it. Copy the
+  appears in a **new game**; a save made without your mod doesn't start it.
+- **A save made with such a mission needs it:** loaded without your mod, that save
+  crashes the game. Tell your players to keep the mod on for saves made with it (to stop
+  using it, keep the mission and set its zombies to 0). Copy the
   settings of the level's main zombie mission (Case Zero's street: `PrologueZombies`):
 
   ```
