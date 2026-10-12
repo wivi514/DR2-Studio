@@ -673,3 +673,38 @@ def test_weapon_dialog_fills_a_spec_and_opens_one_again(tmp_path, game_root):
     assert win.wait_for_jobs()
     win.close()
     del app
+
+
+@pytest.mark.gamedata
+def test_effects_window_changes_and_makes_effects(tmp_path, game_root):
+    """Phase 13: the Effects… window lists the game's effects, turns its sliders into
+    changes, and writes a change or an effect of one's own into the open mod."""
+    from PySide6.QtWidgets import QApplication
+    from dr2kit.mods import neweffect
+    from dr2kit.mods.manifest import create
+    from dr2kit.studio.app import MainWindow
+    from dr2kit.studio.effects_dialog import EffectsDialog
+    game_root("cz")
+    app = QApplication.instance() or QApplication([])
+    win = MainWindow(tmp_path / "i.sqlite")
+    win.game_box.setCurrentIndex(win.game_box.findData("cz"))
+    mod = create(tmp_path / "mod", "fxdlg")
+    d = EffectsDialog(win, mod)
+    d.search.setText("tikitorch_wpn_c_2")
+    assert d.list.count() == 1
+    d.list.setCurrentRow(0)
+    d.hue.setValue(120)
+    d.sliders["size"].setValue(150)
+    assert d.changes() == {"hue": 120, "size": 1.5}
+    d.change()
+    assert neweffect.changed_effects(mod) == [("tikitorch_wpn_c_2", {"hue": 120, "size": 1.5})]
+    d.make_own()
+    own = neweffect.own_effects(mod)
+    assert len(own) == 1 and own[0][1]["effect"]["from"] == "tikitorch_wpn_c_2"
+    d.group.setCurrentIndex(d.group.findData("mine"))
+    d.search.setText("")
+    assert d.list.count() == 2                       # the changed one and the own one
+    d.close()
+    assert win.wait_for_jobs()
+    win.close()
+    del app

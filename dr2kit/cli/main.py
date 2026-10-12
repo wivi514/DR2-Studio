@@ -795,6 +795,8 @@ def cmd_mod(args) -> int:
         return 0
     if args.action in ("new-weapon", "remove-weapon"):
         return _cmd_weapon(args, tree, loc)
+    if args.action in ("effect", "new-effect", "effect-picture"):
+        return _cmd_effect(args, tree)
     if args.action == "import-textures":
         from ..mods import texture_import as ti
         mod = manifest.Mod.load(args.mod)
@@ -1031,6 +1033,43 @@ def _cmd_weapon(args, tree, loc) -> int:
     return 0
 
 
+def _effect_changes(args) -> dict:
+    ch: dict = {}
+    for key in ("hue", "saturation", "brightness", "alpha", "size", "time"):
+        v = getattr(args, key, None)
+        if v is not None:
+            ch[key] = v
+    for swap in args.texture or []:
+        if "=" not in swap:
+            raise Dr2Error(f"--texture {swap!r}: write OLD=NEW (picture names)")
+        a, b = swap.split("=", 1)
+        ch.setdefault("texture", {})[a] = b
+    return ch
+
+
+def _cmd_effect(args, tree) -> int:
+    """``dr2 mod effect`` / ``new-effect`` / ``effect-picture`` (mods.neweffect)."""
+    from ..mods import manifest, neweffect
+    mod = manifest.Mod.load(args.mod)
+    if args.action == "effect-picture":
+        f = neweffect.new_particle_texture(tree, mod.root, args.name, args.png)
+        print(f"wrote {f}; use it with --texture OLD={args.name}")
+        return 0
+    ch = _effect_changes(args)
+    if args.action == "effect":
+        if args.remove:
+            for f in neweffect.remove(mod.root, args.effect):
+                print(f"removed {f}")
+            return 0
+        f = neweffect.change_effect(tree, mod.root, args.effect, ch)
+        print(f"wrote {f}: {args.effect} changes everywhere the game uses it")
+        return 0
+    num, f = neweffect.new_effect(tree, args.game, mod.root, args.effect, ch, args.slot)
+    print(f"wrote {f}: your effect is number {num}; give it to a weapon "
+          f"(dr2 mod new-weapon … --held {num}) or any effect key")
+    return 0
+
+
 def cmd_effects(args) -> int:
     """List weapon kinds, or the effect table by group, with what uses each effect."""
     from ..catalog import weapons
@@ -1046,6 +1085,27 @@ def cmd_effects(args) -> int:
         doc = Document.parse(tree.resolve("data/datafile.big/items.txt").data())
     except Dr2Error:
         pass                                                # names only, without the game
+    if args.show:
+        from ..container.vpath import AssetTree
+        from ..convert.effects import describe
+        from ..formats import effect as fx
+        tree = AssetTree(locate(args.game).root)
+        allfx = fx.read_all(tree)
+        hit = allfx.get(args.show) or next((f for n, f in allfx.items()
+                                            if n.lower() == args.show.lower()), None)
+        if hit is None:
+            raise Dr2Error(f"no effect named {args.show!r} in {args.game}")
+        entry, e = hit
+        print(f"{e.name} ({fx.EFFECTS_BIG}/{entry}), {len(e.emitters)} emitter(s):")
+        for line in describe(e):
+            print("  " + line)
+        if args.out:
+            from ..convert import effect_preview as ep
+            from ..convert import png
+            pic = ep.preview(e, ep.texture_finder(tree))
+            png.write(args.out, png.Image(pic.shape[1], pic.shape[0], pic.tobytes()))
+            print(f"wrote {args.out} (a sketch from the effect's data)")
+        return 0
     words = [w.lower() for w in args.words]
     names = dict(weapons.groups())
     shown = 0
@@ -1517,6 +1577,35 @@ def build_parser() -> argparse.ArgumentParser:
     pm.add_argument("--card-number", type=int, help="the card's number (default: the first "
                     "free one)")
     game_opt(pm)
+    def change_opts(pm):
+        pm.add_argument("--hue", type=float, help="turn the colours to this hue (0-360: 0 red, "
+                        "120 green, 210 ice blue)")
+        for key, what in (("saturation", "× saturation"), ("brightness", "× brightness"),
+                          ("alpha", "× opacity"), ("size", "× every size"),
+                          ("time", "× the lifetime (colour key times)")):
+            pm.add_argument(f"--{key}", type=float, help=what)
+        pm.add_argument("--texture", action="append", metavar="OLD=NEW",
+                        help="swap a particle picture (names in effects.tex, or yours)")
+    pm = msub.add_parser("effect", help="change one of the game's particle effects in a mod "
+                         "(everywhere the game uses it)")
+    pm.add_argument("mod", help="the mod folder")
+    pm.add_argument("effect", help="the effect's name (dr2 effects)")
+    pm.add_argument("--remove", action="store_true", help="take the change out of the mod")
+    change_opts(pm)
+    game_opt(pm)
+    pm = msub.add_parser("new-effect", help="an effect of your own: a game effect copied into "
+                         "a free number of the effect table, with changes")
+    pm.add_argument("mod", help="the mod folder")
+    pm.add_argument("effect", help="the game effect to start from (dr2 effects)")
+    pm.add_argument("--slot", help="which free number or name (default: the first free one)")
+    change_opts(pm)
+    game_opt(pm)
+    pm = msub.add_parser("effect-picture", help="a particle picture of your own (a PNG) for "
+                         "effects (--texture OLD=NAME)")
+    pm.add_argument("mod", help="the mod folder")
+    pm.add_argument("name", help="its name (letters, digits, _)")
+    pm.add_argument("png", help="the picture (see-through background)")
+    game_opt(pm)
     pm = msub.add_parser("remove-weapon", help="take a wizard weapon out of a mod")
     pm.add_argument("mod", help="the mod folder")
     pm.add_argument("name", help="the weapon's item name")
@@ -1573,6 +1662,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--group", choices=[g for g, _ in effect_groups()],
                    help="only one group (ice, fire, electric, blood…)")
     p.add_argument("--kinds", action="store_true", help="list the weapon kinds instead")
+    p.add_argument("--show", metavar="NAME", help="one effect's emitters in words")
+    p.add_argument("--out", metavar="PNG", help="with --show: a picture of it (a sketch)")
     game_opt(p)
     p.set_defaults(func=cmd_effects)
 

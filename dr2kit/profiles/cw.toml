@@ -37,6 +37,17 @@ digest_checked = [
     "data/models/zombies/zombie_pdv_variations.txt",
 ]
 
+# Files the game reads from data/preload4.big instead of the loose copy (phase 13).
+# preload4.big, opened first, holds copies of 86 files (CZ: all byte-identical to their
+# twins; CW 59 of 86). Measured (CZ 2026-10-12): the particle effects come from its
+# effects.big (data/models/effects.big is never opened), and its boot loader crashes on a
+# re-encoded entry (as the CZ recomp found for fecmn.big, its tools/gen_pc_options.py).
+# So a mod that changes one of these loose files EVICTS the nested copy instead: its
+# index hash is changed, lookups miss, the game reads the loose file (the recomp's
+# "part 60" road). Loose vpath -> the entry's name in preload4.big; only measured ones.
+preload_evict = { "data/models/effects.big" = "effects.big", "data/models/effects.tex" = "effects.tex" }
+
+
 # The in-game map's other floors (phase 10): see cz.toml. map_2f fitted to the blueprint
 # (its octagon and outer walls), map_b1 to the tunnel pieces of storage_pens_z09.
 [[map_floors]]

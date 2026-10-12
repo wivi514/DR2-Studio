@@ -23,6 +23,11 @@ What counts as an override, under ``replace/``:
   names change, applied over whatever copy is underneath (the recomp's own edits stay;
   `dr2kit.formats.leveledits`, phase 11). Several mods can edit one file; only the same
   key of the same block changed by two of them is a conflict, decided by priority.
+* ``<entry>.effect.json`` where ``<entry>`` is an effect of ``data/models/effects.big``
+  (``EFFECT_Common137``): the changes it lists (recolour, size, timing, pictures, any
+  emitter field; `dr2kit.convert.effects`) are applied to the game's effect (phase 13).
+  ``{"format": "dr2kit-effect/1", "effect": "<its name>", "changes": {…}}``; the name is
+  checked, so a file made for one game's entry never lands on another effect.
 * ``<vpath>`` exactly (any other file): its bytes replace the asset as they are, e.g. an
   edited ``datafile.big/zombie_effects.txt``. The toolkit re-compresses it if the
   original entry was compressed.
@@ -54,6 +59,7 @@ AUDIO_EXTS = (".wav", ".ogg", ".flac", ".mp3")   # what can replace a sound
 STRINGS_EXT = ".bcs.json"                         # string changes for a string bank
 EDITS_EXT = ".edits.json"                         # block changes for a level text file
 PIECES_EXT = ".pieces.json"                       # building changes for a zone (level pieces)
+EFFECT_EXT = ".effect.json"                       # changes to one particle effect (phase 13)
 _ID = re.compile(r"^[a-z0-9][a-z0-9_.-]{0,63}$")
 
 TEMPLATE = '''# A DR2 Case Zero / Case West mod. Reference: docs/modding/06-mod-packages.md

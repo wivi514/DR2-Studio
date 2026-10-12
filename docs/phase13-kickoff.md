@@ -140,6 +140,16 @@ game not to be started for them: in-game checks headless on a copy of their save
 * **Step 7 (grip editor): mostly** in the wizard's preview (the new shape over the faded
   game weapon, the hands' grip nodes as red diamonds, slide / turn / length / handle end).
   Chuck holding it (needs `.anm`) not done.
+* **Step 6 (effects of one's own): 6.1-6.4 done** (format read/written, census; change,
+  recolour, resize, swap pictures; own effects in the table's 36 free slots; own particle
+  pictures; Studio *Effects…* with a sketch preview; `dr2 mod effect / new-effect /
+  effect-picture`, `dr2 effects --show`). Checked in game headless (CZ): a changed game
+  effect, an own effect and an own picture all showed. Found on the way: `preload4.big`
+  eviction and the `layout.bin` size pin (formats.md §Particle effects). **Not done:**
+  6.5 (WoW particle import), CW in game, guide 21 (effects; the CLI/Studio are documented
+  only in module docstrings and formats.md so far), Frostmourne gate made in Studio.
+* **Not started:** step 8 (import guide for other games' models), step 9 (buildings, maps,
+  `.anm`).
 * **Owed by the user (windowed):** pick up and swing a wizard weapon (CZ and CW), its
   icon in the inventory, the combo card at a workbench (found and not found), French
   names.

@@ -65,6 +65,12 @@ Phase 9 adds variants (``variants=True``, `dr2kit.convert.variants`):
   game's list (``zombie_pdv_variations.txt``) names is found in the shader bank and
   given by the rule.
 
+Phase 13 adds **particle effects** (always, under a second; `check_effects`,
+`dr2kit.formats.effect`): every ``EFFECT_Common<k>`` of ``data/models/effects.big`` parses
+(every emitter's size follows its shape) and writes back byte for byte;
+``preload4.big``'s copy (the one the game reads) is the same; the effect table's names
+with an effect and the free slots are counted.
+
 Phase 10 adds levels (``levels=True``, `check_levels`; `dr2kit.formats.level`):
 
 * **zones**: every level's ``zonelist.big`` parses, every zone's archive is there, and
@@ -114,6 +120,7 @@ from dataclasses import dataclass, field
 from .container import xcompress
 from .container.big import BigArchive, is_big, STORED, LZX
 from .container.lzx.pydecode import _Bits
+from .errors import Dr2Error
 from .container.vpath import AssetTree, entry_components, join
 from .formats import bct as bctfmt
 from .formats import scene as scenefmt
@@ -231,6 +238,8 @@ class CensusReport:
     level_counts: Counter = field(default_factory=Counter)    # named measurements
     level_bounds_error: float = 0.0                           # worst placement-maths error, m
     level_notes: list = field(default_factory=list)           # named, not problems
+    # particle effects (phase 13)
+    effects: dict = field(default_factory=dict)               # effects, emitters, shapes
     seconds: float = 0.0
     lzx_backend: str = ""
 
@@ -523,6 +532,7 @@ def run_census(game: str, tree: AssetTree, *, python_lzx: bool = False,
                 continue
             visit(arc, raw, vp, 0)
         drain(0)
+        check_effects(rep, tree, game)
         if var_ctx is not None:
             check_colour_list(rep, var_ctx)
         if levels:
@@ -537,6 +547,35 @@ def run_census(game: str, tree: AssetTree, *, python_lzx: bool = False,
             audio_pool.shutdown(cancel_futures=True)
     rep.seconds = time.time() - t0
     return rep
+
+
+def check_effects(rep: "CensusReport", tree: AssetTree, game: str) -> None:
+    """Phase 13 (module docstring): every particle effect parses and writes back byte for
+    byte, ``preload4.big``'s copy is the same archive, and the effect table's names are
+    counted (with an effect / free slots)."""
+    from .catalog import weapons
+    from .formats import effect as fx
+    try:
+        tree.resolve(fx.EFFECTS_BIG)
+    except Dr2Error:
+        return                                       # no effects archive (a test game)
+    try:
+        r = fx.census_effects(tree)
+    except Dr2Error as e:
+        rep.problems.append((fx.EFFECTS_BIG, str(e)))
+        return
+    rep.problems += [(fx.EFFECTS_BIG, p) for p in r["problems"]]
+    have = {n.lower() for n in fx.read_all(tree)}
+    table = weapons.names(game)
+    r["table"] = len(table)
+    r["free slots"] = sum(1 for n in table if n.lower() not in have)
+    try:
+        r["preload copy same"] = (tree.resolve(fx.EFFECTS_BIG).data()
+                                  == tree.resolve("data/preload4.big/effects.big").data())
+    except Dr2Error:
+        r["preload copy same"] = None
+    del r["problems"]
+    rep.effects = r
 
 
 _NUMBERS = re.compile(r"\d+")
@@ -1263,6 +1302,12 @@ def format_report(rep: CensusReport) -> str:
     if rep.movies:
         w(f"movies (.bik): {rep.movies} decoded (every frame, and the sound), "
           f"{rep.movie_seconds / 60:.1f} min")
+    if rep.effects:
+        e = rep.effects
+        w(f"particle effects: {e['effects']} parsed and re-written identically, "
+          f"{e['emitters']} emitters (shapes {_fmt(e['shapes'], sort_keys=True)}); effect table "
+          f"{e['table']} names, {e['free slots']} free slots; preload4.big's copy "
+          f"{'the same' if e['preload copy same'] else 'DIFFERENT'}")
     if rep.string_banks:
         counts = set(rep.strings.values())
         w(f"string banks (.bcs): {rep.string_banks} parsed and re-written identically, "

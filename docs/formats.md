@@ -1732,14 +1732,33 @@ x 26-337, top edge y 40 → 26, bottom edge y 287 → 266) and the two **drawing
 (x 35-166 and 199-332, y 361-483). Chuck's hair pokes out of the window on some cards.
 The wizard draws new cards on the empty card (`dr2kit/convert/icon.py`).
 
-### Particle effects (`data/models/effects.big`) 🟡
+### Particle effects (`data/models/effects.big`) ✅ read, written, changed and added in game (CZ, headless, 2026-10-12)
 
-448 (CZ) `EFFECT_Common<k>` entries, sorted by the effect's name (not by its number), plus
-an ordinary scene's chunks. An entry starts with a 4-byte big-endian word (`0x1D`) and the
-effect's name (NUL-padded, 0x80 bytes in all ❓), then one record per **emitter**: its
-particle texture by name (`cloud_smoke2`, `fire_flame`, at a 0x1D0 stride in
-`flamingsword_wpn_c_3_unq`), and blocks of floats (sizes, rates, lifetimes, colour keys ❓).
-Not read yet: phase 13 (`phase13-kickoff.md`).
+Layout in `dr2kit/formats/effect.py` (census: CZ 448 effects / 2,221 emitters, CW 506 /
+2,516, all written back byte for byte). An effect: version `0x1D` (CZ) / `0x20` (CW), a
+0x80-byte name, the emitter count, 4 (CZ) / 3 (CW) header words, then the emitters: 0x190
+bytes of fields, the particle picture's name (0x20), 8 zero bytes, then a tail by the
+shape word at +0x30 (0 none, 1/2 six floats, 3 five floats): 440, 464 or 460 bytes. The
+colour keys (five RGBA at +0x64, times at +0x54) **are the particles' colours**: the
+Flaming Sword's flame recoloured green showed green in game. Other fields: guesses
+(`FIELDS`, status "?").
+
+**How the game loads them (measured, CZ):**
+* from `data/preload4.big`'s copy (`data/models/effects.big` is never opened). Re-encoding
+  inside `preload4.big` crashes the boot (memory.cpp), as the CZ recomp found for
+  `fecmn.big`; the build **evicts** the nested copy instead (index hash `^ 0xDEADBEEF`, 4
+  bytes changed) and the game then reads the loose `effects.big` (profile `preload_evict`,
+  also `effects.tex`). `preload4.big` holds copies of 86 files (CZ all identical; CW 59).
+* **`layout.bin` pins every file's size** (152-byte records, BE size at +132); a 4 KB larger
+  `effects.big` crashed when opened. The build now writes a re-pinned `layout.bin` when a
+  built file changed size (`mods.build.repin_layout`); the user's own mods load with it.
+* only the effects listed in the scene's `SceneDescription` (kind 13) and counted in
+  `SceneHeader` word 3 load; an added effect must be listed (`register_in_scene`).
+* **free slots:** 36 names of the effect table have no effect (`unused`, `wip_1`…, the
+  same in both games). An effect added under one of these names shows with that number:
+  effect 69 (`wip_1`), the Flaming Sword copied and turned blue, showed blue in game.
+* particle pictures of one's own, added to `effects.tex` (named without `.bct`), show in
+  game.
 
 ### New items' files load ✅ (headless, CZ, 2026-10-12, phase 13)
 

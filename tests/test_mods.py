@@ -164,3 +164,30 @@ def test_cli_mod_workflow(game, tmp_path, capsys):
     assert (tmp_path / "assets/game_mods/data/models/npcs.big").is_file()
     assert main(["mod", "undeploy", "-g", "cz"]) == 0
     assert not (tmp_path / "assets/game_mods/data/models/npcs.big").exists()
+
+
+def test_layout_bin_is_repinned_when_a_file_grows(game, tmp_path):
+    """Phase 13: layout.bin pins every file's size (152-byte records, BE size at +132);
+    a build whose file changed size carries a re-pinned copy, the others are left."""
+    def record(name, size):
+        return name.encode().ljust(128, b"\0") + b"\x12\x34\x56\x78" + size.to_bytes(4, "big") \
+            + bytes(16)
+    notes = game / "data" / "notes.txt"
+    npcs = game / "data" / "models" / "npcs.big"
+    layout = record("data/notes.txt", notes.stat().st_size) + \
+        record("data/models/npcs.big", npcs.stat().st_size)
+    (game / "layout.bin").write_bytes(layout)
+    mod = make_mod(tmp_path)
+    (mod / "replace" / "data").mkdir(parents=True)
+    (mod / "replace" / "data" / "notes.txt").write_bytes(b"longer notes than before " * 4)
+    res = mbuild.build([Mod.load(mod)], "cz", AssetTree(game), tmp_path / "out")
+    assert "layout.bin" in res.files
+    new = (tmp_path / "out" / "layout.bin").read_bytes()
+    assert len(new) == len(layout)
+    assert int.from_bytes(new[132:136], "big") == 100                   # re-pinned
+    assert new[152:] == layout[152:] and new[128:132] == layout[128:132]   # the rest kept
+    same = make_mod(tmp_path, "same")
+    (same / "replace" / "data").mkdir(parents=True)
+    (same / "replace" / "data" / "notes.txt").write_bytes(b"x" * notes.stat().st_size)
+    res = mbuild.build([Mod.load(same)], "cz", AssetTree(game), tmp_path / "out2")
+    assert "layout.bin" not in res.files                                 # nothing to pin

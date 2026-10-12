@@ -22,12 +22,18 @@ it. The build does that and nothing else:
    (`manifest`; inserted in name order, compressed like their neighbours). Unknown paths, wrong
    sizes, files the game digest-checks and conflicts between mods at the same priority
    are errors, reported all at once. Between different priorities the higher one wins,
-   and `plan_mods` lists what lost (``ModPlan.shadowed``) for the mod manager.
+   and `plan_mods` lists what lost (``ModPlan.shadowed``) for the mod manager. A change
+   to a file the game reads from its copy in ``preload4.big`` (the profile's
+   ``preload_evict``: the particle effects) **evicts** that copy (its index hash is
+   changed, nothing re-encoded), so the game reads the changed loose file.
 2. **Patch** each file on disk that holds an override (`patch_archive`): parse it, walk
    down the vpath, replace the leaf, and re-serialise every archive on the way back up.
    An entry that was LZX-compressed is compressed again (the game crashes on a stored
    replacement; CLAUDE.md rule 4), and every encode is verified by decoding.
-3. **Verify** the output: read every override back through a fresh `AssetTree` over the
+3. **Re-pin** ``layout.bin`` (`repin_layout`): the game reads each file by the size
+   this table pins, so a build whose files changed size carries a ``layout.bin`` with
+   their new sizes.
+4. **Verify** the output: read every override back through a fresh `AssetTree` over the
    build folder and compare it with what was meant to be written.
 
 ``base_dirs``: folders laid out like the game root (``data/...``) whose copy of a file is
@@ -48,10 +54,13 @@ from ..container.vpath import AssetTree, entry_component, find_entry, join, spli
 from ..container.vpath import entry_components as entry_components_of
 from ..errors import Dr2Error
 from ..formats.bct import Bct, is_bct
-from .manifest import (ADD_DIR, AUDIO_EXTS, EDITS_EXT, PIECES_EXT, STRINGS_EXT, Mod, ModError,
-                       Override)
+from .manifest import (ADD_DIR, AUDIO_EXTS, EDITS_EXT, EFFECT_EXT, PIECES_EXT, STRINGS_EXT, Mod,
+                       ModError, Override)
 
 MERGED = ("strings", "edits", "pieces")     # kinds that several mods apply to one file together
+PRELOAD = "data/preload4.big"
+EVICT_XOR = 0xDEADBEEF                      # the CZ recomp's own eviction (gen_pc_options.py)
+EFFECT_FORMAT = "dr2kit-effect/1"
 
 BUILD_INFO = "dr2kit-build.json"
 
@@ -122,6 +131,8 @@ def _kind_of(rel: str) -> tuple[str, str]:
         return "edits", rel[:-len(EDITS_EXT)]
     if low.endswith(PIECES_EXT):
         return "pieces", rel[:-len(PIECES_EXT)]
+    if low.endswith(EFFECT_EXT):
+        return "effect", rel[:-len(EFFECT_EXT)]
     if low.endswith(AUDIO_EXTS) and rel.rsplit(".", 1)[0].lower().endswith(".xma"):
         return "audio", rel.rsplit(".", 1)[0]
     return "raw", rel
@@ -175,6 +186,11 @@ def plan_mods(mods: list[Mod], game: str, tree: AssetTree) -> ModPlan:
                 problems.append(f"{mod.id}: replace/{rel}: {node.vpath} is not a texture, "
                                 f"so a PNG can't replace it")
                 continue
+            if kind == "effect":
+                problem = _check_effect(node, src)
+                if problem:
+                    problems.append(f"{mod.id}: replace/{rel}: {problem}")
+                    continue
             if kind == "model-glb":
                 problem = _check_model(node, src)
                 if problem:
@@ -288,6 +304,24 @@ def plan_mods(mods: list[Mod], game: str, tree: AssetTree) -> ModPlan:
                 shadowed.append((vp, plan[key].mod.id, mod.id))
             plan[key] = Planned(Override(vp, src, "add"), mod, vp, _disk_parts(tree, vp),
                                 data=recipe)
+    # Files the game reads from preload4.big (profile preload_evict: the effects): the
+    # nested copy is evicted (its index hash changed) so the game reads the changed
+    # loose file; re-encoding inside preload4.big crashes the boot (docs/formats.md)
+    for key in list(plan):
+        p = plan[key]
+        for loose, entry in load_profile(game).preload_evict.items():
+            if not (p.vpath.lower() == loose.lower() or
+                    p.vpath.lower().startswith(loose.lower() + "/")):
+                continue
+            evp = join(PRELOAD, entry)
+            ekey = evp.lower() + "|evict"
+            try:
+                tree.resolve(evp)
+            except Dr2Error:
+                continue
+            if ekey not in plan:
+                plan[ekey] = Planned(Override(evp, p.override.source, "evict"), p.mod, evp,
+                                     _disk_parts(tree, evp))
     keys = sorted(plan)
     texts: dict[str, list[Planned]] = {}
     for k in keys:
@@ -503,6 +537,35 @@ def _check_model(node, src: Path) -> str | None:
     return None
 
 
+def _check_effect(node, src: Path) -> str | None:
+    """Why an ``.effect.json`` can't apply to ``node``, or None (a dry run)."""
+    from ..formats.effect import is_effect
+    if not is_effect(node.data()[:4]):
+        return f"{node.vpath} is not a particle effect"
+    try:
+        effect_bytes(node.data(), src, node.vpath)
+    except Dr2Error as e:
+        return str(e)
+    return None
+
+
+def effect_bytes(original: bytes, src: Path, vpath: str) -> bytes:
+    """An effect with an ``.effect.json``'s changes applied (`convert.effects`)."""
+    from ..convert.effects import apply_changes
+    from ..formats.effect import Effect
+    fx = Effect.parse(original, vpath)
+    try:
+        doc = json.loads(Path(src).read_text("utf-8"))
+    except ValueError as e:
+        raise Dr2Error(f"not JSON: {e}") from None
+    if doc.get("format") != EFFECT_FORMAT:
+        raise Dr2Error(f"not a {EFFECT_FORMAT} file")
+    if doc.get("effect") and doc["effect"].lower() != fx.name.lower():
+        raise Dr2Error(f"made for the effect {doc['effect']!r}, but this entry is "
+                       f"{fx.name!r} in this game")
+    return apply_changes(fx, doc.get("changes") or {}).to_bytes()
+
+
 def new_bytes(p: Planned, original: bytes) -> bytes:
     """The replacement bytes for one override, given the asset's current bytes."""
     if p.override.kind == "add" and p.data is not None:
@@ -511,6 +574,11 @@ def new_bytes(p: Planned, original: bytes) -> bytes:
         return p.override.source.read_bytes()
     if p.override.kind in MERGED:
         return merged_bytes([p], original)
+    if p.override.kind == "effect":
+        try:
+            return effect_bytes(original, p.override.source, p.vpath)
+        except Dr2Error as e:
+            raise ModError(f"{p.mod.id}: replace/{p.vpath}{EFFECT_EXT}: {e}") from None
     if p.override.kind == "model-glb":
         from ..convert.model_import import import_glb
         from ..formats.scene import Scene
@@ -541,9 +609,14 @@ def patch_archive(data: bytes, vpath: str, edits: dict) -> bytes:
     strings, level edits). Compressed entries are re-compressed.
     """
     arc = BigArchive.parse(data, vpath)
+    added = []
     for comp, sub in edits.items():
         if isinstance(sub, list) and sub[0].override.kind == "add":
             add_entry(arc, comp, new_bytes(sub[-1], b""))
+            added.append(comp)
+            continue
+        if isinstance(sub, list) and sub[0].override.kind == "evict":
+            evict_entry(arc, comp)
             continue
         entry = find_entry(arc, comp)
         evp = join(vpath, entry_component(arc, entry))
@@ -555,7 +628,51 @@ def patch_archive(data: bytes, vpath: str, edits: dict) -> bytes:
         else:
             updated = merged_bytes(sub, current)
         entry.set_data(updated)
+    if added:
+        register_in_scene(arc, added)
     return arc.to_bytes()
+
+
+SCENE_EFFECT = 13          # SceneDescription kind of an EFFECT_Common<k> chunk (effects.big)
+
+
+def register_in_scene(arc: BigArchive, names: list[str]) -> None:
+    """List new particle effects in their scene (``data/models/effects.big``): the game
+    loads the chunks ``SceneDescription`` lists (32-byte name + u32 kind, 13 for an
+    effect), counted by ``SceneHeader``'s word 3, not every entry of the archive
+    (measured in phase 13: an added effect not listed never showed). Other archives:
+    nothing to do."""
+    import struct
+    names = [n for n in names if n.upper().startswith("EFFECT_")]
+    try:
+        desc = find_entry(arc, "SceneDescription")
+        head = find_entry(arc, "SceneHeader")
+    except Dr2Error:
+        return
+    if not names:
+        return
+    d = bytearray(desc.data())
+    listed = {bytes(d[i:i + 32]).split(b"\0")[0].decode("latin-1").lower()
+              for i in range(0, len(d), 36)}
+    for n in names:
+        if n.lower() in listed:
+            continue
+        if len(n.encode()) >= 32:
+            raise ModError(f"{n}: a scene chunk name is at most 31 characters")
+        d += n.encode().ljust(32, b"\0") + struct.pack(">I", SCENE_EFFECT)
+    h = bytearray(head.data())
+    struct.pack_into(">I", h, 12, len(d) // 36)
+    desc.set_data(bytes(d))
+    head.set_data(bytes(h))
+
+
+def evict_entry(arc: BigArchive, name: str) -> None:
+    """Make the game's lookups miss entry ``name`` of ``arc`` (its index hash changed, its
+    bytes kept), so it reads the loose file instead (`PRELOAD`). Already evicted (by the
+    recomp's own patched copy): left alone."""
+    e = find_entry(arc, name)
+    if e.hash == e.computed_hash():
+        e.hash ^= EVICT_XOR
 
 
 def add_entry(arc: BigArchive, name: str, data: bytes) -> None:
@@ -632,6 +749,8 @@ def build(mods: list[Mod], game: str, tree: AssetTree, out_dir: str | Path,
         res.files.append(file_vp)
         if progress:
             progress(file_vp)
+    if repin_layout(res, tree, base_dirs):
+        res.files.append(LAYOUT)
     verify(res, tree, base_dirs)
     info = {
         "game": game,
@@ -646,6 +765,38 @@ def build(mods: list[Mod], game: str, tree: AssetTree, out_dir: str | Path,
     }
     (out / BUILD_INFO).write_text(json.dumps(info, indent=1), "utf-8")
     return res
+
+
+LAYOUT = "layout.bin"
+LAYOUT_RECORD = 152                 # name (128), a word, BE size at +132, disc position
+
+
+def repin_layout(res: BuildResult, tree: AssetTree, base_dirs=()) -> bool:
+    """Write ``layout.bin`` into the build with the built files' sizes, when one changed.
+
+    Why: ``layout.bin`` (the game root's, opened first) pins every file's size in
+    152-byte records (the name, then the size big-endian at +132), and the loader reads a
+    file by that size. A file that grew is cut short: measured in phase 13, an
+    ``effects.big`` 4 KB larger crashed the game as soon as it was opened; the CZ
+    recomp's own patcher re-pins the files it changes the same way
+    (``runtime/host/overlay_gen.cpp``). The copy re-pinned is the recomp's patched one
+    when it has one (its own pins kept). Returns True when a ``layout.bin`` was written."""
+    src = next((Path(b) / LAYOUT for b in base_dirs if (Path(b) / LAYOUT).is_file()),
+               tree.root / LAYOUT)
+    if not src.is_file():
+        return False
+    data = bytearray(src.read_bytes())
+    sizes = {f.lower(): res.out_dir.joinpath(*split(f)).stat().st_size for f in res.files}
+    changed = False
+    for at in range(0, len(data) - LAYOUT_RECORD + 1, LAYOUT_RECORD):
+        name = bytes(data[at:at + 128]).split(b"\0")[0].decode("latin-1").lower()
+        size = sizes.get(name)
+        if size is not None and int.from_bytes(data[at + 132:at + 136], "big") != size:
+            data[at + 132:at + 136] = size.to_bytes(4, "big")
+            changed = True
+    if changed:
+        (res.out_dir / LAYOUT).write_bytes(bytes(data))
+    return changed
 
 
 def verify(res: BuildResult, tree: AssetTree, base_dirs=()) -> None:
@@ -688,6 +839,8 @@ def verify(res: BuildResult, tree: AssetTree, base_dirs=()) -> None:
             raise ModError(f"build check failed: {items[0].vpath} lost a string")
     for p in res.overrides:
         if p.override.kind in ("audio", *MERGED):     # audio: checked by build_audio
+            continue
+        if p.override.kind == "evict":                # its bytes stay; the hash changed
             continue
         got = built.resolve(p.vpath).data()
         if p.override.kind in ("raw", "add"):

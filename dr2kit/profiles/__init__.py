@@ -47,6 +47,7 @@ class Profile:
     census: dict = field(default_factory=dict)
     variants: dict = field(default_factory=dict)  # the shape-group table (convert/variants.py)
     map_floors: tuple = ()      # the in-game map's floor pictures, placed (convert/mapdata.py)
+    preload_evict: dict = field(default_factory=dict)   # loose file -> its preload4.big entry
 
 
 def load_profile(game: str) -> Profile:
@@ -65,7 +66,9 @@ def load_profile(game: str) -> Profile:
                    play_defaults={str(k): str(v) for k, v in raw.get("play_defaults", {}).items()},
                    census=dict(raw.get("census", {})),
                    variants=dict(raw.get("variants", {})),
-                   map_floors=tuple(raw.get("map_floors", ())))
+                   map_floors=tuple(raw.get("map_floors", ())),
+                   preload_evict={str(k): str(v) for k, v in
+                                  raw.get("preload_evict", {}).items()})
 
 
 def config_path() -> Path:

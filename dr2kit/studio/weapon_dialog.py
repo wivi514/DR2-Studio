@@ -48,13 +48,19 @@ def _pixmap(rgba, scale: int = 1) -> QPixmap:
 class EffectBox(QComboBox):
     """An effect picker: none, then every effect by group, with its use and checks."""
 
-    def __init__(self, effects: list, slot: str):
+    def __init__(self, effects: list, slot: str, own: dict | None = None):
         super().__init__()
+        own = own or {}
         self.setEditable(True)
         self.setInsertPolicy(QComboBox.NoInsert)
         self.lineEdit().setPlaceholderText("type to search: snow, fire, spark…")
         self.addItem("none", 0)
         names = dict(weapons.groups())
+        for num, recipe in sorted(own.items()):     # the mod's own effects first
+            src = recipe.get("effect", {}).get("from", "")
+            self.addItem(f"Yours: {num} (from {src})", num)
+            self.setItemData(self.count() - 1, "your own effect (Effects… window)",
+                             Qt.ToolTipRole)
         want_loop = slot in ("held", "swinging")
         for gid, gname in weapons.groups():
             group = [e for e in effects if e.group == gid]
@@ -165,9 +171,11 @@ class WeaponDialog(QDialog):
             self.element.setItemData(self.element.count() - 1,
                                      e["description"] + ("\n" + e.get("checked", "")),
                                      Qt.ToolTipRole)
+        from ..mods import neweffect
+        own = dict(neweffect.own_effects(self.mod_dir))
         self.fx = {}
         for slot in weapons.slots():
-            self.fx[slot] = EffectBox(effects, slot)
+            self.fx[slot] = EffectBox(effects, slot, own)
         self.icon = QComboBox()
         self.icon.addItem("A picture of the model", "auto")
         self.icon.addItem("The game weapon's icon", "keep")

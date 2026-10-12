@@ -33,6 +33,13 @@ picture in ``data/frontend/combocards.tex``::
               "items": ["Broadsword", "FireExtinguisher"], <- drawn on the panel
               "faded": false}}                            <- true: the "not found" copy
 
+and a **particle effect** of one's own (phase 13 step 6), copied from a game effect into
+a free slot of the effect table (`mods.neweffect`)::
+
+    {"format": "dr2kit-copy/1", "copy": "data/models/effects.big/EFFECT_Common137",
+     "effect": {"from": "flamingsword_wpn_c_3_unq", "name": "wip_1",
+                "changes": {"hue": 200}}}
+
 A ``"card"`` is assembled when the mod is built (`build_card`): the empty card made from
 the player's own cards (`convert.icon.card_template`), the modder's portrait, and line
 drawings of the two items rendered from the player's game. So the mod holds no game
@@ -72,8 +79,11 @@ def build_copy(tree: AssetTree, recipe: dict, mod_root: Path, where: str = "") -
         src = tree.resolve(recipe["copy"])
     except Dr2Error:
         raise Dr2Error(f"{pre}the game has no {recipe['copy']!r} to copy") from None
-    if src.vpath.lower().endswith(".bct"):
+    from ..formats.bct import is_bct
+    if is_bct(src.data()[:4]):                     # a texture (named with or without .bct)
         return _build_texture(tree, recipe, src, Path(mod_root) / SOURCES_DIR, pre)
+    if recipe.get("effect") is not None:
+        return _build_effect(recipe, src, pre)
     pack = BigArchive.parse(src.data(), src.vpath)
     for old, new in (recipe.get("rename") or {}).items():
         for e in pack.entries:
@@ -144,6 +154,23 @@ def _set_icon(pack: BigArchive, recipe: dict, sources: Path, pre: str) -> None:
             raise Dr2Error(f"{pre}icon name {name!r}: letters, digits and _ only")
         e.name = f"{name}.bct"
         e.hash = None                          # (entries keep their place: order is free)
+
+
+def _build_effect(recipe: dict, src, pre: str) -> bytes:
+    """A copied particle effect under a new name, with changes (`convert.effects`)."""
+    from ..convert.effects import apply_changes
+    from ..formats.effect import Effect, is_effect
+    data = src.data()
+    if not is_effect(data):
+        raise Dr2Error(f"{pre}{src.vpath} is not a particle effect")
+    spec = recipe["effect"]
+    fx = Effect.parse(data, src.vpath)
+    if spec.get("from") and spec["from"].lower() != fx.name.lower():
+        raise Dr2Error(f"{pre}made from the effect {spec['from']!r}, but {src.vpath} is "
+                       f"{fx.name!r} in this game")
+    if spec.get("name"):
+        fx.rename(spec["name"])
+    return apply_changes(fx, spec.get("changes") or {}, pre.rstrip(": ")).to_bytes()
 
 
 def _build_texture(tree: AssetTree, recipe: dict, src, sources: Path, pre: str) -> bytes:

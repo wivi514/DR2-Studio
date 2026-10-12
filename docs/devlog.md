@@ -17,6 +17,17 @@ Entry template:
 
 ---
 
+## 2026-10-12 — Phase 13 step 6: effects of one's own work in game
+**Done:** `formats/effect.py` (reader/writer, census in `dr2 census`), `convert/effects.py`
+(changes), `convert/effect_preview.py` (sketch), `mods/neweffect.py` (change, own effect in a
+free slot, own particle picture), build: `.effect.json`, preload4 eviction, `layout.bin`
+re-pin, scene registration; Studio *Effects…*; CLI. Headless CZ: green recolour, own blue
+effect (slot 69), own picture shown.
+**Learned:** formats.md §Particle effects (preload4 copies, layout.bin pins, SceneDescription).
+**Docs updated:** formats.md, phase13-kickoff.md §Status, this devlog. Owed: guide 21,
+code tour / glossary entries for the effect modules.
+**Next:** guide 21, step 6.5, the Frostmourne gate in Studio, the user's windowed checks.
+
 ## 2026-10-12 — Phase 13 steps 1-5: the stall that wasn't, the weapon wizard
 **Done:** (the user away, told not to start the game for them: every in-game check here
 is headless, on a copy of their save.)
