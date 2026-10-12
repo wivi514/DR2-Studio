@@ -1,5 +1,8 @@
 # Phase 13 kickoff: weapons of your own, made easy, and effects of your own
 
+> **Status 2026-10-12:** steps 1-5 and 6.1-6.4 built and checked headless; next: guide 21,
+> the Frostmourne gate with the user, Case West, step 6.5 (§Status, §Start here).
+
 **Direction (user, 2026-10-12, at the end of phase 12's tests):** phase 12 is closed with
 what its in-game tests proved (Frostmourne played in Case Zero: its own model, the
 Broadsword's moves, freeze, a combo card with its own picture and French name). Phase 13
@@ -154,10 +157,50 @@ game not to be started for them: in-game checks headless on a copy of their save
   icon in the inventory, the combo card at a workbench (found and not found), French
   names.
 
-## Start here (handoff)
+## Start here (handoff, 2026-10-12, for the rest of phase 13)
+
+**Built so far** (commits `50680ea`, `74f7068`; §Status): steps 1-5, step 6.1-6.4, most of
+step 7. **Do next, in this order:**
+
+1. **Guide 21** `docs/modding/21-effects.md` (Studio *Effects…* first, then `dr2 effects
+   --show`, `dr2 mod effect / new-effect / effect-picture`; free slots, what was seen in
+   game; status row in `modding/README.md`, `context.toml`, troubleshooting), and the
+   docs owed for step 6: `dev/code-tour.md` (formats/effect.py, convert/effects.py,
+   convert/effect_preview.py, mods/neweffect.py, studio/effects_dialog.py, the build's
+   eviction / `repin_layout` / `register_in_scene`), `glossary.md` (effect, emitter,
+   free slot, eviction, layout.bin pin), `ARCHITECTURE.md` (preload4 + layout.bin rules
+   for mod builds), guide 20's "Going further" (own effects now exist).
+2. **The gate, Frostmourne made only in Studio** with the sample model (not WoW's): New
+   weapon… (sword, freeze, combo Broadsword + Fire Extinguisher) with a frost aura made in
+   Effects… (the Flaming Sword recoloured ~200°, *Make my own*, chosen in the "while held"
+   box); Share as `.dr2mod`, install on a clean library, Play. Needs the user in a window
+   (they pick it up, swing it, look at the icon, the card found / not found, French).
+   `scripts/p13_mk_frost_test.py` is the same mod made by script.
+3. **The user's windowed checks** of everything marked "not seen in game" in §Status, and
+   **Case West** (no CW headless run yet: a CW wizard weapon and effect need checking).
+4. **Step 6.5:** WoW `.m2` particle emitters → DR2 emitters (local only, never shared;
+   the user's install is at `/mnt/crucial_p1/Games/WoW/`, read with `mpyq`).
+5. **Step 6 leftovers:** name more emitter fields by changing one value at a time
+   (headless, the street-light trick below), a 3D particle preview on the weapon.
+6. **Step 8** (import guide for other games' models: `scripts/m2glb.py` generalised;
+   the wizard's fitter already takes any `.glb`), **step 9** (buildings, maps, `.anm`:
+   Chuck holding/swinging in the grip preview).
+
+**Headless checks** (the user can be away; never start the game for them in a window):
+`~/.cache/dr2kit-p12-handoff/scripts/hl_run.py LABEL SECONDS mod…` builds the mods with
+`keep-cz-test-save` into the recomp's `game_mods/`, loads a copy of the user's `default`
+save (presses `START,A,A,A,A,NONE`), dumps frames; look at the frames (Chuck dies to
+zombies ~60 s after loading; use frames 7000-9000). Chuck's spawn: (-280.0, 3.26, -34.6),
+camera looking toward -z. To see an effect without holding a weapon, change the values
+(never add blocks: saves break) of `missions.txt`'s
+`cMissionDefinition PrologueStreetLightParticles/cMissionLevelReady PrologueCase1-Start27/
+cMissionStartEffect StreetLight26` / `StreetLight51`: `EffectEnum`, `Location`
+(-281.2 / -278.8, 4.0, -37.8 are in view), `ChuckCanBeHarmedFromEffect = false`.
+`CZ_POSE_TRACE=1` logs Chuck's position; `CZ_TELEPORT_FILE` faults (refused). Afterwards
+`dr2 play -g cz --deploy-only` puts the user's deployment back.
 
 - Read this file, `phase12-kickoff.md` §Status, `formats.md` §Weapons and §Particle
-  effects, guide 19 (own items), `mods/newitem.py`.
+  effects, guides 19 and 20, `mods/newweapon.py`, `mods/neweffect.py`.
 - **Phase 12's working files** (outside the repo, on disk):
   `~/.cache/dr2kit-p12-handoff/`:
   - `mods/p12-elements`: the working Frostmourne test mod (Lead Pipe carrier,
@@ -171,7 +214,8 @@ game not to be started for them: in-game checks headless on a copy of their save
     research);
   - `fxtab_cz.txt`, `fxtab_cw.txt` (the effect table, 0-based: number = index + 1);
     `wow/` (Frostmourne's model, texture, icon; the Lead Pipe's `.glb` template).
-- **State of the user's library (2026-10-12 end of phase 12):** on: `keep-cz-test-save`,
+- **State of the user's library (unchanged by phase 13 so far; its CZ deployment now
+  also carries a re-pinned `layout.bin`, checked headless to load):** on: `keep-cz-test-save`,
   `keep-cw-test-save`, `test_01`, `my_mod`, `p12-elements` (linked from the handoff
   folder, deployed in CZ); **off: the user's `test_01_2`, `test_01_3`** (switched off for
   the tests; ask the user before switching them back on). The user's CZ save is the
