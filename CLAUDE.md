@@ -58,7 +58,8 @@ panel a dock window (`studio/docks.py`), Inspector, Hierarchy, Place with drag a
 (`studio/maps_panels.py`), arrow-key nudging. Owed: CW building checks, collision for
 copies (`docs/phase11-kickoff.md` §Status). Phase 12 (user-set 2026-10-12, planned, not
 started): your own weapons (effects, grip), combo weapons, buildings, maps
-(`docs/phase12-kickoff.md`: ask its decisions, then its in-game tests T1-T5).** Read these before writing code:
+(`docs/phase12-kickoff.md`; decisions taken: all defaults, combo cards always new with a
+changeable picture; next: its in-game tests T1-T5).** Read these before writing code:
 
 | Doc | What it holds |
 |---|---|

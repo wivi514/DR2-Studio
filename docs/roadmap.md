@@ -296,8 +296,9 @@ placements; phase 11 changes them.
   Studio, checked by `dr2 mod check`, and seen in the recomp in both games.
 
 ## Phase 12 (planned): make your own weapons, combo weapons, buildings and maps (user, 2026-10-12)
-Researched 2026-10-12, not started: [`phase12-kickoff.md`](phase12-kickoff.md) (decisions
-to take, early in-game tests first).
+Researched 2026-10-12, not started: [`phase12-kickoff.md`](phase12-kickoff.md).
+**Decisions (user, 2026-10-12): every proposed default; a combo weapon always gets a new
+card whose picture the modder can change.** Early in-game tests first.
 - A **weapon wizard**: kind (sword, knife, blunt, pole, big two-hand, thrown, spray, gun),
   moves borrowed from a game weapon (`AnimBankName`, its attacks), damage, durability, an
   **effect** (freeze, burn, electrocute: `Can_Freeze`, `Fire`, `Can_Electrocute`,

@@ -27,6 +27,10 @@ can finish without reading a file format:
 4. **A map of your own**, and a door (the existing *Door to another level* prefab) that
    leads to it.
 
+**Decisions taken (user, 2026-10-12): every proposed default** under §Decisions, with
+combo cards made precise: **a combo weapon always gets a new card of its own, and the
+modder can change the card's picture** (see §Decisions 5).
+
 This file holds the research (2026-10-12, both games' data and executables), what can be
 reused, the unknowns and the in-game tests that settle them, the plan, the decisions to
 take, and the gate. Facts go to [`formats.md`](formats.md) once checked.
@@ -60,7 +64,9 @@ Each combo weapon's block holds a **`cComboCardItem`** (CZ 9, CW 17): `Weapon_1`
 `Weapon_2` (the two items: `BaseballBat` + `BoxOfNails` → Spiked Bat; CW `FireExtinguisher`
 + `Dynamite` → Freezer Bomb, `FireExtinguisher` + `WaterGun` → Snowball Cannon),
 `ComboStationRotation_1/2` (how they lie on the workbench), `CardIndexNumber` (1…48 in CZ),
-`IconAsset` (`comboc_spikedbat`), `Card_Label` / `Weapon_Description` /
+`IconAsset` (`comboc_spikedbat`: the card's picture, a texture
+`data/frontend/combocards.tex/comboc_spikedbat.bct`, 96 KB, beside `comboc_spikedbat_no.bct`,
+likely the card not yet found ❓), `Card_Label` / `Weapon_Description` /
 `Ticker_Description` / `Attack1` / `Attack2` (string ids), `PP_Multiplier`,
 `CanBeBuiltInProlog`, `AttackIndexToDisableIfNoColouredComboCard` (the bonus attack needs
 the card). The result is an ordinary weapon block (`SpikedBat`, `Combo_Paddlesaw`…), some
@@ -180,8 +186,12 @@ copy of their save or a new game (memory: *Protect the user's saves*).
    both grip locators.
 5. **Combo weapons:** *New combo weapon…* (or a *Combo* page in the weapon wizard): the two
    items (from the game's items and the mod's own), the result (the new weapon or a game
-   one), the workbench rotations (copied from a combo with similar items), the card's
-   picture (a PNG, or rendered from the result) and texts; writes the `cComboCardItem`.
+   one), the workbench rotations (copied from a combo with similar items), and **a new
+   card**: its number after the game's, its texts, and its picture: two new textures in
+   `combocards.tex` (`comboc_<name>` and `comboc_<name>_no`) made by a recipe from a game
+   card's (`newitem`'s copy recipe), with the modder's PNG over them (or a picture rendered
+   from the result, as a start); *Change picture…* replaces it later. Writes the
+   `cComboCardItem`.
 6. **Buildings of your own:** *New building…*: a `.glb` → an unmovable item (static,
    engine collision per T4) placed with the Maps editor; Place lists it. If T6 works: a
    copied level building keeps its collision.
@@ -206,8 +216,9 @@ copy of their save or a new game (memory: *Protect the user's saves*).
    `.anm` format, step 8).
 4. **Effects:** **only effects checked in game are offered by name** (Freeze, Burn,
    Electrocute…); every number stays settable under *Advanced*.
-5. **Combo cards:** **new card numbers after the game's** if T2 allows, else the wizard
-   replaces a card the modder picks.
+5. **Combo cards:** **always a new card** (the user, 2026-10-12): a number after the game's
+   and its own picture the modder can change (two new textures in `combocards.tex`). If T2
+   shows the game can't take more cards, the plan comes back to the user.
 6. **Buildings of your own:** **unmovable items with engine collision first**; level pieces
    with copied collision after T6.
 7. **Maps of your own:** **only the executable's empty level slots** (CZ many, CW
@@ -242,5 +253,6 @@ copy of their save or a new game (memory: *Protect the user's saves*).
   (`read_scene(tree, ItemModels(tree).resolve("Katana"))`); the level table: every
   `LEVEL_[A-Z0-9_]+` and `\0<name>.txt\0` string in the recomp's
   `assets/game/default_image.bin`, compared with `datafile.big`'s `.txt` entries.
-- **First:** ask the user the decisions above, then T1-T5 (each a small mod the user plays),
+- **Decisions are taken** (all defaults; combo cards always new, picture changeable).
+  **First:** T1-T5 (each a small mod the user plays; T2 also adds the two card textures),
   then the plan's steps in order.

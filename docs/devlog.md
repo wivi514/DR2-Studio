@@ -34,7 +34,9 @@ is made by the engine; **level ids are a table in the executable** (no new ones)
 CZ's still lists 83 Dead Rising 2 levels of which it ships 4, and CW's lists `w_mall`, not
 shipped: empty slots to try for own maps.
 **Docs updated:** `phase12-kickoff.md` (new), `roadmap.md`, `docs/README.md`, `CLAUDE.md`.
-**Next:** the user's decisions, then the early in-game tests T1-T5.
+**Decisions (user, same day):** every proposed default; a combo weapon always gets a new
+card, its picture changeable (two new textures in `data/frontend/combocards.tex`).
+**Next:** the early in-game tests T1-T5.
 
 ## 2026-10-12 — Undo keys everywhere, turning about every axis
 **Done:** Ctrl+Z / Ctrl+Y (and Ctrl+Shift+Z) undo and redo level edits wherever the
