@@ -62,14 +62,17 @@ copies (`docs/phase11-kickoff.md` §Status). Phase 12 (user-set 2026-10-12) ende
 executable's effect table, borrowed moves, hands at the model's grip nodes, effects on the
 weapon (conditions 30/31), a combo card of one's own; "Frostmourne" played on a carrier
 item with replacements only, as new files (packs, card textures, string ids) stalled the
-load. Phase 13 (user-set 2026-10-12, planned, not started: `docs/phase13-kickoff.md`):
-that stall first, the weapon wizard, the icon from the model, effects of one's own.** Read these before writing code:
+load. Phase 13 (user-set 2026-10-12, started the same day: `docs/phase13-kickoff.md` §Status):
+the stall was a misread headless check (new files load); the weapon wizard
+(`mods/newweapon.py`, Studio *New weapon…*, `dr2 mod new-weapon`, any `.glb` fitted to the
+hands, the icon and combo card drawn from the model, effects by name: `dr2 effects`,
+guide 20) built and checked headless; effects of one's own next.** Read these before writing code:
 
 | Doc | What it holds |
 |---|---|
 | `docs/ARCHITECTURE.md` | Components, data flow, the asset index, the mod package format, stack choices |
 | `docs/formats.md` | Everything known about every file format, with a status per format (cracked / partial / unknown) |
-| `docs/phase13-kickoff.md` | Phase 13 (planned: weapons made easy, effects of one's own, the icon from the model, phase 12's tools): what phase 12 proved, plan, decisions, gate, handoff (where phase 12's working files are) |
+| `docs/phase13-kickoff.md` | Phase 13 (started: weapons made easy, effects of one's own, the icon from the model, phase 12's tools): what phase 12 proved, plan, decisions, gate, §Status, handoff (where phase 12's working files are) |
 | `docs/phase12-kickoff.md` | Phase 12 (ended: your own weapons with effects, combo weapons, buildings, maps): research (weapon keys, combo cards, grip locators, level slots), unknowns and the in-game tests to do first, plan, decisions, gate, §Status |
 | `docs/phase11-kickoff.md` | Phase 11 (edit levels: zombie spawns, objects; add your own things from prefabs; saved as `.edits.json` mods): research, plan, gate, §Status (what was measured in game, what it still owes) |
 | `docs/phase10-kickoff.md` | Phase 10 (Maps: see a whole level, extract it, see your mods in it without the game): research, plan, gate, and §Status (what it still owes) |
@@ -209,6 +212,9 @@ python tools/blender_variants_gate.py     # phase 9 gate in Blender (~20 s)
 dr2 level list|info|things -g cz          # levels: zones, placements, what the text files place
 dr2 level show|edit|diff <file> …          # phase 11: a mod's level edits (.edits.json, guide 19)
 dr2 mod new-item <mod> <Name> --like <item> [--glb] [--texture N=png]   # an item of your own (recipe)
+dr2 mod new-weapon <mod> <Name> --kind sword --glb sample|file [--element freeze --held N --combo A+B] -g cz
+dr2 effects [words] [--group ice] [--kinds] -g cz                       # the effect table by name, weapon kinds
+python tools/effect_table.py <recomp>/assets/game/default_image.bin --check cz   # effects.toml = exe?
 dr2 census --levels                       # every zone, placement, level text file, item model (~50 s / game)
 dr2 export prologue [--zone z05] [--whole] [--zombies] [--collision] -g cz -o out   # a level for Blender
 dr2 studio                                # the GUI (pip install -e ".[studio]")

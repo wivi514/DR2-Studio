@@ -793,6 +793,8 @@ def cmd_mod(args) -> int:
               f"item…, or dr2 level edit {args.mod} <level> add \"cItemPlacement My{args.name}\" "
               f"ItemName={args.name} Location=x,y,z)")
         return 0
+    if args.action in ("new-weapon", "remove-weapon"):
+        return _cmd_weapon(args, tree, loc)
     if args.action == "import-textures":
         from ..mods import texture_import as ti
         mod = manifest.Mod.load(args.mod)
@@ -962,6 +964,108 @@ def _cmd_library(args, mlib) -> int:
 
 
 # ---- strings --------------------------------------------------------------------------
+
+def _cmd_weapon(args, tree, loc) -> int:
+    """``dr2 mod new-weapon`` / ``remove-weapon``: the weapon wizard (mods.newweapon)."""
+    from ..mods import manifest
+    from ..mods import newweapon as nw
+    from ..mods.deploy import recomp_folders
+    patched = recomp_folders(loc.root)["patched"]
+    base = [patched] if patched.is_dir() else []
+    mod = manifest.Mod.load(args.mod)
+    if args.action == "remove-weapon":
+        for f in nw.remove_weapon(tree, mod.root, args.name, base):
+            print(f"removed {f}")
+        return 0
+    if args.name in nw.weapons_of(mod.root):
+        spec = nw.load_spec(mod.root, args.name)          # change only what is given
+        if args.kind:
+            spec.kind = args.kind
+    else:
+        if not args.kind:
+            raise Dr2Error("--kind is needed for a new weapon (dr2 effects --kinds lists them)")
+        spec = nw.WeaponSpec(name=args.name, kind=args.kind)
+    for lang, text in (("en", args.name_en), ("fr", args.name_fr)):
+        if text:
+            spec.names[lang] = text
+    for key in ("handle", "length", "turn", "slide", "damage", "durability", "element",
+                "icon"):
+        v = getattr(args, key)
+        if v is not None:
+            setattr(spec, key, v)
+    if args.glb is not None:
+        spec.model = None if args.glb == "keep" else args.glb
+    for slot in ("impact", "victim", "held", "swinging"):
+        v = getattr(args, slot)
+        if v is not None:
+            if v in ("0", "none"):
+                spec.effects.pop(slot, None)
+            else:
+                spec.effects[slot] = v
+    if args.no_combo:
+        spec.combo = None
+    elif args.combo:
+        a, sep, b = args.combo.partition("+")
+        if not sep:
+            raise Dr2Error("--combo ITEM+ITEM, e.g. Broadsword+FireExtinguisher")
+        spec.combo = nw.Combo([a.strip(), b.strip()])
+    if spec.combo:
+        if args.card_text_en:
+            spec.combo.description["en"] = args.card_text_en
+        if args.card_text_fr:
+            spec.combo.description["fr"] = args.card_text_fr
+        if args.card_picture:
+            spec.combo.picture = args.card_picture
+        if args.card_number is not None:
+            spec.combo.number = args.card_number
+    made = nw.make_weapon(tree, args.game, mod.root, spec, base)
+    for f in made.files:
+        print(f"wrote {f}")
+    for n in made.notes:
+        print(f"note: {n}")
+    ids = ", ".join(f"{k} {v}" for k, v in made.string_ids.items())
+    print(f"{spec.name}: a {spec.kind} of {mod.id} (string ids: {ids}"
+          + (f"; combo card number {made.card_number}" if made.card_number else "") + ")")
+    print(f"place it in a level: Maps tab, Add item…, or dr2 level edit {args.mod} <level> "
+          f"add \"cItemPlacement My{spec.name}\" ItemName={spec.name} Location=x,y,z")
+    return 0
+
+
+def cmd_effects(args) -> int:
+    """List weapon kinds, or the effect table by group, with what uses each effect."""
+    from ..catalog import weapons
+    if args.kinds:
+        for k in weapons.kinds(args.game):
+            print(f"{k.id:14} {k.name:26} from {k.template(args.game):18} {k.note}")
+        return 0
+    doc = None
+    try:
+        from ..container.vpath import AssetTree
+        from ..formats.levelscript import Document
+        tree = AssetTree(locate(args.game).root)
+        doc = Document.parse(tree.resolve("data/datafile.big/items.txt").data())
+    except Dr2Error:
+        pass                                                # names only, without the game
+    words = [w.lower() for w in args.words]
+    names = dict(weapons.groups())
+    shown = 0
+    for e in weapons.effects(args.game, doc):
+        if args.group and e.group != args.group:
+            continue
+        if words and not all(w in e.name.lower() for w in words):
+            continue
+        how = {True: "keeps going", False: "burst", None: ""}[e.loops]
+        line = f"{e.number:4}  {e.name:30} {names[e.group]:24} {how:11}"
+        if e.used_by:
+            line += " used by " + ", ".join(e.used_by[:3]) + (" …" if len(e.used_by) > 3 else "")
+        print(line)
+        if e.tested:
+            print(f"      checked: {e.tested}")
+        shown += 1
+    print(f"{shown} effect(s); 'keeps going' / 'burst' are read from the names (docs/modding/"
+          f"20-make-a-weapon.md)")
+    return 0
+
 
 def cmd_strings(args) -> int:
     """Search, show and export the string banks; change strings in a mod."""
@@ -1371,6 +1475,52 @@ def build_parser() -> argparse.ArgumentParser:
                     help="a PNG over one of its textures (same size), e.g. "
                          "Sledgehammer_cm=red.png; repeat for more")
     game_opt(pm)
+    pm = msub.add_parser("new-weapon", help="a weapon of your own: the weapon wizard (kind, "
+                         "model, damage, element, effects, icon, combo card); run again to "
+                         "change it")
+    pm.add_argument("mod", help="the mod folder")
+    pm.add_argument("name", help="the weapon's item name (letters, digits, _)")
+    pm.add_argument("--kind", help="what it swings like: sword, knife, bat, hammer… "
+                    "(dr2 effects --kinds)")
+    pm.add_argument("--name-en", help="its name in English (default: the item name)")
+    pm.add_argument("--name-fr", help="its name in French (default: the English one)")
+    pm.add_argument("--glb", help="its model: a .glb (any orientation and size: it is laid "
+                    "along the game weapon), 'sample' for the sample sword, 'keep' for the "
+                    "game weapon's")
+    pm.add_argument("--handle", choices=("auto", "min", "max"),
+                    help="which end of the model is the handle (auto: the end nearer the "
+                         "model's origin)")
+    pm.add_argument("--length", type=float, help="its length in metres (default: the game "
+                    "weapon's)")
+    pm.add_argument("--turn", type=float, help="spin it about its length (degrees)")
+    pm.add_argument("--slide", type=float, help="move it along its length (metres, + toward "
+                    "the tip): where the hands hold it")
+    pm.add_argument("--damage", type=int, help="damage per attack (Broadsword 125)")
+    pm.add_argument("--durability", type=int, help="hits before it breaks (Broadsword 40)")
+    pm.add_argument("--element", choices=("none", "fire", "freeze", "shock"))
+    for slot, what in (("impact", "where it hits"), ("victim", "on the zombie hit"),
+                       ("held", "on the weapon while held"),
+                       ("swinging", "on the weapon while swinging")):
+        pm.add_argument(f"--{slot}", metavar="EFFECT",
+                        help=f"an effect {what}: a number or a name (dr2 effects); none "
+                             f"removes it")
+    pm.add_argument("--icon", help="the inventory icon: auto (a picture of the model, the "
+                    "default), keep (the game weapon's), or a PNG")
+    pm.add_argument("--combo", metavar="ITEM+ITEM",
+                    help="make it at a workbench from two items, e.g. "
+                         "Broadsword+FireExtinguisher (a combo card comes with it)")
+    pm.add_argument("--no-combo", action="store_true", help="take the combo away")
+    pm.add_argument("--card-text-en", help="the card's description in English")
+    pm.add_argument("--card-text-fr", help="the card's description in French")
+    pm.add_argument("--card-picture", help="the card's picture: auto (the model) or a PNG "
+                    "(315×262)")
+    pm.add_argument("--card-number", type=int, help="the card's number (default: the first "
+                    "free one)")
+    game_opt(pm)
+    pm = msub.add_parser("remove-weapon", help="take a wizard weapon out of a mod")
+    pm.add_argument("mod", help="the mod folder")
+    pm.add_argument("name", help="the weapon's item name")
+    game_opt(pm)
     pm = msub.add_parser("import-textures",
                          help="put textures exported from Substance Painter, Blender… into a mod")
     pm.add_argument("mod", help="the mod folder")
@@ -1415,6 +1565,16 @@ def build_parser() -> argparse.ArgumentParser:
     pm.add_argument("folder")
     pm.add_argument("-o", "--out", help="zip file or folder (default: current folder)")
     p.set_defaults(func=cmd_mod)
+
+    p = sub.add_parser("effects", help="the game's particle effects by group (for weapons), "
+                       "or the weapon kinds (--kinds)")
+    p.add_argument("words", nargs="*", help="only effects whose name has these words")
+    from ..catalog.weapons import groups as effect_groups
+    p.add_argument("--group", choices=[g for g, _ in effect_groups()],
+                   help="only one group (ice, fire, electric, blood…)")
+    p.add_argument("--kinds", action="store_true", help="list the weapon kinds instead")
+    game_opt(p)
+    p.set_defaults(func=cmd_effects)
 
     p = sub.add_parser("strings", help="search and export the game's text; change it in a mod")
     ssub = p.add_subparsers(dest="action", required=True, metavar="ACTION")

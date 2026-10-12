@@ -57,6 +57,15 @@ Verified over **every archive of both games, nested ones included** (`dr2 census
   keeps, for each entry, the largest power of two (≤ 0x800) dividing its original offset.
   That is never smaller than the real requirement, and on an unedited archive it lands
   every payload where it was (`big.py` docstring has the argument).
+- **Entry order: no rule** (phase 13 census, CZ, every archive to two nesting levels:
+  3,717 with two entries or more). 1,379 are in lower-case name order, 489 in name *and*
+  hash order, 112 in hash order only, 13 in upper-case name order only, 1,724 in **no**
+  name or hash order (the animation packs, e.g.
+  `data/anim/battle/army.big/fullbody.big`; a model pack lists `leadpipe_LOD.tex` before
+  `leadpipe.big`). *Retracted:* "every archive of both games is sorted by lower-case
+  name" (the mod builder's docstrings, phase 11). The game finds entries by name hash,
+  so a new entry's place doesn't matter: the builder still puts it in name order, and
+  such entries load (phases 11 and 13).
 - **`compression` (the last index word; `resv` in the recomp's tools)** is `2` on every
   LZX-compressed entry and `0` on every stored one; no other value occurs. For stored
   entries `size == size2` always. mariokart64n's MaxScript says `1` means zlib on PC;
@@ -1623,7 +1632,7 @@ Every `EffectOnVictim<n>`, `EffectOnImpact<n>`, `EffectOnWeapon<n>`, `PyroEffect
 `ThrowEffectOn*` and `zombie_effects.txt` number is **a 1-based index into one table of
 particle effects compiled into the executable** (0 = none): 12-byte records `{char*
 name, u32, u32}`, CZ 371 at file offset `0x9D24F0` of `default_image.bin`, CW 414 at
-`0x9E69A0`; the first 371 are the same in both. Checked by meaning: `PyroEffect 141` of
+`0x9E69A0`; **the first 370 are the same in both**, then CZ's 371 is `roadflare_env_c_1` and CW's 371 `groundblast_wpn_dbs_1` (retracted 2026-10-12, phase 13: "the first 371 are the same" — `tools/effect_table.py --check` compared every name). The names are kept as data in `dr2kit/catalog/effects.toml` (`dr2 effects`). The two u32 of each record read `0xFFFFFFFF` in the image (filled in at run time ❓). Checked by meaning: `PyroEffect 141` of
 the Fire Extinguisher = `fireextinguisher_wpn_dc_2`, 123 of the Electric Rake =
 `elecrake_wpn_dbs_3_unq`, 181 of the Freezer Bomb = `freezebomb_wpn_bs_4_unq`, 57 of the
 Flamethrower = `flamethrower_wpn_dc_3`, 249 (the rake's `EffectOnVictim`) =
@@ -1691,9 +1700,37 @@ froze zombies, made at a workbench from Broadsword + Fire Extinguisher.
   small.
 * **The inventory icon** is the pack's `w_<name>.bct`: 128×64 DXT1, a see-through
   background, the weapon lying diagonally (handle top left, tip bottom right). It kept
-  the Lead Pipe's picture (not replaced yet).
+  the Lead Pipe's picture (not replaced yet). In **Case West** the icon is the pack's
+  `<name>.bct` (`katana.bct`, `IconFilename = "katana"`): in both games the pack holds
+  exactly one loose `.bct`, the one `IconFilename` names (phase 13, every kind's pack of
+  both games).
 * **A combo card's picture** is replaced in place (`comboc_defiler.bct` and `_no`, 364×512
   DXT1; the small square top left at x 21-59, y 18-57 holds a 36×36 icon).
+
+### A weapon's line: handle end, grip nodes ✅ (phase 13)
+
+The weapon wizard lays a new shape where the game weapon lies
+(`dr2kit/convert/weapon_fit.py`): the model's longest direction (principal axes of its
+vertices) and which end is the handle. Measured on 18 weapons of both games (Broadsword,
+Katana, Bowie Knife, Chef Knife, Baseball Bat, Crowbar, Lead Pipe, Sledgehammer, Large
+Wrench, Broom Handle, Leaf Rake, Pitchfork, Acoustic Guitar, Power Drill, Reaper, Shovel,
+Laser Sword, Sickle, Bone Saw): the nodes named `…blood`, `FX…`, `LOC_slice`,
+`…stuck`, `LOC_particle_pos`, `EFF_…`, `LOC_collision…` sit at the **striking end** in
+every one, so the handle is the other end. The right-hand node alone misleads: the
+Sledgehammer's `LOC_rhand` is at y = 0.60 of a 0.99 m handle whose head is at y = 0.99
+(its `IK_lhand` at 0.07 is at the handle's end). Grip node names: `LOC_rhand`,
+`LOC_rhand1`, `LOC_rhand_frank`, `IK_lhand`, `LOC_lhand`, `LOC_WEP_<x>_R` / `_L`
+(names are `geo_<model>.<node>` in the scene).
+
+### Combo card pictures: the shared frame ✅ (phase 13)
+
+Every card of a game shares its frame, the corner arrow, "X2 PP!", the drawing panel
+with its rays and "+": the per-pixel **median** of all of a game's cards (CZ 51, CW 66;
+the `_no` ones apart: CZ 51, CW 59) is a clean empty card, and the spread between them
+outlines the parts that differ: the **portrait window** (a slanted four-sided shape,
+x 26-337, top edge y 40 → 26, bottom edge y 287 → 266) and the two **drawing boxes**
+(x 35-166 and 199-332, y 361-483). Chuck's hair pokes out of the window on some cards.
+The wizard draws new cards on the empty card (`dr2kit/convert/icon.py`).
 
 ### Particle effects (`data/models/effects.big`) 🟡
 
@@ -1704,14 +1741,25 @@ particle texture by name (`cloud_smoke2`, `fire_flame`, at a 0x1D0 stride in
 `flamingsword_wpn_c_3_unq`), and blocks of floats (sizes, rates, lifetimes, colour keys ❓).
 Not read yet: phase 13 (`phase13-kickoff.md`).
 
-### New items' files and the endless loading ❓
+### New items' files load ✅ (headless, CZ, 2026-10-12, phase 13)
 
-A test mod adding five weapon packs to `streamedassets.big` (four `.copy.json` recipes and
-one raw copy), two textures to `frontend/combocards.tex` and six new string ids
-(`str_en.bcs`) made the street's load stop after zone z10 every time (headless, a copy
-of the user's save), **even with no `items.txt` changes and no placements**. Without the
-mod it loads. Every added entry's `flags` (alignment) matched its siblings'. Which of the
-three kinds of files does it: not yet known (phase 11's single new pack loaded fine).
+*Phase 12 wrote:* "a test mod adding five weapon packs to `streamedassets.big`, two
+textures to `frontend/combocards.tex` and six new string ids made the street's load stop
+after zone z10 every time (headless, a copy of the user's save), even with no
+`items.txt` changes and no placements." **Not reproduced (phase 13):** that mod (kept at
+the time), the same mod rebuilt with its items, card pictures and placements, and the
+same with the mods the user had on, all **load into gameplay** headless on a copy of the
+user's save; frames dumped during the run (`CZ_VK_FRAME_DUMP`) show Chuck in the street.
+The phase 12 check misread the log: a good load also ends its file list with
+`prologue_z10.big`, `Prologue.txt` and `combocards.tex` (the last files opened before
+gameplay), so the list can't tell a stall from a finished load; look at a frame. (Also:
+with the synthetic presses `START,A,A` held on `A`, the save loads, Chuck dies to the
+street's zombies about a minute later and the held `A` picks *Load* or an ending: use
+`START,A,A,A,A,NONE` and stop pressing.) A wizard weapon (a new pack from a recipe, new
+string ids, new card pictures, its block, five placements at the save's spawn point)
+loaded and showed: the sample sword standing in the street, textured. The user's windowed
+runs of phase 12 are not explained ❓ (two crashes loading `zombies.big` with a co-op
+player present).
 
 ## Strings (`.bcs`) ✅
 

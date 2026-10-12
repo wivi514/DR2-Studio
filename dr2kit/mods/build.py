@@ -559,8 +559,9 @@ def patch_archive(data: bytes, vpath: str, edits: dict) -> bytes:
 
 
 def add_entry(arc: BigArchive, name: str, data: bytes) -> None:
-    """Put a new entry ``name`` into ``arc`` where the name order puts it (every archive
-    of both games is sorted by lower-case name), compressed like most of its neighbours
+    """Put a new entry ``name`` into ``arc`` where the name order puts it (where most
+    archives have their entries; 1,724 of CZ's 3,717 follow no order, so the place is
+    free: docs/formats.md §`.big` container), compressed like most of its neighbours
     (the game expects an LZX entry where its siblings are; CLAUDE.md rule 4)."""
     from ..container.big import LZX, STORED
     comp = LZX if sum(e.compression == LZX for e in arc.entries) * 2 > len(arc.entries) \

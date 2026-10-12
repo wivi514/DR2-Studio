@@ -17,6 +17,44 @@ Entry template:
 
 ---
 
+## 2026-10-12 — Phase 13 steps 1-5: the stall that wasn't, the weapon wizard
+**Done:** (the user away, told not to start the game for them: every in-game check here
+is headless, on a copy of their save.)
+- **Step 1, the loading stall:** bisected headless with frames dumped during the run.
+  Phase 12's stalling mod, the same mod rebuilt with items, card pictures and
+  placements, and that with the user's other mods: **all reach gameplay**. A good load
+  ends its file list exactly like the "stall" did, so phase 12 read a finished load as a
+  stall. New packs, card textures and string ids are fine; the wizard uses them.
+- **Step 2:** `tools/effect_table.py` (the executable's effect names, `--check`),
+  `catalog/effects.toml` (names, groups, checked effects, elements, slots),
+  `catalog/weapon_kinds.toml` (19 kinds, per game), `catalog/weapons.py`, `dr2 effects`.
+- **Steps 3-5:** the weapon wizard: `mods/newweapon.py` (`WeaponSpec` → pack recipe,
+  `items.txt` block with children, element, effects, strings in every bank, combo card;
+  re-runnable, removable), `convert/weapon_fit.py` (any `.glb` laid along the game
+  weapon, one texture atlas), `convert/icon.py` (inventory icon in the game's style;
+  combo card on an empty card made from the game's cards, the faded `_no` copy, line
+  drawings of the items), recipe additions in `mods/newitem.py` (`icon`/`icon_name`,
+  `.bct` recipes with `image` or `card`), Studio's *New weapon…* (`studio/weapon_dialog.py`,
+  live preview with the hands' grip nodes: most of step 7's grip editor),
+  `dr2 mod new-weapon` / `remove-weapon`, `catalog/sample_sword.py`.
+- **Checked:** both games: make + build (tests); CZ headless: five wizard swords placed at
+  the save's spawn showed in the street, textured.
+**Why:** the user's phase 13 plan; decisions taken as proposed (stall first, then the
+wizard with the game's effects; English and French written, the others English).
+**Learned:** (all in `formats.md`) CZ's effect 371 is its own (`roadflare_env_c_1`): only
+the first 370 are shared (retracted "371"); Case West's icon is the pack's `<name>.bct`;
+the handle end of every game weapon is opposite its blood/FX/slice nodes (the right-hand
+node alone misleads on a sledgehammer); every combo card shares a frame, so the median of
+a game's cards is an empty card; archive entry order follows no rule in 1,724 of CZ's
+3,717 archives (retracted "every archive is sorted by name"); `CZ_POSE_TRACE=1` logs
+Chuck's position; `CZ_TELEPORT_FILE` faults (the recomp refuses it).
+**Docs updated:** `formats.md` (§`.big` entry order, §Weapons: effect table, icons, a
+weapon's line, card pictures, new files load), `modding/20-make-a-weapon.md` (new),
+`modding/README.md`, `glossary.md`, `dev/code-tour.md`, `phase13-kickoff.md` §Status,
+`roadmap.md`, `CLAUDE.md`.
+**Next:** step 6 (effects of one's own: read `effects.big`); in game, by the user: the
+new icon, the card, swinging a wizard weapon, Case West.
+
 ## 2026-10-12 — Phase 12 ended: Frostmourne in game, phase 13 planned
 **Done:** a weapon of one's own played in Case Zero with **replacements only**: the user's
 WoW install gave Frostmourne's `.m2` (read with `mpyq`, converted by a one-off `m2glb.py`

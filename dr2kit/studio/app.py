@@ -374,6 +374,10 @@ class MainWindow(QMainWindow):
         self.mod_files.installEventFilter(self)
         b_open = QPushButton("Open mod…")
         b_new = QPushButton("New mod…")
+        b_weapon = QPushButton("New weapon…")
+        b_weapon.setToolTip("A weapon of your own: its model, what it swings like, damage, "
+                            "fire / ice / shock, effects, its icon and a combo card")
+        b_weapon.clicked.connect(lambda: self.new_weapon())
         b_share = QPushButton("Share…")
         b_share.setToolTip("Name, preview and readme, a check, then one .dr2mod file to share")
         b_install = QPushButton("Install mod…")
@@ -395,7 +399,7 @@ class MainWindow(QMainWindow):
         bl = QVBoxLayout(bw)
         mrow = QHBoxLayout()
         mrow.addWidget(self.mod_label, 1)
-        for b in (b_new, b_open, b_share, b_install, b_deploy, b_undeploy):
+        for b in (b_new, b_open, b_weapon, b_share, b_install, b_deploy, b_undeploy):
             mrow.addWidget(b)
         bl.addLayout(mrow)
         brow = QHBoxLayout()
@@ -1416,6 +1420,13 @@ class MainWindow(QMainWindow):
             d = d.parent
         self.say(f"{self.mod_dir.name}: removed {rel}")
         self._refresh_mod()
+
+    def new_weapon(self, name: str | None = None) -> None:
+        """The weapon wizard (`studio.weapon_dialog`) on the open mod."""
+        if not self.ensure_mod():
+            return
+        from .weapon_dialog import WeaponDialog
+        WeaponDialog(self, self.mod_dir, name).exec()
 
     def share_mod(self) -> None:
         if not self.mod_dir:

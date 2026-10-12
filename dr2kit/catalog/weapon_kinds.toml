@@ -1,0 +1,161 @@
+# Kinds of weapon the weapon wizard offers (phase 13 step 2; dr2kit/catalog/weapons.py,
+# docs/modding/20-make-a-weapon.md).
+#
+# A kind is a game weapon to start from, per game: a new weapon copies its pack (its model
+# space, grip nodes, textures' sizes) and its items.txt block, so it swings with its moves
+# (AnimBankName + the per-attack keys), holds like it and sounds like it. Measured in game
+# (CZ 2026-10-12): borrowed moves work, and the hands go to the item model's own grip
+# nodes, so a new shape is laid along the template's (convert/weapon_fit.py).
+#
+# id        stable name (files, the CLI)
+# name      what the wizard shows
+# from.cz / from.cw   the game weapon (items.txt block name) in each game; a kind missing
+#           in a game isn't offered there
+# hands     1 or 2 (what the moves look like), for the list
+# note      one line for the wizard
+
+[[kind]]
+id = "sword"
+name = "Sword (two hands)"
+hands = 2
+note = "Wide slashes and a jump attack; cuts zombies in half"
+from.cz = "Broadsword"
+from.cw = "Katana"
+
+[[kind]]
+id = "knife"
+name = "Knife"
+hands = 1
+note = "Quick stabs"
+from.cz = "BowieKnife"
+from.cw = "BowieKnife"
+
+[[kind]]
+id = "kitchen_knife"
+name = "Kitchen knife"
+hands = 1
+note = "Short slashes"
+from.cz = "ChefKnife"
+from.cw = "ChefKnife"
+
+[[kind]]
+id = "bat"
+name = "Bat"
+hands = 2
+note = "Big swings, like a baseball bat"
+from.cz = "BaseballBat"
+from.cw = "BaseballBat"
+
+[[kind]]
+id = "club"
+name = "Club (one hand)"
+hands = 1
+note = "One-hand blows, like the crowbar"
+from.cz = "Crowbar"
+from.cw = "Crowbar"
+
+[[kind]]
+id = "pipe"
+name = "Pipe or plank"
+hands = 2
+note = "Two-hand swings, like the lead pipe"
+from.cz = "LeadPipe"
+from.cw = "LeadPipe"
+
+[[kind]]
+id = "hammer"
+name = "Heavy hammer"
+hands = 2
+note = "Slow, heavy overhead blows"
+from.cz = "SledgeHammer"
+from.cw = "SledgeHammer"
+
+[[kind]]
+id = "wrench"
+name = "Big wrench"
+hands = 2
+note = "Heavy swings"
+from.cz = "WrenchLarge"
+from.cw = "WrenchLarge"
+
+[[kind]]
+id = "spear"
+name = "Spear or pole"
+hands = 2
+note = "Thrusts at reach"
+from.cz = "BroomHandle"
+from.cw = "BroomHandle"
+
+[[kind]]
+id = "rake"
+name = "Rake or shovel"
+hands = 2
+note = "Long sweeping blows"
+from.cz = "LeafRake"
+from.cw = "Shovel"
+
+[[kind]]
+id = "fork"
+name = "Pitchfork"
+hands = 2
+note = "Stabs and a lifting throw"
+from.cz = "PitchFork"
+
+[[kind]]
+id = "guitar"
+name = "Guitar"
+hands = 2
+note = "Smashes, like the acoustic guitar"
+from.cz = "AcousticGuitar"
+from.cw = "AcousticGuitar"
+
+[[kind]]
+id = "drill"
+name = "Power tool"
+hands = 1
+note = "Held out and drilling, like the power drill"
+from.cz = "PowerDrill"
+from.cw = "PowerDrill"
+
+[[kind]]
+id = "scythe"
+name = "Scythe"
+hands = 2
+note = "Long reaping sweeps (Case West's Reaper)"
+from.cw = "Reaper"
+
+[[kind]]
+id = "laser_sword"
+name = "Laser sword"
+hands = 1
+note = "Fast glowing slashes (Case West)"
+from.cw = "LaserLightSword"
+
+[[kind]]
+id = "sickle"
+name = "Sickle"
+hands = 1
+note = "Quick hooked slashes (Case West)"
+from.cw = "Sickle"
+
+[[kind]]
+id = "cleaver"
+name = "Cleaver or saw"
+hands = 1
+note = "Chopping blows (Case West's Bone Saw)"
+from.cw = "BoneSaw"
+
+[[kind]]
+id = "shield"
+name = "Baton and shield"
+hands = 2
+note = "Baton blows behind a riot shield (Case West)"
+from.cw = "RiotShieldBatton"
+
+[[kind]]
+id = "big_object"
+name = "Big object (two hands)"
+hands = 2
+note = "Lifted over the head and slammed, like a crate"
+from.cz = "MilitaryCrate"
+from.cw = "MilitaryCrate"

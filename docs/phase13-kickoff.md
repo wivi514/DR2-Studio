@@ -114,6 +114,36 @@ buildings (T4) and maps (T5); the `.anm` format.
 - Census: every effect of both games read and written back byte for byte; every weapon
   block parses into the wizard's model and back.
 
+## Status
+
+**Started 2026-10-12** with the proposed decisions (the user: "Do phase 13", away, the
+game not to be started for them: in-game checks headless on a copy of their save).
+
+* **Step 1 (the stall): done, not a stall.** Phase 12's mod, rebuilt whole and with the
+  user's other mods, loads into gameplay headless every time (frames dumped during the
+  run). A good load's file list ends the same way (`prologue_z10.big`, `Prologue.txt`,
+  `combocards.tex`), so phase 12 took a finished load for a stall. New packs, card
+  textures and string ids load: the wizard makes new items, no carriers needed. The
+  user's windowed phase 12 runs are not explained ❓ (formats.md §Weapons).
+* **Step 2: done.** `tools/effect_table.py`, `catalog/effects.toml` (CZ 371 / CW 414
+  names; only the first 370 shared), `catalog/weapon_kinds.toml` (19 kinds),
+  `catalog/weapons.py`, `dr2 effects`.
+* **Step 3 (the wizard): done.** `mods/newweapon.py`, `studio/weapon_dialog.py` (*New
+  weapon…*), `dr2 mod new-weapon` / `remove-weapon`; any `.glb` fitted along the game
+  weapon (`convert/weapon_fit.py`, handle end from the model's blood/FX nodes); the
+  sample sword. Built in both games (tests), a wizard sword seen in CZ's street (headless).
+* **Step 4 (icon from the model): done** (`convert/icon.weapon_icon`; CZ `w_<name>.bct`,
+  CW `<name>.bct`, renamed `w_<name>` with `IconFilename`). **Not seen in game yet.**
+* **Step 5 (combo cards): done** (texts in every bank, English + French written; the card
+  drawn on an empty card made from the game's cards, the items as line drawings, the
+  faded `_no` copy). **Not seen in game yet;** a card number past the game's not tried.
+* **Step 7 (grip editor): mostly** in the wizard's preview (the new shape over the faded
+  game weapon, the hands' grip nodes as red diamonds, slide / turn / length / handle end).
+  Chuck holding it (needs `.anm`) not done.
+* **Owed by the user (windowed):** pick up and swing a wizard weapon (CZ and CW), its
+  icon in the inventory, the combo card at a workbench (found and not found), French
+  names.
+
 ## Start here (handoff)
 
 - Read this file, `phase12-kickoff.md` §Status, `formats.md` §Weapons and §Particle

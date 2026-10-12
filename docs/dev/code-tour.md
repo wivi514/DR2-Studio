@@ -51,6 +51,8 @@ dr2kit/
     levelcheck.py      what level edits mean: items, zombie types, load sets, areas, triggers (phase 11)
     buildings.py       a zone's pieces grouped into buildings, each with its collision shapes (phase 11)
     mapdata.py         the Maps tab's data: zone files cached on disk, a level's markers as JSON (phase 10)
+    weapon_fit.py      any .glb laid where a game weapon lies (handle end, grip nodes), one texture atlas (phase 13)
+    icon.py            a weapon's pictures from its model: inventory icon, combo card (empty card, portrait, drawings) (phase 13)
     video.py           Bink movies (Case West): probe, frames, sound, .mp4 export (phase 6)
   index/
     schema.sql         the SQLite tables
@@ -67,7 +69,9 @@ dr2kit/
     preview.py         see the switched-on mods without the game: a ModdedTree for every view (phase 10)
     leveledit.py       one mod's edits of one text file: edit, undo, save as the diff (phase 11)
     pieceedit.py       one mod's building edits of one zone: pieces, copies, collision, undo (phase 11)
-    newitem.py         a new item of your own: a recipe that copies a game item's pack (phase 11)
+    newitem.py         a new item of your own: a recipe that copies a game item's pack (phase 11);
+                       its own icon, combo-card pictures assembled at build time (phase 13)
+    newweapon.py       the weapon wizard: WeaponSpec -> pack recipe, items.txt block, strings, combo card (phase 13)
     texture_import.py  exports from Substance Painter / Blender / any program → the model's textures (phase 7)
   studio/
     app.py, viewers.py DR2 Studio (PySide6): tree, search, texture viewer, mod bar
@@ -87,6 +91,7 @@ dr2kit/
     welcome.py         the first-steps checklist (phase 7)
     edit_tools.py      edit in the image editor (re-import on save), open in Blender (phase 7)
     share_dialog.py    Share (details, preview, check, .dr2mod) and Install windows (phase 7)
+    weapon_dialog.py   the New weapon… window: the wizard's form, live preview (phase 13)
     icon/              dr2studio.svg, the app icon (phase 7)
     web/               its page (viewer.html, viewer.js) and vendored three.js (MIT)
   cli/main.py          the `dr2` command
@@ -101,7 +106,8 @@ tools/                 developer scripts: PyAV codec check, the phase 3 gates
                        blender_addon_gate.py (the add-on's flow inside Blender),
                        build_release.py + release/build_ffmpeg_lgpl.sh + release/make_icons.py
                        (releases), newcomer_gate.py (phase 7: make, share, install, Play),
-                       variant_table.py (phase 9: the shape-group table out of an executable)
+                       variant_table.py (phase 9: the shape-group table out of an executable),
+                       effect_table.py (phase 13: the particle-effect names out of an executable)
 setup.py               only a build hook: copies docs/modding into dr2kit/help/en/ in packages
 ```
 
@@ -508,6 +514,33 @@ files). `maps_edit.LevelEditor` wraps them (`piece_*`, `building_*`, `_piece_sta
 `census.check_buildings` checks every search tree's origin, a moved shape per zone, and
 counts the buildings.
 
+### The weapon wizard (phase 13): `mods/newweapon.py`, `convert/weapon_fit.py`, `convert/icon.py`
+How a weapon of one's own is made (guide [`20-make-a-weapon.md`](../modding/20-make-a-weapon.md),
+[`formats.md`](../formats.md) §Weapons). `newweapon.WeaponSpec` is everything the wizard
+asks (kind, names, model and its placement, damage, durability, element, effects by slot,
+icon, `Combo`); it is saved in the mod (`sources/<Name>.weapon.json`, `load_spec`), so
+running `make_weapon(tree, game, mod, spec)` again rebuilds the weapon. `fit_weapon`
+finds the kind's game weapon (`catalog.weapons`), its pack and texture sizes, and fits the
+model: `weapon_fit.read_glb` (every mesh, node transforms, each material's colour as a
+picture), `weapon_frame` (the game weapon's line: principal axes; the handle end from the
+"business end" nodes, else the hand nodes), `fit` (the model's own frame onto it:
+handle, length, turn, slide), `atlas` (one picture, UVs moved into cells), `fitted_glb`
+(the game model's `.glb` with its first shape replaced, other shapes emptied), then the
+import (`model_import.import_glb`) to be sure it goes in. `make_weapon` writes the pack
+recipe (`newitem`: `glb`, `textures`, and phase 13's `icon` / `icon_name`), the
+`items.txt` block (the template's props and children under new names, damage, element
+keys and child block, effects: per attack, or a `PropEffectsOnCondition` slot), the
+strings (`string_ids`: a block of 100 ids per mod id; English and French, the others
+English; `weapon_string_ids.json` keeps them stable across runs), and the combo card (a
+`cComboCardItem` with the game's first card's other keys, two `.bct.copy.json` recipes
+with a `card`). `newitem.build_card` assembles a card when the mod is built:
+`icon.card_template` (the median of the game's cards), the portrait (`icon.faded` for the
+`_no` one), `icon.item_drawing` of the two items, `icon.compose_card`. `preview` draws
+everything without writing (the shape over the faded game weapon, grip nodes as red
+diamonds, the icon, the card): Studio's `weapon_dialog.WeaponDialog` runs it in a job
+after each change. `remove_weapon` takes it all out. CLI: `dr2 mod new-weapon` /
+`remove-weapon`, `dr2 effects`.
+
 ### `studio/docks.py`, `studio/maps_panels.py` (2026-10-11)
 The window's dock windows and the Maps editor's Place and Hierarchy panels: dev/studio.md,
 "Dock windows" and "The Maps tab".
@@ -589,6 +622,15 @@ pictures are drawn: bump `index.build.THUMB_VERSION`, and the next build redraws
   `place(editor, prefab, game, script, at, yaw)` (copies the example, `moved()` shifts
   every position near the anchor and turns facings, adds it through the `LevelEditor`),
   own prefabs `save_own` / `read_own` / `load_own` (`.dr2prefab` JSON in `own_folder()`).
+- `weapons` (phase 13): the weapon wizard's data. `weapon_kinds.toml` → `kinds(game)` /
+  `kind(id)` (`Kind.template(game)`: the game weapon a kind starts from);
+  `effects.toml` → `names(game)` (the executable's effect table, number = index + 1;
+  `tools/effect_table.py` made and checks it), `effects(game, items_doc)` (`Effect`:
+  group by name words, `loops` / `size` read from the name, what was checked in game,
+  `used_by` from `usage(items_doc)`), `effect_number(game, value)` (a number or a name),
+  `elements()` and `slots()` (the keys measured in game).
+- `sample_sword` (phase 13): `sample_sword_glb()`, a sword made of boxes (three
+  materials, one picture made in code) to try the wizard with and to test with.
 - `level_export` (phase 10): `export_level(tree, game, level, out, zones=, script=,
   items=, markers=, whole=, lod=)` writes `<out>/<game>/<level>/`: one `.glb` per zone
   (or one for all, `whole`), `text/` (the level's text files) and `info.txt`; resumable

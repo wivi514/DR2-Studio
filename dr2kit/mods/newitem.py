@@ -17,6 +17,27 @@ of the game to copy, and what of the modder's to put in it::
      "glb": "MyHammer.glb",                            <- its shape (in sources/), optional
      "textures": {"Sledgehammer_cm": "MyHammer_cm.png"}}   <- in sources/, optional
 
+Phase 13 (the weapon wizard, `mods.newweapon`) adds to a pack's recipe:
+
+* ``"icon": "MyHammer_icon.png"`` (128×64, in sources/) and ``"icon_name": "w_myhammer"``:
+  the pack's inventory icon (its one loose ``.bct``: ``w_<name>.bct`` in Case Zero,
+  ``<name>.bct`` in Case West, named by the block's ``IconFilename``) gets the picture and
+  that name, so the new item doesn't share the template's icon.
+
+and a recipe can copy a **texture** (a ``.bct``) instead of a pack, for a combo card's
+picture in ``data/frontend/combocards.tex``::
+
+    {"format": "dr2kit-copy/1", "copy": "data/frontend/combocards.tex/comboc_ied.bct",
+     "image": "MyCard.png"}                               <- a whole picture of 364×512, or
+     "card": {"portrait": "MyCard_portrait.png",          <- the window's picture
+              "items": ["Broadsword", "FireExtinguisher"], <- drawn on the panel
+              "faded": false}}                            <- true: the "not found" copy
+
+A ``"card"`` is assembled when the mod is built (`build_card`): the empty card made from
+the player's own cards (`convert.icon.card_template`), the modder's portrait, and line
+drawings of the two items rendered from the player's game. So the mod holds no game
+picture, only the modder's own.
+
 `build_copy` makes the pack from the player's own game when the mod is built (`mods.build`,
 kind ``add``); `new_item` writes the recipe, the ``items.txt`` block (every key of the
 template's, under the new name: an ``.edits.json`` add) and copies the ``.glb`` / PNGs into
@@ -51,6 +72,8 @@ def build_copy(tree: AssetTree, recipe: dict, mod_root: Path, where: str = "") -
         src = tree.resolve(recipe["copy"])
     except Dr2Error:
         raise Dr2Error(f"{pre}the game has no {recipe['copy']!r} to copy") from None
+    if src.vpath.lower().endswith(".bct"):
+        return _build_texture(tree, recipe, src, Path(mod_root) / SOURCES_DIR, pre)
     pack = BigArchive.parse(src.data(), src.vpath)
     for old, new in (recipe.get("rename") or {}).items():
         for e in pack.entries:
@@ -94,7 +117,100 @@ def build_copy(tree: AssetTree, recipe: dict, mod_root: Path, where: str = "") -
                     break
             if not done:
                 raise Dr2Error(f"{pre}no texture {tex!r} in the copied pack")
+    if recipe.get("icon") or recipe.get("icon_name"):
+        _set_icon(pack, recipe, sources, pre)
     return pack.to_bytes()
+
+
+def _set_icon(pack: BigArchive, recipe: dict, sources: Path, pre: str) -> None:
+    """The pack's inventory icon ``w_<…>.bct``: renamed to ``icon_name`` and given the
+    picture ``icon`` (module docstring)."""
+    from ..convert import png
+    from ..convert.texture import replace_image
+    from ..formats.bct import Bct
+    icons = [e for e in pack.entries if e.name.lower().endswith(".bct")]
+    icons.sort(key=lambda e: not e.name.lower().startswith("w_"))
+    if not icons:
+        raise Dr2Error(f"{pre}the copied pack has no inventory icon (a .bct in the pack)")
+    e = icons[0]                     # CZ: w_<name>.bct; CW: <name>.bct (its IconFilename)
+    if recipe.get("icon"):
+        f = sources / recipe["icon"]
+        if not f.is_file():
+            raise Dr2Error(f"{pre}{f} is missing")
+        e.set_data(replace_image(Bct.parse(e.data(), e.name), png.read(f)).to_bytes())
+    if recipe.get("icon_name"):
+        name = recipe["icon_name"]
+        if not NAME.match(name):
+            raise Dr2Error(f"{pre}icon name {name!r}: letters, digits and _ only")
+        e.name = f"{name}.bct"
+        e.hash = None                          # (entries keep their place: order is free)
+
+
+def _build_texture(tree: AssetTree, recipe: dict, src, sources: Path, pre: str) -> bytes:
+    """A copied texture with the recipe's picture (``image``) or card (``card``)."""
+    from ..convert import png
+    from ..convert.texture import replace_image
+    from ..formats.bct import Bct
+    bct = Bct.parse(src.data(), src.vpath)
+    if recipe.get("image"):
+        f = sources / recipe["image"]
+        if not f.is_file():
+            raise Dr2Error(f"{pre}{f} is missing")
+        img = png.read(f)
+    elif recipe.get("card"):
+        img = build_card(tree, recipe["card"], src.vpath, sources, pre)
+    else:
+        raise Dr2Error(f"{pre}a texture recipe needs \"image\" or \"card\"")
+    try:
+        return replace_image(bct, img).to_bytes()
+    except Dr2Error as e:
+        raise Dr2Error(f"{pre}{e}") from None
+
+
+def build_card(tree: AssetTree, card: dict, copied: str, sources: Path, pre: str = ""):
+    """A combo card's picture (`convert.png.Image`) from a ``"card"`` recipe (module
+    docstring): the empty card of the archive holding ``copied``, the portrait, the two
+    items' drawings."""
+    import numpy as np
+    from ..convert import icon, png
+    from ..convert.render import scene_parts
+    from ..convert.texture import to_image
+    from ..formats.bct import Bct
+    from ..formats.scene import Scene
+    faded = bool(card.get("faded"))
+    parent = join(*split(copied)[:-1])
+    arc = tree.open_archive(tree.resolve(parent).vpath)
+    cards = []
+    for e in arc.entries:
+        low = e.name.lower()
+        if not low.startswith("comboc_") or low.endswith("_no.bct") != faded:
+            continue
+        im = to_image(Bct.parse(e.data(), e.name))
+        cards.append(np.frombuffer(im.rgba, np.uint8).reshape(im.height, im.width, 4))
+    empty = icon.card_template(cards)
+    portrait = None
+    if card.get("portrait"):
+        f = sources / card["portrait"]
+        if not f.is_file():
+            raise Dr2Error(f"{pre}{f} is missing")
+        p = png.read(f)
+        portrait = np.frombuffer(p.rgba, np.uint8).reshape(p.height, p.width, 4)
+        if faded:
+            portrait = icon.faded(portrait)
+    drawings = None
+    if card.get("items"):
+        models = placed.ItemModels(tree)
+        drawings = []
+        for item in card["items"][:2]:
+            vp = models.resolve(item)
+            if vp is None:
+                drawings.append(None)
+                continue
+            drawings.append(icon.item_drawing(scene_parts(Scene.parse(tree.resolve(vp).data(),
+                                                                      vp))))
+    out = icon.compose_card(empty, portrait, drawings,
+                            line=(110, 30, 40) if faded else (0, 0, 0))
+    return png.Image(out.shape[1], out.shape[0], out.tobytes())
 
 
 def new_item(tree: AssetTree, mod_dir: str | Path, name: str, like: str,

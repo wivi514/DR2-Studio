@@ -30,8 +30,8 @@ What counts as an override, under ``replace/``:
 **New files**, under ``add/`` (phase 11): ``add/<archive vpath>/<new name>`` puts a new
 entry into that archive; ``<new name>.copy.json`` is a recipe that makes it from the
 player's own game when the mod is built (a new item's model pack copied from another
-item's, `dr2kit.mods.newitem`: the mod holds no game data). The name must be new in the archive; the entry goes in name order (every archive
-of both games is sorted by lower-case name) and is compressed like most of its
+item's, `dr2kit.mods.newitem`: the mod holds no game data). The name must be new in the archive; the entry goes in name order (where most
+archives have it; the order is free, docs/formats.md §`.big` container) and is compressed like most of its
 neighbours.
 
 Paths are matched case-insensitively, like every vpath.

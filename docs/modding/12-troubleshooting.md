@@ -155,6 +155,17 @@ More in [`16-library.md`](16-library.md#if-something-went-wrong).
 | `ItemName '…' is not an item of this game's items.txt` | Case Zero doesn't have every Case West item | Pick another one (**Add item…** lists only items this game has) |
 | The Edit tick box opens *New mod…* | Edits are saved into the open mod | Create or open one |
 
+## Weapons of your own (phase 13)
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Chuck holds the weapon by its blade | The wizard took the wrong end of your model as the handle | *New weapon…* → your weapon → *Its handle is* → the other end, *Make weapon* ([`20-make-a-weapon.md`](20-make-a-weapon.md)) |
+| The hands are on the guard, or past the handle | Your model's handle is longer or shorter than the game weapon's | *Slide* a few centimetres at a time (watch the red diamonds), or *Length* |
+| `is now a mod for CZ only` | A weapon is made from one game's weapon; a mod has no per-game files | Make a second mod for Case West |
+| `a weapon shape takes at most 65,535` | The model has too many vertices for one shape | Blender: *Decimate* ([`15-limits.md`](15-limits.md)) |
+| `N new id(s) … nothing shows them until a layout or script names them` (when building) | The note is about string ids in general; the weapon's block names them | Nothing to do |
+| An effect fills the screen | It is a level's effect (fog, smoke) | Pick another: ✓ marks the ones checked on a weapon |
+
 ## Texturing programs and limits (phase 7)
 
 See the tables in [`14-texturing-tools.md`](14-texturing-tools.md#if-something-went-wrong)

@@ -95,13 +95,18 @@ def _lattice(k: "np.ndarray"):
     return ti, a / kk, b / kk
 
 
-def render(parts: list[Part], size: int = 128) -> "np.ndarray | None":
-    """Draw the parts; return an (size, size, 4) uint8 RGBA picture (transparent
-    background), or None when there is nothing to draw."""
+def render(parts: list[Part], size: int = 128, *, width: int | None = None,
+           height: int | None = None, basis=None, fill: float = 0.92) -> "np.ndarray | None":
+    """Draw the parts; return an (height, width, 4) uint8 RGBA picture (transparent
+    background; both default to ``size``), or None when there is nothing to draw.
+    ``basis``: (right, up, toward-camera) unit vectors in model space, default the
+    thumbnail view (`VIEW`); ``fill``: how much of the picture the model spans."""
     parts = [p for p in parts if len(p.triangles) and len(p.positions)]
     if not parts:
         return None
-    right, up, d = _basis()
+    width, height = width or size, height or size
+    right, up, d = (np.asarray(v, dtype=np.float64) for v in basis) if basis is not None \
+        else _basis()
     proj = np.stack([right, up, d], axis=1)                    # (3, 3)
     screen = [p.positions.astype(np.float64) @ proj for p in parts]
     allpts = np.concatenate([s[:, :2] for s in screen])
@@ -109,9 +114,10 @@ def render(parts: list[Part], size: int = 128) -> "np.ndarray | None":
     if not finite.any():
         return None
     lo, hi = allpts[finite].min(axis=0), allpts[finite].max(axis=0)
-    span = float(max(hi[0] - lo[0], hi[1] - lo[1], 1e-6))
-    big = size * SUPERSAMPLE
-    scale = big * 0.92 / span
+    bw, bh = width * SUPERSAMPLE, height * SUPERSAMPLE
+    big = max(bw, bh)                                          # the square drawn into
+    scale = fill * min(bw / max(float(hi[0] - lo[0]), 1e-6),
+                       bh / max(float(hi[1] - lo[1]), 1e-6))
     centre = (lo + hi) / 2
     zs = np.concatenate([s[:, 2] for s in screen])
     zlo, zspan = float(np.nanmin(zs)), float(np.nanmax(zs) - np.nanmin(zs)) or 1.0
@@ -198,9 +204,11 @@ def render(parts: list[Part], size: int = 128) -> "np.ndarray | None":
         img[win_pix[mine], :3] = np.clip(rgb * shade[:, None], 0.0, 1.0)
         img[win_pix[mine], 3] = 1.0
     img = img.reshape(big, big, 4)
+    x0, y0 = (big - bw) // 2, (big - bh) // 2                # the picture's part of it
+    img = img[y0:y0 + bh, x0:x0 + bw]
     if SUPERSAMPLE > 1:
         f = SUPERSAMPLE
-        img = img.reshape(size, f, size, f, 4)
+        img = img.reshape(height, f, width, f, 4)
         cover = img[..., 3].sum(axis=(1, 3))
         rgb = (img[..., :3] * img[..., 3:4]).sum(axis=(1, 3)) / np.maximum(cover, 1e-9)[..., None]
         img = np.concatenate([rgb, (cover / (f * f))[..., None]], axis=2)

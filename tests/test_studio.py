@@ -633,3 +633,43 @@ def test_maps_buildings_place_and_hierarchy(tmp_path, monkeypatch):
     assert json.loads(f.read_text())["copies"][0]["piece"] == "shed"
     assert win.wait_for_jobs()
     win.close()
+
+
+@pytest.mark.gamedata
+def test_weapon_dialog_fills_a_spec_and_opens_one_again(tmp_path, game_root):
+    """Phase 13: the *New weapon…* window turns its form into a WeaponSpec and fills the
+    form from a weapon the mod already has."""
+    from PySide6.QtWidgets import QApplication
+    from dr2kit.mods import newweapon as nw
+    from dr2kit.mods.manifest import create
+    from dr2kit.studio.app import MainWindow
+    from dr2kit.studio.weapon_dialog import SAMPLE, WeaponDialog
+    root = game_root("cz")
+    app = QApplication.instance() or QApplication([])
+    win = MainWindow(tmp_path / "i.sqlite")
+    win.game_box.setCurrentIndex(win.game_box.findData("cz"))
+    mod = create(tmp_path / "mod", "dlg")
+    d = WeaponDialog(win, mod)
+    d.name.setText("DlgBlade")
+    d.name_en.setText("Dialog Blade")
+    d.kind.setCurrentIndex(d.kind.findData("knife"))
+    d.model.setCurrentText(SAMPLE)
+    d.element.setCurrentIndex(d.element.findData("shock"))
+    d.fx["victim"].set_number(249)
+    d.combo.setChecked(True)
+    d.item1.setCurrentText("BowieKnife")
+    d.item2.setCurrentText("Battery")
+    spec = d.spec()
+    assert spec.kind == "knife" and spec.model == "sample" and spec.element == "shock"
+    assert spec.effects == {"victim": 249} and spec.combo.items == ["BowieKnife", "Battery"]
+    assert spec.names == {"en": "Dialog Blade"}
+    from dr2kit.container.vpath import AssetTree
+    nw.make_weapon(AssetTree(root), "cz", mod, spec)
+    d2 = WeaponDialog(win, mod, "DlgBlade")
+    assert d2.which.currentText() == "DlgBlade" and not d2.name.isEnabled()
+    assert d2.spec() == spec
+    d.close()
+    d2.close()
+    assert win.wait_for_jobs()
+    win.close()
+    del app

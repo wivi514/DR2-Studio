@@ -1,0 +1,233 @@
+# Particle effects and weapon elements (phase 13 step 2; dr2kit/catalog/effects.py,
+# docs/formats.md §Weapons, docs/modding/20-make-a-weapon.md).
+#
+# names         every effect of the executable's effect table, in number order (number =
+#               position + 1; 0 = none). Case West's 414. Case Zero has the first
+#               `cz_shared` of them, then `cz_own` (CZ 371 is roadflare_env_c_1; CW's
+#               371 is groundblast_wpn_dbs_1).
+#               Made by tools/effect_table.py from each recomp's default_image.bin (check:
+#               python tools/effect_table.py <image> --check cz|cw).
+# groups        what the effect list shows them under: the first group one of whose words
+#               is in the name wins; "category" matches the name's second part (_bld_ ...)
+# tested        what was seen in game with a number, by number
+# elements      what makes a weapon burn, freeze or shock zombies (measured in game,
+#               CZ 2026-10-12): keys set on the weapon, and a child block added to it
+# slots         where an effect can go on a weapon, and the keys that put it there
+
+cz_shared = 370
+cz_own = ["roadflare_env_c_1"]
+
+# Case West: 414 effects, table at file offset 0x9e69a0
+names = [
+  "bucketdrill_bld_c_4_unq", "bullet_bld_bs_2", "victim_bld_dbl_3", "chainsawspray_bld_bs_2_unq",
+  "chainsawspray_bld_dbs_1_unq", "unused", "garbage_wpn_dbs_2", "fire_wpn_dc_3",
+  "victim_bld_bs_3", "victim_bld_bm_3", "victim_bld_bl_3", "victim_bld_dbs_3",
+  "victim_bld_dbm_3", "victim_bld_bs_1", "victim_bld_bm_1", "victim_bld_bl_1",
+  "victim_bld_dbs_1", "victim_bld_dbm_1", "victim_bld_dbl_1", "victim_bld_bs_2",
+  "victim_bld_bm_2", "victim_bld_bl_2", "muzzleflash_wpn_dbs_2", "victim_bld_dbs_2",
+  "victim_bld_dbm_2", "propane_exp_bs_4", "victim_bld_bl_4", "grenade_wpn_bs_4_unq",
+  "victim_bld_dbl_2", "victim_bld_bs_4", "victim_bld_bm_4", "exhaust_elm_c_1",
+  "victim_bld_dbs_4", "victim_bld_dbm_4", "plates_wpn_bs_1_unq", "victim_bld_dbl_4",
+  "molotov_wpn_dbl_2_unq", "lawnmowervent_bld_dc_4_unq", "lawnmower_bld_dc_4_unq", "chairpeices_wpn_bs_2",
+  "groundsparks_wpn_bs_3", "maildrop_env_bs_1", "groundsparks_wpn_bs_2", "steam_elm_c_0",
+  "cash_wpn_dbs_2", "greenpaint_wpn_bs_2_unq", "smoke_env_c_2", "groundfire_env_dc_4",
+  "gunshells_wpn_dbs_2_unq", "bullettrail_wpn_bs_1", "fire_chr_c_2", "vehicle_exp_bl_4",
+  "smoke_elm_c_3_unq", "splash_bld_bs_3", "impact_env_bs_1", "drip_bld_c_1_unq",
+  "flamethrower_wpn_dc_3", "romancandle_wpn_dc_4", "queenjarbreak_wpn_bm_3_unq", "muzzleflash_wpn_dbs_1",
+  "watergun_wpn_dbs_0_unq", "firecracker_wpn_c_2_unq", "cookingoil_wpn_bs_2_unq", "watersplat_elm_bs_1",
+  "gunshells_wpn_dbs_1", "sparks_elm_c_1", "dynamite_wpn_bs_3", "gascan_wpn_bs_3",
+  "wip_1", "wip_2", "wip_3", "fire_wpn_dc_2",
+  "bullettrail_wpn_bs_2_unq", "puke_chr_dbm_2_unq", "grenade_wpn_bs_4", "greengas_wpn_bs_4",
+  "dandelion_env_bs_1", "westernbarrel_wpn_bs_2", "drip_bld_dc_2_unq", "sparkle_elm_c_1",
+  "drip_bld_c_1", "smoke_env_c_4_unq", "lightflashblue_env_c_2", "motoroil_wpn_bs_2_unq",
+  "fire_wpn_dc_1", "spray_bld_bs_1_unq", "sparks_elm_dbs_2_unq", "corpsebite_bld_bl_2_unq",
+  "muzzleflash_wpn_dbs_2_unq", "paper_exp_bs_2_unq", "smoke_env_c_3_unq", "stuffing_wpn_bs_2",
+  "record_wpn_bs_1_unq", "wheelchair_wpn_dbs_1_unq", "mustard_wpn_dbm_2_unq", "keyboard_wpn_bs_1_unq",
+  "ketchup_wpn_dbm_2_unq", "helicopter_wpn_bs_2_unq", "beer_wpn_dc_2_unq", "marbles_wpn_bs_2_unq",
+  "electricspark_elm_dbs_1", "watercooler_wpn_dc_2_unq", "gumballs_wpn_bs_3_unq", "mustardsplash_wpn_bs_2_unq",
+  "hailmary_wpn_bs_4_unq", "drill_env_c_1_unq", "stickbomb_wpn_bs_3_unq", "bikeblood_veh_bm_2",
+  "bikeblood_veh_bm_3", "darksmoke_veh_dc_2", "ramstersquash_wpn_bm_4", "tracer_exp_bm_4_unq",
+  "tracersmoke_exp_bl_4_unq", "bullsmoke_env_bm_2", "spray_bld_dbl_2_unq", "perfume_wpn_dbs_2",
+  "wind_elm_dc_1_unq", "beersplat_elm_bs_2", "godzillaspray_wpn_dc_3_unq", "spitfire_chr_dc_3_unq",
+  "fwbazooka_wpn_dbm_4_unq", "plant_wpn_bs_2_unq", "elecrake_wpn_dbs_3_unq", "shampoosplash_wpn_bs_2_unq",
+  "fwblast_wpn_bs_3_unq", "fwtracer_wpn_dc_2_unq", "gluesplash_wpn_bs_2_unq", "watersplash_elm_bs_1",
+  "watersplash_elm_bs_2", "watersplash_elm_bs_3", "waterbikespray_veh_dc_2_unq", "waterbikespray_veh_dc_3_unq",
+  "waterfountain_elm_dc_2", "electrocuted_chr_c_2", "redbonus_exp_bs_2_unq", "blubonus_exp_bs_2_unq",
+  "grnbonus_exp_bs_2_unq", "yelbonus_exp_bs_2_unq", "hatricksquish_bld_c_2_unq", "paintballburst_wpn_bs_1",
+  "fireextinguisher_wpn_dc_2", "watersplashfast_elm_dc_3", "coffeesplash_wpn_bs_1", "moneybooth_env_dc_3_unq",
+  "windblast_elm_c_2_unq", "fireworkblast_env_dbs_3", "fwspray_env_dbl_2_unq", "fwblast_env_bs_3_unq",
+  "slotdeath_env_bl_3_unq", "debrissparks_env_bm_2_unq", "bulletimpact_wpn_bs_2", "gunshells_wpn_dbs_1_unq",
+  "groundsparks_wpn_bs_4", "sparksdeath_env_bs_2_unq", "victim_bld_dbs_1_unq", "moneyfall_env_c_2",
+  "cardschipsfly_env_bs_2_unq", "gunsmoke_wpn_bm_1", "hadoukenbuild_elm_bl_3_unq", "hadoukenFly_elm_c_3_unq",
+  "hadoukenblast_elm_bm_3_unq", "zombieattackbite_bld_dbs_1", "smoke_elm_c_1_unq", "fwbazooka_wpn_dbs_3_unq",
+  "dragonpunch_chr_bm_2_unq", "impact_chr_bs_3", "electricspark_elm_c_2", "fire_env_c_2",
+  "spotlight_wpn_bs_1", "vase_wpn_bs_1", "flamethrower_wpn_dc_3_unq", "bloodhose_wpn_dc_2",
+  "fwburstblue_wpn_bs_3", "fwburstgreen_wpn_bs_3", "fwburstorange_wpn_bs_3", "fwburstpurple_wpn_bs_3",
+  "fire_env_c_1", "flamingsword_wpn_c_3_unq", "flaminggloves_wpn_c_3_unq", "tikitorch_wpn_c_2",
+  "freezebomb_wpn_bs_4_unq", "zombiepuke_chr_dbm_2_unq", "queenbee_elm_c_1_unq", "fireflare_env_bl_3",
+  "fireball_wpn_c_2", "flashlight_wpn_c_1", "flamingshield_wpn_c_3_unq", "greengas_env_c_1",
+  "lightsword_wpn_c_2", "electhunder_wpn_c_2", "exhaust_veh_dc_1", "lightlg_env_c_1",
+  "victim_bld_dbl_3_unq", "victim_bld_dbs_3_unq", "splash_bld_bs_2", "lightswordred_wpn_c_2",
+  "lightswordgrn_wpn_c_2", "lightswordblu_wpn_c_2", "fwsparksblue_wpn_dc_2", "fwsparksred_wpn_dc_2",
+  "fwsparkswhite_wpn_dc_2", "protoballfly_wpn_c_2_unq", "zombiepuke_chr_dbm_2", "victim_bld_dbm_2_unq",
+  "fireball_wpn_dbl_1", "perfume_wpn_dbs_3", "ftnlizard_wpn_dbm_3", "lightswordppl_wpn_c_2",
+  "spraydrip_bld_dbl_3_unq", "freezebreak_env_bs_1", "decap_bld_cd_2_unq", "armlimb_bld_cd_2_unq",
+  "teslaball_wpn_c_1", "vaportrail_env_dc_2", "snowtrail_wpn_bs_1", "bfgblast_wpn_dbs_2",
+  "flameskull_wpn_bm_4", "stickysplat_bld_bm_3_unq", "electricarc_elm_dc_1", "stickysplat_bld_bs_3_unq",
+  "bullseye_wpn_dc_1", "flamingace_wpn_dc_2", "elecchair_wpn_c_2", "superbfg_wpn_dbs_2",
+  "snowball_elm_bs_1", "taser_wpn_dbs_1", "smallslot_env_dc_2_unq", "tallslot_env_dc_2_unq",
+  "stickysplat_bld_bs_3", "oilsplash_env_c_2", "tallslotdeath_env_bl_3_unq", "smokedmg_veh_c_1",
+  "smokedmg_veh_c_2", "smokedmg_veh_c_3", "smokedmg_veh_c_4", "taserattack_wpn_dc_1",
+  "victim_bld_dbl_2_unq", "electrocuted_chr_c_2_unq", "powerguitar_wpn_c_1", "bullettrail_wpn_bs_3_unq",
+  "destructminor_exp_bs_2", "helicopter_wpn_bs_2_unq", "queenbeeorange_elm_c_1", "lawnmower_bld_dc_3_unq",
+  "watersplash_chr_bs_1", "powerguitarblast_wpn_bs_2", "beersplat_elm_bs_3", "zoltarbooth_env_dc_2_unq",
+  "elecrakedmg_wpn_bs_1", "spray_bld_dbl_3_unq", "whipcream_wpn_dc_2", "splash_bld_bs_1",
+  "splashvomit_chr_bs_2", "muzzleflash_wpn_dbs_3", "elecchair_wpn_c_1", "plant_wpn_bs_1_unq",
+  "muzzleflash_wpn_dbs_1_unq", "propane_exp_bs_4_unq", "smoke_wpn_c_2", "electhunderarc_elm_dc_1",
+  "smallslot2_env_dc_2_unq", "smallslot3_env_dc_2_unq", "smallslot4_env_dc_2_unq", "smallslot5_env_dc_2_unq",
+  "smallslot6_env_dc_2_unq", "tallslot2_env_dc_2_unq", "chardecal_env_bs_1", "flameswordmotion_wpn_c_3",
+  "spraypaintgrn_wpn_dc_1", "spraypaintred_wpn_dc_1", "spraypaintblu_wpn_dc_1", "spraypaintppl_wpn_dc_1",
+  "spraypaintusa_wpn_dc_1", "tikitorchmotion_wpn_c_2", "moneythrow_env_dbs_1", "moneythrow_env_dbs_2",
+  "moneythrow_env_dbs_3", "moneythrow_env_dbs_4", "impact_bld_dbs_1", "impact_bld_dbs_2",
+  "impact_bld_dbs_3", "flameacemotion_wpn_c_3", "flameglovesmotion_wpn_c_3", "flameshieldmotion_wpn_c_3",
+  "fwspraydmg_env_dbs_3", "dryice_env_c_3", "airhorn_wpn_c_1", "ninjastealth_wpn_c_4",
+  "fwburstdmg_env_bs_2", "fwspraydiva_env_dbs_3", "machinefail_env_bl_3", "victimpunch_bld_dbs_1",
+  "glassbreak_env_bl_4", "glassbounce_env_bl_3", "glint_wpn_bs_1", "victim_bld_bm_3_unq",
+  "lightflashred_env_c_1", "lightflashgrn_env_c_1", "paintingburst_wpn_bs_1", "minilights_wpn_dc_1_unq",
+  "weldtorch_wpn_c_1", "crotchbite_bld_dbs_2_unq", "splashcoffee_env_bs_1", "splashcoffee_wpn_bs_1",
+  "splashwine_env_bs_1", "splashwine_wpn_bs_1", "splashwater_env_bs_1", "splashwater_wpn_bs_1",
+  "splashcream_env_bs_1", "splashcream_wpn_bs_1", "splashbrowncake_env_bs_1", "splashbrowncake_wpn_bs_1",
+  "splashmeats_env_bs_1", "splashmeats_wpn_bs_1", "mayo_wpn_dbm_2_unq", "powerguitar_wpn_c_2",
+  "electrocuted_chr_c_1", "foodeating_chr_c_1", "ketchupsplash_wpn_bs_2_unq", "mayosplash_wpn_bs_2_unq",
+  "smallslot7_env_dc_2_unq", "sparkburst_env_bs_4", "golfballtrail_wpn_c_1", "bullettrail_wpn_bs_4_unq",
+  "smallslot8_env_dc_2_unq", "fireaudio_wpn_c_0", "smokeplume_env_c_3", "cannonsmoke_exp_dbl_4",
+  "lightflashred_env_c_3_unq", "bowlingbash_elm_bs_3", "flamethrowmotion_wpn_dc_3", "fireline_env_c_4",
+  "fwspraydmg_env_dbs_4", "watersplash_elm_dbs_1", "trainsparks_env_dc_2", "fwsparksred_wpn_dc_3_unq",
+  "flameskullmotion_wpn_c_3", "flies_env_c_1", "dustgrnd_env_c_1", "dustgrnd_env_c_2",
+  "dustfootfall_chr_bs_1", "lightflashgrn_env_c_1", "vpoker_env_dc_4", "vpokerguntop_env_dbs_2",
+  "vpokergunmid_env_dbs_2", "helidmg_veh_c_1", "helidmg_veh_c_2", "helidmg_veh_c_3",
+  "helidmg_veh_c_4", "rooftop_exp_bm_4", "megaslot_env_dc_4", "roulette_env_dc_4",
+  "blackjack_env_dc_4", "spit_chr_bs_2", "bubbles_env_c_1", "greengas_env_c_0",
+  "missiletrail_wpn_c_4", "rooftop_exp_bm_3", "waterfall_env_c_4", "waterfallbase_env_c_4",
+  "bloodnozzle_wpn_dc_2", "smokecover_env_bs_2", "greengas_cin_dc_3", "waterdrip_env_c_1",
+  "dirtfall_env_c_2", "halldust_env_c_1", "halldust_env_c_2", "steam_env_c_1",
+  "steam_env_c_2", "streetlight_env_c_2", "groundblast_wpn_dbs_1", "laser_wpn_bs_1",
+  "lasertracer_wpn_c_1", "lightning_wpn_dc_3", "camflash_env_bs_1", "chemical_wpn_bs_2",
+  "concrete_env_bs_1", "grenadeflash_wpn_bs_2", "eleccharge_wpn_bs_1", "eleczap_wpn_bs_2",
+  "zapnshine_wpn_c_2", "groundblastLG_wpn_bs_2", "nitrogenstream_wpn_dbs_2", "nitrogen_wpn_bm_2",
+  "gaspipe_env_c_2", "flashlightgun_wpn_dc_1", "acidburn_env_c_1", "pukechem_chr_dbm_2",
+  "bfgimpact_wpn_bs_2", "buffer_wpn_c_1", "lightgunmuzzle_wpn_bs_2", "elecshockcharge_wpn_c_2",
+  "elecshockzap_wpn_bs_2", "chemexplode_wpn_bs_2", "floorshine_env_bm_1", "laserflash_wpn_bs_1",
+  "impact_wpn_bs_1", "groundblastM_wpn_dbs_2", "laserscorch_env_bm_1", "eleczap_wpn_bs_3",
+  "chemdrip_wpn_c_1", "lightflashred_env_c_2", "impact_wpn_bs_2", "incinerator_env_c_2",
+  "greengas_chr_c_1", "chargeblast_wpn_bs_2", "gaspipe_exp_bs_1", "queenbeetube_env_c_3",
+  "gatesparks_env_c_2", "jarsplash_wpn_bs_1", "groundblastSM_wpn_bs_2", "steam_wpn_c_1",
+  "redlight_wpn_c_1", "amberlight_wpn_c_1",
+]
+
+[tested]
+13 = "victim blood of sharp weapons (the game's own)"
+123 = "the Electric Rake's sparks: on a Chef Knife (EffectOnWeapon) they show"
+181 = "the Freezer Bomb's burst: as EffectOnImpact on a sword, a cold puff at each hit (CZ)"
+215 = "while held (condition 30) on a sword: a small trail of snow, good (CZ)"
+225 = "while swinging (condition 31) on a sword: a small puff of snow, good (CZ)"
+249 = "the Electric Rake's victim sparks: with shock, on a Chef Knife (CZ)"
+286 = "dry-ice fog of a level: far too big on a weapon (CZ)"
+
+[[groups]]
+id = "ice"
+name = "Ice and snow"
+words = ["snow", "freez", "frost", "dryice", "nitrogen", "whipcream", "ice_"]
+
+[[groups]]
+id = "fire"
+name = "Fire"
+words = ["fire", "flam", "torch", "molotov", "burn", "flare", "char", "incinerator", "weld",
+         "romancandle", "flameskull", "flameace", "flameglove", "flameshield", "flamesword",
+         "flamethrow", "hadouken"]
+
+[[groups]]
+id = "electric"
+name = "Electric and sparks"
+words = ["elec", "spark", "tesla", "taser", "lightning", "thunder", "zap", "shock",
+         "electrocuted", "bfg", "charge"]
+
+[[groups]]
+id = "blood"
+name = "Blood and gore"
+category = ["bld"]
+words = ["puke", "vomit", "bite", "gore"]
+
+[[groups]]
+id = "explosion"
+name = "Explosions"
+category = ["exp"]
+words = ["grenade", "dynamite", "propane", "blast", "bomb", "bazooka", "groundblast"]
+
+[[groups]]
+id = "smoke"
+name = "Smoke, steam, dust, gas"
+words = ["smoke", "steam", "dust", "gas", "vapor", "vapour", "exhaust", "mist", "wind",
+         "dirt", "exhaust"]
+
+[[groups]]
+id = "liquid"
+name = "Water and liquids"
+words = ["water", "splash", "drip", "spray", "beer", "wine", "coffee", "oil", "paint",
+         "ketchup", "mustard", "mayo", "glue", "shampoo", "perfume", "bubbles", "splat",
+         "chem", "acid", "cream"]
+
+[[groups]]
+id = "light"
+name = "Lights and glows"
+words = ["light", "glint", "flash", "laser", "shine", "sparkle", "glow", "lamp", "buffer"]
+
+[[groups]]
+id = "other"
+name = "Debris and other"
+words = []
+
+[elements.none]
+name = "None"
+description = "Hits like the weapon whose moves it uses."
+
+[elements.fire]
+name = "Fire"
+description = "Hit zombies catch fire (like Case West's Tiki Torch)."
+child = { cls = "cPropHitZombieInfoItem", keys = { DR2 = "true", PropHitZombieEffect = "0", Support = "true" } }
+checked = "Case Zero 2026-10-12: a Bowie Knife set zombies on fire"
+
+[elements.freeze]
+name = "Freeze"
+description = "Hit zombies freeze solid; a thrown weapon freezes the zombie it sticks in."
+child = { cls = "cPropHitZombieInfoItem", keys = { DR2 = "true", PropHitZombieEffect = "1", Support = "true" } }
+keys = { Can_Freeze = "true" }
+checked = "Case Zero 2026-10-12: a Bowie Knife and a thrown Broadsword froze zombies"
+
+[elements.shock]
+name = "Shock"
+description = "Hits shock zombies, with chain lightning (like the Electric Rake)."
+keys = { Can_Electrocute = "true" }
+checked = "Case Zero 2026-10-12: a Chef Knife shocked zombies"
+
+[slots.impact]
+name = "On impact"
+description = "Where the weapon hits (one burst per hit)."
+keys = ["EffectOnImpact#"]          # one per attack: # = 0..attacks-1
+
+[slots.victim]
+name = "On the zombie hit"
+description = "On the zombie that was hit (blood, sparks)."
+keys = ["EffectOnVictim#"]
+
+[slots.held]
+name = "While held"
+description = "On the weapon all the time it is in Chuck's hands (an aura, a flame)."
+condition = 30
+checked = "Case Zero 2026-10-12 (Case Zero's own items use conditions up to 29 only)"
+
+[slots.swinging]
+name = "While swinging"
+description = "On the weapon while it swings (a trail)."
+condition = 31
+checked = "Case Zero 2026-10-12"

@@ -493,11 +493,42 @@ level, so nothing else in the zone's list has to change.
 
 **Carrier item.** An item the game ships a model for but never places (CZ's Lead Pipe).
 A mod can turn it into a weapon of its own by replacing its model, textures and settings,
-without adding any file (phase 12's Frostmourne; `formats.md` §Weapons).
+without adding any file (phase 12's Frostmourne; `formats.md` §Weapons). Since phase 13
+new items load too, so the weapon wizard makes new ones instead.
+
+<a id="weapon-kind"></a>**Weapon kind.** What a new weapon swings like (sword, knife, bat,
+heavy hammer…): a game weapon the weapon wizard copies, so the new one gets its moves,
+sounds and way of being held (`dr2kit/catalog/weapon_kinds.toml`; guide 20).
+
+**Weapon wizard.** DR2 Studio's *New weapon…* window (and `dr2 mod new-weapon`): makes a
+weapon of your own from a few choices (kind, model, damage, element, effects, icon, combo
+card) and writes it into your mod.
+
+**Grip node.** A point inside a weapon's model where one of Chuck's hands goes
+(`LOC_rhand`, `IK_lhand`, `LOC_WEP_<x>_R`…). Measured in game: the hands follow these
+whatever the moves, so a new shape is placed to them (the wizard shows them as red
+diamonds).
+
+**Effect table.** The list of particle effects inside the game's program, by number (see
+*Effect number*). The toolkit keeps their names (`dr2kit/catalog/effects.toml`) so you
+can pick "snowtrail_wpn_bs_1" instead of typing 215; `dr2 effects` lists them by group.
+
+**Combo card.** The card a combo weapon shows in the game's card list: a picture at the
+top, line drawings of the two items that make it, and texts. A card has two pictures:
+found (`comboc_<name>`) and not found yet (`comboc_<name>_no`, faded red).
+
+**Empty card.** A combo card with no picture and no drawings, made by the toolkit from
+all the game's cards (the middle value of each pixel: what all cards share). The wizard
+draws a new card on it.
+
+**Atlas (texture atlas).** Several pictures put side by side in one, with the model's UVs
+moved to match: how a model with several materials becomes a weapon with one colour
+texture.
 
 **Effect number.** The number in a weapon's `EffectOnImpact`, `EffectOnVictim`,
 `PyroEffect`… keys: which particle effect shows (blood, sparks, a snow trail). It counts
-into a list of effects inside the game's program (371 in Case Zero, 414 in Case West);
+into a list of effects inside the game's program (371 in Case Zero, 414 in Case West,
+the first 370 the same);
 it changes only what you see, not what happens to a zombie.
 
 **Element (of a weapon).** What a hit does to a zombie besides damage: shock
