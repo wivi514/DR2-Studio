@@ -17,6 +17,11 @@
 //   dr2:place {point}              where to put a new item (the answer to dr2.askPlace,
 //                                  or to dr2.placeAt: something dropped on the view)
 //   dr2:focused {kind, name}       dr2.focus found and selected what it was asked for
+//   dr2:drop {spec, point}         a row of the Place panel dropped on the view: what it
+//                                  is (the drag's text, "dr2place:{…}") and the floor point
+//                                  under the mouse (the page's own drag events, so the
+//                                  point is exactly under it)
+//   dr2:placecancel                Esc while placing
 //
 //   dr2.openLevel(meta, keep)      a level: zones, markers, nav mesh, start (convert/mapdata.py)
 //   dr2.zoneReady(zone, part, detail, url)   a requested file is ready at url
@@ -48,7 +53,11 @@
 //   dr2.dragOver(x, y) / dr2.dragEnd()   something is dragged over the view: a marker
 //                                  where it would land
 //   dr2.placeAt(x, y)              answer with dr2:place: the floor point under page
-//                                  pixel x, y (a drop from the Place panel)
+//                                  pixel x, y
+//   dr2.ghostScreen()              where the ring is drawn, in page pixels (tests)
+//   dr2.startPlacing(label) / dr2.stopPlacing()   placing mode (a Place row clicked): the
+//                                  ring follows the mouse, a click on the view answers
+//                                  dr2:place there, Esc cancels
 //   dr2.itemState([state…])        placed items after a change: moved, gone, or a new
 //                                  model to load (url); kept, and applied again to every
 //                                  zone file that loads later
@@ -787,6 +796,16 @@ window.dr2 = {
     if (hit) ghost.position.copy(hit.point).add(new THREE.Vector3(0, 0.05, 0));
   },
   dragEnd() { if (ghost) ghost.visible = false; },
+  startPlacing(label) {
+    placing = label || 'it';
+    say(`click in the view where ${placing} goes (Esc: cancel)`);
+  },
+  stopPlacing() { placing = null; this.dragEnd(); },
+  ghostScreen() {                  // where the ring is drawn, in page pixels (tests)
+    if (!ghost || !ghost.visible) return null;
+    const p = ghost.position.clone().project(camera), r = renderer.domElement.getBoundingClientRect();
+    return [r.left + (p.x + 1) / 2 * r.width, r.top + (1 - p.y) / 2 * r.height];
+  },
   placeAt(x, y) {
     this.dragEnd();
     const hit = floorHit(x, y);
@@ -856,7 +875,49 @@ window.addEventListener('keydown', e => { keys.add(e.code); });
 window.addEventListener('keyup', e => { keys.delete(e.code); });
 window.addEventListener('blur', () => keys.clear());
 let drag = null;
+// --- placing: a Place row dragged onto the view, or clicked then a click on the view -------
+let placing = null;               // what is being placed (a label), while in placing mode
+function floorPoint(x, y) {
+  const hit = floorHit(x, y);
+  return hit ? hit.point.toArray().map(c => Math.round(c * 1000) / 1000) : null;
+}
+window.addEventListener('dragover', e => {
+  e.preventDefault();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+  window.dr2.dragOver(e.clientX, e.clientY);
+});
+window.addEventListener('dragleave', e => { if (!e.relatedTarget) window.dr2.dragEnd(); });
+window.addEventListener('drop', e => {
+  e.preventDefault();
+  window.dr2.dragEnd();
+  const text = (e.dataTransfer && e.dataTransfer.getData('text/plain')) || '';
+  if (!text.startsWith('dr2place:')) return;
+  const point = floorPoint(e.clientX, e.clientY);
+  if (!point) { say('nothing there to put it on (drop it on the ground)'); return; }
+  post('drop', { spec: JSON.parse(text.slice('dr2place:'.length)), point });
+});
+renderer.domElement.addEventListener('pointermove', e => {
+  if (placing) window.dr2.dragOver(e.clientX, e.clientY);
+});
+window.addEventListener('keydown', e => {
+  if (placing && e.code === 'Escape') {
+    placing = null;
+    window.dr2.dragEnd();
+    say('placing cancelled');
+    post('placecancel');
+  }
+});
 renderer.domElement.addEventListener('pointerdown', e => {
+  if (placing && e.button === 0) {                 // put it where the mouse is
+    const point = floorPoint(e.clientX, e.clientY);
+    if (!point) { say('nothing there to put it on: click on the ground'); return; }
+    placing = null;
+    window.dr2.dragEnd();
+    drag = null;
+    post('place', { point });
+    e.stopImmediatePropagation();
+    return;
+  }
   if (editing && editTarget && (gizmo.axis !== null || gizmo.dragging)) {   // the handles
     drag = null;
     return;

@@ -17,6 +17,17 @@ Entry template:
 
 ---
 
+## 2026-10-12 — Placing from the Place panel, fixed
+**Done:** the user dragged an item onto the 3D view: a ring followed, beside the mouse, and
+nothing was placed. Now the page takes the drop itself (HTML5 `dragover` / `drop`, the
+drag's text `dr2place:` + JSON; `dr2:drop {spec, point}`), and a **click** on a Place row
+arms placing: the ring follows the mouse, a click on the view puts it there, Esc cancels.
+Checked on the real page (Case Zero street): the ring is drawn under the mouse, both ways
+place the item there.
+**Why:** Qt took the drag and mapped its position to the view; on the user's desktop
+(Wayland, scaled) the position was off and the drop never arrived.
+**Docs updated:** guide 19 (steps, troubleshooting), `dev/studio.md` (with the retraction).
+
 ## 2026-10-12 — Phase 11 step 4: buildings, and an editor like Unity's
 **Done:** the user asked for DR2 Studio to be "closer to a real editor like Unity": drag
 and drop ready-made things, remove buildings and any item, select something and nudge it

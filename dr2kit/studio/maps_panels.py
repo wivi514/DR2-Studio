@@ -8,10 +8,12 @@ Why a list as well as the 3D view: a level holds hundreds of items and buildings
 hidden inside others or far away; a filterable list finds one by name and flies the
 camera to it (``dr2.focus``), the way an editor's hierarchy does.
 
-Dragging: the Place list's rows carry `MIME` data (JSON: what to place); the Maps view
-accepts the drop and asks the page for the floor point under the mouse
-(``dr2.placeAt``). Pictures are the Library's model pictures (made when the index is
-built), read only when a row is shown.
+Placing: a Place row is dragged onto the 3D view (its text is ``dr2place:`` + JSON of
+what to place; the page itself takes the drop, so the point is exactly under the mouse,
+and answers ``dr2:drop``), or **clicked** (``arm``: the page's ring follows the mouse and a
+click on the view puts it there, Esc cancels), or double-clicked (``place``: where the
+middle of the view meets the floor). Pictures are the Library's model pictures (made
+when the index is built), read only when a row is shown.
 """
 
 from __future__ import annotations
@@ -24,6 +26,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QComboBox, QHBoxLayout, QLabel
                                QListView, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
 MIME = "application/x-dr2-place"
+TEXT = "dr2place:"         # the drag's text: this, then the JSON (maps.js reads it)
 ROLE = Qt.UserRole + 1
 
 # Place's kinds, in the order of its list (key, label, tooltip)
@@ -85,7 +88,7 @@ class PlaceModel(QAbstractListModel):
         if indexes:
             r = self.rows[indexes[0].row()]
             md.setData(MIME, json.dumps(place_spec(r)).encode())
-            md.setText(r["name"])
+            md.setText(TEXT + json.dumps(place_spec(r)))       # what the page reads
         return md
 
 
@@ -99,6 +102,7 @@ class PlacePanel(QWidget):
     (put it where the middle of the view meets the floor)."""
 
     place = Signal(dict)
+    arm = Signal(dict)        # clicked: place it with the next click in the 3D view
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -128,10 +132,11 @@ class PlacePanel(QWidget):
         self.list.setDragEnabled(True)
         self.list.setDragDropMode(QAbstractItemView.DragOnly)
         self.list.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.list.clicked.connect(lambda i: self.arm.emit(place_spec(i.data(ROLE))))
         self.list.doubleClicked.connect(lambda i: self.place.emit(place_spec(i.data(ROLE))))
         lay.addWidget(self.list, 1)
-        self.note = QLabel("Drag onto the 3D view, or double-click to put it in the middle "
-                           "of the view.")
+        self.note = QLabel("Drag onto the 3D view, or click it and then click in the view "
+                           "where it goes (Esc cancels). Double-click: the middle of the view.")
         self.note.setWordWrap(True)
         lay.addWidget(self.note)
         self._all: dict[str, list[dict]] = {}

@@ -372,12 +372,16 @@ glTF extras `dr2_parked`, `MAP_VERSION` 7) is not shown and can't be selected
 
 **Place and Hierarchy** (`studio/maps_panels.py`). `PlacePanel` lists `MapsView.place_rows(kind)`
 (prefabs, items with their Library pictures, zombie types, buildings), read when a kind is
-first shown; rows drag as `application/x-dr2-place` JSON. `MapsView.eventFilter` (on the
-view and its focus proxy, the widget that really gets QtWebEngine's events) takes the
-drag: `dr2.dragOver(x, y)` draws a ring where it would land, a drop runs `start_place(spec,
-(x, y))` (ticks *Edit* if needed, sets `_adding`, calls `dr2.placeAt(x, y)`, whose
-`dr2:place` answer goes through `_place` like *Add item…*); a double-click uses
-`dr2.askPlace()`. `HierarchyPanel.fill(rows)` shows items and doors, buildings (parts,
+first shown; a row drags with the text `dr2place:` + JSON of what to place. **The page
+takes the drop itself** (its `dragover` / `drop` events, so the point is exactly under the
+mouse): the ring follows (`dr2.dragOver`), the drop answers `dr2:drop {spec, point}` and
+`start_place(spec, point=…)` (ticks *Edit* if needed, sets `_adding`) runs `_place` like
+*Add item…*. *Retracted (2026-10-12, the user's test):* the first version took the drag in
+Qt (`MapsView.eventFilter` on the view's focus proxy, positions mapped to the view): the
+ring sat beside the mouse and on the user's desktop the drop never came. A **click** on a
+row arms placing (`start_place(arm=True)` → `dr2.startPlacing`: the ring follows the
+pointer, the next click on the view answers `dr2:place` there, Esc `dr2:placecancel`); a
+double-click uses `dr2.askPlace()`. `HierarchyPanel.fill(rows)` shows items and doors, buildings (parts,
 copies and collision shapes as children), zombies and markers, as the mod being edited
 has them (`fill_hierarchy`, 250 ms after each change); a click calls `dr2.focus({kind,
 name, zone, position})`, which flies the camera there and selects the thing when its zone

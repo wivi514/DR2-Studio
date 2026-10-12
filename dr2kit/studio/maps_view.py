@@ -282,6 +282,7 @@ class MapsView(QWidget):
         self.hierarchy.chosen.connect(self.focus)
         self.palette = PlacePanel()
         self.palette.place.connect(lambda spec: self.start_place(spec))
+        self.palette.arm.connect(lambda spec: self.start_place(spec, arm=True))
         self._level_zones: dict[str, object] | None = None   # zone name -> ZoneData
         self._hier_timer = QTimer(self)
         self._hier_timer.setSingleShot(True)
@@ -532,6 +533,11 @@ class MapsView(QWidget):
             self._edit(json.loads(rest))
         elif word == "place":
             self._place(json.loads(rest))
+        elif word == "drop":                       # a Place row dropped on the view
+            msg = json.loads(rest)
+            self.start_place(msg["spec"], point=msg["point"])
+        elif word == "placecancel":
+            self._adding = None
 
     @Slot(dict, str, str)
     def _built(self, req: dict, path: str, err: str) -> None:
@@ -1505,8 +1511,10 @@ class MapsView(QWidget):
 
     # ---- Place and Hierarchy (maps_panels) ---------------------------------------------
 
-    def start_place(self, spec: dict, at: tuple[float, float] | None = None) -> None:
-        """Put what a Place row names into the level: at page pixel ``at`` (a drop), or
+    def start_place(self, spec: dict, at: tuple[float, float] | None = None, *,
+                    point=None, arm: bool = False) -> None:
+        """Put what a Place row names into the level: at the floor ``point`` (a drop the
+        page took), at page pixel ``at``, with the next click in the view (``arm``), or
         where the middle of the view meets the floor. Editing starts if it was off."""
         if not self.level:
             self.status.emit("Maps: open a level first (the Maps tab on the left)")
@@ -1528,8 +1536,12 @@ class MapsView(QWidget):
             self._adding = ("piece", spec["zone"], name, bool(spec.get("group")))
         else:
             self._adding = name
-        if at is None:
-            self._js("dr2.askPlace()")
+        if point is not None:
+            self._place({"point": point})
+        elif arm:
+            self._js(f"dr2.startPlacing({json.dumps(name or kind)})")
+        elif at is None:
+            self._js("dr2.stopPlacing(); dr2.askPlace()")
         else:
             self._js(f"dr2.placeAt({at[0]:.1f}, {at[1]:.1f})")
 
@@ -1749,25 +1761,11 @@ class MapsView(QWidget):
             self._drop_proxy = fp
 
     def eventFilter(self, obj, ev):  # noqa: N802 - Qt's name
-        """Drops from the Place panel onto the 3D view."""
-        from .maps_panels import MIME
-        t = ev.type()
-        if t in (QEvent.DragEnter, QEvent.DragMove, QEvent.Drop) and \
-                ev.mimeData().hasFormat(MIME):
-            pos = ev.position()
-            if obj is not self.view and self.view is not None:
-                pos = obj.mapTo(self.view, pos.toPoint())
-            x, y = float(pos.x()), float(pos.y())
-            ev.acceptProposedAction()
-            if t == QEvent.Drop:
-                spec = json.loads(bytes(ev.mimeData().data(MIME)).decode())
-                self.start_place(spec, (x, y))
-            else:
-                self._js(f"dr2.dragOver({x:.1f}, {y:.1f})")
-            return True
-        if t == QEvent.DragLeave:
-            self._js("dr2.dragEnd()")
-        if t == QEvent.ChildAdded and obj is self.view:
+        """A drag from the Place panel is let through to the page: it takes the drop
+        itself (exact page coordinates, ``dr2:drop``). Converting the mouse position in
+        Qt put the ring beside the mouse on a scaled screen, and on Wayland the drop
+        didn't arrive (2026-10-12)."""
+        if ev.type() == QEvent.ChildAdded and obj is self.view:
             QTimer.singleShot(0, self._watch_drops)
         return super().eventFilter(obj, ev)
 

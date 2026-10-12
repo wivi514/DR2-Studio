@@ -83,7 +83,7 @@ remembers your layout.
 | **Inspector** | right | the selected thing: what it is, **Position**, **Rotation**, **Size**, its buttons |
 | **Map** | right, under the Inspector | layers, time of day, Go to, *What is this?*, exports |
 | **Hierarchy** | left, under Browse | everything in the level as a list: items, buildings (with their parts and collision inside), zombies, spawn and save points. Type in the filter, click a row to fly there and select it |
-| **Place** | bottom | things to add: **Prefabs**, **Items** (with pictures), **Zombies**, **Buildings**. Drag one onto the 3D view, or double-click to put it in the middle of the view |
+| **Place** | bottom | things to add: **Prefabs**, **Items** (with pictures), **Zombies**, **Buildings**. Drag one onto the 3D view; or **click** it, then click in the 3D view where it goes (a yellow ring follows the mouse; **Esc** cancels); or double-click to put it in the middle of the view |
 
 ## Steps: move, turn, add and delete items in DR2 Studio
 
@@ -113,10 +113,12 @@ remembers your layout.
    settings. **Delete:** **Delete** (or the button) takes it out of the level.
 9. **Make it something else:** type another item's name in **Item** (it suggests names
    as you type), press Enter. The new model shows at once.
-10. **Add one:** in **Place**, choose **Items**, find it (type in the filter: *katana*,
-    *bench*…) and **drag it onto the 3D view**: it lands where you drop it. Or
-    double-click it (it goes where the middle of the view meets the floor), or use
-    **Add item…**. Only items whose model this game has are listed.
+10. **Add one:** in **Place**, choose **Items** and find it (type in the filter:
+    *katana*, *bench*…). Then either **drag it onto the 3D view** (it lands where you
+    drop it), or **click it once, then click in the 3D view** where it goes: a yellow
+    ring under the mouse shows the spot, **Esc** cancels. Double-click puts it where the
+    middle of the view meets the floor; **Add item…** does the same from a list. Only
+    items whose model this game has are listed.
 11. **Undo / Redo:** **Ctrl+Z / Ctrl+Y** (or the buttons), as many times as you like.
 12. Click **Play** to try it in the game.
 
@@ -367,6 +369,7 @@ load set"*: keep such numbers small.
 | `adds a block inside one of the game's own missions` | the game would fail to load saves | change the game's zombies' values, or put new ones in a mission of your own (above) |
 | New zombies don't show | they are in your own mission: it runs in a new game only | start a new game |
 | An invisible wall where you hid or moved a building | you edited one piece alone (its collision stayed), or turned / resized it (collision is only moved) | select it with **Whole building** ticked, **Put back**, and hide or move it whole |
+| Dragging from **Place** shows a ring that stays, nothing is added | some desktops (Wayland) don't finish a drag into the 3D view | click the thing in **Place**, then click in the view (**Esc** first if a ring is left) |
 | A copied building can be walked through | copies have no collision (the game keeps collision apart from the pieces) | put a **Blocker** prefab inside it if it must stop Chuck |
 | A copied building pops in and out | the game shows it only while its zone is loaded | keep it near the building it copies |
 | A roof unit, a sign or boards stay behind when you hide a building | Studio's guess left them out of it | select the piece (**Whole building** off), set **Part of**, then hide the building again |

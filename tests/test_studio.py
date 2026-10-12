@@ -552,6 +552,16 @@ def test_maps_buildings_place_and_hierarchy(tmp_path, monkeypatch):
     assert mv.edit_box.isChecked() and "dr2.placeAt(120.0, 80.0)" in sent
     mv._message("place " + json.dumps({"point": [1, 0, 1]}))
     assert mv._target and mv._target["file"] == "town.txt"
+    # the page took a drop itself: what and where come in one message
+    mv._message("drop " + json.dumps({"spec": {"kind": "item", "name": "HotDog"},
+                                      "point": [3, 0, 3]}))
+    assert mv._target and mv.editor.state(**mv._target).position == (3.0, 0.0, 3.0)
+    # clicked in Place: the next click in the view places it; Esc cancels
+    sent.clear()
+    mv.start_place({"kind": "item", "name": "HotDog"}, arm=True)
+    assert 'dr2.startPlacing("HotDog")' in sent and mv._adding == "HotDog"
+    mv._message("placecancel")
+    assert mv._adding is None
     mv.whole_box.setChecked(False)                  # one piece alone
     mv._message("pick " + json.dumps({"type": "piece", "name": "box", "zone": "town_z01",
                                       "vpath": "x"}))
