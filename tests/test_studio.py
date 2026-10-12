@@ -82,10 +82,13 @@ def test_3d_view_has_all_its_files_in_git(tmp_path):
     from dr2kit.studio.model_view import WEB_DIR, viewer_files
     found, missing = viewer_files()
     maps, maps_missing = viewer_files(page="maps.html")          # the Maps tab (phase 10)
-    assert not missing and not maps_missing
-    found = list(dict.fromkeys(found + maps))
+    hold, hold_missing = viewer_files(page="hold.html")          # Chuck holding it (13.2)
+    assert not missing and not maps_missing and not hold_missing
+    found = list(dict.fromkeys(found + maps + hold))
     names = {p.relative_to(WEB_DIR).as_posix() for p in found}
-    assert {"viewer.js", "maps.js", "levelmaterials.js", "vendor/three/build/three.module.js",
+    assert {"viewer.js", "maps.js", "levelmaterials.js", "hold.js",
+            "vendor/three/examples/jsm/controls/TransformControls.js",
+            "vendor/three/build/three.module.js",
             "vendor/three/build/three.core.js",
             "vendor/three/examples/jsm/loaders/GLTFLoader.js"} <= names
     git = shutil.which("git")

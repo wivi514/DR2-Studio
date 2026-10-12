@@ -71,6 +71,11 @@ Phase 13 adds **particle effects** (always, under a second; `check_effects`,
 ``preload4.big``'s copy (the one the game reads) is the same; the effect table's names
 with an effect and the free slots are counted.
 
+Phase 13.2 adds **animations** (``anims=True``, `check_anims`, `dr2kit.formats.anim`):
+every ``.anm`` of every archive reads its header, track table and key mask, and its first
+keys come out as unit quaternions and translations (the frozen poses Studio shows); the
+few empty entries are named.
+
 Phase 10 adds levels (``levels=True``, `check_levels`; `dr2kit.formats.level`):
 
 * **zones**: every level's ``zonelist.big`` parses, every zone's archive is there, and
@@ -240,6 +245,8 @@ class CensusReport:
     level_notes: list = field(default_factory=list)           # named, not problems
     # particle effects (phase 13)
     effects: dict = field(default_factory=dict)               # effects, emitters, shapes
+    # animations (phase 13.2)
+    anims: dict = field(default_factory=dict)                 # files, frames, kinds, unread
     seconds: float = 0.0
     lzx_backend: str = ""
 
@@ -320,7 +327,8 @@ def check_texture(rep: "CensusReport", evp: str, name: str, data: bytes,
 def run_census(game: str, tree: AssetTree, *, python_lzx: bool = False,
                reencode: bool = False, textures: bool = False, models: bool = False,
                reimport: bool = False, audio: bool = False, workers: int | None = None,
-               progress=None, variants: bool = False, levels: bool = False) -> CensusReport:
+               progress=None, variants: bool = False, levels: bool = False,
+               anims: bool = False) -> CensusReport:
     """Census one game's data folder. See the module docstring for what is checked.
 
     ``progress(message)`` is called once per file on disk. ``workers`` sets the process
@@ -537,6 +545,8 @@ def run_census(game: str, tree: AssetTree, *, python_lzx: bool = False,
             check_colour_list(rep, var_ctx)
         if levels:
             check_levels(rep, tree, game)
+        if anims:
+            check_anims(rep, tree)
         if audio_pool is not None:
             drain_audio(0)
             rep.audio_shared_first = sum(1 for v in first_packets.values() if len(v) > 1)
@@ -547,6 +557,17 @@ def run_census(game: str, tree: AssetTree, *, python_lzx: bool = False,
             audio_pool.shutdown(cancel_futures=True)
     rep.seconds = time.time() - t0
     return rep
+
+
+def check_anims(rep: "CensusReport", tree: AssetTree) -> None:
+    """Phase 13.2 (module docstring): every ``.anm`` reads its header, track table, key
+    mask and first keys (every rotation a unit quaternion); empty entries are named."""
+    from .formats import anim
+    r = anim.census(tree)
+    rep.problems += [("anim", p) for p in r["problems"]]
+    rep.anims = {"files": r["files"], "frames": r["frames"],
+                 "kinds": {f"{k:#04x}": v for k, v in sorted(r["kinds"].items())},
+                 "unread": r["unread"]}
 
 
 def check_effects(rep: "CensusReport", tree: AssetTree, game: str) -> None:
@@ -1308,6 +1329,11 @@ def format_report(rep: CensusReport) -> str:
           f"{e['emitters']} emitters (shapes {_fmt(e['shapes'], sort_keys=True)}); effect table "
           f"{e['table']} names, {e['free slots']} free slots; preload4.big's copy "
           f"{'the same' if e['preload copy same'] else 'DIFFERENT'}")
+    if rep.anims:
+        a = rep.anims
+        w(f"animations (.anm): {a['files']} read (first pose: every rotation a unit "
+          f"quaternion), {a['frames']:,} frames; tracks by kind {_fmt(a['kinds'], sort_keys=True)}; "
+          f"empty: {len(a['unread'])}")
     if rep.string_banks:
         counts = set(rep.strings.values())
         w(f"string banks (.bcs): {rep.string_banks} parsed and re-written identically, "

@@ -485,6 +485,21 @@ def cmd_info(args) -> int:
         bank = StringBank.parse(data, node.vpath)
         print(f"strings:    {len(bank.strings):,} (ids {min(bank.strings)}..{bank.last_id}); "
               f"dr2 strings search / export")
+    elif node.vpath.lower().endswith(".anm") and data:
+        from collections import Counter
+
+        from ..formats import anim
+        a = anim.Animation.parse(data, node.vpath)
+        part = anim.part_of(node.vpath)
+        kinds = Counter(f"{anim.KINDS[t.kind][0]}{' (animated)' if t.animated else ''}"
+                        for t in a.tracks)
+        print(f"animation:  {a.frames} frames at {a.rate:g}/s ({a.length:.2f} s), "
+              f"{len(a.tracks)} tracks: " + ", ".join(f"{n} {k}" for k, n in kinds.items()))
+        if part:
+            print(f"skeleton:   {anim.SKELETONS[part]} (track numbers are its nodes)")
+        pose = a.first_pose()
+        print(f"first pose: {len(pose.rotations)} rotations, {len(pose.translations)} "
+              f"translations (later keys are packed, not read yet)")
     elif node.vpath.lower().endswith(".sfx"):
         from ..formats.audioscript import sfx_tracks
         names = {e.name.lower() for e in node.archive.entries} if node.kind == "entry" else set()
@@ -1070,6 +1085,54 @@ def _cmd_effect(args, tree) -> int:
     return 0
 
 
+def cmd_hold(args) -> int:
+    """``dr2 hold``: Chuck holding an item, frozen in the game's idle for it (phase 13.2)."""
+    from ..convert import holding, render
+    tree = _tree(args)
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    if args.mod:
+        from ..mods import newweapon as nw
+        mod_dir = Path(args.mod)
+        spec = nw.load_spec(mod_dir, args.item)
+        sources = mod_dir / "sources"
+        glb = nw.hold_glb(tree, args.game, spec, sources, textures=not args.no_textures)
+        scene = nw.hold_scene(tree, args.game, spec, sources, mod_dir)
+        chuck, name = scene.chuck, spec.name
+        m = nw.fit_weapon(tree, args.game, spec, sources)
+        parts = m.parts
+        place = [[scene.placement[c * 4 + r] for c in range(4)] for r in range(4)]
+    else:
+        glb, chuck = holding.item_hold_glb(tree, args.game, args.item,
+                                           textures=not args.no_textures)
+        name = args.item
+        parts = place = None
+        if args.png:
+            from ..convert import placed
+            from ..formats.scene import Scene
+            from ..mods.newweapon import _game_parts
+            vp = placed.ItemModels(tree).resolve(args.item)
+            sc = Scene.parse(tree.resolve(vp).data(), vp)
+            parts = _game_parts(tree, sc)
+            place = holding.item_placement(chuck.hand, holding.grip_matrix(sc))
+    f = out / f"{name}_held.glb"
+    f.write_bytes(glb)
+    idle = chuck.idle
+    print(f"{f}: Chuck in {idle.fullbody.rsplit('/', 1)[-1]} (first frame, idle value "
+          f"{idle.idle_value}), hands {idle.hand.rsplit('/', 1)[-1] if idle.hand else 'none'} "
+          f"(hand value {idle.hand_value})")
+    for n in idle.notes:
+        print(f"  note: {n}")
+    if args.png:
+        if not render.available():
+            raise Dr2Error("--png needs numpy (pip install numpy)")
+        pic = holding.picture(tree, args.game, chuck, parts, place)
+        p = out / f"{name}_held.png"
+        p.write_bytes(render.to_png(pic))
+        print(f"{p}: front, side and three-quarter views")
+    return 0
+
+
 def cmd_effects(args) -> int:
     """List weapon kinds, or the effect table by group, with what uses each effect."""
     from ..catalog import weapons
@@ -1273,7 +1336,8 @@ def cmd_census(args) -> int:
         rep = run_census(g, tree, python_lzx=args.python_lzx, reencode=args.reencode,
                          textures=args.textures, models=args.models,
                          reimport=args.reimport, audio=args.audio, workers=args.workers,
-                         progress=progress, variants=args.variants, levels=args.levels)
+                         progress=progress, variants=args.variants, levels=args.levels,
+                         anims=args.anims)
         print(format_report(rep))
         reports.append(rep)
     if args.json:
@@ -1674,6 +1738,18 @@ def build_parser() -> argparse.ArgumentParser:
     pm.add_argument("-o", "--out", help="zip file or folder (default: current folder)")
     p.set_defaults(func=cmd_mod)
 
+    p = sub.add_parser("hold", help="Chuck holding an item, frozen in the game's idle for it "
+                       "(a .glb for Blender, --png a picture): to line a weapon up")
+    p.add_argument("item", help="a game item's items.txt name (Broadsword, LeadPipe…), or with "
+                   "--mod a weapon of that mod (New weapon…)")
+    p.add_argument("--mod", help="the mod folder holding the weapon")
+    p.add_argument("-o", "--out", default="extracted", help="output folder (default: extracted)")
+    p.add_argument("--png", action="store_true", help="also a picture (front, side, "
+                   "three-quarter)")
+    p.add_argument("--no-textures", action="store_true", help="no pictures in the .glb")
+    game_opt(p)
+    p.set_defaults(func=cmd_hold)
+
     p = sub.add_parser("effects", help="the game's particle effects by group (for weapons), "
                        "or the weapon kinds (--kinds)")
     p.add_argument("words", nargs="*", help="only effects whose name has these words")
@@ -1763,6 +1839,9 @@ def build_parser() -> argparse.ArgumentParser:
                         "shirts…), and check every colour choice (phase 9)")
     p.add_argument("--levels", action="store_true",
                    help="also read every level: zones, placements, pieces (~1 min per game)")
+    p.add_argument("--anims", action="store_true",
+                   help="also read every animation (.anm): header, tracks, first pose "
+                        "(~10 s per game)")
     p.add_argument("--workers", type=int,
                    help="processes for --reencode / --audio (default: all CPUs)")
     p.add_argument("-q", "--quiet", action="store_true", help="no per-archive progress")

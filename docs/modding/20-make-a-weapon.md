@@ -10,7 +10,9 @@ a mod ([`06-mod-packages.md`](06-mod-packages.md)), and a model as a `.glb` if y
 **sample sword** that comes with the toolkit.
 
 > Phase 13. Written: the weapon wizard (DR2 Studio's *New weapon…*, `dr2 mod new-weapon`),
-> the named effects, the icon and the card made from your model. What has been seen in
+> the named effects, the icon and the card made from your model; **phase 13.2: Chuck
+> holding it in 3D**, in the game's own standing pose for that kind of weapon, with the
+> effects playing and handles to line it up (`dr2 hold` for Blender). What has been seen in
 > game: moves borrowed from another weapon, the hands at the model's grip nodes, fire,
 > freeze and shock, effects on the weapon while held or swung, a combo card (all in Case
 > Zero, phase 12), and a wizard-made sword standing in Case Zero's street (headless,
@@ -37,8 +39,11 @@ when the mod is built, so you can share the mod.
 
 **Where the hands go.** Chuck's hands go to the **grip nodes** inside the weapon's model
 (`LOC_rhand`, `IK_lhand`…), whatever the moves: measured in game. Your model is laid
-where the game weapon lies, and the wizard shows you where the hands will be (red
-diamonds) so you can slide it until the handle is in the hands.
+where the game weapon lies, and the wizard shows you **Chuck holding it**, standing still
+the way the game shows him with that kind of weapon (a sword at his side, a spear across
+his body, a box in both arms: the game's own idle animation, frozen on its first frame,
+[glossary](../glossary.md#idle-pose)), so you can slide it until the handle is in his
+fist.
 
 ## Steps (DR2 Studio)
 
@@ -54,8 +59,17 @@ diamonds) so you can slide it until the handle is in the hands.
    sample sword*, or **Model file (.glb)…** for yours. Any size and direction is fine: the
    wizard lays its longest side along the game weapon, its flat side the same way, at the
    game weapon's length.
-   * The preview (right) shows your shape over the game weapon (faded), with **red
-     diamonds where the hands go**.
+   * The preview (right), tab **Chuck holding it (3D)**: Chuck in his idle for the kind,
+     your weapon in his right hand, the **red diamonds** where the hands go (the grip
+     nodes), the **yellow** point and line where effects on the weapon start. Drag to
+     turn around him, right-drag to move, wheel to zoom. The other tab, *Over the game
+     weapon*, shows your shape over the game weapon (faded), seen from its flat side.
+   * **Line it up by dragging** (buttons above the view): **Slide** (drag the arrow: the
+     weapon moves along its length in his hand), **Turn** (drag the ring: it spins about
+     its length), **Length** (drag the handle: longer or shorter, from the handle end),
+     **Effect point** (drag the arrow: where the effects start along the blade). When you
+     let go, the value goes into the boxes below and the model is fitted again. *Look*
+     puts the handles away. Only a model of your own moves: the game weapon's shape stays.
    * **Its handle is**: if the blade ended up in the hands, choose *one end* / *the other
      end*.
    * **Length** (0 = the game weapon's), **Turn about its length** (try 90°), **Slide**
@@ -73,7 +87,11 @@ diamonds) so you can slide it until the handle is in the hands.
    * *while held*: on the weapon all the time; *while swinging*: a trail.
    **Weapon effects start**: where the effects *while held* / *while swinging* begin,
    in metres from the hand toward the tip; they run along the blade from there (the
-   **yellow bar** in the preview). Type to search (`snow`, `fire`, `spark`…). Each is listed by group; ✓ marks the ones
+   **yellow point and line** in the 3D view, the yellow bar on the other tab). The 3D view
+   **plays** the effects you choose: *while held* / *while swinging* at the effect point,
+   *on impact* / *on the zombie hit* as bursts at the tip. It is a sketch from the effect's
+   data: colours, sizes, pictures and life are the game's; how the particles move is not
+   all measured yet ([`21-effects.md`](21-effects.md)). Type to search (`snow`, `fire`, `spark`…). Each is listed by group; ✓ marks the ones
    checked in game; hover to see what the game uses it for. "Keeps going" or "burst"
    (read from the effect's name, a guess) helps choose: a trail or an aura should keep
    going. **Careful:** some are a whole room's effect (286 `dryice_env_c_3` is a fog the
@@ -105,13 +123,18 @@ dr2 mod new-weapon my-mod FrostBlade --kind sword --glb sample \
 dr2 mod new-weapon my-mod FrostBlade --slide 0.05 --turn 90      # change only these
 dr2 mod new-weapon my-mod FrostBlade --shine little --effect-start 0.15
 dr2 studio --mod my-mod --weapon FrostBlade      # open Studio on the weapon's window
+dr2 hold FrostBlade --mod my-mod -o out --png    # Chuck holding it: out/FrostBlade_held.glb
+                                                 # (for Blender) and a picture
+dr2 hold Broadsword -o out --png -g cz           # the same with a game weapon
 dr2 level edit my-mod prologue add "cItemPlacement MyFrostBlade" \
     ItemName=FrostBlade Location=-278,3.6,-36
 dr2 play -g cz
 ```
 
 `--glb` takes your file, `sample`, or `keep` (the game weapon's shape). Running
-`new-weapon` again on the same name changes only the options you give.
+`new-weapon` again on the same name changes only the options you give. `dr2 hold` writes
+Chuck posed with the weapon in his hand as one `.glb`: open it in Blender to look at the
+grip closely (an empty `effect_point` marks where the effects start, +Y along the blade).
 `dr2 mod remove-weapon my-mod FrostBlade` takes it out.
 
 ## What goes into your mod
@@ -141,6 +164,8 @@ game's weapon. Make a second mod for the other game.
 | Symptom | Cause | Fix |
 |---|---|---|
 | Chuck holds it by the blade | the wrong end was taken as the handle | *Its handle is* → the other end |
+| In the 3D view the weapon is in his right hand but his left hand is not on it | the view poses the right hand only; in game the left hand reaches for the weapon's `IK_lhand` node | look at the red diamonds: the second one is where the left hand goes |
+| The 3D view stays grey or says "needs QtWebEngine" | PySide6's web part is missing | the *Over the game weapon* tab still works; reinstall DR2 Studio |
 | The hands are on the guard or past the handle | the model's handle is longer or shorter than the game weapon's | *Slide* (a few centimetres at a time), or *Length* |
 | The blade is edge-on in the icon or looks thin | the model's flat side is the other way | *Turn about its length* 90° |
 | Parts of the model look stretched | several materials with repeating textures share one picture | one material per model (bake it in Blender) |

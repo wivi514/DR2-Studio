@@ -1,0 +1,27 @@
+<!doctype html>
+<!-- DR2 Studio's "Chuck holding it" view (dr2kit/studio/hold_view.py serves this page over
+     the dr2: scheme): a weapon in Chuck's hand, frozen in the game's idle for its kind,
+     with its effects playing and handles to line it up (hold.js). -->
+<html>
+<head>
+<meta charset="utf-8">
+<title>DR2 Studio: Chuck holding it</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #3a3f46; }
+  #status { position: absolute; left: 8px; bottom: 6px; color: #ddd;
+            font: 12px sans-serif; pointer-events: none; }
+  #help { position: absolute; right: 8px; bottom: 6px; color: #ccc; text-align: right;
+          font: 11px sans-serif; pointer-events: none; }
+</style>
+<script type="importmap">
+  { "imports": { "three": "./vendor/three/build/three.module.js" } }
+</script>
+</head>
+<body>
+<div id="status">loading…</div>
+<div id="help">drag: turn around · right-drag: move · wheel: zoom</div>
+<!-- A module that can't be fetched gives no message of its own: say so (model_view.py) -->
+<script type="module" src="./hold.js"
+  onerror="document.getElementById('status').textContent = 'the 3D view could not start: some of its files are missing (reinstall DR2 Studio)'; console.log('dr2:' + document.getElementById('status').textContent)"></script>
+</body>
+</html>

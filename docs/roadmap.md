@@ -346,17 +346,26 @@ read and written, own effects in the table's 36 free slots, own particle picture
 Studio's own windows in both games (`tools/weapon_gate.py`). State: `phase13-kickoff.md`
 §Status.
 
-## Phase 13.2 (planned, user 2026-10-12): effects in 3D, on the weapon in Chuck's hand
+## Phase 13.2 (built 2026-10-12, the in-game comparison owed): effects in 3D, on the weapon in Chuck's hand
 `phase13-kickoff.md` §Phase 13.2: the wizard weapon in a 3D view with its effects playing
 (a particle system from the effect's emitters), also in *Effects…*; Chuck holding it, posed
 by one frozen frame of the game's idle animation for that kind of item (sword, box…: the
 `.anm` format read for it, moved here from phase 14); handles to slide / turn the weapon and move the effect point. Gate: aligned in
 Studio, the same in game.
+**Built (2026-10-12):** `.anm` read up to the first frame of every animation of both
+games (`formats/anim.py`, `census --anims`); each item kind's idle and hand pose found
+through the game's animation graph `sgraph.txt` (`convert/holding.py`); Chuck posed on
+the game's rig with every outfit part; the item at his right-hand prop node by its grip
+node; the 3D view in *New weapon…* and *Effects…* (`studio/hold_view.py`, `web/hold.js`)
+with particles and drag handles; `dr2 hold` (a `.glb` for Blender, a picture). Owed: the
+comparison with the game (`phase13-kickoff.md` §Status 13.2). Full playback (the later
+keys) stays in phase 14.
 
 ## Phase 14 (planned): buildings and maps of your own, animations
 Phase 13's step 9, carried from phase 12 (`phase12-kickoff.md` T4-T6, plan steps 6-8):
 a `.glb` building as a new level piece with its collision as an invisible item, maps in
-the executables' empty level slots with a door destination list, and the `.anm` format
-(Chuck swinging a weapon in the grip preview and the Library). Each needs in-game tests by
+the executables' empty level slots with a door destination list, and the rest of the
+`.anm` format (its later keys: Chuck swinging a weapon in the 3D view and the Library;
+the first frame is read since phase 13.2). Each needs in-game tests by
 the user (walking into collision, going through a door) before tools are built.
 

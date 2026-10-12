@@ -10,9 +10,12 @@ game uses each for and what was checked in game), its inventory icon, and a comb
 recipe with its card.
 
 *Preview* (also run after each change, after a short pause) draws in the background
-(`MainWindow.run_job`): the new shape over the game weapon seen from its flat side, the
-game weapon faded and the hands' grip nodes as red diamonds (where Chuck will hold it:
-measured in game, the hands follow those nodes), the inventory icon, and the card.
+(`MainWindow.run_job`): **Chuck holding it in 3D** (`hold_view.HoldView`, phase 13.2: the
+game's idle for the kind, frozen, the effects playing, handles to slide, turn and
+lengthen the weapon and to move the effect point, which write into the boxes), the new
+shape over the game weapon seen from its flat side (the other tab: the game weapon faded
+and the hands' grip nodes as red diamonds, where Chuck will hold it: measured in game,
+the hands follow those nodes), the inventory icon, and the card.
 *Make weapon* writes it into the open mod (`newweapon.make_weapon`); opening the window
 on a weapon the mod already has fills it in again, and *Make* rebuilds it.
 """
@@ -25,7 +28,7 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDoubleSpinBox, QFileDialog,
                                QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
-                               QPushButton, QSpinBox, QVBoxLayout, QWidget)
+                               QPushButton, QSpinBox, QTabWidget, QVBoxLayout, QWidget)
 
 from ..catalog import weapons
 from ..errors import Dr2Error
@@ -282,10 +285,23 @@ class WeaponDialog(QDialog):
                         "nodes). Faded: the game weapon. Move the new shape with <i>slide</i>, "
                         "<i>turn</i> and <i>length</i>.</small>")
         legend.setWordWrap(True)
+        from .hold_view import HoldView
+        self.hold = HoldView()
+        self.hold.setMinimumSize(480, 380)
+        self.hold.aligned.connect(self._aligned)
+        flat = QWidget()
+        fl = QVBoxLayout(flat)
+        fl.addWidget(self.side)
+        fl.addWidget(legend)
+        fl.addStretch(1)
+        self.views = QTabWidget()
+        self.views.addTab(self.hold, "Chuck holding it (3D)")
+        self.views.addTab(flat, "Over the game weapon")
+        if not self.hold.available:
+            self.views.setCurrentIndex(1)
         right = QWidget()
         rl = QVBoxLayout(right)
-        rl.addWidget(self.side)
-        rl.addWidget(legend)
+        rl.addWidget(self.views, 3)
         row = QHBoxLayout()
         col = QVBoxLayout()
         col.addWidget(QLabel("Inventory icon"))
@@ -489,14 +505,29 @@ class WeaponDialog(QDialog):
         self.notes.setText("Drawing the preview…")
         game, sources = self.game, self.mod_dir / "sources"
 
+        mod_dir, hold = self.mod_dir, self.hold
+        want_chuck = hold.needs_chuck(game)
+
         def job(progress):
             from ..container.vpath import AssetTree
+            from ..convert import holding
             from ..profiles import locate
-            return nw.preview(AssetTree(locate(game).root), game, spec, sources)
+            tree = AssetTree(locate(game).root)
+            pic = nw.preview(tree, game, spec, sources)
+            if not hold.available:
+                return pic, None, None
+            chuck = holding.rest_glb(tree, game) if want_chuck else None
+            return pic, nw.hold_scene(tree, game, spec, sources, mod_dir), chuck
         self.main.run_job(job, self._previewed)
 
     def _previewed(self, result, error) -> None:
         self._busy = False
+        if error is None:
+            result, scene, chuck = result
+            if chuck is not None:
+                self.hold.set_chuck(self.game, chuck)
+            if scene is not None:
+                self.hold.show_scene(scene)
         if error is not None:
             self.notes.setText(f"Preview: {error}")
         else:
@@ -514,6 +545,19 @@ class WeaponDialog(QDialog):
         if self._again:
             self._again = False
             self.refresh_preview()
+
+    def _aligned(self, values: dict) -> None:
+        """A handle of the 3D view was let go: its value into the boxes (which fits the
+        model again and redraws)."""
+        if "slide" in values:
+            self.slide.setValue(round(float(values["slide"]), 2))
+        if "turn" in values:
+            t = (float(values["turn"]) + 180) % 360 - 180
+            self.turn.setValue(int(round(t)))
+        if "length" in values:
+            self.length.setValue(round(float(values["length"]), 2))
+        if "effect_start" in values:
+            self.fx_start.setValue(round(float(values["effect_start"]), 2))
 
     def make(self) -> None:
         try:

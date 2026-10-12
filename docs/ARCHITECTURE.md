@@ -351,6 +351,16 @@ reads the modder's own install and writes into a mod it marks **`local_only`**, 
 wizard; another game's particle emitters become one effect of one's own (the `layout`
 change: copies of a base emitter, then their fields).
 
+**Chuck holding a weapon (phase 13.2).** The 3D view never hard-codes a pose or an
+outfit: Chuck's parts come from the game's `outfits.csv`, the idle from its animation
+graph `sgraph.txt` (the item's `AnimationChooserValueForIdle` / `…ForHand`), the pose
+from the `.anm`'s first frame on the game's rig `playerfullbody.big`, and the weapon
+hangs from his `r_hand_prop` node by its own grip node (`convert/holding.py`). Studio
+sends Chuck once at rest and the pose as data, so the page poses him (changing kinds is
+instant); the same pose baked into one `.glb` is `dr2 hold` for Blender. Drag handles in
+the page only send numbers back (slide, turn, length, effect start): the wizard's
+`WeaponSpec` stays the one source, and the model is fitted again from it.
+
 **Files mods can't touch.** The executables digest-check a few data files (CZ 1, CW 6;
 `formats.md` §Digest-checked files). Each game profile lists them (`digest_checked`) and
 the build refuses an override of one, since the game would crash.

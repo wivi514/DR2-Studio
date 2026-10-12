@@ -496,6 +496,118 @@ def preview(tree: AssetTree, game: str, spec: WeaponSpec, sources: Path | None =
     return Preview(side, pic_icon, card, m.notes)
 
 
+# --- the 3D view: Chuck holding it (phase 13.2) ------------------------------------------
+
+EFFECT_AT = {"held": "point", "swinging": "point", "impact": "tip", "victim": "tip"}
+
+
+@dataclass
+class HoldScene:
+    """What Studio's 3D view of a weapon shows (`hold_scene`): the weapon (a textured
+    ``.glb`` in its model space), where it hangs in Chuck's hand, Chuck's frozen idle for
+    its kind, the line the drag handles move along, and its effects."""
+    weapon_glb: bytes
+    placement: list                  # 16 numbers, column order: weapon model -> Chuck
+    pose: dict                       # Chuck's rig: node name -> local rotation / translation
+    idle: object                     # convert.holding.Idle
+    frame: dict                      # model space: origin (the handle end now), axis, side,
+    #                                  thin (unit), length now, the game weapon's length,
+    #                                  slide, turn, effect_start
+    effect_point: dict               # model space: position, rotation (x y z w)
+    effects: list                    # {slot, name, number, at: point|tip, emitters: [...]}
+    textures: dict                   # particle picture name -> PNG bytes
+    chuck: object = None             # convert.holding.Chuck
+    notes: list = field(default_factory=list)
+
+
+def _emitter_json(e) -> dict:
+    return {"offset": e.get("offset"), "count": e.get("count_20"), "speed": e.get("speed"),
+            "spread": e.get("spread"), "gravity": e.get("gravity"),
+            "times": e.get("colour_times"), "colours": e.colour_keys(), "sizes": e.get("sizes"),
+            "shape": e.get("shape"), "shape_values": e.shape_values, "texture": e.texture,
+            "blend": e.get("blend")}
+
+
+def effect_view(tree: AssetTree, fx, slot: str, number: int = 0,
+                mod_dir: str | Path | None = None, textures: dict | None = None) -> dict:
+    """One effect (`formats.effect.Effect`) as the 3D view takes it; its particle pictures
+    are added to ``textures`` (name -> PNG bytes)."""
+    from . import neweffect
+    if textures is not None:
+        for e in fx.emitters:
+            if e.texture not in textures:
+                png_bytes = neweffect.particle_png(tree, e.texture, mod_dir)
+                if png_bytes:
+                    textures[e.texture] = png_bytes
+    return {"slot": slot, "name": fx.name, "number": number, "at": EFFECT_AT.get(slot, "tip"),
+            "emitters": [_emitter_json(e) for e in fx.emitters]}
+
+
+def hold_scene(tree: AssetTree, game: str, spec: WeaponSpec, sources: Path | None = None,
+               mod_dir: str | Path | None = None, models=None) -> HoldScene:
+    """Everything Studio's 3D view needs to show Chuck holding ``spec``'s weapon in the
+    game's idle for its kind (`convert.holding`), with its effects (the mod's own and
+    changed ones included). Nothing written."""
+    import numpy as np
+    from ..convert import holding, png
+    from ..convert import weapon_fit as wf
+    from ..convert.gltf import glb_with_picture
+    from ..convert.model import model_glb
+    from ..formats.effect import read_all
+    from . import neweffect
+    m = fit_weapon(tree, game, spec, sources, models)
+    chuck = holding.posed_chuck(tree, m.block)
+    if m.glb is not None:
+        rgba = np.ascontiguousarray(m.colour, dtype=np.uint8)
+        pic = png.encode(png.Image(rgba.shape[1], rgba.shape[0], rgba.tobytes()))
+        weapon = glb_with_picture(m.glb, pic, spec.name)
+    else:
+        weapon = model_glb(tree, m.scene, game=game, mode="shown")
+    place = holding.item_placement(chuck.hand, holding.grip_matrix(m.scene))
+    f = m.frame
+    length = spec.length or f.length
+    vec = lambda v: [float(c) for c in v]          # noqa: E731
+    frame = {"origin": vec(f.handle + f.axis * spec.slide), "axis": vec(f.axis),
+             "side": vec(f.side), "thin": vec(f.thin), "length": float(length),
+             "game_length": float(f.length), "slide": spec.slide, "turn": spec.turn,
+             "effect_start": spec.effect_start,
+             "tip": vec(f.handle + f.axis * (spec.slide + length)),
+             "grips": [vec(g) for g in grip_points(m.scene)],
+             "movable": m.glb is not None}
+    pos, rot = wf.effect_locator(f, spec.effect_start)
+    effects, textures, notes = [], {}, list(m.notes) + list(chuck.idle.notes)
+    table = read_all(tree) if spec.effects else {}
+    for slot, number in spec.effects.items():
+        n = weapons.effect_number(game, number)
+        fx = neweffect.effect_as_shown(tree, game, n, mod_dir, table)
+        if fx is None:
+            notes.append(f"effect {n} ({slot}): nothing to show (an empty slot)")
+            continue
+        effects.append(effect_view(tree, fx, slot, n, mod_dir, textures))
+    return HoldScene(weapon, holding.flat(place), chuck.pose, chuck.idle, frame,
+                     {"position": pos, "rotation": rot}, effects, textures, chuck, notes)
+
+
+def hold_glb(tree: AssetTree, game: str, spec: WeaponSpec, sources: Path | None = None,
+             textures: bool = True) -> bytes:
+    """One ``.glb`` of Chuck in the idle for ``spec``'s kind holding the weapon (for
+    Blender: ``dr2 mod hold``). The effects are not in it; an empty node marks the
+    effect point (+y along the blade)."""
+    from ..convert import gltf, holding
+    scene = hold_scene(tree, game, spec, sources)
+    chuck = scene.chuck
+    asm = gltf.Assembler()
+    holding.chuck_glb(tree, game, chuck, textures=textures, assembler=asm)
+    m = [[scene.placement[c * 4 + r] for c in range(4)] for r in range(4)]
+    t, q, s = holding.decompose(m)
+    node = asm.add(scene.weapon_glb, [{"name": spec.name, "translation": t, "rotation": q,
+                                       "scale": s}], source=spec.name)[0]
+    asm.empty("effect_point", node, scene.effect_point["position"],
+              scene.effect_point["rotation"])
+    asm.extras = {"weapon": spec.name, "idle": chuck.idle.fullbody, "hand": chuck.idle.hand}
+    return asm.to_bytes()
+
+
 def _effect_line(frame, start: float, length: float = 0.7):
     """A thin yellow bar where the effects on the weapon go: from their point
     (`convert.weapon_fit.effect_locator`) ``length`` metres along +y (the way the Flaming

@@ -3,9 +3,11 @@
 
 Left, every effect of the game's effect table (`catalog.weapons`): its number, name,
 group, ✓ when it was checked in game, and what the game uses it for; the open mod's own
-effects and changed ones are marked. Right, an approximate picture of the selected
-effect (`convert.effect_preview`: its particle pictures, colours and sizes as the data
-says, drawn in the background), its emitters in words, and the changes: a hue (0-360°,
+effects and changed ones are marked. Right, the selected effect **playing on a game
+weapon in Chuck's hand** (phase 13.2, `hold_view.HoldView`: the weapon kind and the
+place, *while held* at the effect point or *on impact* at the tip, are chosen above it),
+or the flat sketch (`convert.effect_preview`: its particle pictures, colours and sizes as
+the data says, drawn in the background), its emitters in words, and the changes: a hue (0-360°,
 or keep), saturation, brightness, opacity, size and lifetime (the colour keys' times), and a
 swap of each particle picture (one of the game's, or a PNG of your own: `neweffect
 .new_particle_texture`). The picture follows the sliders.
@@ -24,8 +26,8 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QColor, QImage, QPixmap
 from PySide6.QtWidgets import (QComboBox, QDialog, QFileDialog, QFormLayout, QHBoxLayout,
                                QInputDialog, QLabel, QLineEdit, QListWidget, QListWidgetItem,
-                               QPushButton, QSlider, QSplitter, QTextBrowser, QVBoxLayout,
-                               QWidget)
+                               QPushButton, QSlider, QSplitter, QTabWidget, QTextBrowser,
+                               QVBoxLayout, QWidget)
 
 from ..catalog import weapons
 from ..errors import Dr2Error
@@ -95,6 +97,20 @@ class EffectsDialog(QDialog):
         self.picture.setFixedSize(320, 320)
         self.picture.setAlignment(Qt.AlignCenter)
         self.picture.setStyleSheet("background:#121217;color:#aaa")
+        # phase 13.2: the effect playing on a game weapon in Chuck's hand
+        from .hold_view import HoldView
+        self.hold = HoldView()
+        self.hold.setMinimumSize(420, 360)
+        self.on_kind = QComboBox()
+        for k in weapons.kinds(self.game):
+            self.on_kind.addItem(f"{k.name} ({k.template(self.game)})", k.id)
+        self.on_slot = QComboBox()
+        for sid, sl in weapons.slots().items():
+            self.on_slot.addItem(sl["name"], sid)
+        self.on_slot.setCurrentIndex(max(self.on_slot.findData("held"), 0))
+        self.on_kind.currentIndexChanged.connect(lambda _i: self._kind_changed())
+        self.on_slot.currentIndexChanged.connect(lambda _i: self._changed())
+        self._hold_kind = None
         self.swatches = QLabel()
         self.info = QTextBrowser()
         self.info.setMaximumHeight(170)
@@ -152,29 +168,46 @@ class EffectsDialog(QDialog):
         self.notes.setWordWrap(True)
         right = QWidget()
         rl = QVBoxLayout(right)
+        on3d = QWidget()
+        ol = QVBoxLayout(on3d)
+        ol.setContentsMargins(0, 0, 0, 0)
+        orow = QHBoxLayout()
+        orow.addWidget(QLabel("On"))
+        orow.addWidget(self.on_kind, 1)
+        orow.addWidget(self.on_slot)
+        ol.addLayout(orow)
+        ol.addWidget(self.hold, 1)
+        sketch = QWidget()
+        sl_ = QVBoxLayout(sketch)
+        sl_.addWidget(self.picture, 0, Qt.AlignCenter)
+        self.views = QTabWidget()
+        self.views.addTab(on3d, "On a weapon (3D)")
+        self.views.addTab(sketch, "Sketch")
+        if not self.hold.available:
+            self.views.setCurrentIndex(1)
         top = QHBoxLayout()
-        top.addWidget(self.picture)
+        top.addWidget(self.views, 3)
         col = QVBoxLayout()
         col.addWidget(self.swatches)
         col.addWidget(self.info, 1)
-        top.addLayout(col, 1)
-        rl.addLayout(top)
+        top.addLayout(col, 2)
+        rl.addLayout(top, 1)
         rl.addLayout(form)
         brow = QHBoxLayout()
         for b in (b_reset, self.b_change, self.b_own, self.b_remove):
             brow.addWidget(b)
         rl.addLayout(brow)
         rl.addWidget(self.notes)
-        rl.addStretch(1)
         split = QSplitter()
         split.addWidget(left)
         split.addWidget(right)
         split.setSizes([380, 720])
         lay = QVBoxLayout(self)
         lay.addWidget(split)
-        legend = QLabel("<small>The picture is a sketch from the effect's data (its pictures, "
-                        "colours and sizes); in game it moves and fades. Effects only change "
-                        "what is seen.</small>")
+        legend = QLabel("<small>Both views are sketches from the effect's data (its pictures, "
+                        "colours, sizes, life, start box, speed and gravity); how the game moves "
+                        "particles is not all measured. Effects only change what is seen."
+                        "</small>")
         lay.addWidget(legend)
         for b in (self.b_change, self.b_own, self.b_remove):
             b.setEnabled(self.mod_dir is not None)
@@ -319,7 +352,11 @@ class EffectsDialog(QDialog):
         name, changes = self.base_name, self.changes()
         own_pics = self._own_picture_files()
         self._busy = True
-        game = self.game
+        game, mod_dir, hold = self.game, self.mod_dir, self.hold
+        kind, slot = self.on_kind.currentData(), self.on_slot.currentData()
+        want_scene = hold.available and kind != self._hold_kind
+        want_chuck = hold.needs_chuck(game)
+        number = [x.name for x in self.table].index(self.current) + 1
 
         def job(progress):
             from ..container.vpath import AssetTree
@@ -342,15 +379,40 @@ class EffectsDialog(QDialog):
                     return np.frombuffer(im.rgba, np.uint8).reshape(
                         im.height, im.width, 4).astype(np.float32) / 255
                 return finder(n)
-            return ep.preview(e, textures, 320), describe(e), [m.colour_keys() for m in e.emitters]
+            out = (ep.preview(e, textures, 320), describe(e), [m.colour_keys() for m in e.emitters])
+            if not hold.available:
+                return out + (None, None, None, None)
+            from ..convert import holding
+            from ..mods import newweapon as nw
+            pics: dict = {}
+            view = nw.effect_view(tree, e, slot, number, mod_dir, pics)
+            for n, f in own_pics.items():                 # pictures not saved in a recipe yet
+                if n in {m.texture.lower() for m in e.emitters}:
+                    pics[next(m.texture for m in e.emitters if m.texture.lower() == n)] = \
+                        f.read_bytes()
+            scene = nw.hold_scene(tree, game, nw.WeaponSpec(name="Preview", kind=kind),
+                                  mod_dir=mod_dir) if want_scene else None
+            chuck = holding.rest_glb(tree, game) if want_chuck else None
+            return out + (view, pics, scene, chuck)
         self.main.run_job(job, self._shown)
+
+    def _kind_changed(self) -> None:
+        self._hold_kind = None              # a new weapon to show
+        self._changed()
 
     def _shown(self, result, error) -> None:
         self._busy = False
         if error is not None:
             self.notes.setText(f"Picture: {error}")
         else:
-            pic, lines, keys = result
+            pic, lines, keys, view, pics, scene, chuck = result
+            if chuck is not None:
+                self.hold.set_chuck(self.game, chuck)
+            if scene is not None:
+                self.hold.show_scene(scene, keep_view=self._hold_kind is not None)
+                self._hold_kind = self.on_kind.currentData()
+            if view is not None:
+                self.hold.set_effects([view], pics)
             self.picture.setPixmap(_pixmap(pic))
             sw = "".join(
                 "<span style='background:rgb({},{},{});'>&nbsp;&nbsp;&nbsp;</span>".format(

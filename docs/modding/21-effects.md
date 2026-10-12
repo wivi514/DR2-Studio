@@ -13,8 +13,11 @@ and a mod ([`06-mod-packages.md`](06-mod-packages.md)). For a weapon:
 > own in a free slot (the Flaming Sword copied and turned blue, as number 69), and a
 > particle picture of your own. Case West: a mod with a changed effect and an effect of
 > your own loads into the game (headless); the effects themselves not yet seen there.
-> The picture in DR2 Studio is a **sketch** from the effect's data, not the game drawing
-> it: in game the particles move, spread and fade.
+> The views in DR2 Studio are **sketches** from the effect's data, not the game drawing
+> it. Since phase 13.2 the effect **plays in 3D on a weapon in Chuck's hand**: its
+> pictures, colours, sizes and life are the game's; how fast and where the particles move
+> (speed, spread, gravity) is read from fields not yet checked one by one in game, so
+> compare with the game before trusting the motion.
 
 ## What an effect is
 
@@ -52,10 +55,14 @@ dark when you change the hue: only coloured parts turn.
    with its group (*Ice and snow*, *Fire*, *Electric*…), ✓ for the ones checked in game,
    and, when you hover, what the game uses it for.
 3. Type in the search box (`flame`, `snow`, `spark`…) or pick a group, and click an
-   effect. The picture (left) is a sketch of it; **Colours** shows its colour keys; the
+   effect. The view (left), tab **On a weapon (3D)**, plays it on a game weapon in
+   Chuck's hand: choose the weapon kind above it (a sword, a spear…) and where it plays
+   (*While held* / *While swinging* at the effect point along the blade, *On impact* /
+   *On the zombie hit* as a burst at the tip). Drag to turn around, wheel to zoom. The
+   **Sketch** tab is the flat picture of before. **Colours** shows its colour keys; the
    text says what each emitter throws out, its colours, sizes and lifetime.
    *Yours (this mod)* in the group box lists what your mod already changes or adds.
-4. Move the sliders. The picture follows:
+4. Move the sliders. Both views follow (the 3D one keeps playing):
    * **Hue**: all the way left is *(keep)*; anywhere else turns every colour to that hue
      (the Flaming Sword at ~200 is an icy blue flame).
    * **Saturation**, **Brightness**, **Opacity**, **Size**, **Lifetime**: ×1.00 keeps it.

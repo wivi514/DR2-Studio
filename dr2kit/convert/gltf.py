@@ -181,6 +181,35 @@ class Glb:
         return rows if n > 1 else [r[0] for r in rows]
 
 
+def glb_with_picture(glb: bytes, png: bytes, source: str = "<glb>") -> bytes:
+    """``glb`` with one colour picture (PNG bytes) on every material: the weapon wizard's
+    fitted model (`convert.weapon_fit.fitted_glb` has no pictures; its colour picture is
+    made apart) for Studio's 3D view."""
+    g = Glb.parse(glb, source)
+    js = json.loads(json.dumps(g.gltf))
+    blob = bytearray(g.bin)
+    while len(blob) % 4:
+        blob.append(0)
+    views = js.setdefault("bufferViews", [])
+    views.append({"buffer": 0, "byteOffset": len(blob), "byteLength": len(png)})
+    blob += png
+    while len(blob) % 4:
+        blob.append(0)
+    js["images"] = [{"bufferView": len(views) - 1, "mimeType": "image/png"}]
+    js["samplers"] = [{"magFilter": 9729, "minFilter": 9987}]
+    js["textures"] = [{"source": 0, "sampler": 0}]
+    for m in js.get("materials", []):
+        pbr = m.setdefault("pbrMetallicRoughness", {})
+        pbr["baseColorTexture"] = {"index": 0}
+        pbr["baseColorFactor"] = [1.0, 1.0, 1.0, 1.0]
+    js["buffers"] = [{"byteLength": len(blob)}]
+    text = json.dumps(js, separators=(",", ":")).encode("utf-8")
+    text += b" " * (-len(text) % 4)
+    return (struct.pack("<III", GLB_MAGIC, 2, 12 + 8 + len(text) + 8 + len(blob))
+            + struct.pack("<II", len(text), CHUNK_JSON) + text
+            + struct.pack("<II", len(blob), CHUNK_BIN) + bytes(blob))
+
+
 # --- skeleton ---------------------------------------------------------------------------
 
 def _f32(x: float) -> float:
@@ -605,12 +634,15 @@ class Assembler:
             self.b.gltf["nodes"][parent].setdefault("children", []).append(i)
 
     def add(self, glb: bytes, placements: list[dict], parent: int | None = None,
-            source: str = "<glb>", static: bool = False) -> list[int]:
+            source: str = "<glb>", static: bool = False,
+            pose: dict[str, dict] | None = None) -> list[int]:
         """Copy ``glb`` in and place it once per item of ``placements``: dicts with
         ``name`` and optional ``translation``, ``rotation`` (x, y, z, w), ``scale`` and
         ``extras``. Returns the placement nodes. ``static``: a skinned model is drawn in
         its rest pose without its skeleton (no skin, no bone nodes, no joint data): a
-        crowd of zombies stays light."""
+        crowd of zombies stays light. ``pose``: node name (lower case) → its local
+        ``rotation`` / ``translation`` to use instead (the inverse bind matrices stay the
+        rest pose's, so a skinned model is drawn posed: `convert.holding`)."""
         import hashlib
         g = Glb.parse(glb, source)
         js, b = g.gltf, self.b
@@ -701,6 +733,9 @@ class Assembler:
                     return None
                 n = dict(nodes[i])
                 n.pop("children", None)
+                if pose and (n.get("name") or "").lower() in pose:
+                    for k, v in pose[n["name"].lower()].items():
+                        n[k] = [float(c) for c in v]
                 if "mesh" in n:
                     n["mesh"] = meshes[n["mesh"]]
                 skin = n.pop("skin", None)

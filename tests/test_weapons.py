@@ -257,3 +257,22 @@ def test_make_weapon_builds(game, game_root, tmp_path):
     assert list(en["strings"]) == [str(made.string_ids["name"])]
     nw.remove_weapon(tree, mod, "TestBlade")
     assert nw.weapons_of(mod) == [] and not (mod / "add").exists()
+
+
+@pytest.mark.gamedata
+def test_hold_scene(game_root):
+    """Phase 13.2: what the 3D view gets: the fitted sword in Chuck's hand, its line, the
+    effect point, and an effect's emitters with their particle pictures."""
+    from dr2kit.container.vpath import AssetTree
+    from dr2kit.mods import newweapon as nw
+    tree = AssetTree(game_root("cz"))
+    spec = nw.WeaponSpec(name="T", kind="sword", model="sample", slide=0.05,
+                         effects={"held": "flamingsword_wpn_c_3_unq"})
+    sc = nw.hold_scene(tree, "cz", spec)
+    assert sc.weapon_glb[:4] == b"glTF" and len(sc.placement) == 16
+    assert sc.frame["movable"] and sc.frame["slide"] == 0.05 and sc.frame["grips"]
+    assert sc.idle.fullbody.endswith("male_idle_combat.anm")
+    fx = sc.effects[0]
+    assert fx["at"] == "point" and len(fx["emitters"]) == 4
+    assert set(sc.textures) == {e["texture"] for e in fx["emitters"]}
+    assert all(png[:4] == b"\x89PNG" for png in sc.textures.values())

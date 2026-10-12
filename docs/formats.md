@@ -19,7 +19,7 @@ Case West census before they count as rules (CLAUDE.md rule 7).
 | audio scene scripts `.txt` | `audio/Prologue.txt` (CZ), `audio/*.txt` + `scenegraph.txt` | ✅ text | `cAudioScene` / `cAudioJukebox` tree, `Asset = "music.big/<name>"`. **CZ's `Prologue.txt` is digest-checked by the executable: an edited copy crashes the game** |
 | `.bcs` string bank | `frontend/str_<lang>.bcs` | ✅ read + write | `dr2kit/formats/bcs.py` (§Strings). All 16 banks of both games re-write byte-identically (census); `.bcs.json` mod overrides change strings by id; a changed string checked in game in both recomps |
 | `.bcf` font | `system/**` | 🟡 | 9 of 11 in CZ and 6 of 11 in CW are plain `.big` archives (read by the census); the rest start `04 03 02 01`, an unknown sibling container ❓ |
-| `.anm` / anim `.big` | `anim/**`, `skeleton/*.anm` | ❓ | |
+| `.anm` animation | `anim/**` (`default.big/<part>.big`), weapon banks `streamedassets.big/anm_<bank>.big` | 🟡 first frame read | `dr2kit/formats/anim.py` (§Animations): header, track table, key mask and the **first key of every track** of every `.anm` of both games (census `--anims`); the later keys are packed, not read. The idle per item kind comes from `sgraph.txt` (`convert/holding.py`) |
 | ragdoll `.dat` | `skeleton/*_ragdoll.dat` | ❓ | Havok likely (`hkp*` RTTI in the XEX) |
 | shader banks `.vo/.po/.vdo/.pdo/.sdo/.scv` | `shaders/*-{vs,ps,vd,pd,sc,sd,ss}.big` | 🟡 | `.vo`/`.po` are standard 360 D3D shader containers (`10 2A 11 01`, XenosRecomp translates them); `.sdo` = a shader name's permutations (`5cef4d20.sdo` → `ProtoSkinnedClothRGB`). Models carry their **own** vertex declarations, so the decoder doesn't need `-vd.big` (phase 0 guessed it did) |
 | mission / data `.txt`, `.csv` | `datafile.big`, CW loose `.csv` | ✅ text | engine scripting; edited for co-op in the CZ recomp |
@@ -1835,6 +1835,104 @@ string ids, new card pictures, its block, five placements at the save's spawn po
 loaded and showed: the sample sword standing in the street, textured. The user's windowed
 runs of phase 12 are not explained ❓ (two crashes loading `zombies.big` with a co-op
 player present).
+
+## Animations (`.anm`) 🟡 first frame read (phase 13.2, 2026-10-12)
+
+Implemented by `dr2kit/formats/anim.py` (reader, `census`), used by
+`dr2kit/convert/holding.py` (Chuck frozen in an idle, an item in his hand).
+
+**Where.** `data/anim/default.big` holds one archive per skeleton part: `fullbody.big`
+(1,371 in CZ), `root.big` (the same names), `hand.big` (170: finger poses), `upperbody.big`
+(33), `facial.big` (46); also `zombies.big`, `mercs.big`, `battle/`, `cinematic/`,
+`survivor_custom/`, `weapon/`. A weapon's moves are `streamedassets.big/anm_<AnimBankName>.big`
+with `root.big` and `fullbody.big` inside. **Track numbers are node indices of the part's
+skeleton file**: `fullbody` → `data/skeleton/playerfullbody.big` (98 nodes, the same rig
+every part of Chuck's body carries), `root` → `playerroot.big` (2 nodes: `dummy01.root`,
+`arrow`), `hand` → `playerhand.big` (30 finger nodes), `upperbody` → `playerupperbdy.big`.
+
+**Layout** (big-endian):
+
+| Offset | Type | Meaning |
+|---|---|---|
+| 0x00 | u32 | one value per skeleton part (fullbody `0x24F628C0`, root `0xAD2B0240`, hand `0x70CB2D80`; 16 values in CZ) ❓ how it is made |
+| 0x04 | f32 | length in seconds = (frames − 1) / rate |
+| 0x08 | f32 | frames per second (30, 29.86, 60…) |
+| 0x0C | u16 | key mask offset = 0x16 + 2 × tracks |
+| 0x0E | u16 | first keys' offset = the mask's end rounded up to 4; **0 when that is past 0xFFFF** (26 long cutscenes of both games: `701_chuck_arrives_in_town~chuck.anm`…) |
+| 0x10 | u16 | frames |
+| 0x12 | u16 | tracks |
+| 0x14 | tracks × (u8 node, u8 kind) | sorted by kind: animated rotations, animated translations, fixed translations, fixed rotations |
+| | `FF 00` | end of the table (every file) |
+| mask | frames × ⌈tracks / 8⌉ bytes | bit *t* of frame *f*: track *t* has a key at frame *f*; every track has keys at the first two and last two frames |
+| keys | | the first key of every track, in track order; then the later keys of the animated tracks |
+
+Track kinds and their first key:
+
+| Kind | What | First key |
+|---|---|---|
+| `0x01` | rotation, animated | **8 bytes**: two 16-bit words whose low 15 bits are x and y (signed, /16384; each word's top bit is a flag ❓, always 0 in the first word), then z and w as signed 16-bit (/32767) |
+| `0x02` | translation, animated | three floats (metres) |
+| `0x12` | translation, fixed | three floats |
+| `0x31` | rotation, fixed | four signed 16-bit (/32767), x y z w |
+| `0x05` | a camera (`…~cameras.anm`) | 32 bytes per frame: a float quaternion, a position, one float (field of view ❓) |
+| `0x22` | cutscenes only (65 tracks in CZ) ❓ | taken as three floats |
+
+*How it was found and checked:* `male_hand_hold_2x4_pose.anm` (30 fixed rotations) ends
+exactly 30 × 8 bytes after its keys' offset; fixed rotations and translations equal the
+skeleton's rest values on nodes that don't move (`jiggle` (−½, −½, −½, ½) and its offset
+(0.034, 0.175, −0.003)); animated first keys came out unit quaternions only once x and y
+were read as 15 bits. **Census (`dr2 census --anims`): every `.anm` of both games
+reads** (CZ 5,785 files, 601,403 frames; CW 6,268 files, 585,326 frames); every first
+rotation is a unit quaternion (CZ 74,738 animated + 42,466 fixed; CW 80,894 + 43,782);
+the empty entries are named (CZ 7, CW 3: helicopter props, `zombie_hitreaction_auger_idle`).
+
+**Not read yet:** the later keys. An animated translation's are 8 bytes (three 21-bit
+numbers at bits 42-0, ×≈2.9e-4 of the first key's scale ❓); an animated rotation's are
+4 bytes (packed ❓). They are stored in the order they are *needed* (a key follows when the
+key before it on the same track is reached), not frame by frame: on `root.big/
+male_idle_samurai_sword.anm` that order matches the mask except a few entries ❓.
+
+### Which idle the game plays for an item ✅ (from the game's files)
+
+`data/datafile.big/sgraph.txt` is the game's **animation graph**: `cGenericAnimState`
+blocks holding `cAnimGroup`s, each with a chooser (`cCategoryChooser` with a
+`ChooserType`, or `cRandomChooser`) of `cChooserEntryInt <name>` / `cChooserEntryFloat`
+entries (`Anim` = a group or `cAnimRef` number in the same container or above, `Value` =
+the number that picks it, or a random weight). A `cAnimRef`'s `File` is the engine hash
+of `<name>.anm` (lower case) as a **signed** 32-bit number: `-159364033` =
+`male_idle_samurai_sword.anm`.
+
+* The standing idle is the `IDLEHOLDTYPE` chooser whose plain choice (value 0, `Chuck` in
+  `CHARACTERTYPE`, `CANPLAYAMBIENTIDLES` 0) is `male_idle_combat.anm` and that has the
+  most entries (CZ state 21; others are for doors, the injured idle, transitions). Its
+  value is the item's **`AnimationChooserValueForIdle`**: 0 one-hand items →
+  `male_idle_combat`; 1 guns → `FIREARMTYPE` (`male_idle_rifle`, `male_idle_shotgun`);
+  4 large objects (`HandlingStyle` 5: acetylene tank, garbage can) → `male_lgbox_idle`;
+  5 cart; 7 hamster ball; 8 chair; 9 chainsaw / mechanical → `WEAPONON` (`male_idle_mech`,
+  `male_idle_chainsaw` when running); 10 paddlesaw; 13 small objects and chairs held in
+  both hands → `male_idle_smallbox` (or the lawnmower when on); 14 poles and spears →
+  `male_idle_thrust`; 15 `male_idle_samurai_sword`; 16 `male_idle_pistol`; -1 nothing
+  held. Items of CZ use -1, 0, 1, 4, 9, 13, 14 (`items.txt`).
+* The fingers: the `HANDTYPE` chooser, value **`AnimationChooserValueForHand`**: 0
+  `male_hand_idle_pose`, 1 `male_hand_right_hold_pole_pose` (Katana, Lead Pipe), 2
+  `…hold_smallbox_pose`, 8 `…hold_pole_pose` (Broadsword, push broom), 15
+  `…hold_scissors_pose` (Sledgehammer!), 23 `…hold_6shooter_pose`… Value 11
+  (`male_hand_M16_pose`) names a file neither game ships.
+* `root.big` holds an animation of the same name for each full-body one: the hips'
+  place and turn (`male_idle_combat`: 0.977 m high, the rig's rest 1.012).
+
+**Chuck posed** (`convert/holding.py`): the full-body idle's first frame, then the root
+one, then the hand pose, on `playerfullbody.big`'s rig by node name; every part of his
+outfit (`outfits.csv` `OUTFIT_DEFAULT`: CZ `young_chuck`, CW `default` / `base` /
+`naked`) is drawn on that one rig, skinned from its own rest pose. **Parts' rest poses
+differ a little** (the boots' ankles sit 2.4 cm higher than the rig's): posing each part
+with its own rest offsets left the boots 18 cm below the legs, so every node gets the
+rig's posed transform. An item hangs from `dummy01.r_hand_prop` with its right-hand grip
+node on it, turned the same way (item = hand prop × grip⁻¹): the Broadsword, the Lead
+Pipe, the push broom, the acetylene tank, the propane tank, the chainsaw, the shotgun
+(CZ) and the Katana (CW) all come out held in his hand as the game shows them standing
+still (pictures, 2026-10-12) ❓ **not yet compared with a screenshot of the game**. The
+left hand is not moved to the item's `IK_lhand` (the game does that, by IK ❓).
 
 ## Strings (`.bcs`) ✅
 

@@ -33,6 +33,8 @@ dr2kit/
                        block paths, add / remove blocks and keys in the tool's style (phase 11)
     leveledits.py      .edits.json: a mod's changes to a text file by block path; apply, diff, merge (phase 11)
     collision.py       a zone's collision: Havok triangle meshes in MERGED_COLLISION.big (phase 10)
+    effect.py          particle effects of effects.big: emitters, fields (phase 13)
+    anim.py            animations (.anm): header, tracks, key mask, the first pose (phase 13.2)
   convert/
     png.py             pure-Python PNG reader/writer (Pillow used when present)
     dxt.py             DXT1/DXT5/DXN block decode + encode (numpy, pure-Python fallback)
@@ -53,6 +55,8 @@ dr2kit/
     mapdata.py         the Maps tab's data: zone files cached on disk, a level's markers as JSON (phase 10)
     weapon_fit.py      any .glb laid where a game weapon lies (handle end, grip nodes), one texture atlas (phase 13)
     icon.py            a weapon's pictures from its model: inventory icon, combo card (empty card, portrait, drawings) (phase 13)
+    holding.py         Chuck holding an item: his outfit, the idle from sgraph.txt, the frozen pose,
+                       the item at his hand (phase 13.2)
     video.py           Bink movies (Case West): probe, frames, sound, .mp4 export (phase 6)
   index/
     schema.sql         the SQLite tables
@@ -92,8 +96,9 @@ dr2kit/
     edit_tools.py      edit in the image editor (re-import on save), open in Blender (phase 7)
     share_dialog.py    Share (details, preview, check, .dr2mod) and Install windows (phase 7)
     weapon_dialog.py   the New weapon… window: the wizard's form, live preview (phase 13)
+    hold_view.py       "Chuck holding it": the 3D view of a weapon in his hand, handles, effects (phase 13.2)
     icon/              dr2studio.svg, the app icon (phase 7)
-    web/               its page (viewer.html, viewer.js) and vendored three.js (MIT)
+    web/               its pages (viewer, maps, hold: .html + .js) and vendored three.js (MIT)
   cli/main.py          the `dr2` command
 native/lzx/            the C library behind the fast LZX decoder (libmspack, LGPL)
 blender/io_dr2/        the Blender add-on (GPL; toolkit.py, core.py, __init__.py): dev/blender-addon.md
@@ -571,6 +576,33 @@ slider move, and writes with *Change in my mod* / *Make my own from this*; the w
 wizard's `EffectBox` lists the mod's own effects first. CLI: `dr2 effects [--show|--free]`,
 `dr2 mod effect / new-effect / effect-picture`. Step 6.5 added the `layout` change (a new
 emitter list from copies of the base's emitters) and `dr2 effects --free`.
+
+### Chuck holding it (phase 13.2): `formats/anim.py`, `convert/holding.py`, `studio/hold_view.py`
+[`formats.md`](../formats.md) §Animations; guide [`20-make-a-weapon.md`](../modding/20-make-a-weapon.md).
+`formats.anim.Animation.parse` reads an `.anm`'s header, track table and key mask
+(`keys(track)`), `first_pose()` its first keys as a `Pose` (rotations and translations by
+skeleton node index; a rotation that isn't unit raises), `part_of(vpath)` which skeleton
+part (`SKELETONS`) the track numbers refer to, `census(tree)` every `.anm` (`dr2 census
+--anims`). `convert.holding`: `outfit_parts` (Chuck's models from `outfits.csv`),
+`AnimGraph` (`sgraph.txt` read with `levelscript.Document`; `pick(chooser, value)` follows
+nested groups with `DEFAULTS`, `standing_idle`, `hand_chooser`; one per game, `graph`),
+`item_idle(tree, block)` → `Idle` (full-body, root and hand animations), `animation_pose`
+/ `idle_pose` (first frames by node name), `posed_skeleton`, `full_pose` (every node's
+posed local transform: what the parts and the page get), `posed_chuck` → `Chuck` (on
+`RIG`, `playerfullbody.big`), `grip_matrix`, `hand_matrix`, `item_placement` (hand prop ×
+grip⁻¹), `decompose`, `flat`; `chuck_glb` (posed, through `gltf.Assembler.add(…, pose=)`)
+and `rest_glb` (at rest, cached: the page poses it), `posed_parts` / `picture` (the
+software renderer with `render.scene_parts(…, skin=)`), `item_hold_glb` (`dr2 hold`).
+`mods.newweapon.hold_scene` gathers what the page shows (`HoldScene`: the fitted weapon
+with its colour picture, `gltf.glb_with_picture`; the placement; the pose; the weapon's
+line in model space for the handles; the effect point; the effects, `effect_view`, with
+the mod's own and changed ones, `neweffect.effect_as_shown` / `particle_png`), `hold_glb`
+one `.glb` for Blender. `studio.hold_view.HoldView` hosts `web/hold.html` + `hold.js`
+(three.js: the rig posed by the glTF names three.js keeps in `userData.name`, the weapon
+under an `align` group whose TransformControls do slide / turn / length, the effect
+point, `Emitter` particles drawn added); a handle let go sends `dr2:align {…}`, which
+`WeaponDialog._aligned` puts in its boxes. The *Effects…* window shows the selected
+effect, with its unsaved changes, on a game weapon of a chosen kind.
 
 ### Other games and the phase 13 gate: `tools/wow_import.py`, `tools/weapon_gate.py`
 `wow_import` is a **local tool** (guide [`22-from-other-games.md`](../modding/22-from-other-games.md);

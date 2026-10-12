@@ -121,6 +121,57 @@ def changed_effects(mod_dir: str | Path) -> list[tuple[str, dict]]:
     return out
 
 
+def effect_as_shown(tree: AssetTree, game: str, number: int, mod_dir: str | Path | None = None,
+                    effects: dict | None = None):
+    """The effect a weapon's number shows with a mod on: the mod's own effect in that
+    slot (its base with its changes), else the game's effect of that name with the mod's
+    changes to it; None for 0 or an empty slot. ``effects``: `read_all` already read.
+    For previews (Studio's 3D view of a weapon, phase 13.2)."""
+    from ..formats.effect import Effect
+    if not number:
+        return None
+    effects = effects if effects is not None else read_all(tree)
+    by_low = {n.lower(): f for n, (_e, f) in effects.items()}
+    if mod_dir is not None:
+        for num, recipe in own_effects(mod_dir):
+            if num == number:
+                spec = recipe.get("effect", {})
+                base = by_low.get(str(spec.get("from", "")).lower())
+                if base is None:
+                    return None
+                fx = Effect.parse(base.to_bytes(), base.name)
+                return apply_changes(fx, dict(spec.get("changes") or {}), base.name)
+    names = weapons.names(game)
+    if not 1 <= number <= len(names):
+        return None
+    base = by_low.get(names[number - 1].lower())
+    if base is None:
+        return None                                   # a free slot nobody filled
+    fx = Effect.parse(base.to_bytes(), base.name)
+    for name, changes in changed_effects(mod_dir) if mod_dir is not None else []:
+        if name.lower() == fx.name.lower():
+            apply_changes(fx, dict(changes), fx.name)
+    return fx
+
+
+def particle_png(tree: AssetTree, name: str, mod_dir: str | Path | None = None) -> bytes | None:
+    """A particle picture as PNG bytes: the mod's own (``sources/<name>.png``) or the
+    game's ``effects.tex`` one; None when neither has it."""
+    if mod_dir is not None:
+        own = Path(mod_dir) / SOURCES_DIR / f"{name}.png"
+        if own.is_file():
+            return own.read_bytes()
+    from ..convert import png
+    from ..convert.texture import to_image
+    from ..formats.bct import Bct
+    arc = tree.open_archive(tree.resolve(EFFECTS_TEX).vpath)
+    for e in arc.entries:
+        if e.name.lower().removesuffix(".bct") == name.lower():
+            im = to_image(Bct.parse(e.data(), e.name))
+            return png.encode(im)
+    return None
+
+
 def new_particle_texture(tree: AssetTree, mod_dir: str | Path, name: str,
                          picture: str | Path) -> Path:
     """A particle picture of one's own, ``name`` in ``effects.tex`` (module docstring).

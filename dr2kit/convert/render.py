@@ -228,7 +228,7 @@ def _sample(tex, uvs, i0, i1, i2, u, v, w):
 def scene_parts(scene, texture_for: Callable[[str], "np.ndarray | None"] | None = None,
                 problems: list | None = None,
                 material_colour: Callable[[object], "np.ndarray | None"] | None = None,
-                meshes=None) -> list[Part]:
+                meshes=None, skin=None) -> list[Part]:
     """A parsed `Scene`'s draws as renderer parts (rest pose).
 
     ``texture_for(name)`` gives a colour texture as an (h, w, 4) float array, or None.
@@ -236,7 +236,9 @@ def scene_parts(scene, texture_for: Callable[[str], "np.ndarray | None"] | None 
     colour is not a texture (zombie clothing: `convert.material` bakes it from shader
     constants, as the ``.glb`` export does), or None to use its texture.
     ``meshes``: the mesh indices to draw (a variant's look, `convert.variants`), or all.
-    A draw that can't be decoded is skipped and named in ``problems``."""
+    ``skin``: per skeleton node, a 4×4 numpy matrix posed × rest⁻¹; skinned vertices are
+    then moved by their weights and rigid parts by their node (Chuck posed,
+    `convert.holding`). A draw that can't be decoded is skipped and named in ``problems``."""
     parts = []
     cache: dict[str, object] = {}
     baked: dict[int, object] = {}
@@ -278,9 +280,19 @@ def scene_parts(scene, texture_for: Callable[[str], "np.ndarray | None"] | None 
             rn = scene.rigid_node(mesh) if world else None
             if rn is not None:                       # rigid part: placed by its node
                 m = np.asarray(world[rn], dtype=np.float64)
+                if skin is not None:
+                    m = skin[rn] @ m
                 pos = pos @ m[:3, :3].T + m[:3, 3]
                 if nrm is not None:
                     nrm = nrm @ m[:3, :3].T
+            elif skin is not None and dd.joints and dd.weights:
+                j = np.asarray(dd.joints, dtype=np.int64)
+                w = np.asarray(dd.weights, dtype=np.float64)
+                mats = np.stack(skin)                # (nodes, 4, 4)
+                blend = np.einsum("vk,vkij->vij", w, mats[j])
+                pos = np.einsum("vij,vj->vi", blend[:, :3, :3], pos) + blend[:, :3, 3]
+                if nrm is not None:
+                    nrm = np.einsum("vij,vj->vi", blend[:, :3, :3], nrm)
             parts.append(Part(
                 pos.astype(np.float32),
                 np.asarray(dd.triangles, dtype=np.int32),

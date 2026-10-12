@@ -571,3 +571,24 @@ it changes only what you see, not what happens to a zombie.
 **Element (of a weapon).** What a hit does to a zombie besides damage: shock
 (`Can_Electrocute`), fire or freeze (a `cPropHitZombieInfoItem` block with
 `PropHitZombieEffect` 0 or 1).
+
+<a id="animation"></a>**Animation (`.anm`).** One move of a character (a swing, a step, an
+idle) in `data/anim/**`: for each bone it moves, the bone's turn (and sometimes its
+offset) over time, at 30 frames a second. One file per skeleton part: *full body*,
+*root* (where the hips are), *hand* (the fingers), *upper body*, *face*. The toolkit
+reads the first frame of every one (phase 13.2); playing them through is for later.
+
+<a id="idle-pose"></a>**Idle pose.** How Chuck stands when you don't touch the pad. It
+depends on what he holds: arms loose with a one-hand weapon, a box hugged with both arms,
+a spear across the body, a rifle at the hip. The game picks it from the item's
+`AnimationChooserValueForIdle` (and the fingers from `…ForHand`) through its animation
+graph. DR2 Studio shows the first frame of it, frozen, to line weapons up.
+
+<a id="animation-graph"></a>**Animation graph (`sgraph.txt`).** The game's text file
+(`data/datafile.big/sgraph.txt`) that says which animation plays when: states, and in
+each, *choosers* that pick an animation from a number (the item's idle value, the gun
+type, whether a chainsaw is running…). The toolkit follows it to find each kind of
+item's idle, as the game does.
+
+**Hand prop node (`r_hand_prop`).** A bone in Chuck's right hand where held items hang:
+the item's right-hand grip node is put on it (`dr2kit/convert/holding.py`).

@@ -17,6 +17,28 @@ Entry template:
 
 ---
 
+## 2026-10-12 — Phase 13.2: Chuck holding the weapon in 3D, in the game's idle; `.anm` first frames
+**Done:** `.anm` read to its first frame (`formats/anim.py`, every file of both games,
+`census --anims`, `dr2 info`); the idle for each item kind and the fingers' pose followed
+through the game's animation graph `sgraph.txt` (`convert/holding.py`); Chuck's outfit
+from `outfits.csv`, posed on `playerfullbody.big`; the item at his `r_hand_prop` node by
+its grip node; a 3D view (`studio/hold_view.py`, `web/hold.html` / `hold.js`) in *New
+weapon…* and *Effects…* with the effects playing as particles and drag handles (slide,
+turn, length, effect point) that fill the wizard's boxes; `dr2 hold` (`.glb` for Blender,
+`--png`); `gltf.Assembler.add(pose=)`, `glb_with_picture`, `render.scene_parts(skin=)`.
+**Why:** the user's phase 13.2 ("add the fx thing in 3d model and also be able to place
+it on Chuck in 3d view … so we properly align stuff"; "his animation of the right idle
+item … stopped so he doesn't move around").
+**Learned:** formats.md §Animations: x and y of an animated rotation's first key are 15
+bits (/16384); long cutscenes store their keys' offset as 0 (past 0xFFFF); `File` in
+`sgraph.txt` is the signed hash of `<name>.anm`; parts carry slightly different rest
+rigs (the boots), so every part must be drawn on the one rig; three.js renames repeated
+bone names (match on `userData.name`). `formats.md` §Animations, "Which idle".
+**Docs updated:** formats.md, guides 20 and 21, modding/README.md, context.toml,
+glossary.md, dev/code-tour.md, ARCHITECTURE.md, roadmap.md, phase13-kickoff.md, CLAUDE.md.
+**Next:** the user compares Studio's view with the game (a wizard sword, then a non-sword
+kind); then phase 14 (the later keys: Chuck swinging; buildings and maps).
+
 ## 2026-10-12 — Phase 13 in game with the user: the effect point, Shine; 13.2 planned
 **Done:** fixes from the user's windowed tests of the gate's Frostmourne: laid flat on
 measured floor (it stood sunk in the street); the wizard turns the effect point (locator

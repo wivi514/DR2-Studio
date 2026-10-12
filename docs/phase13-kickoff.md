@@ -243,6 +243,41 @@ the blade went black and gold with the Broadsword's mirror material, so *Shine* 
    Chuck standing still with it); the same for a non-sword kind (a box or a two-hander); the Effects window's 3D preview of the Flaming
    Sword turned blue matches the game's.
 
+### Status 13.2 (built 2026-10-12, same day)
+
+Decisions taken (the plan's defaults): the idle's **first frame** is the frozen pose; the
+3D view sits in *New weapon…* (a tab beside the flat picture) and in *Effects…*; the
+handles write the wizard's existing boxes (no new spec field).
+
+* **`.anm` read to its first frame** (`formats/anim.py`, `formats.md` §Animations):
+  header, track table, key mask, first keys of the four track kinds; every `.anm` of
+  both games reads (`dr2 census --anims`: CZ 5,785, CW 6,268, every first rotation a unit
+  quaternion; long cutscenes store their keys' offset as 0). The later keys (packed) are
+  not read: Chuck swinging stays in phase 14.
+* **Which idle** (the lead was right): the game's animation graph `sgraph.txt`, the
+  standing idle's `IDLEHOLDTYPE` chooser by `AnimationChooserValueForIdle`, the fingers'
+  `HANDTYPE` by `…ForHand` (`convert/holding.py`). Swords and pipes: `male_idle_combat`;
+  large objects `male_lgbox_idle`; small ones `male_idle_smallbox`; poles
+  `male_idle_thrust`; guns `male_idle_rifle` / `_shotgun`; chainsaw `male_idle_mech`.
+* **Chuck posed**: his `OUTFIT_DEFAULT` parts (`outfits.csv`) on the game's rig
+  `playerfullbody.big`, every node set (the boots' own rest offsets left them 18 cm low
+  until every node got the rig's transform). The item hangs from `dummy01.r_hand_prop`
+  by its right-hand grip node: checked by eye on 8 game items in CZ and the Katana in CW
+  (pictures), and in Blender (the grip node on the hand node to 0.1 mm).
+* **Studio**: `studio/hold_view.py` + `web/hold.html` / `hold.js` (Chuck sent once at
+  rest, posed in the page; the weapon; grip nodes red; the effect point yellow; particles
+  from the emitters, drawn added; *Slide*, *Turn*, *Length*, *Effect point* handles that
+  write the boxes). Checked offscreen in Studio (sword, spear, large object; the Flaming
+  Sword along the blade, turned blue live in *Effects…*).
+* **CLI**: `dr2 hold <item> [--mod M] [--png]`, `.anm` in `dr2 info`, `census --anims`.
+* Tests: `tests/test_anim.py`, `test_weapons.test_hold_scene`, the page's files in git.
+
+**Owed (the gate):** the comparison with the game: Chuck standing still with a wizard
+sword (and a non-sword kind) in game vs Studio's view, by the user, windowed. Not
+measured: the left hand (the game moves it to `IK_lhand`, the view doesn't); particle
+motion (speed, spread, gravity in the effect point's space or the world's ❓; the count
+factor is a guess).
+
 ## Start here (handoff, 2026-10-12 evening)
 
 **Next: phase 13.2 (above), in a fresh conversation.** First look at the last build in

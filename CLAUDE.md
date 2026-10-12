@@ -77,16 +77,19 @@ in game, the gate scripted through Studio's own windows in both games
 (`docs/phase13-kickoff.md` §Start here). In game with the user the same day: the aura runs
 along the blade once the wizard moves the effect point (locator 16) in both
 `LocatorArray` copies (the game reads `persistent.big`'s); *Shine* and *Weapon effects
-start* added. Next, in a fresh conversation: **phase 13.2** (effects playing in 3D on the
-weapon in Chuck's hand, Chuck frozen in the game's idle animation for that item kind, so
-`.anm` gets read; to align: `docs/phase13-kickoff.md` §Phase 13.2). Phase 14
+start* added. Phase 13.2 (user-set 2026-10-12) built the same day: `.anm` read to its first frame
+(`formats/anim.py`, `census --anims`), each item kind's idle from the game's animation graph
+`sgraph.txt` (`convert/holding.py`), Chuck posed holding the weapon in a 3D view with its
+effects playing and drag handles (`studio/hold_view.py`, `web/hold.js`, in *New weapon…*
+and *Effects…*), `dr2 hold`. Owed: the comparison with the game by the user
+(`docs/phase13-kickoff.md` §Status 13.2). Phase 14
 (planned): buildings and maps of one's own, `.anm` (`docs/roadmap.md`).** Read these before writing code:
 
 | Doc | What it holds |
 |---|---|
 | `docs/ARCHITECTURE.md` | Components, data flow, the asset index, the mod package format, stack choices |
 | `docs/formats.md` | Everything known about every file format, with a status per format (cracked / partial / unknown) |
-| `docs/phase13-kickoff.md` | Phase 13 (steps 1-6.4 built; next steps in §Start here: weapons made easy, effects of one's own, the icon from the model, phase 12's tools): what phase 12 proved, plan, decisions, gate, §Status, handoff (where phase 12's working files are) |
+| `docs/phase13-kickoff.md` | Phase 13 and 13.2 (Chuck holding it in 3D: §Status 13.2; steps 1-6.4 built; next steps in §Start here: weapons made easy, effects of one's own, the icon from the model, phase 12's tools): what phase 12 proved, plan, decisions, gate, §Status, handoff (where phase 12's working files are) |
 | `docs/phase12-kickoff.md` | Phase 12 (ended: your own weapons with effects, combo weapons, buildings, maps): research (weapon keys, combo cards, grip locators, level slots), unknowns and the in-game tests to do first, plan, decisions, gate, §Status |
 | `docs/phase11-kickoff.md` | Phase 11 (edit levels: zombie spawns, objects; add your own things from prefabs; saved as `.edits.json` mods): research, plan, gate, §Status (what was measured in game, what it still owes) |
 | `docs/phase10-kickoff.md` | Phase 10 (Maps: see a whole level, extract it, see your mods in it without the game): research, plan, gate, and §Status (what it still owes) |
@@ -235,6 +238,9 @@ python tools/weapon_gate.py cz|cw --out ~/.cache/dr2kit-gate13/cz [--install-use
 python tools/wow_import.py extract|model|effect …   # WoW 3.3.5 → .glb / an own effect (local only, guide 22)
 python tools/effect_table.py <recomp>/assets/game/default_image.bin --check cz   # effects.toml = exe?
 dr2 census --levels                       # every zone, placement, level text file, item model (~50 s / game)
+dr2 census --anims                        # every .anm: header, tracks, first pose (~10 s / game)
+dr2 hold Broadsword -g cz -o out --png    # Chuck in the item's idle holding it (.glb + picture);
+dr2 hold FrostBlade --mod my-mod -o out   #   or a mod's wizard weapon
 dr2 export prologue [--zone z05] [--whole] [--zombies] [--collision] -g cz -o out   # a level for Blender
 dr2 studio                                # the GUI (pip install -e ".[studio]")
 dr2 help [page] / dr2 help --search <words>          # the guides (= Studio's help)
