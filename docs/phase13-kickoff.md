@@ -231,7 +231,9 @@ the blade went black and gold with the Broadsword's mirror material, so *Shine* 
    **`.anm` format read** (at least one pose of the idle animations; phase 12's notes:
    `phase12-kickoff.md` §Research, `anm_Sword.big` holds `root.big` and `fullbody.big`,
    one `.anm` per move), so that part of phase 14 moves here: read `.anm`, a census over
-   every bank of both games, find each item kind's idle, pose the skeleton. Full playback
+   every bank of both games, find each item kind's idle (lead: every item's
+   `AnimationChooserValueIdle` / `…ForHand` in `items.txt`, numbers into the game's
+   animation chooser ❓, `phase12-kickoff.md`), pose the skeleton. Full playback
    (Chuck swinging) stays for later.
 4. **Align by dragging:** handles (TransformControls, already vendored for Maps) to slide,
    turn and lengthen the weapon in the hand and to move the effect point along the blade;
