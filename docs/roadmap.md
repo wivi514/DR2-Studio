@@ -254,7 +254,7 @@ called it much bigger than phase 9: built in steps, each usable on its own.
 - Stretch (done 2026-10-11): upper floor / basement map pictures; zombies in their areas;
   time of day and the sky; the collision mesh.
 
-## Phase 11 (in progress): edit levels and add your own things, saved as mods (user, 2026-10-11)
+## Phase 11 (done, user testing): edit levels and add your own things, saved as mods (user, 2026-10-11)
 Started 2026-10-11. **Decisions (user, 2026-10-11, all the proposed defaults):** edits as
 `.edits.json` by block; zombie editing per mission (the street's main mission first); a
 zombie type the level doesn't load allowed with a warning and the measured budget; edits

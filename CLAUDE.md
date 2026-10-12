@@ -42,7 +42,7 @@ add-on's Import zone), and **With my mods** (`mods/preview.py`, Ctrl+M). Fixed o
 (CW by eye by the user). Stretch done the same day: upper floor / basement map pictures,
 zombies in their areas, time of day and the sky, the collision mesh (`formats/collision.py`).
 Owed: the user's own test of Maps (`docs/phase10-kickoff.md` §Status). Editing
-levels is phase 11 (`docs/phase11-kickoff.md`: edit objects and zombie spawns, and add your own
+levels is phase 11, done; the user started testing Studio 2026-10-11, their findings first (`docs/phase11-kickoff.md`: edit objects and zombie spawns, and add your own
 things from prefabs: save points, usable items, zombies, buildings), started 2026-10-11 with every proposed
 default decision taken, built the same day: `.edits.json` level edits by block path
 (`formats/leveledits.py`, `convert/levelcheck.py`, `mods/leveledit.py`, `dr2 level show|edit|diff`), the Maps

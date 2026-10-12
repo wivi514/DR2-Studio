@@ -158,6 +158,9 @@ and the big mural are there, with soft baked shadows.
 
 ## Going further
 
+- **Change the level:** tick **Edit** in the right panel to move, add and delete items,
+  change zombies, and add save points, doors and your own items:
+  [`19-edit-a-level.md`](19-edit-a-level.md).
 - What each level file holds, and how pieces are placed: [`formats.md`](../formats.md)
   §Levels.
 - The Library lists every level piece on its own under *Models → Environments*

@@ -17,6 +17,13 @@ Entry template:
 
 ---
 
+## 2026-10-11 — Phase 11 handed to the user for testing
+**Done:** started DR2 Studio for the user to test the Maps editor; installed (as they
+chose) two mods that keep their test saves loadable (the test missions with 0 zombies,
+checked headless for CZ). Docs brought up to date: guide 18 points to guide 19, roadmap,
+docs index, `phase11-kickoff.md` §Status summary.
+**Next:** the user's findings from their Studio test, then plan step 4 (level pieces).
+
 ## 2026-10-11 — Phase 11: Case West checked, the gate
 **Done:** a CW build in the Storage Pens (new game): an added Katana, a new red Katana item
 (recipe), workbench, save point, Humvee blocker, every zombie retyped to fat; all work in

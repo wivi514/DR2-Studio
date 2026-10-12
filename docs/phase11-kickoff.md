@@ -24,7 +24,18 @@ Phase 10 already *shows* zombie spawn areas and placed objects; phase 11 lets a 
 The research (2026-10-11) is below, then the plan. Facts also in
 [`formats.md`](formats.md) §Levels.
 
-## Status (2026-10-11): started; step 1 done
+## Status (2026-10-11): built and checked in game; the user's own test of Studio started
+
+**Summary (end of 2026-10-11):** steps 1, 2, 3, 5 and 7 done; step 6 done for what the
+in-game tests could show (CZ all; CW items, prefabs, zombie retypes). The user started
+testing DR2 Studio (Maps tab, Edit) the same evening: **their findings come first in the
+next session**. Owed: step 4 (level pieces: an in-game collision test first), CW's own
+mission pack and save rules, Studio textures for a new item (CLI `--texture` only), map
+icons for added save points, turning triggers after placing them. The user's newest CZ
+save and a CW new-game save need the test missions: the `keep-cz-test-save` /
+`keep-cw-test-save` mods (0 zombies) are installed and on in their library.
+
+The step-by-step notes follow, oldest last.
 
 **Decisions taken (user, 2026-10-11): every proposed default** under §Decisions to take
 (edits by block; zombies per mission; new zombie types allowed with a warning; a "mod
