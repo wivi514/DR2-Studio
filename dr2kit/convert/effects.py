@@ -7,7 +7,8 @@ make it icy blue, put it on a weapon. An effect is a list of emitters
 a mod can hold the changes instead of the game's bytes (LICENSE):
 
 ```json
-{"hue": 200,               // turn every colour to this hue (0-360°: 0 red, 120 green, 200 ice blue)
+{"layout": [1, 1, 3],      // the new emitter list: base emitters by number, copied (first)
+ "hue": 200,               // turn every colour to this hue (0-360°: 0 red, 120 green, 200 ice blue)
  "saturation": 1.2,        // × the colours' saturation
  "brightness": 1.1,        // × their brightness
  "alpha": 0.8,             // × their opacity
@@ -17,6 +18,10 @@ a mod can hold the changes instead of the game's bytes (LICENSE):
  "emitters": {"1": {"gravity": [0, 2, 0]}},   // any field of one emitter (by number)
  "remove": [3]}            // emitters to drop
 ```
+
+``layout`` (phase 13 step 6.5) builds an effect with more or fewer emitters than its
+base: each number is one of the base's emitters, copied; the other keys then apply to
+the new list (``"emitters": {"2": …}`` is the third of the new list).
 
 `apply_changes` does it on an `Effect`; `describe` says what an effect is made of in
 words. Keys are applied in that order; unknown keys are an error (a typo must not be
@@ -30,9 +35,9 @@ from __future__ import annotations
 import colorsys
 
 from ..errors import Dr2Error
-from ..formats.effect import BY_NAME, SHAPE_NAMES, Effect
+from ..formats.effect import BY_NAME, SHAPE_NAMES, Effect, Emitter
 
-KEYS = ("hue", "saturation", "brightness", "alpha", "size", "time", "texture", "emitters",
+KEYS = ("layout", "hue", "saturation", "brightness", "alpha", "size", "time", "texture", "emitters",
         "remove")
 GREY = 0.05                      # a key this little saturated counts as grey
 
@@ -56,6 +61,15 @@ def apply_changes(fx: Effect, changes: dict, where: str = "") -> Effect:
     bad = [k for k in changes if k not in KEYS]
     if bad:
         raise Dr2Error(f"{pre}unknown change(s) {', '.join(bad)} (known: {', '.join(KEYS)})")
+    if "layout" in changes:
+        base = list(fx.emitters)
+        try:
+            fx.emitters = [Emitter(bytearray(base[int(i)].raw)) for i in changes["layout"]]
+        except (ValueError, IndexError, TypeError):
+            raise Dr2Error(f"{pre}layout {changes['layout']!r}: emitter numbers of the base, "
+                           f"0-{len(base) - 1}") from None
+        if not fx.emitters:
+            raise Dr2Error(f"{pre}layout: an effect needs at least one emitter")
     hue = changes.get("hue")
     sat = float(changes.get("saturation", 1.0))
     val = float(changes.get("brightness", 1.0))

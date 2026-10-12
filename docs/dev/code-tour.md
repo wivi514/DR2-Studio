@@ -541,6 +541,46 @@ diamonds, the icon, the card): Studio's `weapon_dialog.WeaponDialog` runs it in 
 after each change. `remove_weapon` takes it all out. CLI: `dr2 mod new-weapon` /
 `remove-weapon`, `dr2 effects`.
 
+### Particle effects (phase 13 step 6): `formats/effect.py`, `convert/effects.py`, `convert/effect_preview.py`, `mods/neweffect.py`, `studio/effects_dialog.py`
+Guide [`21-effects.md`](../modding/21-effects.md), [`formats.md`](../formats.md) §Particle
+effects. `formats.effect` reads and writes one effect (`Effect`: version, name, header
+words, `Emitter`s kept as their bytes; `FIELDS` names each emitter field with how sure it
+is, `Emitter.get` / `set`, `colour_keys`, `rename`) and `read_all(tree)` every effect of
+`effects.big` by name; the census writes each one back byte for byte. `convert.effects
+.apply_changes` applies a change dict (hue, saturation, brightness, alpha, size, time,
+texture swaps, per-emitter fields, removals; unknown keys are an error) and `describe`
+says an effect in words. `convert.effect_preview.preview` draws a sketch (each emitter's
+particle picture tinted by its colour keys, at its sizes; `texture_finder` reads
+`effects.tex`). `mods.neweffect`: `free_slots` (table names with no effect),
+`change_effect` (an `.effect.json` in `replace/`), `new_effect` (a copy recipe
+`EFFECT_Common<1000+number>.copy.json` in `add/`, the effect renamed to its slot),
+`new_particle_texture` (a picture copy recipe in `effects.tex`), `own_effects`,
+`changed_effects`, `remove`. The build (`mods/build.py`): `effect_bytes` makes an
+`.effect.json`'s effect; `newitem.build_copy` an own effect; `register_in_scene` lists
+added effects in the effects' scene (`SceneDescription` kind 13, `SceneHeader` word 3);
+the profile's `preload_evict` files are evicted from `preload4.big` (index hash
+`^ 0xDEADBEEF`); `repin_layout` writes `layout.bin` with the built sizes. Studio's
+`effects_dialog.EffectsDialog` (*Effects…*) lists the table, previews in a job after each
+slider move, and writes with *Change in my mod* / *Make my own from this*; the weapon
+wizard's `EffectBox` lists the mod's own effects first. CLI: `dr2 effects [--show|--free]`,
+`dr2 mod effect / new-effect / effect-picture`. Step 6.5 added the `layout` change (a new
+emitter list from copies of the base's emitters) and `dr2 effects --free`.
+
+### Other games and the phase 13 gate: `tools/wow_import.py`, `tools/weapon_gate.py`
+`wow_import` is a **local tool** (guide [`22-from-other-games.md`](../modding/22-from-other-games.md);
+never part of Studio or the shipped CLI). `read_m2` reads a WoW 3.3.5 `.m2` (`M2`:
+vertices, textures, texture lookup, `Particle`s: `M2Particle` 0x1DC bytes with its
+`M2Track` / `FBlock` keys), `read_skin` a `.skin` (triangles, submeshes, texture units),
+`blp_to_png` a texture (Pillow's BLP reader; `particle=True` puts the brightness into
+alpha), `Source` finds files next to the model or in the MPQs (mpyq, patches first).
+`model_glb` writes one mesh per submesh with its texture (`skin_texture` guesses an
+item's replaceable texture); `import_effect` turns every emitter into one DR2 emitter
+(`model_frame`, `emitter_changes`) of an own effect, adds the pictures as own particle
+pictures and marks the mod `local_only` (`manifest.Mod.local_only`; `library.pack`
+refuses it). `weapon_gate` drives Studio's own `EffectsDialog` and `WeaponDialog`
+offscreen to make Frostmourne, places it, shares and installs it on a clean library
+(`--install-user` puts it in the user's library and deploys it).
+
 ### `studio/docks.py`, `studio/maps_panels.py` (2026-10-11)
 The window's dock windows and the Maps editor's Place and Hierarchy panels: dev/studio.md,
 "Dock windows" and "The Maps tab".
@@ -670,7 +710,8 @@ pictures are drawn: bump `index.build.THUMB_VERSION`, and the next build redraws
   `remove` only forgets it), `create(name)` (a new mod inside the library),
   `sets` / `save_set` / `use_set` / `delete_set` (`modsets.toml`), `last_changes` (what an
   update changed), and `pack` writes `<id>-<version>.dr2mod`. `manifest.Mod` gained
-  `preview`, `preview_path`, `readme` and `save()` (writes `mod.toml` back).
+  `preview`, `preview_path`, `readme` and `save()` (writes `mod.toml` back). Phase 13:
+  `Mod.local_only` (`local_only = true`), which `pack` refuses.
 - `deploy`: `deploy(build, target)` copies files and records them in
   `dr2kit-deployed.json`; `undeploy(target)` removes exactly those. `recomp_folders()`
   names `game_mods` / `game_patched` / `game_kbm` / `game_bootskip` next to a game root.

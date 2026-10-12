@@ -328,7 +328,7 @@ card whose picture the modder can change.** Early in-game tests first.
    that gate nothing are allowed. Not a lawyer-reviewed text, and not OSI "open source".
 4. **Git:** local repo now; the user creates the GitHub remote later.
 
-## Phase 13 (started 2026-10-12; steps 1-5 built): weapons of your own made easy, effects of your own (user, 2026-10-12)
+## Phase 13 (built 2026-10-12, the user's windowed checks owed): weapons of your own made easy, effects of your own (user, 2026-10-12)
 [`phase13-kickoff.md`](phase13-kickoff.md). Phase 12's in-game tests became tools: first the
 loading stall of new files, then a weapon wizard (kinds, borrowed moves, elements, the
 game's effects by name with a preview), the inventory icon rendered from the model, combo
@@ -339,5 +339,17 @@ with its own icon and frost aura, shared, installed, played.
 **Built (2026-10-12):** step 1 (the "stall" was a misread headless check: new files load),
 the weapon data (`catalog/weapons.py`, `dr2 effects`), the weapon wizard (`mods/newweapon.py`,
 Studio *New weapon…*, `dr2 mod new-weapon`) with any `.glb` fitted to the hands, the
-icon and combo card drawn from the model; guide 20. State: `phase13-kickoff.md` §Status.
+icon and combo card drawn from the model; guide 20. Then effects of one's own (`effects.big`
+read and written, own effects in the table's 36 free slots, own particle pictures, Studio
+*Effects…*; guide 21), WoW models and particle emitters brought in by a local tool into
+`local_only` mods (guide 22), emitter fields measured in game, the gate scripted through
+Studio's own windows in both games (`tools/weapon_gate.py`). State: `phase13-kickoff.md`
+§Status.
+
+## Phase 14 (planned): buildings and maps of your own, animations
+Phase 13's step 9, carried from phase 12 (`phase12-kickoff.md` T4-T6, plan steps 6-8):
+a `.glb` building as a new level piece with its collision as an invisible item, maps in
+the executables' empty level slots with a door destination list, and the `.anm` format
+(Chuck swinging a weapon in the grip preview and the Library). Each needs in-game tests by
+the user (walking into collision, going through a door) before tools are built.
 

@@ -60,6 +60,10 @@ priority = 0                # higher wins when two mods replace the same asset
   wins. At equal priority the toolkit refuses to guess and tells you which mods clash.
   Once a mod is installed in the mod manager, its place in the load order decides
   instead (below); `priority` only says where it lands when installed.
+- **local_only** (optional): `local_only = true` marks a mod that holds files from
+  another game (a model or effect brought in for yourself,
+  [`22-from-other-games.md`](22-from-other-games.md)). It builds and plays, but
+  **Share…** and `dr2 mod pack` refuse it.
 
 ## Play, deploy, remove
 
@@ -185,6 +189,8 @@ Never share the built
 files from `game_mods/` or `dr2 mod build`: those are the game's archives with your
 change inside, i.e. copyrighted game data. The person installing your mod runs
 `dr2 mod deploy` on their own copy of the game.
+
+A mod marked `local_only = true` can't be shared: it holds another game's files.
 
 Mods made with this toolkit must be free for everyone (see the rules in
 [`README.md`](README.md#rules-for-mods-made-with-this-toolkit)).

@@ -75,9 +75,10 @@ FIELDS = [
     Field(0x0C, "i", "flag_0c", "0 / 1 / 2"),
     Field(0x10, "f", "f_10", "-222 … 22"),
     Field(0x14, "f", "f_14", "0 … 90, often 1 or 2"),
-    Field(0x18, "f", "f_18", "-77 … 700 (a rate?)"),
-    Field(0x1C, "i", "count_1c", "1 … 20+ (particles at once?)"),
-    Field(0x20, "i", "count_20", "0 … 7"),
+    Field(0x18, "f", "f_18", "-77 … 700; ×10 changed nothing seen in game"),
+    Field(0x1C, "i", "count_1c", "1 … 20+; ×10 changed nothing seen in game"),
+    Field(0x20, "i", "count_20", "how many particles: ×10 made a flame ten times as dense "
+                                 "(measured in game, CZ)", "ok"),
     Field(0x24, "f3", "speed", "starting speed, x y z (metres per second)"),
     Field(0x30, "i", "shape", "where particles start: 0 a point, 1 / 2 a box, 3 a sphere "
                               "(the tail's size follows it in every emitter)", "ok"),
@@ -86,7 +87,9 @@ FIELDS = [
     Field(0x44, "f3", "gravity", "a pull on the particles, x y z (y mostly below 0)"),
     Field(0x50, "f", "f_50", "-10 … 6"),
     Field(0x54, "f4", "colour_times", "when the colour reaches keys 2-5 (seconds, "
-                                      "increasing)", "ok"),
+                                      "increasing); the last is the particles' life: ×4 "
+                                      "made a flame live and rise four times as long "
+                                      "(measured in game, CZ)", "ok"),
     Field(0x64, "f20", "colours", "five colour keys, red green blue alpha, 0 … 1", "ok"),
     Field(0xB4, "f15", "angles", "turning (radians): five keys of three"),
     Field(0xF0, "f5", "sizes", "five size keys (metres)", "ok"),
@@ -97,13 +100,14 @@ FIELDS = [
     Field(0x12C, "i", "flag_12c", "0 / 1"),
     Field(0x130, "i", "flag_130", "0 / 1"),
     Field(0x134, "i", "zero_134", "always 0", "ok"),
-    Field(0x138, "f6", "f_138", "six floats, mostly 0"),
+    Field(0x138, "f6", "f_138", "six floats, mostly 0 (the 4th 0 … 22: ×10 changed nothing "
+                                "seen in game)"),
     Field(0x150, "f", "f_150", "0 … 1"),
     Field(0x154, "i", "flag_154", "0 / 1"),
     Field(0x158, "i", "flag_158", "0 / 1"),
     Field(0x15C, "i", "flag_15c", "0 / 1"),
     Field(0x160, "i", "i_160", "-1 or a small number (another effect, a locator?)"),
-    Field(0x164, "i", "i_164", "1 … 20, mostly 3"),
+    Field(0x164, "i", "i_164", "1 … 20, mostly 3; 30 hid the emitter in game ❓"),
     Field(0x168, "f", "f_168", "0 … 4"),
     Field(0x16C, "f", "f_16c", "0 … 10, mostly 10"),
     Field(0x170, "i", "i_170", "0 … 3"),

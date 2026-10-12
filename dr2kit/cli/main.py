@@ -1085,6 +1085,15 @@ def cmd_effects(args) -> int:
         doc = Document.parse(tree.resolve("data/datafile.big/items.txt").data())
     except Dr2Error:
         pass                                                # names only, without the game
+    if args.free:
+        from ..container.vpath import AssetTree
+        from ..mods import neweffect
+        free = neweffect.free_slots(AssetTree(locate(args.game).root), args.game)
+        for num, name in free:
+            print(f"{num:4}  {name}")
+        print(f"{len(free)} free slot(s): numbers with no effect in the game, for effects of "
+              f"your own (dr2 mod new-effect … --slot N)")
+        return 0
     if args.show:
         from ..container.vpath import AssetTree
         from ..convert.effects import describe
@@ -1663,6 +1672,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="only one group (ice, fire, electric, blood…)")
     p.add_argument("--kinds", action="store_true", help="list the weapon kinds instead")
     p.add_argument("--show", metavar="NAME", help="one effect's emitters in words")
+    p.add_argument("--free", action="store_true", help="the free slots: numbers with no "
+                   "effect, for effects of your own")
     p.add_argument("--out", metavar="PNG", help="with --show: a picture of it (a sketch)")
     game_opt(p)
     p.set_defaults(func=cmd_effects)

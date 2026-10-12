@@ -17,6 +17,23 @@ Entry template:
 
 ---
 
+## 2026-10-12 — Phase 13: guides 21-22, WoW particles, the gate through Studio, Case West
+**Done:** guide 21 (effects) and the docs owed for step 6; `dr2 effects --free`; the
+`layout` effect change; `tools/wow_import.py` (WoW 3.3.5 `.m2` / `.skin` / BLP → `.glb`,
+and particle emitters → an effect of one's own) with `local_only` mods that Share refuses;
+guide 22; `tools/weapon_gate.py` (Frostmourne made through Studio's own Effects… and New
+weapon… windows offscreen, placed, shared, installed on a clean library: passes in CZ and
+CW). Headless in game: Frostmourne's WoW frost mist shows in CZ; nine emitter variants
+side by side named `count_20` (particles) and the life (last colour key time); Case West
+loads with a wizard weapon and own effects.
+**Why:** the user's "complete the rest of phase 13".
+**Learned:** WoW's `M2Particle` (3.3.5) is 0x1DC bytes and reads cleanly on Frostmourne;
+the CW user save loads at the Storage Bay save point, where mercenaries kill Chuck in ~90 s;
+CW's build has no `CW_POSE_TRACE` (it is in `port-pending`). formats.md §Particle effects.
+**Docs updated:** guides 06, 20, 21, 22, README, troubleshooting, context.toml, glossary,
+ARCHITECTURE, code tour, formats.md, THIRD_PARTY.md, roadmap (phase 14), phase13 §Status.
+**Next:** the user's windowed checks (§Start here), then phase 14.
+
 ## 2026-10-12 — Phase 13 step 6: effects of one's own work in game
 **Done:** `formats/effect.py` (reader/writer, census in `dr2 census`), `convert/effects.py`
 (changes), `convert/effect_preview.py` (sketch), `mods/neweffect.py` (change, own effect in a

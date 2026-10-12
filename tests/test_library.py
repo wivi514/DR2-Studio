@@ -89,6 +89,16 @@ def test_pack_and_install_zip(tmp_path):
     assert (mod.root / "replace/data/x.txt").read_bytes() == b"x"
 
 
+def test_local_only_mod_is_not_shared(tmp_path):
+    src = raw_mod(tmp_path, "mine", {"data/x.txt": b"x"})
+    m = Mod.load(src)
+    m.extra["local_only"] = True
+    m.save()
+    assert Mod.load(src).local_only
+    with pytest.raises(ModError, match="local-only"):
+        pack(src, tmp_path)
+
+
 def test_zip_slip_is_refused(tmp_path):
     z = tmp_path / "evil.zip"
     with zipfile.ZipFile(z, "w") as f:

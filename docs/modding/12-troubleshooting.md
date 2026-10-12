@@ -166,6 +166,16 @@ More in [`16-library.md`](16-library.md#if-something-went-wrong).
 | `N new id(s) … nothing shows them until a layout or script names them` (when building) | The note is about string ids in general; the weapon's block names them | Nothing to do |
 | An effect fills the screen | It is a level's effect (fog, smoke) | Pick another: ✓ marks the ones checked on a weapon |
 
+## Particle effects (phase 13)
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| A changed effect looks the same in game | The mod is off, or a mod later in the list changes the same effect | Mod manager: switch it on, move it down ([`21-effects.md`](21-effects.md)) |
+| `no free effect slot left` | The mod uses all 36 free numbers | Change game effects instead, or remove some of yours (*Effects…* → *Remove from mod*) |
+| `… is a game effect, not a free slot` | `--slot` named a number the game uses | `dr2 effects --free` |
+| Smoke didn't take the new colour | Grey colour keys stay grey | *Saturation* above ×1.00 |
+| The game crashes while loading after an effect change | A build from before `layout.bin` was re-pinned | Build again (**▶ Play**) |
+
 ## Texturing programs and limits (phase 7)
 
 See the tables in [`14-texturing-tools.md`](14-texturing-tools.md#if-something-went-wrong)

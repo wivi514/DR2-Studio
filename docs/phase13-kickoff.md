@@ -1,7 +1,9 @@
 # Phase 13 kickoff: weapons of your own, made easy, and effects of your own
 
-> **Status 2026-10-12:** steps 1-5 and 6.1-6.4 built and checked headless; next: guide 21,
-> the Frostmourne gate with the user, Case West, step 6.5 (§Status, §Start here).
+> **Status 2026-10-12 (evening):** steps 1-8 built; the gate made through Studio's own
+> windows (scripted) and shared; WoW particles converted and seen in game (headless); Case
+> West loads with a wizard weapon and own effects. Owed: the user's windowed checks, and
+> step 9 (buildings, maps, `.anm`) moved to phase 14 (§Status).
 
 **Direction (user, 2026-10-12, at the end of phase 12's tests):** phase 12 is closed with
 what its in-game tests proved (Frostmourne played in Case Zero: its own model, the
@@ -151,13 +153,49 @@ game not to be started for them: in-game checks headless on a copy of their save
   eviction and the `layout.bin` size pin (formats.md §Particle effects). **Not done:**
   6.5 (WoW particle import), CW in game, guide 21 (effects; the CLI/Studio are documented
   only in module docstrings and formats.md so far), Frostmourne gate made in Studio.
-* **Not started:** step 8 (import guide for other games' models), step 9 (buildings, maps,
-  `.anm`).
+* **Rest of phase 13 (2026-10-12, second session):**
+  * **Guide 21** (effects) written, with the docs owed for step 6 (code tour, glossary,
+    ARCHITECTURE, troubleshooting, guide 20); `dr2 effects --free`.
+  * **Step 6.5 (WoW particles): done.** `tools/wow_import.py effect`: an `.m2`'s
+    `M2Particle`s (3.3.5) → one own effect (the new `layout` change), its BLPs → own
+    particle pictures; the mod is marked **`local_only`** and Share refuses it.
+    Frostmourne's seven emitters showed in CZ as a pale blue frost mist (headless, at the
+    street lights; not yet on a held weapon).
+  * **Step 6 leftovers:** emitter fields measured one at a time in game (CZ, headless):
+    `count_20` = how many particles, the last colour key time = the life, `i_164` 30 hides
+    the emitter, `f_18` / `count_1c` / `f_138[3]` change nothing seen (formats.md). The 3D
+    particle preview on the weapon: not done (the sketch stays).
+  * **Step 8 (other games' models): done.** `tools/wow_import.py extract / model`
+    (`.m2` + `.skin` + BLP → `.glb`); Frostmourne's `.glb` goes through the wizard's fit
+    with its handle found by itself (preview checked); guide 22 (Blender route for any
+    game, the WoW tool, local only).
+  * **The gate, scripted through Studio's own windows** (`tools/weapon_gate.py cz`):
+    *Effects…* (the Flaming Sword at hue 200, *Make my own* → 6), *New weapon…*
+    (Frostmourne, Deuillegivre, sword, sample model, freeze, the aura while held, combo
+    Broadsword + Fire Extinguisher with card texts), placed, *Share* → one `.dr2mod`
+    (0.06 MB), installed on a clean library. **Played: owed to the user** (windowed).
+  * **Case West headless:** a CW wizard weapon (Katana pack), own effect, changed Flaming
+    Sword and card pictures load into gameplay from a copy of the user's CW save, no
+    fault. The placed swords were not in view (the CW build has no position trace), so
+    seeing them is the user's windowed check too.
+  * **Step 9 → phase 14** (buildings of one's own T4a/T4b, maps in empty level slots T5,
+    the door's destination list, `.anm`): each needs in-game tests by the user (walking
+    into collision, going through a door), so it is a phase of its own.
 * **Owed by the user (windowed):** pick up and swing a wizard weapon (CZ and CW), its
   icon in the inventory, the combo card at a workbench (found and not found), French
   names.
 
-## Start here (handoff, 2026-10-12, for the rest of phase 13)
+## Start here (handoff, 2026-10-12 evening)
+
+**Phase 13 is built; what it owes is the user's windowed checks:** run
+`python tools/weapon_gate.py cz --out ~/.cache/dr2kit-gate13/cz --install-user` (or install
+`~/.cache/dr2kit-gate13/cz/frostmourne-1.0.0.dr2mod` in Studio), Play, and check: the
+sword at the safehouse exit, its icon and French name in the inventory, swinging it, the
+frost aura while held, freezing zombies, the card at a workbench (Broadsword + Fire
+Extinguisher). Then the same in Case West (`weapon_gate.py cw`, placed by the Storage Bay
+save point). Then phase 14 (step 9 below).
+
+## Start here (first handoff, 2026-10-12, kept for its notes)
 
 **Built so far** (commits `50680ea`, `74f7068`; §Status): steps 1-5, step 6.1-6.4, most of
 step 7. **Do next, in this order:**

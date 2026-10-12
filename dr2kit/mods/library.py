@@ -374,6 +374,9 @@ def pack(folder: str | Path, out: str | Path | None = None) -> Path:
     ``<id>/…``. Hidden files and build leftovers (``dr2kit-build.json``) are left out;
     an ``out`` ending in ``.zip`` writes a plain zip name."""
     mod = Mod.load(folder)
+    if mod.local_only:
+        raise ModError(f"{mod.id} is a local-only mod (local_only = true in mod.toml): it "
+                       f"holds assets from another game, which can't be shared")
     dest = Path(out) if out else Path(f"{mod.id}-{mod.version}{PACKAGE_EXT}")
     if dest.is_dir():
         dest = dest / f"{mod.id}-{mod.version}{PACKAGE_EXT}"

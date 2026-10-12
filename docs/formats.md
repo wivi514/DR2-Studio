@@ -1760,6 +1760,34 @@ Flaming Sword's flame recoloured green showed green in game. Other fields: guess
 * particle pictures of one's own, added to `effects.tex` (named without `.bct`), show in
   game.
 
+**Case West (headless, 2026-10-12):** a CW mod with a wizard weapon (the Katana's pack
+copied), an own effect (slot 6), a changed Flaming Sword and new card pictures loads into
+gameplay from a copy of the user's save (Storage Bay), no fault: the CW build's eviction
+and `layout.bin` re-pin work there too. The effects themselves not yet seen in CW.
+
+**Emitter fields, one value at a time (CZ, headless, 2026-10-12, phase 13):** nine copies
+of the Flaming Sword's flame emitter (turned blue, ×3 size), each with one field changed,
+lined up in view with the street-light trick (`phase13-kickoff.md` §Start here), compared
+in two frames. `count_20` ×10 (3 → 30): a dense, bright cloud, so it is **how many
+particles** (alive at once or per second ❓). `colour_times` ×4: a cloud four times
+taller and bigger, so the last key time is **the particles' life**. `i_164` 3 → 30: the
+emitter **vanished** ❓. `f_18` ×10, `count_1c` ×10, `f_138[3]` ×10: **no visible
+change**. `f_40` ×10 and `f_14` ×5: hidden behind the HUD, not judged. Kept in
+`formats/effect.py` `FIELDS`.
+
+**From WoW 3.3.5 (`tools/wow_import.py`, local only):** an `.m2`'s `M2Particle` (0x1DC
+bytes: flags, position, bone, texture index into the model's textures, blend, emitter
+type, six `M2Track<float>` (speed, its variation, vertical and horizontal range, gravity,
+lifespan), lifespan variation, rate track and variation, area length / width / z
+tracks, colour / alpha / scale `FBlock`s on 0-32767 times, …; read and checked on
+Frostmourne's seven emitters, the struct ending exactly at 0x1DC) becomes a DR2 emitter:
+colour and alpha keys sampled at 0, ¼, ½, ¾, 1 of the life → `colours`; life ×(¼…1) →
+`colour_times`; scale → `sizes`; rate → `count_20` (clamped 1-30); position and area →
+`offset` and the box (y along the model's longest axis, from its lowest point); gravity
+→ −`gravity` y (WoW's positive gravity pulls down, DR2's flames rise with +y). Its
+pictures (BLP, additive) become see-through pictures of one's own (alpha from the
+brightness). The other fields come from the base emitter (the Flaming Sword's smoke).
+
 ### New items' files load ✅ (headless, CZ, 2026-10-12, phase 13)
 
 *Phase 12 wrote:* "a test mod adding five weapon packs to `streamedassets.big`, two

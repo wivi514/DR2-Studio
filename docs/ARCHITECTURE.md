@@ -332,6 +332,25 @@ game hangs on a new entry declared 0). *Decision:* a new item copied from a game
 stored as a **recipe** (`.copy.json`, `mods/newitem.py`), never as the copied bytes, so a
 shared mod holds no game data; the build makes the pack from the player's own game.
 
+**Particle effects (phase 13).** A mod changes a game effect with an `.effect.json`
+(its name and the changes: hue, size, pictures…; `convert/effects.py`) or adds one of its
+own as a copy recipe into one of the effect table's **36 free slots** (`mods/neweffect.py`;
+the table of numbers is in the executable and can't grow). Three build rules, each
+measured in game (CZ, 2026-10-12; `formats.md` §Particle effects): an added effect is
+listed in the effects' scene file (`register_in_scene`); a file the game keeps a copy of
+in `preload4.big` is **evicted** there (its index hash flipped, 4 bytes; re-encoding
+inside `preload4.big` crashes the boot) so the loose file is read, per the profile's
+`preload_evict`; and when a built file changes size, a re-pinned **`layout.bin`** (every
+file's size) is written (`repin_layout`), since a file bigger than its pinned size
+crashes when opened.
+
+**Other games' assets (phase 13, decision 3).** Bringing a model or an effect in from
+another game is a **local tool** (`tools/wow_import.py`, not in Studio or the CLI): it
+reads the modder's own install and writes into a mod it marks **`local_only`**, which
+`library.pack` (*Share…*) refuses. Any model still comes in as a `.glb` through the weapon
+wizard; another game's particle emitters become one effect of one's own (the `layout`
+change: copies of a base emitter, then their fields).
+
 **Files mods can't touch.** The executables digest-check a few data files (CZ 1, CW 6;
 `formats.md` §Digest-checked files). Each game profile lists them (`digest_checked`) and
 the build refuses an override of one, since the game would crash.

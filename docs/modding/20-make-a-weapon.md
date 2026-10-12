@@ -151,5 +151,8 @@ More in [`12-troubleshooting.md`](12-troubleshooting.md).
   block, so make these changes last.
 * What every weapon key does, the elements and the effect table:
   [`../formats.md`](../formats.md) §Weapons.
-* Your own effects (not only the game's): phase 13, planned
-  ([`../phase13-kickoff.md`](../phase13-kickoff.md)).
+* Your own effects (a game effect recoloured, resized, with your own particle pictures):
+  DR2 Studio's **Effects…** window, [`21-effects.md`](21-effects.md). They are listed
+  first in the wizard's effect boxes.
+* A model (or effects) from another game you own, for yourself only:
+  [`22-from-other-games.md`](22-from-other-games.md).

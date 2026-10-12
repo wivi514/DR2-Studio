@@ -69,9 +69,13 @@ hands, the icon and combo card drawn from the model, effects by name: `dr2 effec
 guide 20) built and checked headless; effects of one's own built too (`formats/effect.py`,
 `mods/neweffect.py`, Studio *Effects…*, `dr2 mod effect|new-effect|effect-picture`; own effects
 in the table's 36 free slots, checked headless). Mod builds now evict `preload4.big`'s copy of
-the effects and re-pin `layout.bin` sizes (formats.md §Particle effects). Next, in a fresh
-conversation: `docs/phase13-kickoff.md` §Start here (guide 21, the Frostmourne gate with the
-user, Case West, WoW particles).** Read these before writing code:
+the effects and re-pin `layout.bin` sizes (formats.md §Particle effects). Then (same day)
+guides 21 (effects) and 22 (other games), WoW models and particles through a local tool
+(`tools/wow_import.py`) into `local_only` mods that Share refuses, emitter fields measured
+in game, the gate scripted through Studio's own windows in both games
+(`tools/weapon_gate.py`), Case West loading with them. Owed: the user's windowed checks
+(`docs/phase13-kickoff.md` §Start here). Phase 14 (planned): buildings and maps of one's
+own, `.anm` (`docs/roadmap.md`).** Read these before writing code:
 
 | Doc | What it holds |
 |---|---|
@@ -221,6 +225,9 @@ dr2 mod new-weapon <mod> <Name> --kind sword --glb sample|file [--element freeze
 dr2 effects [words] [--group ice] [--kinds] [--show NAME --out p.png] -g cz   # effects by name, kinds
 dr2 mod effect <mod> <effect> --hue 210 [--size 1.5]   /   dr2 mod new-effect <mod> <effect> --hue 210 [--slot wip_1]
 dr2 mod effect-picture <mod> <name> <png>                              # a particle picture of your own
+dr2 effects --free -g cz                  # the effect table's free slots (own effects go there)
+python tools/weapon_gate.py cz|cw --out ~/.cache/dr2kit-gate13/cz [--install-user]   # phase 13 gate via Studio
+python tools/wow_import.py extract|model|effect …   # WoW 3.3.5 → .glb / an own effect (local only, guide 22)
 python tools/effect_table.py <recomp>/assets/game/default_image.bin --check cz   # effects.toml = exe?
 dr2 census --levels                       # every zone, placement, level text file, item model (~50 s / game)
 dr2 export prologue [--zone z05] [--whole] [--zombies] [--collision] -g cz -o out   # a level for Blender

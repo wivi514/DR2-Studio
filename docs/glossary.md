@@ -513,6 +513,35 @@ diamonds).
 *Effect number*). The toolkit keeps their names (`dr2kit/catalog/effects.toml`) so you
 can pick "snowtrail_wpn_bs_1" instead of typing 215; `dr2 effects` lists them by group.
 
+<a id="particle-effect"></a>**Particle effect.** A small file in
+`data/models/effects.big` that makes fire, snow, sparks, blood or smoke: a name and a few
+*emitters*. Weapons and levels show one by its *effect number*; you can change one or make
+your own (guide 21).
+
+**Emitter.** One part of a particle effect: it throws out little pictures (*particles*)
+from a shape (a box, a sphere…), each with colours that change over its life, a size and
+a lifetime. The Flaming Sword's flame is four emitters (smoke, flame, sparks, glow).
+
+**Particle picture.** The small picture an emitter throws out (`fire_flame`, `glow`,
+`cloud_smoke2`…), kept in `data/models/effects.tex`. You can add your own (a PNG).
+
+<a id="free-slot-effects"></a>**Free slot (effects).** One of the 36 numbers of the effect
+table that has no effect in the game (`wip_1`, `unused`…). An effect of your own goes into
+one and takes its number, because the program's list of numbers can't grow.
+
+**Eviction (`preload4.big`).** The game keeps copies of some files (the effects among
+them) inside `data/preload4.big` and reads those instead of the real ones. Changing a copy
+there crashes the game, so a mod build *hides* the copy (it changes 4 bytes of its name's
+hash) and the game reads the real file, with the mod's changes.
+
+**`layout.bin` (size pin).** A file of the game listing every data file with its size. A
+file that grows past the size written there crashes the game when opened, so a mod build
+writes a `layout.bin` with the new sizes when it changes one.
+
+**Local-only mod.** A mod with `local_only = true` in its `mod.toml`: it holds files from
+another game (a WoW model or effect brought in for yourself), so it plays on your
+computer but DR2 Studio won't share it (guide 22).
+
 **Combo card.** The card a combo weapon shows in the game's card list: a picture at the
 top, line drawings of the two items that make it, and texts. A card has two pictures:
 found (`comboc_<name>`) and not found yet (`comboc_<name>_no`, faded red).

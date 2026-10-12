@@ -40,6 +40,11 @@ archives have it; the order is free, docs/formats.md §`.big` container) and is 
 neighbours.
 
 Paths are matched case-insensitively, like every vpath.
+
+**Local-only mods** (phase 13): ``local_only = true`` in ``[mod]`` marks a mod made with
+another game's assets (a WoW model or particle pictures brought in from the modder's own
+install): it builds and plays on this computer, and `library.pack` (*Share…*,
+``dr2 mod pack``) refuses it, since those assets aren't the modder's to share (LICENSE).
 """
 
 from __future__ import annotations
@@ -101,6 +106,11 @@ class Mod:
     priority: int = 0
     preview: str = ""       # a picture in the mod folder, shown by the mod manager
     extra: dict = field(default_factory=dict)
+
+    @property
+    def local_only(self) -> bool:
+        """True for a mod that must never be shared (module docstring)."""
+        return bool(self.extra.get("local_only", False))
 
     @property
     def preview_path(self) -> Path | None:

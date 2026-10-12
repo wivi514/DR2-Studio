@@ -94,6 +94,18 @@ def test_changes():
             apply_changes(fx.Effect.parse(make_effect()), bad)
 
 
+def test_layout_change():
+    e = fx.Effect.parse(make_effect())                   # shapes 0, 1, 3
+    apply_changes(e, {"layout": [1, 1, 0, 1], "emitters": {"3": {"gravity": [0, 5, 0]}}})
+    assert [m.get("shape") for m in e.emitters] == [1, 1, 0, 1]
+    assert e.emitters[3].get("gravity") == pytest.approx([0, 5, 0])
+    assert e.emitters[0].get("gravity") == pytest.approx([0, 0, 0])   # copies, not shared
+    assert fx.Effect.parse(e.to_bytes()).to_bytes() == e.to_bytes()
+    for bad in ({"layout": []}, {"layout": [7]}, {"layout": "x"}):
+        with pytest.raises(Dr2Error):
+            apply_changes(fx.Effect.parse(make_effect()), bad)
+
+
 # --- the real games ---------------------------------------------------------------------
 
 @pytest.mark.gamedata
