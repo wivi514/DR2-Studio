@@ -36,6 +36,10 @@ shipped: empty slots to try for own maps.
 **Docs updated:** `phase12-kickoff.md` (new), `roadmap.md`, `docs/README.md`, `CLAUDE.md`.
 **Decisions (user, same day):** every proposed default; a combo weapon always gets a new
 card, its picture changeable (two new textures in `data/frontend/combocards.tex`).
+Buildings of one's own (user, same day): always seen like the game's buildings with
+smaller textures far away, baked shadows later: so the look is a **new level piece** and
+the collision an **invisible item** (`cBlockingVolumeItem`-style, `MeshVisible = false`),
+test T4 split in two (T4a, T4b).
 **Next:** the early in-game tests T1-T5.
 
 ## 2026-10-12 — Undo keys everywhere, turning about every axis

@@ -98,8 +98,13 @@ An item's scene has `_COLLPRIMS_` and `_COLLISIONLIST_` entries, empty for the c
 checked; the blocker item (`MilitaryBarrier`, `CollisionType 3`) stopped Chuck in game
 (phase 11). So the engine makes an item's collision from its model (a box? a hull? ❓).
 A level piece's collision is a Havok mesh with a search tree the toolkit can move but not
-build (phase 11 step 4), so a **building of one's own** is easiest as an unmovable item,
-or as a copy of a level piece whose collision shapes are copied too (moved only).
+build (phase 11 step 4), so a **building of one's own** can't get level-piece collision.
+
+**Invisible collision items exist:** `cBlockingVolumeItem` (CZ 2, CW 8: `wall_short_blocking`,
+`moosehead_platform_walls`…) are unmovable items with `MeshVisible = false`,
+`CollisionType 3` and `CollisionBits = WORLDCOLLISIONFILTER_BLOCKING_VOLUME`: collision with
+no look (none is placed in the shipped levels; their models aren't shipped either). So a
+building can be **seen as a level piece and felt through an invisible item** (below).
 
 ### Levels: a fixed table in the executable, with empty slots
 
@@ -149,10 +154,14 @@ copy of their save or a new game (memory: *Protect the user's saves*).
    cards)? Is there a maximum number of cards (`CardIndexNumber` into a fixed table ❓)?
 3. **T3, the grip:** the T1 weapon's model with its `LOC_WEP_…_R` node moved 10 cm. Does
    Chuck hold it there? If yes, the wizard can move the grip; if not, it moves the mesh.
-4. **T4, a building as an item:** a `.glb` building (a box with a doorway) as an
-   unmovable item (`cUtilityItem` like the blocker, `CollisionType 3`). What collision does
-   the engine make: its box (can't walk through the doorway), a hull, the mesh? How big can
-   it be before it pops in late (`LoadDistance`)?
+4. **T4, a building of one's own** (a `.glb`: a box with a doorway), in two halves:
+   - **T4a, its look as a new level piece:** the piece's archive added to a zone (`add/`) and
+     a placement record for it (`.pieces.json` copies append records: proved). Does it
+     show from everywhere, with the small textures far away, like the game's buildings?
+   - **T4b, its collision as an invisible item:** the same model as an unmovable item with
+     `MeshVisible = false` (a blocking volume, above). Does it block Chuck, and with what
+     shape: its box (the doorway blocked), a hull, the mesh? Also a visible unmovable item
+     for comparison (`LoadDistance`: when does it appear?).
 5. **T5, a map in an empty slot:** CZ: a copy of a small level (the menu street
    `prologue_menu2`, one zone) as `food_barn` (`food_barn.txt`, `models/environment/food_barn/`
    with its `zonelist.big` names changed, `nm_`, `waypoint_`, a `cZombieLoadSet
@@ -192,9 +201,14 @@ copy of their save or a new game (memory: *Protect the user's saves*).
    card's (`newitem`'s copy recipe), with the modder's PNG over them (or a picture rendered
    from the result, as a start); *Change picture…* replaces it later. Writes the
    `cComboCardItem`.
-6. **Buildings of your own:** *New building…*: a `.glb` → an unmovable item (static,
-   engine collision per T4) placed with the Maps editor; Place lists it. If T6 works: a
-   copied level building keeps its collision.
+6. **Buildings of your own:** *New building…*: a `.glb` → **a new level piece** in the
+   zone it stands in (always seen, small textures far away, like the game's buildings) **and
+   an invisible collision item** with its shape (or a simpler collision `.glb` the modder
+   gives: walls only), placed and moved together as one building in the Maps editor
+   (`convert.buildings` groups them); Place lists it. If T4b gives only boxes: the
+   collision is several invisible items, one per wall. If T6 works: a copied level building
+   keeps its collision. **Baked shadows** (a lightmap for the new piece): later (user,
+   2026-10-12).
 7. **Maps of your own:** *New map…*: an empty level slot (listed per game), started from a
    copy of a level the game has (or a flat ground), opened in the Maps editor; the *Door to
    another level* prefab gets a **destination list** with the game's levels and the mod's
@@ -219,8 +233,10 @@ copy of their save or a new game (memory: *Protect the user's saves*).
 5. **Combo cards:** **always a new card** (the user, 2026-10-12): a number after the game's
    and its own picture the modder can change (two new textures in `combocards.tex`). If T2
    shows the game can't take more cards, the plan comes back to the user.
-6. **Buildings of your own:** **unmovable items with engine collision first**; level pieces
-   with copied collision after T6.
+6. **Buildings of your own:** **always seen like the game's buildings, simpler far away**
+   (the user, 2026-10-12): the look as a new level piece, the collision as an invisible
+   unmovable item (engine-made, T4); level buildings copied with their collision after T6;
+   baked shadows later.
 7. **Maps of your own:** **only the executable's empty level slots** (CZ many, CW
    `w_mall`), never a patched executable (the recomps stay read-only, CLAUDE.md); **a new map
    starts as a copy of a small level**, edited in the Maps editor.
