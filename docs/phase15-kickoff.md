@@ -114,7 +114,8 @@ game's own types.
   generated from the PowerPC (`ctx.r11.s64 = 10`), so growing it is **a change to the Case
   West recomp** (each place that walks the table, and any array sized by it, found by
   the same search), the third kind of recomp change after the `game_mods/` layer and the
-  audio substitution: **it needs the user's approval** (CLAUDE.md), made in that repo
+  audio substitution: **approved by the user 2026-10-12** ("I do approve the growing case
+  west zombie list and maps"; ARCHITECTURE.md §Recomp integration 3), made in that repo
   following its own CLAUDE.md, and the same check in Case Zero's (already 32).
 * **More types per level** is a budget, not a count: each level's load set lists the
   types it loads with their memory cost (`zombiesets.txt` `total_cost`, the "HWM" line):
@@ -125,8 +126,8 @@ game's own types.
   recomp change as its zombie table (level ids are an enum in its code; Off the Record's
   program lists 56 `LEVEL_` ids, Dead Rising 2's 86).
 * So "as many as we want": **up to the engine's 32 zombie types and the level table's
-  slots in each game**, with Case West's tables grown to Case Zero's sizes (with the
-  user's approval of that recomp change), and every level kept within its zombie budget.
+  slots in each game**, with Case West's tables grown to Case Zero's sizes (that recomp
+  change approved by the user, 2026-10-12), and every level kept within its zombie budget.
 
 ### Bosses and human enemies
 
@@ -263,7 +264,7 @@ the modder doesn't have to know. XenonLive's launcher has no mod support yet
    crates (`cZombieWarehouse`, `missions.txt`) that spawn it, exactly like a native type.
    No mapping to a "nearest" type. CW → CZ: into Case Zero's empty zombie slots. CZ → CW:
    Case West's program is built for 10 types: **grown to the engine's 32** (§How many
-   types and levels: a Case West recomp change, needing the user's approval), and its
+   types and levels: a Case West recomp change, approved by the user 2026-10-12), and its
    level table likewise. Every level stays within its zombie memory budget.
 2. **Shaders the target lacks:** **remap to the nearest shared shader** (works with no
    recomp change); bringing shaders over only if U3 shows the recomps can, and with the

@@ -539,6 +539,16 @@ Two runtime changes, made in each recomp repo following that repo's own conventi
 
 Timing: (1) landed with phase 2, (2) with phase 5.
 
+3. **Growing Case West's tables** (approved by the user 2026-10-12 for phase 15; not
+   built yet). Case West's program is built for 10 zombie types (its type table and every
+   loop over it, count `0xA`) and 10 level slots; the engine takes 32 types (the type is
+   checked against 31 in both games) and Case Zero is built for 32 types and 82 levels.
+   The Case West recomp grows its zombie type table to 32 (every place that walks it, and
+   any array sized by it) and its level table (script names, zone lists, ids), so mods
+   can add zombie types and maps natively. Made in the CW repo following its CLAUDE.md,
+   with a `CW_` off switch and the census of every place changed; Case Zero gets the same
+   check (already 32). `phase15-kickoff.md` §How many types and levels.
+
 ## Non-goals (for now)
 
 - Editing levels/zones (`models/environment/prologue/*.big`, 10-73 MB each). We index and

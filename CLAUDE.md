@@ -142,10 +142,11 @@ definition-of-done checklist: `docs/dev/README.md`. Docs index: `docs/README.md`
 ## Where the games live
 
 Both recomps sit next to this repo. They are separate repos with their own CLAUDE.md
-files and conventions. Treat them as **read-only references**, except for the two
-approved integration changes (a `game_mods/` VFS layer and PCM audio substitution,
-`docs/ARCHITECTURE.md` §Recomp integration). Make those in each recomp following its own
-CLAUDE.md, and keep CZ and CW in step.
+files and conventions. Treat them as **read-only references**, except for the
+approved integration changes (a `game_mods/` VFS layer and PCM audio substitution; and,
+approved 2026-10-12 for phase 15, **growing Case West's zombie type table to the
+engine's 32 and its level table**: `docs/ARCHITECTURE.md` §Recomp integration). Make
+those in each recomp following its own CLAUDE.md, and keep CZ and CW in step.
 
 | | Case Zero | Case West |
 |---|---|---|
