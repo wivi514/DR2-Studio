@@ -36,8 +36,12 @@ import sys
 import tempfile
 from pathlib import Path
 
-START = {"cz": ("prologue.txt", "-279.6,3.45,-36.4"),          # the street, by the safehouse
-         "cw": ("storage_pens.txt", "-83.9,0.15,110.3")}        # by the Storage Bay save point
+# Where it lies: on floor measured from the zone collision (CZ street 3.36 m, CW 0), 3 cm
+# above it, flat: a wizard weapon's blade runs along the model's +z, so a turn of 90°
+# about z puts its flat side down (a turn about x stood it on its tip, sunk in the street)
+START = {"cz": ("prologue.txt", "-278.5,3.39,-36.5"),          # the street, by the safehouse
+         "cw": ("storage_pens.txt", "-83.9,0.03,110.3")}        # by the Storage Bay save point
+FLAT = "0,0,0.7071068,0.7071068"
 PARTNER = {"cz": "Broadsword", "cw": "Katana"}
 
 
@@ -122,7 +126,7 @@ def main() -> int:
     ed = TextEdits(mod.root, level, tree)
     ed.doc.add(None, "cItemPlacement", "Gate13_Frostmourne",
                [("ItemName", "Frostmourne"), ("Location", at),
-                ("Rotation", "0.7071068,0,0,0.7071068")])
+                ("Rotation", FLAT)])
     ed.save()
     print("4. placed in", level, "at", at, flush=True)
 
