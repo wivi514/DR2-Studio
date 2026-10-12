@@ -17,6 +17,25 @@ Entry template:
 
 ---
 
+## 2026-10-12 — Phase 12 researched and planned
+**Done:** `phase12-kickoff.md` for the user's next phase: the easiest way to make a new
+weapon (kind, borrowed moves, damage, an effect such as freeze or burn, its model held
+right), a combo weapon (Broadsword + Fire Extinguisher → "Frostmourne"), a building of
+one's own and a map of one's own reached by the door prefab. Roadmap, docs index,
+CLAUDE.md.
+**Learned (both games' data and executables):** a weapon is an `items.txt` block whose
+`AnimBankName` picks its moves (`data/streamedassets.big/anm_<bank>.big`, 52 in CW: one
+`.anm` per attack in `root.big` and `fullbody.big`, format not read), `WeaponType` /
+`HandlingStyle` its kind and grip, `Can_Freeze` / `Can_Electrocute` / `Fire` and
+`EffectOnVictim` / `PyroEffect` numbers its element (meanings not known); combo recipes
+are `cComboCardItem` children of the result (`Weapon_1` + `Weapon_2`; CZ 9, CW 17);
+weapon models carry grip locators (`LOC_WEP_katana_R`, `LOC_rhand`); an item's collision
+is made by the engine; **level ids are a table in the executable** (no new ones), but
+CZ's still lists 83 Dead Rising 2 levels of which it ships 4, and CW's lists `w_mall`, not
+shipped: empty slots to try for own maps.
+**Docs updated:** `phase12-kickoff.md` (new), `roadmap.md`, `docs/README.md`, `CLAUDE.md`.
+**Next:** the user's decisions, then the early in-game tests T1-T5.
+
 ## 2026-10-12 — Undo keys everywhere, turning about every axis
 **Done:** Ctrl+Z / Ctrl+Y (and Ctrl+Shift+Z) undo and redo level edits wherever the
 keyboard is in Studio, not only in the 3D view; the turn handles show all three rings by

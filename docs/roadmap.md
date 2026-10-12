@@ -295,6 +295,22 @@ placements; phase 11 changes them.
 - **Gate:** every level text file round-trips byte-identical; each edit kind made in
   Studio, checked by `dr2 mod check`, and seen in the recomp in both games.
 
+## Phase 12 (planned): make your own weapons, combo weapons, buildings and maps (user, 2026-10-12)
+Researched 2026-10-12, not started: [`phase12-kickoff.md`](phase12-kickoff.md) (decisions
+to take, early in-game tests first).
+- A **weapon wizard**: kind (sword, knife, blunt, pole, big two-hand, thrown, spray, gun),
+  moves borrowed from a game weapon (`AnimBankName`, its attacks), damage, durability, an
+  **effect** (freeze, burn, electrocute: `Can_Freeze`, `Fire`, `Can_Electrocute`,
+  `EffectOnVictim`…), its `.glb`, icon and strings.
+- A **grip editor**: Chuck holding the borrowed weapon see-through, the new one aligned
+  to its grip (the model's `LOC_WEP_…` locators).
+- **Combo weapons**: a `cComboCardItem` (two items → the result, the card).
+- **Buildings of your own** (unmovable items with engine collision) and **maps of your
+  own** in the executable's empty level slots (CZ: Dead Rising 2's unshipped levels; CW:
+  `w_mall`), reached by the door prefab.
+- **Gate:** "Frostmourne" (Broadsword + Fire Extinguisher → a freezing sword of the
+  modder's own) made only in Studio, in both games.
+
 ## Stretch (phase 11 or later)
 - In-game "identify": the recomp sends the textures/models under the crosshair to Studio.
 - Animation export (and later import); level editing beyond phase 10's stretch.
