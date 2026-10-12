@@ -71,6 +71,45 @@ priority = 0                # higher wins when two mods replace the same asset
   [`22-from-other-games.md`](22-from-other-games.md)). It builds and plays, but
   **Share…** and `dr2 mod pack` refuse it.
 
+## What a mod needs
+
+Some mods need more than the game they play in. A mod that puts a **Case West** item into
+**Case Zero** is built from Case West's files, read from *your* copy when the mod is built
+(a mod never holds game files), so it needs Case West's data on the computer that builds
+it. A mod can also need another mod, change what your saves hold, or change the world so
+that every co-op player must have it.
+
+The toolkit works this out by itself, and you can add to it in `mod.toml`:
+
+```toml
+[requires]
+mods = ["frostmourne>=1.0"]   # other mods it needs (an id, optionally a version)
+coop = "host-only"            # only if you know better than the toolkit
+```
+
+| Key | Meaning | Filled in by the toolkit |
+|---|---|---|
+| `games` | games whose data is needed to build it | the games it plays in + every game its recipes copy from |
+| `play` | the games it runs in | `games` of `[mod]` |
+| `mods` | other mods, with versions (`>=`, `==`, `<`…) | never: write it yourself |
+| `saves` | `"safe"` or `"needs-mod"` (saves made with it need it) | `needs-mod` as soon as the mod **adds** something (new items, blocks, files): a save may name it |
+| `coop` | `"all-players"`, `"host-only"` or `"local"` | `local` when it only changes looks and sounds (textures, models, sounds, text), else `all-players` |
+| `toolkit` | the dr2kit version that can build it | the version that made it |
+
+**See it.** In DR2 Studio the mod manager and the **Install** window show what a mod
+needs, with anything this computer is missing in **bold**. With the command:
+`dr2 mod info my_mod` (`--json` prints the machine-readable file).
+
+**It goes with the mod.** **Share…** (`dr2 mod pack`) puts two files at the top of the
+`.dr2mod`: `REQUIRES.txt` (the same in plain words, for people) and `requirements.json`
+(for launchers such as XenonLive: the games' title ids, `58410A8D` for Case Zero and
+`58410B00` for Case West, the mods it needs, and a `content_hash` so two co-op players can
+check they have the same mod). You never write these two files yourself.
+
+**Builds check it.** **▶ Play** and `dr2 mod build` refuse a mod whose needs are missing
+and say what to do (point the toolkit at the other game with **Game folders…** /
+`dr2 games set cw <folder>`, or install the mod it needs).
+
 ## Play, deploy, remove
 
 | DR2 Studio | Command | What happens |
@@ -211,6 +250,8 @@ Mods made with this toolkit must be free for everyone (see the rules in
 | `refusing entry '../…'` when installing a zip | The zip would write outside the mod | Don't install it; ask its author for a clean zip. |
 | `expected one mod … found 2` | The zip holds several mods | Unzip it and install each folder. |
 | `id 'My Mod' must be lower-case…` | `id` has spaces or capitals | Use e.g. `my_mod` (the `name` can be anything). |
+| `… needs Case West's game data on this computer (it is made from its files)` | The mod uses the other game's things | Point the toolkit at that game: **Game folders…** in Studio, or `dr2 games set cw <folder>`. |
+| `… needs the mod x installed and switched on` / `needs x >=2, this library has 1.0` | The mod builds on another mod | Install (or update) that mod and switch it on. |
 | `… is not in a recomp; say where to put the files with --to` | Your game data isn't a recomp's `assets/game` | Use `dr2 mod build … -o OUT` and copy the files over the game's own (keep backups). |
 
 ## Going further

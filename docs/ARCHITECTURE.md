@@ -253,6 +253,7 @@ never touch tiled DXT or LZX:
 ```
 my_mod/
   mod.toml                    # id, name, version, games = ["cz","cw"], author, description, priority
+                              # [requires]: other games' data, mods, saves, co-op (phase 15)
   replace/
     data/models/npcs.big/chest_default.tex/chest_default_cm.png
     data/models/npcs.big/chest_default.big.glb
@@ -301,6 +302,19 @@ recomp (found beside its game folder; user decision 2026-10-09: Studio may start
 (`mod.toml`, `replace/`, `preview.png`, `README.md`; never game data), made by *Share…*
 / `dr2 mod pack` after a check against each game it names. Mod sets save which mods are
 on.
+
+**What a mod needs (phase 15, `mods/requires.py`).** A mod made from the other game's
+files (a recipe with `"from": "cw"`) can only be built where that game's data is, and
+some mods need other mods, change what saves hold, or change the world every co-op player
+must share. *Decision (user, 2026-10-12, proposed default):* `[requires]` in `mod.toml`
+(optional, what the modder writes) + **`requirements.json`** (machine-readable, the
+contract a launcher such as XenonLive reads: title ids, mods with versions, saves, co-op,
+a `content_hash`) + **`REQUIRES.txt`** (plain words), both written into every `.dr2mod`
+and the build's `dr2kit-build.json`. The toolkit fills what the modder didn't write
+(`infer`: games from recipes, `saves = "needs-mod"` when the mod adds anything, `coop =
+"local"` when it only changes looks and sounds). The build refuses a mod whose needs this
+computer lacks (`plan_mods` → `check`), naming what is missing; a build for one game needs
+that game and the games its recipes copy from, not the other game it also supports.
 
 **Level edits (phase 11).** The engine's block text files (`prologue.txt`,
 `missions.txt`…) are changed by **`.edits.json`** files that hold only a mod's changes,

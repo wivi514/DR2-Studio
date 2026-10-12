@@ -17,6 +17,20 @@ Entry template:
 
 ---
 
+## 2026-10-12 — Phase 15 started: what a mod needs
+**Done:** `mods/requires.py`: `[requires]` in `mod.toml`, worked out by the toolkit where
+the modder didn't write it (other games its recipes copy from, saves, co-op), written as
+`requirements.json` + `REQUIRES.txt` into every `.dr2mod` and the build info; builds
+refuse a mod whose games or mods are missing; `dr2 mod info`; Studio shows it.
+**Why:** the user's phase 15 ("a little file saying the mod requires this game and this
+game", for XenonLive). Decisions 2-5 taken by the user; decision 3 extended: Case West's
+level table grows so it takes more than one Case Zero level.
+**Learned:** a build for one game must only need that game and its recipes' sources, not
+every game the mod supports (a two-game mod would otherwise need both installed).
+**Docs updated:** guide 06 §What a mod needs + troubleshooting, ARCHITECTURE.md,
+code-tour.md, glossary.md, phase15-kickoff.md (§Status, decisions).
+**Next:** cross-game recipes (`"from"`), the cross-game tables, importing an item.
+
 ## 2026-10-12 — Phases 15 and 16 researched and planned (user away)
 **Done:** research and kickoffs for phase 15 (Case West things and maps in Case Zero and
 the other way, everything the target doesn't know assigned automatically; a requirements

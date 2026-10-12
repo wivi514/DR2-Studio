@@ -106,6 +106,7 @@ class Mod:
     priority: int = 0
     preview: str = ""       # a picture in the mod folder, shown by the mod manager
     extra: dict = field(default_factory=dict)
+    requires: dict = field(default_factory=dict)   # [requires] as written (mods.requires)
 
     @property
     def local_only(self) -> bool:
@@ -155,7 +156,8 @@ class Mod:
                    version=str(m.get("version", "0")), games=games,
                    author=str(m.get("author", "")), description=str(m.get("description", "")),
                    priority=int(m.get("priority", 0)), preview=str(m.get("preview", "")),
-                   extra={k: v for k, v in m.items() if k not in known})
+                   extra={k: v for k, v in m.items() if k not in known},
+                   requires=_requires_table(raw.get("requires", {}), path))
 
     def save(self) -> Path:
         """Write this mod's ``mod.toml`` (the fields above, other keys kept), with the
@@ -179,6 +181,14 @@ class Mod:
                 lines.append(f"{k} = {str(v).lower() if isinstance(v, bool) else v}")
             elif isinstance(v, str):
                 lines.append(f"{k} = {q(v)}")
+        if self.requires:
+            lines += ["", "# What the mod needs (docs/modding/06-mod-packages.md §Requirements)",
+                      "[requires]"]
+            for k, v in self.requires.items():
+                if isinstance(v, (list, tuple)):
+                    lines.append(f"{k} = [" + ", ".join(q(x) for x in v) + "]")
+                else:
+                    lines.append(f"{k} = {q(v)}")
         path = self.root / MANIFEST
         path.write_text("\n".join(lines) + "\n", "utf-8")
         Mod.load(self.root)                      # what we wrote must read back
@@ -199,6 +209,23 @@ class Mod:
             return []
         out = [(p.relative_to(base).as_posix(), p) for p in base.rglob("*") if p.is_file()]
         return sorted(out, key=lambda t: t[0].lower())
+
+
+REQUIRES_KEYS = {"games": list, "play": (list, str), "toolkit": str, "mods": list,
+                 "saves": str, "coop": str}
+
+
+def _requires_table(t, path: Path) -> dict:
+    """``[requires]`` checked for its keys and their types (meaning: `mods.requires`)."""
+    if not isinstance(t, dict):
+        raise ModError(f"{path}: [requires] must be a table")
+    for k, v in t.items():
+        if k not in REQUIRES_KEYS:
+            raise ModError(f"{path}: [requires] has an unknown key {k!r} (known: "
+                           f"{', '.join(REQUIRES_KEYS)})")
+        if not isinstance(v, REQUIRES_KEYS[k]):
+            raise ModError(f"{path}: [requires] {k} has the wrong type")
+    return dict(t)
 
 
 def create(folder: str | Path, mod_id: str | None = None, name: str | None = None) -> Path:

@@ -241,6 +241,7 @@ class InstallDialog(QDialog):
                       + f"<br>for {', '.join(load_profile(g).name for g in m.games)}"
                       + f"<br>{kinds_summary(m)}"
                       + (f"<br><br>{m.description}" if m.description else "")
+                      + (f"<br><br>{needs}" if (needs := _needs_html(m, self.lib)) else "")
                       + (f"<br><br><b>Installed already</b> (version "
                          f"{installed.mod.version}): installing updates it."
                          if installed else ""))
@@ -275,3 +276,13 @@ class InstallDialog(QDialog):
     def done(self, r):
         self._tmp.cleanup()
         super().done(r)
+
+
+def _needs_html(m: Mod, lib) -> str:
+    """What the mod needs (`mods.requires.summary`), as label HTML."""
+    import re
+    from ..mods.requires import summary
+    on = {e.mod.id: e.mod.version for e in lib.entries() if e.enabled}
+    on.setdefault(m.id, m.version)
+    text = summary(m, on).replace("  \n", "<br>")
+    return re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)

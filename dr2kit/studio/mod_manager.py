@@ -152,8 +152,14 @@ class ModManager(QDialog):
         self.about.setMarkdown(f"**{m.name}** {m.version}"
                                + (f" by {m.author}" if m.author else "")
                                + (f"\n\n{m.description}" if m.description else "")
+                               + (f"\n\n{needs}" if (needs := self._needs(m)) else "")
                                + (f"\n\n{m.readme}" if m.readme else "")
                                + f"\n\n`{m.root}`")
+
+    def _needs(self, m) -> str:
+        """What the mod needs (`mods.requires`), with what's missing in bold."""
+        from ..mods.requires import summary
+        return summary(m, {e.mod.id: e.mod.version for e in self.lib.entries() if e.enabled})
 
     def _link(self) -> None:
         d = QFileDialog.getExistingDirectory(self, "Mod folder to link (it stays where it is)")

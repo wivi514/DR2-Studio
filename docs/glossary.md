@@ -289,6 +289,14 @@ add-on itself is GPL, as Blender requires.
 **`.dr2mod`.** A mod packed into one file to share (a zip with its own name). DR2 Studio
 installs it when you drop it on the window or use **Install mod…**; **Share…** makes one.
 
+**Requirements (`requirements.json`, `REQUIRES.txt`, `[requires]`).** What a mod needs
+besides itself: the game it plays in, any other game whose files it is made from (a Case
+West item in Case Zero needs Case West's data on your computer, since mods hold recipes,
+not game files), other mods, whether saves made with it need it, and whether every co-op
+player needs it. The toolkit works most of it out and writes it into every shared mod, so
+a launcher can say "this mod needs Case West" before starting anything
+([guide 06](modding/06-mod-packages.md#what-a-mod-needs)).
+
 **Linked mod.** A mod in the library whose folder stays where it is (a mod you are
 making), instead of a copy inside the library folder.
 

@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import dataclasses
 import hashlib
+import json
 import re
 import shutil
 import tempfile
@@ -381,11 +382,16 @@ def pack(folder: str | Path, out: str | Path | None = None) -> Path:
     if dest.is_dir():
         dest = dest / f"{mod.id}-{mod.version}{PACKAGE_EXT}"
     root = mod.root.resolve()
+    from .requires import GENERATED, infer
+    req = infer(mod, with_hash=True)
     with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED) as z:
         for p in sorted(root.rglob("*")):
             rel = p.relative_to(root)
             if p.is_dir() or any(part.startswith(".") for part in rel.parts) \
-                    or p.name == "dr2kit-build.json" or p.resolve() == dest.resolve():
+                    or p.name in GENERATED or p.resolve() == dest.resolve():
                 continue
             z.write(p, f"{mod.id}/{rel.as_posix()}")
+        # what it needs, for people and launchers (mods.requires; phase 15)
+        z.writestr(f"{mod.id}/requirements.json", json.dumps(req.to_json(), indent=1) + "\n")
+        z.writestr(f"{mod.id}/REQUIRES.txt", req.to_text())
     return dest

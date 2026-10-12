@@ -913,7 +913,38 @@ def _report_build(res) -> None:
 
 _LIBRARY_ACTIONS = ("list", "install", "remove", "enable", "disable", "move", "library",
                     "link", "sets", "status",
-                    "pack")
+                    "pack", "info")
+
+
+def _cmd_mod_info(args, mlib) -> int:
+    """``dr2 mod info``: what a mod needs (`dr2kit.mods.requires`) and whether this
+    computer has it."""
+    import json as _json
+    from ..mods import requires
+    from ..mods.manifest import Mod
+    lib = mlib.ModLibrary(args.library)
+    if Path(args.mod).is_dir():
+        mod = Mod.load(args.mod)
+    else:
+        mod = lib.get(args.mod).mod
+    req = requires.infer(mod, with_hash=True)
+    on = {e.mod.id: e.mod.version for e in lib.entries() if e.enabled}
+    on.setdefault(mod.id, mod.version)
+    missing = requires.check(req, None, on)
+    if args.json:
+        print(_json.dumps({**req.to_json(), "missing": missing}, indent=1))
+        return 1 if missing else 0
+    print(f"{mod.name} ({mod.root})")
+    print(req.to_text().rstrip())
+    if req.written:
+        print("Written by the modder in [requires]: " + ", ".join(req.written))
+    if missing:
+        print("\nThis computer can't build it yet:")
+        for m in missing:
+            print(f"  - {m}")
+        return 1
+    print("\nThis computer has everything it needs.")
+    return 0
 
 
 def _cmd_library(args, mlib) -> int:
@@ -926,6 +957,8 @@ def _cmd_library(args, mlib) -> int:
             except Dr2Error as e:
                 print(f"{g}: {e}")
         return 0
+    if args.action == "info":
+        return _cmd_mod_info(args, mlib)
     if args.action == "pack":
         out = mlib.pack(args.folder, args.out)
         print(f"wrote {out}")
@@ -1749,6 +1782,11 @@ def build_parser() -> argparse.ArgumentParser:
     pm.add_argument("--library", help="the mod library folder (default: dr2 mod library)")
     pm = msub.add_parser("status", help="what is deployed in each game now")
     pm.add_argument("-g", "--game", choices=GAME_IDS)
+    pm = msub.add_parser("info", help="what a mod needs: games (also the ones its things "
+                         "come from), other mods, saves, co-op; and what this computer lacks")
+    pm.add_argument("mod", help="a mod folder or a library mod's id")
+    pm.add_argument("--json", action="store_true", help="print requirements.json (+ missing)")
+    pm.add_argument("--library", help="the mod library folder (default: dr2 mod library)")
     pm = msub.add_parser("pack", help="package a mod folder to share (<id>-<version>.dr2mod)")
     pm.add_argument("folder")
     pm.add_argument("-o", "--out", help="zip file or folder (default: current folder)")

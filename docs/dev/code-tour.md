@@ -783,6 +783,16 @@ pictures are drawn: bump `index.build.THUMB_VERSION`, and the next build redraws
   update changed), and `pack` writes `<id>-<version>.dr2mod`. `manifest.Mod` gained
   `preview`, `preview_path`, `readme` and `save()` (writes `mod.toml` back). Phase 13:
   `Mod.local_only` (`local_only = true`), which `pack` refuses.
+- `requires` (phase 15): what a mod needs. `Mod.requires` is `[requires]` as written
+  (keys checked by `manifest._requires_table`); `infer(mod)` → `Requirements` (games,
+  play, sources = games its recipes copy from via `"from"`, mods with version specs,
+  saves, coop, toolkit; the modder's keys win); `check(req, target, switched_on)` lists
+  what this computer lacks (a build for one game needs it plus `sources`); `to_json()` /
+  `to_text()` are `requirements.json` / `REQUIRES.txt`, written into every `.dr2mod` by
+  `library.pack` and into `dr2kit-build.json`; `content_hash` ignores those generated
+  files; `summary` feeds Studio's mod manager and Install window. `build.plan_mods` calls
+  `check` first and refuses (with every reason) a mod whose needs are missing.
+  `dr2 mod info` prints it.
 - `deploy`: `deploy(build, target)` copies files and records them in
   `dr2kit-deployed.json`; `undeploy(target)` removes exactly those. `recomp_folders()`
   names `game_mods` / `game_patched` / `game_kbm` / `game_bootskip` next to a game root.

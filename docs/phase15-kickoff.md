@@ -1,9 +1,9 @@
 # Phase 15 kickoff: Case West in Case Zero and Case Zero in Case West, and what a mod requires
 
-> **Status 2026-10-12 (night): researched and planned, not started.** Prepared while the
-> user is away (their words: "while I am not there we'll prepare the next phase"). Phase
-> 14's in-game tests (T4a, T4b, T5) still come first when they are back
-> (`phase14-kickoff.md` §Start here). Phase 16 (the same from the PC games):
+> **Status 2026-10-12: started** (user: "Do phase 15"; phase 14's in-game tests moved
+> after it by the user: "Later, start phase 15 now"). Decisions 2-5 taken (§Decisions).
+> Map import (step 5, tests U4/U5) waits for phase 14's T5 (does an empty level slot load?).
+> Progress: §Status. Phase 16 (the same from the PC games):
 > [`phase16-kickoff.md`](phase16-kickoff.md).
 
 **Direction (user, 2026-10-12):** "be able to use items from Case West in Case Zero and
@@ -242,7 +242,7 @@ coop = "all-players"          # every co-op player needs it (anything that chang
 
 ```json
 {"format": "dr2kit-requires/1", "id": "storage-pens-in-cz", "version": "1.0.0",
- "play": "cz", "games": {"cz": "58410A8D", "cw": "58410B00"},
+ "play": ["cz"], "games": {"cz": "58410A8D", "cw": "58410B00"}, "built_from": ["cw"],
  "mods": [{"id": "frostmourne", "version": ">=1.0"}], "toolkit": ">=0.15",
  "saves": "needs-mod", "coop": "all-players", "content_hash": "<sha1 of the build>"}
 ```
@@ -266,15 +266,18 @@ the modder doesn't have to know. XenonLive's launcher has no mod support yet
    Case West's program is built for 10 types: **grown to the engine's 32** (§How many
    types and levels: a Case West recomp change, approved by the user 2026-10-12), and its
    level table likewise. Every level stays within its zombie memory budget.
-2. **Shaders the target lacks:** **remap to the nearest shared shader** (works with no
-   recomp change); bringing shaders over only if U3 shows the recomps can, and with the
-   user's approval for any recomp change.
-3. **A CZ level into CW:** **into `w_mall`**; replacing a cutscene set only on the
-   modder's explicit choice.
-4. **Bosses:** **a regular enemy of the target with the boss's look** until U6 proves a
-   boss works across.
-5. **Requirements:** **`[requires]` in `mod.toml` + `requirements.json` +
-   `REQUIRES.txt`**, filled by the toolkit.
+2. **Shaders the target lacks: DECIDED (user, 2026-10-12, the proposed default):**
+   **remap to the nearest shared shader** (works with no recomp change); bringing shaders
+   over only if U3 shows the recomps can, and with the user's approval for any recomp
+   change.
+3. **A CZ level into CW: DECIDED (user, 2026-10-12):** the first one **into `w_mall`**,
+   and Case West's **level table grown** (the approved recomp change, §How many types and
+   levels) so it takes more than one: "we will need more than one level". Replacing a
+   cutscene set only on the modder's explicit choice.
+4. **Bosses: DECIDED (user, 2026-10-12, the proposed default):** **a regular enemy of the
+   target with the boss's look** until U6 proves a boss works across.
+5. **Requirements: DECIDED (user, 2026-10-12, the proposed default):** **`[requires]` in
+   `mod.toml` + `requirements.json` + `REQUIRES.txt`**, filled by the toolkit.
 
 ## Gate
 
@@ -284,6 +287,16 @@ the modder doesn't have to know. XenonLive's launcher has no mod support yet
   doors; a Case Zero level in Case West's `w_mall`.
 * A cross-game mod shared as `.dr2mod`, installed on a library without the source game:
   Studio and `dr2 mod info` say what it needs and refuse to build; with it: builds, plays.
+
+## Status
+
+* **Step 8, requirements: built 2026-10-12** (`mods/requires.py`). `[requires]` read and
+  kept by `mod.toml`; `infer` fills games (+ recipe sources), saves, co-op, toolkit;
+  `requirements.json` + `REQUIRES.txt` in every `.dr2mod`, the requirements in
+  `dr2kit-build.json`; builds refuse a mod whose games or mods are missing; `dr2 mod
+  info`; Studio's mod manager and Install window show it. One change to the planned JSON:
+  `play` is a list (a mod can play in both games) and `built_from` names the games its
+  recipes copy from. Guide 06 §What a mod needs. Tests: `tests/test_requires.py`.
 
 ## Start here (when phase 15 starts)
 

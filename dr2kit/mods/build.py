@@ -165,8 +165,19 @@ def plan_mods(mods: list[Mod], game: str, tree: AssetTree) -> ModPlan:
     plan: dict[str, Planned] = {}
     shadowed: list[tuple[str, str, str]] = []
     notes: list[str] = []
+    from .requires import check, infer
+    switched_on = {m.id: m.version for m in mods if game in m.games}
+    refused: set[str] = set()                       # mods whose needs aren't met
     for mod in sorted(mods, key=lambda m: m.priority):
         if game not in mod.games:
+            continue
+        try:                                        # [requires]: game data, other mods
+            missing = check(infer(mod), game, switched_on)
+        except ModError as e:
+            missing = [str(e)]
+        if missing:
+            problems += missing
+            refused.add(mod.id)
             continue
         for rel, src in mod.files():
             kind, target = _kind_of(rel)
@@ -273,7 +284,7 @@ def plan_mods(mods: list[Mod], game: str, tree: AssetTree) -> ModPlan:
                     shadowed.append((f"{p.vpath} id {i}", owner[i].mod.id, p.mod.id))
                 owner[i] = p
     for mod in sorted(mods, key=lambda m: m.priority):    # new entries (add/)
-        if game not in mod.games:
+        if game not in mod.games or mod.id in refused:
             continue
         for rel, src in mod.added():
             from .newitem import COPY_EXT, build_copy
@@ -820,12 +831,14 @@ def build(mods: list[Mod], game: str, tree: AssetTree, out_dir: str | Path,
         res.files.append(file_vp)
         if progress:
             progress(file_vp)
+    from .requires import infer
     if repin_layout(res, tree, base_dirs):
         res.files.append(LAYOUT)
     verify(res, tree, base_dirs)
     info = {
         "game": game,
-        "mods": [{"id": m.id, "version": m.version, "priority": m.priority} for m in mods
+        "mods": [{"id": m.id, "version": m.version, "priority": m.priority,
+                  "requires": infer(m, with_hash=True).to_json()} for m in mods
                  if game in m.games],
         "files": {f: hashlib.sha1(out.joinpath(*split(f)).read_bytes()).hexdigest()
                   for f in res.files},
