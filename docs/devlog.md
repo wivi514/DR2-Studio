@@ -17,6 +17,24 @@ Entry template:
 
 ---
 
+## 2026-10-12 — Phase 12: first in-game tests (elements), a loading stall
+**Done:** T1 (elements) in the CZ recomp, played by the user, near the safehouse exit.
+**Learned:** every effect number of a weapon (`EffectOn*`, `PyroEffect`) is a 1-based
+index into one table of particle effects in the executable (CZ 371, CW 414), so they only
+change what is seen. The elements: shock = `Can_Electrocute = true`; fire and freeze = a
+child `cPropHitZombieInfoItem` with `PropHitZombieEffect` 0 (fire) or 1 (freeze), as CW's
+Tiki Torch and Snowball have; `Fire` / `Can_Freeze` alone do nothing visible to the
+zombie. A thrown freezing Broadsword freezes the zombie it sticks in. Swords slice
+whatever their hit reactions say. No key gives a swing an area of effect (only
+explosives). And: the first test mod (five new weapon packs, two new combo card
+textures, six new string ids) made the street's load stop after zone z10, even with no
+item blocks or placements; which added file does it is not known yet. A crash while
+loading `zombies.big` happened twice in the user's windowed runs (with a second, co-op
+player) and never headless with the same mods ❓.
+**Docs updated:** `formats.md` (§Weapons, new; the format table), `phase12-kickoff.md`
+§Status (new).
+**Next:** find which added file stalls the load; then T2 (combo card), T3 (grip).
+
 ## 2026-10-12 — Phase 12 researched and planned
 **Done:** `phase12-kickoff.md` for the user's next phase: the easiest way to make a new
 weapon (kind, borrowed moves, damage, an effect such as freeze or burn, its model held

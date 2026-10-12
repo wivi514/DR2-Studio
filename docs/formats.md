@@ -23,6 +23,7 @@ Case West census before they count as rules (CLAUDE.md rule 7).
 | ragdoll `.dat` | `skeleton/*_ragdoll.dat` | ❓ | Havok likely (`hkp*` RTTI in the XEX) |
 | shader banks `.vo/.po/.vdo/.pdo/.sdo/.scv` | `shaders/*-{vs,ps,vd,pd,sc,sd,ss}.big` | 🟡 | `.vo`/`.po` are standard 360 D3D shader containers (`10 2A 11 01`, XenosRecomp translates them); `.sdo` = a shader name's permutations (`5cef4d20.sdo` → `ProtoSkinnedClothRGB`). Models carry their **own** vertex declarations, so the decoder doesn't need `-vd.big` (phase 0 guessed it did) |
 | mission / data `.txt`, `.csv` | `datafile.big`, CW loose `.csv` | ✅ text | engine scripting; edited for co-op in the CZ recomp |
+| weapon blocks, effect numbers | `items.txt`; a table in the executable | 🟡 | elements (shock, fire, freeze) measured in game; effect numbers = 1-based index into the executable's effect table (§Weapons) |
 | `.bik` | **CW only**, `data/movies` | ✅ read (Bink) | `dr2kit/convert/video.py` through PyAV: all 10 movies decode, every frame and the sound (`census --audio`); export to `.mp4`. Replacing one needs a Bink encoder (§Movies) |
 | level zones (`zonelist.big`, `ZONE_ORGANIZATION.big`) | `models/environment/<level>/` | ✅ read, edited | where each level piece is placed: 208-byte records, placement maths confirmed, written back identically; a few tail bytes unknown; pieces hidden, moved, turned, resized and copied by mods, checked in game (§Levels, "Piece edits", `formats/level.py`, `formats/pieceedits.py`) |
 | level text files (`<level>.txt`, `waypoint_*`, `nm_*`, `fe_map_*`) | `datafile.big` | ✅ text | placed items, doors, spawn points, zombie areas, triggers, the navigation mesh, the in-game map; read losslessly, every item resolved to its model (§Levels) |
@@ -1609,6 +1610,58 @@ What the classes hold (counts: CZ `prologue` / CW `living_research`):
   min_z, max_z` in columns 4-7, then the basement / second-floor heights), room rows
   (`pr101, 1709, …`: string ids), and **points**: `workbench_1, -186.4, 3.4, -114.2,
   LEVEL_PROLOGUE` (workbenches, save points, the safehouse).
+
+## Weapons: `items.txt` blocks, elements, effect numbers 🟡
+
+Phase 12 (2026-10-12). A weapon is a `cPlayerWeaponItem` (or `cFirearmItem`,
+`cExplosiveItem`, `cSprayItem`…) block of `data/datafile.big/items.txt`; its keys are
+listed in `docs/phase12-kickoff.md` §What the research found. Measured here:
+
+### Effect numbers: one table in the executable ✅
+
+Every `EffectOnVictim<n>`, `EffectOnImpact<n>`, `EffectOnWeapon<n>`, `PyroEffect<n>`,
+`ThrowEffectOn*` and `zombie_effects.txt` number is **a 1-based index into one table of
+particle effects compiled into the executable** (0 = none): 12-byte records `{char*
+name, u32, u32}`, CZ 371 at file offset `0x9D24F0` of `default_image.bin`, CW 414 at
+`0x9E69A0`; the first 371 are the same in both. Checked by meaning: `PyroEffect 141` of
+the Fire Extinguisher = `fireextinguisher_wpn_dc_2`, 123 of the Electric Rake =
+`elecrake_wpn_dbs_3_unq`, 181 of the Freezer Bomb = `freezebomb_wpn_bs_4_unq`, 57 of the
+Flamethrower = `flamethrower_wpn_dc_3`, 249 (the rake's `EffectOnVictim`) =
+`elecrakedmg_wpn_bs_1`, 13 (sharp weapons' victim effect) = `victim_bld_dbm_3` (blood),
+280 (impact) = `impact_bld_dbs_2`. The effects themselves are `EFFECT_Common<k>` entries
+of `data/models/effects.big`, **sorted by name, so `k` is not the effect number**.
+How found: a pointer to the string `fireextinguisher_wpn_dc_2` inside an array of
+same-shaped records (image base `0x82000000`). **So these numbers only change what is
+seen**, never what happens to the zombie (checked in game, below).
+
+### Elements on a weapon ✅ (in game, CZ, 2026-10-12)
+
+| Element | What gives it | Checked |
+|---|---|---|
+| **Shock** (chain lightning) | `Can_Electrocute = "true"` on the weapon | Chef Knife: melee hits shock |
+| **Fire** (the zombie burns) | a child block `cPropHitZombieInfoItem <name> { DR2 = "true" PropHitZombieEffect = "0" Support = "true" }` (as CW's Tiki Torch `Tiki_light_on_fire`) | Bowie Knife: melee hits set zombies on fire |
+| **Freeze** | the same child block with `PropHitZombieEffect = "1"` (as CW's Snowball) | Bowie Knife: melee hits freeze; Broadsword: a **thrown** sword freezes the zombie it sticks in (break it to get the sword back) |
+
+Not enough on their own: `Fire = "true"` (only the effect particles showed, no burning)
+and `Can_Freeze = "true"` (no freezing); both are kept by the game's fire and freeze
+weapons and may matter for something else ❓. `PropHitZombieEffect` 2 (CW Electric Prod,
+Laser Gun explosion) and 3 (CZ Pitchfork) are untested ❓.
+
+A sword still **slices** (kills in one cut) with its `HitReaction<n>` / `FatalHitReaction<n>`
+set to a club's and `Arbitraty_Slice = "false"`, even at `AttackDamage 5`: what makes
+it slice is something else (`WeaponType 4`? `Is_Sharp`?) ❓. **No key gives a melee attack
+an area of effect**: damage in an area comes only from explosives (`ExplodeRadius`,
+`HeavyDamageRadius`, `MediumDamageRadius`; CW's Freezer Bomb freezes its blast with
+`Can_Freeze`).
+
+### New items' files and the endless loading ❓
+
+A test mod adding five weapon packs to `streamedassets.big` (four `.copy.json` recipes and
+one raw copy), two textures to `frontend/combocards.tex` and six new string ids
+(`str_en.bcs`) made the street's load stop after zone z10 every time (headless, a copy
+of the user's save), **even with no `items.txt` changes and no placements**. Without the
+mod it loads. Every added entry's `flags` (alignment) matched its siblings'. Which of the
+three kinds of files does it: not yet known (phase 11's single new pack loaded fine).
 
 ## Strings (`.bcs`) ✅
 

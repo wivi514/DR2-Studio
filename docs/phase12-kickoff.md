@@ -256,6 +256,18 @@ copy of their save or a new game (memory: *Protect the user's saves*).
 - Census: every weapon block of both games parses into the wizard's model (kind, moves,
   effects) and back to the same block.
 
+## Status
+
+* **T1 (elements), CZ, played by the user 2026-10-12: done.** Shock = `Can_Electrocute`;
+  fire / freeze = a child `cPropHitZombieInfoItem` with `PropHitZombieEffect` 0 / 1;
+  effect numbers are only particles (an index into the executable's effect table). The
+  effects data file can name them (formats.md §Weapons). The user's wish from the test: a
+  freezing swing that also freezes the zombies around (no key for that: an explosive
+  thrown by an attack is the idea to try).
+* Borrowed moves (T1d) and T2 / T3 not seen yet: the first test mod's added files stalled
+  the load (formats.md §Weapons, "New items' files and the endless loading"); find the
+  cause first.
+
 ## Start here (handoff)
 
 - Read this file, then `formats.md` §Levels ("Level edits", "Piece edits", "Items →
