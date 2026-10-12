@@ -56,16 +56,19 @@ copied as `.pieces.json` (`formats/pieceedits.py`, `mods/pieceedit.py`), collisi
 with them (`collision.move_shapes`: the Havok tree's origin), checked in CZ; every Studio
 panel a dock window (`studio/docks.py`), Inspector, Hierarchy, Place with drag and drop
 (`studio/maps_panels.py`), arrow-key nudging. Owed: CW building checks, collision for
-copies (`docs/phase11-kickoff.md` §Status). Phase 12 (user-set 2026-10-12, planned, not
-started): your own weapons (effects, grip), combo weapons, buildings, maps
+copies (`docs/phase11-kickoff.md` §Status). Phase 12 (user-set 2026-10-12, started the
+same day): your own weapons (effects, grip), combo weapons, buildings, maps
 (`docs/phase12-kickoff.md`; decisions taken: all defaults, combo cards always new with a
-changeable picture; next: its in-game tests T1-T5).** Read these before writing code:
+changeable picture). T1 done in game (CZ): shock = `Can_Electrocute`, fire / freeze = a
+child `cPropHitZombieInfoItem` with `PropHitZombieEffect` 0 / 1, effect numbers = an
+index into the executable's effect table (`formats.md` §Weapons). Next: find which added
+file (new packs, card textures, string ids) stalled the street's load, then T2-T5.** Read these before writing code:
 
 | Doc | What it holds |
 |---|---|
 | `docs/ARCHITECTURE.md` | Components, data flow, the asset index, the mod package format, stack choices |
 | `docs/formats.md` | Everything known about every file format, with a status per format (cracked / partial / unknown) |
-| `docs/phase12-kickoff.md` | Phase 12 (planned, not started: your own weapons with effects, combo weapons, buildings, maps): research (weapon keys, combo cards, grip locators, level slots), unknowns and the in-game tests to do first, plan, decisions, gate |
+| `docs/phase12-kickoff.md` | Phase 12 (started: your own weapons with effects, combo weapons, buildings, maps): research (weapon keys, combo cards, grip locators, level slots), unknowns and the in-game tests to do first, plan, decisions, gate, §Status |
 | `docs/phase11-kickoff.md` | Phase 11 (edit levels: zombie spawns, objects; add your own things from prefabs; saved as `.edits.json` mods): research, plan, gate, §Status (what was measured in game, what it still owes) |
 | `docs/phase10-kickoff.md` | Phase 10 (Maps: see a whole level, extract it, see your mods in it without the game): research, plan, gate, and §Status (what it still owes) |
 | `docs/phase9-kickoff.md` | Phase 9 (variants: one look per model, export as shown or organized): research, plan, gate, and §Status (what it still owes) |

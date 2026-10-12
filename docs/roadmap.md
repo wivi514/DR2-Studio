@@ -295,8 +295,8 @@ placements; phase 11 changes them.
 - **Gate:** every level text file round-trips byte-identical; each edit kind made in
   Studio, checked by `dr2 mod check`, and seen in the recomp in both games.
 
-## Phase 12 (planned): make your own weapons, combo weapons, buildings and maps (user, 2026-10-12)
-Researched 2026-10-12, not started: [`phase12-kickoff.md`](phase12-kickoff.md).
+## Phase 12 (started): make your own weapons, combo weapons, buildings and maps (user, 2026-10-12)
+Researched and started 2026-10-12: [`phase12-kickoff.md`](phase12-kickoff.md) (§Status). T1 measured in game: shock = `Can_Electrocute`, fire / freeze = a child `cPropHitZombieInfoItem` (`PropHitZombieEffect` 0 / 1); `Fire` and `Can_Freeze` alone don't act on zombies.
 **Decisions (user, 2026-10-12): every proposed default; a combo weapon always gets a new
 card whose picture the modder can change.** Early in-game tests first.
 - A **weapon wizard**: kind (sword, knife, blunt, pole, big two-hand, thrown, spray, gun),

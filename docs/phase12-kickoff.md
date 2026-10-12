@@ -267,6 +267,18 @@ copy of their save or a new game (memory: *Protect the user's saves*).
 * Borrowed moves (T1d) and T2 / T3 not seen yet: the first test mod's added files stalled
   the load (formats.md §Weapons, "New items' files and the endless loading"); find the
   cause first.
+* How the tests are made: small mods in the session scratchpad, linked into the user's
+  library (`dr2 mod link`), deployed with `dr2 play -g cz --deploy-only`, the recomp
+  started for the user. **Place test items on open floor checked against the zone's
+  collision** (`convert.level.zone_collision`: a ray down for the floor, nothing solid up
+  to 2 m around): a spot picked by eye was inside a wall. The safehouse exit
+  (`cSpawnPoint AlternateExit`, Chuck at -282.1, 3.4, -38.9) is where the user starts;
+  open floor at x -280…-276, z -40…-31.
+* **Library state (2026-10-12, 03:30):** `keep-cz-test-save`, `keep-cw-test-save`, `test_01`,
+  `my_mod` on; the user's `test_01_2`, `test_01_3` (their placed items, building edits)
+  **disabled for the tests: turn them back on afterwards**; the test mod `p12-elements`
+  (Broadsword / Bowie Knife / Chef Knife changed, placed at the safehouse exit) linked
+  from the scratchpad and deployed: remove it when the tests are done.
 
 ## Start here (handoff)
 
