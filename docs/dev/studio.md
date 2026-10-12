@@ -311,7 +311,7 @@ item's **Item** (a completer of `items.txt`), **Position** (`ed_pos`), **Rotatio
 (`ed_rot`, degrees in three.js's `'YXZ'` order, `maps_edit.euler_of` / `quat_of_euler`;
 `ed_turn` is its y, the only one a zombie has) and **Size** (`ed_scale`, buildings only)
 fields, the *Move / Turn / Size* mode buttons (`dr2.setGizmo`), *Whole building*
-(`whole_box`) and *Part of* (`part_of`), *Turn handles tilt too* (`dr2.setRotateAll`),
+(`whole_box`) and *Part of* (`part_of`), *Turn handles for every axis* (`dr2.setRotateAll`),
 *Onto floor*, *Copy*, *Delete* / *Show*, *Put back*, *Add item…*, *Undo*, *Redo*. The
 turn handles show all three rings by default (the user, 2026-10-12; a zombie only the up
 one). Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z are also window-wide `QShortcut`s

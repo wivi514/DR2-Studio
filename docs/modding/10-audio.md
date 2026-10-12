@@ -27,7 +27,7 @@ That is also why sound mods work in the recomps only, not on Xenia or a console.
 3. The middle shows the waveform (one lane per channel: L and R here). Click **Play** to
    listen, click anywhere on the waveform to jump there, **Stop** to stop. A shaded area
    is the part the game loops; tick **Loop** to hear it repeat.
-   The right panel says what it is (stereo, 48000 Hz) and, under **Related**, which game
+   The **Details** panel says what it is (stereo, 48000 Hz) and, under **Related**, which game
    events play it. For sound effects, the related list shows the `.sfx` that use the
    recording; double-click one to see its event names.
 4. To keep a copy, click **Export WAV…**.
