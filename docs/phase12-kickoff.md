@@ -272,3 +272,12 @@ copy of their save or a new game (memory: *Protect the user's saves*).
 - **Decisions are taken** (all defaults; combo cards always new, picture changeable).
   **First:** T1-T5 (each a small mod the user plays; T2 also adds the two card textures),
   then the plan's steps in order.
+- **State at handoff (2026-10-12):** the user starts T1-T5 in a fresh conversation. Their
+  mod library holds `keep-cz-test-save`, `keep-cw-test-save` (they keep the user's test
+  saves loadable: leave them on) and `test_01`; CZ's `game_mods/` holds those (deployed
+  2026-10-12 00:09); no test mod of the toolkit is linked or deployed. Make each test a
+  mod in the scratchpad, `dr2 mod link` it, `dr2 play -g cz` for the user, and afterwards
+  `dr2 mod remove <id>` + `dr2 play -g cz --deploy-only` (the library and the game back as
+  they were). T4 is two tests (T4a the look as a level piece, T4b the collision as an
+  invisible item). Tell the user up front which visible changes each test makes on
+  purpose.
