@@ -34,6 +34,12 @@ files):
   mod is built (`mods.newitem.build_card`) from ``sources/<Name>_card.png`` (rendered from
   the model, `convert.icon.card_portrait`, or the modder's own).
 
+Effects **on the weapon** (while held, while swinging) sit at the model's locator type 16
+(``LOC_particle_pos``); the wizard moves it (the recipe's ``locators``,
+`convert.weapon_fit.effect_locator`) to just above the hand with +y toward the tip, so an
+effect made along +y runs along the blade: the game weapon's own is turned across the
+blade (the Broadsword's: the flame hung down from the held sword, user, 2026-10-12).
+
 Measured in game (phase 12): borrowed moves, the hands at the model's grip nodes, the
 three elements, conditions 30/31, a card in the result's block, new packs loading
 (phase 13: the "stall" of phase 12's test mod did not come back, docs/formats.md
@@ -65,6 +71,21 @@ NO_TEXT_BANKS = ("id",)            # str_id.bcs holds labels, not text
 CARD_ITEMS_SOURCE = "items"
 
 
+ON_WEAPON = ("held", "swinging")     # effect slots drawn at the weapon's locator 16
+
+# How shiny the weapon is: the four material values (MatArray +16) of a game weapon of the
+# same shader (LIT_CM2DDL_NM_RMX_SPEC), copied. Their meanings are not measured one by one
+# (docs/formats.md §Weapons); the 3rd seems to be the reflection: the Broadsword's 1.0
+# turned Frostmourne's dark WoW picture black and gold in the sunset, the Lead Pipe's
+# values showed the same picture right (CZ, 2026-10-12).
+SHINES = {
+    "game": ("The game weapon's", None),
+    "matte": ("Matte (like the Baseball Bat)", (400.0, 0.0, 0.5, 1.0)),
+    "little": ("A little (like the Lead Pipe)", (4244.44, 0.2, 0.15, 1.0)),
+    "mirror": ("Mirror (like the Broadsword)", (911.111, 0.7, 1.0, 1.0)),
+}
+
+
 @dataclass
 class Combo:
     """A combo recipe: ``items`` combined at a workbench make the weapon."""
@@ -89,6 +110,8 @@ class WeaponSpec:
     durability: int | None = None
     element: str = "none"
     effects: dict[str, int] = field(default_factory=dict)   # slot -> effect number
+    effect_start: float = 0.10      # effects on the weapon: metres from the hand to the tip
+    shine: str = "game"             # SHINES: the material values of a game weapon
     icon: str = "auto"              # "auto" (rendered), a PNG, or "keep"
     combo: Combo | None = None
 
@@ -244,6 +267,13 @@ def make_weapon(tree: AssetTree, game: str, mod_dir: str | Path, spec: WeaponSpe
         recipe["icon"] = icon_file.name
         recipe["icon_name"] = f"w_{name.lower()}"
         made.files.append(icon_file)
+    if spec.shine not in SHINES:
+        raise Dr2Error(f"shine {spec.shine!r}: {', '.join(SHINES)}")
+    if SHINES[spec.shine][1] is not None:
+        recipe["material_params"] = list(SHINES[spec.shine][1])
+    if any(slot in spec.effects for slot in ON_WEAPON):     # effects along the blade
+        pos, rot = wf.effect_locator(frame, spec.effect_start)
+        recipe["locators"] = {str(wf.EFFECT_LOCATOR): {"position": pos, "rotation": rot}}
     out = root.joinpath(ADD_DIR, *split(placed.STREAMED), f"{name}.big{COPY_EXT}")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(recipe, indent=1) + "\n", "utf-8")
@@ -453,11 +483,36 @@ def preview(tree: AssetTree, game: str, spec: WeaponSpec, sources: Path | None =
         pic = render.render(m.parts + marks, width=w, height=h, basis=basis, fill=0.92)
         if pic is not None:
             side = pic
+    if any(slot in spec.effects for slot in ON_WEAPON):     # where weapon effects go
+        line = render.render([_effect_line(m.frame, spec.effect_start), _frame_box(m)],
+                             width=w, height=h, basis=basis, fill=0.92)
+        if line is not None:
+            on = line[..., 3] > 0
+            side[on] = line[on]
     pic_icon = cicon.weapon_icon(m.parts, m.frame) if spec.icon != "keep" else None
     card = None
     if spec.combo:
         card = _card_preview(tree, m, spec)
     return Preview(side, pic_icon, card, m.notes)
+
+
+def _effect_line(frame, start: float, length: float = 0.7):
+    """A thin yellow bar where the effects on the weapon go: from their point
+    (`convert.weapon_fit.effect_locator`) ``length`` metres along +y (the way the Flaming
+    Sword's flame runs), for the preview."""
+    import numpy as np
+    from ..convert import render
+    from ..convert import weapon_fit as wf
+    pos, _ = wf.effect_locator(frame, start)
+    a = np.asarray(pos, np.float32)
+    b = a + np.asarray(frame.axis, np.float32) * length
+    t = np.asarray(frame.side, np.float32) * 0.006 + np.asarray(frame.thin, np.float32) * 0.006
+    u = np.asarray(frame.side, np.float32) * 0.006 - np.asarray(frame.thin, np.float32) * 0.006
+    p = np.array([a + t, a - t, b - t, b + t, a + u, a - u, b - u, b + u], np.float32)
+    tri = np.array([[0, 1, 2], [0, 2, 3], [4, 5, 6], [4, 6, 7]], np.int32)
+    cyan = np.zeros((2, 2, 4), np.float32)
+    cyan[...] = (1.0, 0.85, 0.1, 1.0)
+    return render.Part(p, tri, None, np.zeros((8, 2), np.float32), cyan)
 
 
 def _frame_box(m: ModelFit):

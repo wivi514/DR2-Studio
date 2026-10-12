@@ -17,6 +17,23 @@ Entry template:
 
 ---
 
+## 2026-10-12 — Phase 13 in game with the user: the effect point, Shine; 13.2 planned
+**Done:** fixes from the user's windowed tests of the gate's Frostmourne: laid flat on
+measured floor (it stood sunk in the street); the wizard turns the effect point (locator
+16) along the blade in both `LocatorArray` copies (the game reads the one in
+`persistent.big`): the aura then ran along the blade; *Weapon effects start* with a yellow
+line in the preview; *Shine* (a game weapon's material values); WoW model pictures made
+opaque; `dr2 studio --mod --weapon`; the gate script forgets the link Studio makes to its
+temporary mod. The user's library: `frostmourne` (local only, WoW model) installed and
+deployed; `p12-elements` switched off (same card number).
+**Why:** the user's in-game checks ("not on the right side", "texture gone bad").
+**Learned:** formats.md §Weapons "Locators and the effect point" (two copies, record
+layout, material values).
+**Docs updated:** formats.md, guides 12, 20, 22, glossary, code tour, phase13-kickoff
+(§Phase 13.2, §Status, §Start here), roadmap.
+**Next:** phase 13.2 in a fresh conversation (the user's request: effects in 3D on the
+weapon in Chuck's hand, to align).
+
 ## 2026-10-12 — Phase 13: guides 21-22, WoW particles, the gate through Studio, Case West
 **Done:** guide 21 (effects) and the docs owed for step 6; `dr2 effects --free`; the
 `layout` effect change; `tools/wow_import.py` (WoW 3.3.5 `.m2` / `.skin` / BLP → `.glb`,

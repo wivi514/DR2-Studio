@@ -58,7 +58,10 @@ python tools/wow_import.py model wow/Sword_2H_Frostmourne_D_01.m2 --wow "<WoW>/D
 writes a `.glb` with one mesh per part and its texture; `--wow` lets it find the textures
 in the archives. A weapon's own texture is named by WoW's item tables, not by the model:
 the tool tries `<model name>.blp` in the model's folder (right for WoW's weapons); give
-another with `--texture <path in the archives>`. Then step 5 above.
+another with `--texture <path in the archives>`. The pictures are made opaque (WoW keeps a
+shine mask in their alpha). Then step 5 above, with **Shine** → *A little*: WoW's
+pictures are dark and count on WoW's glow; the Broadsword's mirror shine made
+Frostmourne's blade black in DR2.
 
 To find a model's path, use a WoW file browser (the community's MPQ viewers list every
 file). Only 3.3.5's `.m2` (version 264) is read; later versions are refused, saying so.
@@ -74,6 +77,9 @@ python tools/wow_import.py effect wow/Sword_2H_Frostmourne_D_01.m2 my-mod -g cz 
 ```
 
 It prints the effect's number (e.g. `your effect number 6`) and marks the mod local only.
+Give `--length` the DR2 weapon's length (the Broadsword: 1.25) and `--at` where the
+weapon's effect point is, in metres from the handle's end (a wizard sword: 0.31), so the
+emitters land where they sat on the WoW model.
 Put that number on your weapon: **New weapon…** → *Effect: while held* (your effects are
 listed first), or `dr2 mod new-weapon my-mod Frostmourne … --held 6`.
 

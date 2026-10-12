@@ -127,9 +127,90 @@ def build_copy(tree: AssetTree, recipe: dict, mod_root: Path, where: str = "") -
                     break
             if not done:
                 raise Dr2Error(f"{pre}no texture {tex!r} in the copied pack")
+    if recipe.get("material_params"):
+        e = next((x for x in pack.entries if scene_name and
+                  x.name.lower() == f"{scene_name.lower()}.big"), None)
+        if e is None:
+            raise Dr2Error(f"{pre}no scene {scene_name}.big in the copied pack")
+        e.set_data(set_material_params(e.data(), recipe["material_params"], pre))
+    if recipe.get("locators"):
+        e = next((x for x in pack.entries if scene_name and
+                  x.name.lower() == f"{scene_name.lower()}.big"), None)
+        if e is None:
+            raise Dr2Error(f"{pre}no scene {scene_name}.big in the copied pack")
+        e.set_data(set_locators(e.data(), recipe["locators"], pre))
     if recipe.get("icon") or recipe.get("icon_name"):
         _set_icon(pack, recipe, sources, pre)
     return pack.to_bytes()
+
+
+def set_material_params(scene_data: bytes, params, pre: str = "") -> bytes:
+    """A model archive whose textured materials get these four values (``MatArray``
+    record +16, `formats.scene.Material.params`; how shiny: `newweapon.SHINES`)."""
+    import struct
+    from ..formats.scene import MAT_RECORD
+    if len(params) != 4:
+        raise Dr2Error(f"{pre}material_params: four numbers")
+    arc = BigArchive.parse(scene_data, "scene")
+    e = next((x for x in arc.entries if x.name == "MatArray"), None)
+    if e is None:
+        raise Dr2Error(f"{pre}the model has no materials")
+    data = bytearray(e.data())
+    for o in range(0, len(data), MAT_RECORD):
+        if struct.unpack_from(">I", data, o + 8)[0]:          # has texture slots
+            struct.pack_into(">4f", data, o + 16, *map(float, params))
+    e.set_data(bytes(data))
+    return arc.to_bytes()
+
+
+LOCATOR_RECORD = 52                  # type, position, rotation x y z w, five words
+
+
+def set_locators(scene_data: bytes, locators: dict, pre: str = "") -> bytes:
+    """A model archive with locators moved: ``{"16": {"position": [x, y, z],
+    "rotation": [x, y, z, w]}}`` by locator type. Each ``LocatorArray`` record of that
+    type (type, position, rotation, five words; docs/formats.md §Weapons), in the model
+    archive **and in its nested ``persistent.big``** (the copy the game keeps loaded:
+    changing only the first did nothing in game, CZ 2026-10-12), and the node record at
+    the same place (``LOC_particle_pos`` for 16) get the new values, so all stay in step."""
+    arc = BigArchive.parse(scene_data, "scene")
+    _set_locators(arc, locators, pre)
+    inner = next((e for e in arc.entries if e.name.lower() == "persistent.big"), None)
+    if inner is not None:
+        sub = BigArchive.parse(inner.data(), "persistent.big")
+        if any(e.name == "LocatorArray" for e in sub.entries):
+            _set_locators(sub, locators, pre)
+            inner.set_data(sub.to_bytes())
+    return arc.to_bytes()
+
+
+def _set_locators(arc: BigArchive, locators: dict, pre: str) -> None:
+    import struct
+    from ..formats.scene import NODE_RECORD, Node
+    by = {e.name: e for e in arc.entries}
+    if "LocatorArray" not in by or "NumLocatorArray" not in by:
+        raise Dr2Error(f"{pre}the model has no locators")
+    data = bytearray(by["LocatorArray"].data())
+    count = struct.unpack(">I", by["NumLocatorArray"].data()[:4])[0]
+    nodes = [(e, Node.parse(e.name, e.data())) for e in arc.entries
+             if len(e.data()) == NODE_RECORD and not e.name.startswith("_")]
+    for kind, where in locators.items():
+        pos, rot = list(map(float, where["position"])), list(map(float, where["rotation"]))
+        hit = False
+        for i in range(count):
+            at = i * LOCATOR_RECORD
+            if struct.unpack_from(">I", data, at)[0] != int(kind):
+                continue
+            old = struct.unpack_from(">3f", data, at + 4)
+            struct.pack_into(">3f4f", data, at + 4, *pos, *rot)
+            for e, n in nodes:
+                if max(abs(a - b) for a, b in zip(n.translation, old)) < 1e-4:
+                    n.translation, n.rotation = tuple(pos), tuple(rot)
+                    e.set_data(n.to_bytes())
+            hit = True
+        if not hit:
+            raise Dr2Error(f"{pre}the model has no locator of type {kind}")
+    by["LocatorArray"].set_data(bytes(data))
 
 
 def _set_icon(pack: BigArchive, recipe: dict, sources: Path, pre: str) -> None:

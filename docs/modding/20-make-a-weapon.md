@@ -14,7 +14,8 @@ a mod ([`06-mod-packages.md`](06-mod-packages.md)), and a model as a `.glb` if y
 > game: moves borrowed from another weapon, the hands at the model's grip nodes, fire,
 > freeze and shock, effects on the weapon while held or swung, a combo card (all in Case
 > Zero, phase 12), and a wizard-made sword standing in Case Zero's street (headless,
-> 2026-10-12). **Not yet seen in game:** the new icon in the inventory, the new card
+> 2026-10-12). Seen by the user (2026-10-12, windowed): a wizard Frostmourne picked up and
+> held, its aura running along the blade. **Not yet seen in game:** the new icon in the inventory, the new card
 > picture, picking the weapon up and swinging it, and anything in Case West. Tell us what
 > you see.
 
@@ -59,6 +60,10 @@ diamonds) so you can slide it until the handle is in the hands.
      end*.
    * **Length** (0 = the game weapon's), **Turn about its length** (try 90°), **Slide**
      (moves it along: + towards the tip) until the hands sit on the handle.
+   * **Shine**: how much it shines and reflects the sky. *The game weapon's*, or like the
+     Baseball Bat (*Matte*), the Lead Pipe (*A little*) or the Broadsword (*Mirror*).
+     **A dark model looks best with *A little*:** the Broadsword's mirror shine turns
+     dark parts black and gold in the evening light.
 6. **Damage per hit** (the Broadsword hits for 125) and **Durability** (hits before it
    breaks; the Broadsword lasts 40). 0 keeps the game weapon's.
 7. **Element**: *Fire* sets zombies on fire, *Freeze* freezes them (a thrown weapon
@@ -66,7 +71,9 @@ diamonds) so you can slide it until the handle is in the hands.
 8. **Effects** (particles; they only change what you see):
    * *on impact*: where it hits; *on the zombie hit*: on the zombie;
    * *while held*: on the weapon all the time; *while swinging*: a trail.
-   Type to search (`snow`, `fire`, `spark`…). Each is listed by group; ✓ marks the ones
+   **Weapon effects start**: where the effects *while held* / *while swinging* begin,
+   in metres from the hand toward the tip; they run along the blade from there (the
+   **yellow bar** in the preview). Type to search (`snow`, `fire`, `spark`…). Each is listed by group; ✓ marks the ones
    checked in game; hover to see what the game uses it for. "Keeps going" or "burst"
    (read from the effect's name, a guess) helps choose: a trail or an aura should keep
    going. **Careful:** some are a whole room's effect (286 `dryice_env_c_3` is a fog the
@@ -96,6 +103,8 @@ dr2 mod new-weapon my-mod FrostBlade --kind sword --glb sample \
     --damage 150 --element freeze --impact 181 --held snowtrail_wpn_bs_1 \
     --combo Broadsword+FireExtinguisher --card-text-en "A blade of ice." -g cz
 dr2 mod new-weapon my-mod FrostBlade --slide 0.05 --turn 90      # change only these
+dr2 mod new-weapon my-mod FrostBlade --shine little --effect-start 0.15
+dr2 studio --mod my-mod --weapon FrostBlade      # open Studio on the weapon's window
 dr2 level edit my-mod prologue add "cItemPlacement MyFrostBlade" \
     ItemName=FrostBlade Location=-278,3.6,-36
 dr2 play -g cz
@@ -139,6 +148,9 @@ game's weapon. Make a second mod for the other game.
 | "is already an item of the game" | the item name is taken | pick another name |
 | "now a mod for CZ only" | weapons are made per game | make another mod for Case West |
 | The effect fills the screen | it is a level effect | pick a small one (✓ marks the checked ones) |
+| The aura hangs down from the blade instead of running along it | a weapon made before 2026-10-12 (the game weapon's effect point is turned across the blade) | *Make weapon* again: the wizard now turns it along the blade |
+| The aura starts too low or too high on the blade | its start point | **Weapon effects start** (the yellow bar) |
+| Dark parts of the model look black, or gold at sunset | the Broadsword's mirror-like shine reflects the sky | **Shine** → *A little* |
 
 More in [`12-troubleshooting.md`](12-troubleshooting.md).
 

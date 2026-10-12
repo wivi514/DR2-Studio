@@ -990,8 +990,8 @@ def _cmd_weapon(args, tree, loc) -> int:
     for lang, text in (("en", args.name_en), ("fr", args.name_fr)):
         if text:
             spec.names[lang] = text
-    for key in ("handle", "length", "turn", "slide", "damage", "durability", "element",
-                "icon"):
+    for key in ("handle", "length", "turn", "slide", "effect_start", "shine", "damage",
+                "durability", "element", "icon"):
         v = getattr(args, key)
         if v is not None:
             setattr(spec, key, v)
@@ -1250,8 +1250,13 @@ def cmd_studio(args) -> int:
         from ..studio.app import main as studio_main
     except ImportError as e:
         raise Dr2Error(f"DR2 Studio needs PySide6: pip install 'dr2kit[studio]' ({e})") from None
-    return studio_main(args.files, game=args.game if args.map else None,
-                       map_level=args.map, at=args.at)
+    game = args.game if (args.map or args.mod) else None
+    if args.mod and not game:
+        from ..mods.manifest import Mod
+        games = Mod.load(args.mod).games
+        game = games[0] if len(games) == 1 else None
+    return studio_main(args.files, game=game, map_level=args.map, at=args.at,
+                       mod=args.mod, weapon=args.weapon)
 
 
 # ---- census ---------------------------------------------------------------------------
@@ -1562,6 +1567,11 @@ def build_parser() -> argparse.ArgumentParser:
     pm.add_argument("--length", type=float, help="its length in metres (default: the game "
                     "weapon's)")
     pm.add_argument("--turn", type=float, help="spin it about its length (degrees)")
+    pm.add_argument("--shine", choices=["game", "matte", "little", "mirror"],
+                    help="how shiny: the game weapon's, or like the Baseball Bat (matte), "
+                         "the Lead Pipe (little) or the Broadsword (mirror)")
+    pm.add_argument("--effect-start", type=float, help="effects while held / swinging start "
+                    "this far from the hand toward the tip (metres, default 0.10)")
     pm.add_argument("--slide", type=float, help="move it along its length (metres, + toward "
                     "the tip): where the hands hold it")
     pm.add_argument("--damage", type=int, help="damage per attack (Broadsword 125)")
@@ -1725,6 +1735,8 @@ def build_parser() -> argparse.ArgumentParser:
                    "(prologue, living_research…; with -g for the game)")
     p.add_argument("--at", metavar="X,Y,Z[,HEADING]",
                    help="with --map: put the camera there (heading in degrees)")
+    p.add_argument("--mod", metavar="FOLDER", help="open this mod")
+    p.add_argument("--weapon", metavar="NAME", help="with --mod: open its wizard weapon")
     game_opt(p)
     p.set_defaults(func=cmd_studio)
 

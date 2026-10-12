@@ -219,6 +219,40 @@ def grip_node(scene) -> "np.ndarray | None":
     return None
 
 
+EFFECT_LOCATOR = 16             # PropEffectLocator of the effects on the weapon (conditions 30/31)
+EFFECT_START = 0.10             # metres from the right-hand grip toward the tip
+
+
+def effect_locator(frame: Frame, start: float = EFFECT_START
+                   ) -> tuple[list[float], list[float]]:
+    """Where a weapon's effects sit (locator type 16, ``LOC_particle_pos``) so that an
+    effect made along its +y (the Flaming Sword's flame, 0 → 0.7 m in y) runs along the
+    blade: at the right-hand grip + ``start`` metres toward the tip (or a quarter of the
+    way up without a grip node), +y toward the tip, +x across the thin side, +z across the
+    wide side. Measured in game (CZ, 2026-10-12): the Broadsword's own locator is turned
+    180° about the blade (its +y across the blade), so the flame hung straight down from
+    a held sword; the game reads the copy in the model's ``persistent.big``. Returns
+    (position, rotation x y z w)."""
+    _need_numpy()
+    base = (frame.grip if frame.grip is not None
+            else frame.handle + frame.axis * 0.25 * frame.length)
+    pos = base + frame.axis * start
+    r = np.column_stack([frame.thin, frame.axis, frame.side])   # columns: local x, y, z
+    if np.linalg.det(r) < 0:
+        r[:, 2] = -r[:, 2]
+    w = np.sqrt(max(0.0, 1 + r[0, 0] + r[1, 1] + r[2, 2])) / 2
+    if w > 1e-4:
+        q = [(r[2, 1] - r[1, 2]) / (4 * w), (r[0, 2] - r[2, 0]) / (4 * w),
+             (r[1, 0] - r[0, 1]) / (4 * w), w]
+    else:                                   # a half turn: the largest diagonal leads
+        i = int(np.argmax(np.diag(r)))
+        j, k = (i + 1) % 3, (i + 2) % 3
+        s = np.sqrt(max(0.0, 1 + r[i, i] - r[j, j] - r[k, k])) * 2
+        q = [0.0, 0.0, 0.0, (r[k, j] - r[j, k]) / s]
+        q[i], q[j], q[k] = s / 4, (r[j, i] + r[i, j]) / s, (r[k, i] + r[i, k]) / s
+    return [float(v) for v in pos], [float(v) for v in q]
+
+
 def _node_points(scene, words) -> list:
     nodes = scene.skeleton.nodes
     if not nodes:

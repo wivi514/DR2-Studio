@@ -165,6 +165,8 @@ More in [`16-library.md`](16-library.md#if-something-went-wrong).
 | `a weapon shape takes at most 65,535` | The model has too many vertices for one shape | Blender: *Decimate* ([`15-limits.md`](15-limits.md)) |
 | `N new id(s) … nothing shows them until a layout or script names them` (when building) | The note is about string ids in general; the weapon's block names them | Nothing to do |
 | An effect fills the screen | It is a level's effect (fog, smoke) | Pick another: ✓ marks the ones checked on a weapon |
+| The aura hangs down from the held weapon | Made before the wizard turned the effect point along the blade | *New weapon…* → your weapon → *Make weapon* again |
+| The model's dark parts look black or gold | The Broadsword's mirror shine | *Shine* → *A little* |
 
 ## Particle effects (phase 13)
 

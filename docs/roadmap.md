@@ -346,6 +346,12 @@ read and written, own effects in the table's 36 free slots, own particle picture
 Studio's own windows in both games (`tools/weapon_gate.py`). State: `phase13-kickoff.md`
 §Status.
 
+## Phase 13.2 (planned, user 2026-10-12): effects in 3D, on the weapon in Chuck's hand
+`phase13-kickoff.md` §Phase 13.2: the wizard weapon in a 3D view with its effects playing
+(a particle system from the effect's emitters), also in *Effects…*; Chuck holding it in a
+still pose; handles to slide / turn the weapon and move the effect point. Gate: aligned in
+Studio, the same in game.
+
 ## Phase 14 (planned): buildings and maps of your own, animations
 Phase 13's step 9, carried from phase 12 (`phase12-kickoff.md` T4-T6, plan steps 6-8):
 a `.glb` building as a new level piece with its collision as an invisible item, maps in

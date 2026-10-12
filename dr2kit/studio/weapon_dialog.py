@@ -159,6 +159,20 @@ class WeaponDialog(QDialog):
         self.slide.setDecimals(2)
         self.slide.setSingleStep(0.02)
         self.slide.setSuffix(" m")
+        self.fx_start = QDoubleSpinBox()
+        self.fx_start.setRange(-0.5, 1.5)
+        self.fx_start.setDecimals(2)
+        self.fx_start.setSingleStep(0.05)
+        self.fx_start.setSuffix(" m")
+        self.fx_start.setValue(0.10)
+        self.fx_start.setToolTip("Effects while held / while swinging start this far from the "
+                                 "hand toward the tip and run along the blade (the yellow bar "
+                                 "in the preview)")
+        self.shine = QComboBox()
+        for sid, (label, _v) in nw.SHINES.items():
+            self.shine.addItem(label, sid)
+        self.shine.setToolTip("How much the weapon shines and reflects the sky (a game "
+                              "weapon's material values). Dark models look best with a little.")
         self.damage = QSpinBox()
         self.damage.setRange(0, 100000)
         self.damage.setSpecialValueText("the game weapon's")
@@ -217,12 +231,14 @@ class WeaponDialog(QDialog):
         form.addRow("Length", self.length)
         form.addRow("Turn about its length", self.turn)
         form.addRow("Slide (where the hands hold it)", self.slide)
+        form.addRow("Shine", self.shine)
         form.addRow("Damage per hit", self.damage)
         form.addRow("Durability (hits)", self.durability)
         form.addRow("Element", self.element)
         for slot, s in weapons.slots().items():
             self.fx[slot].setToolTip(s["description"])
             form.addRow(f"Effect: {s['name'].lower()}", self.fx[slot])
+        form.addRow("Weapon effects start", self.fx_start)
         irow = QHBoxLayout()
         irow.addWidget(self.icon, 1)
         irow.addWidget(b_icon)
@@ -306,10 +322,13 @@ class WeaponDialog(QDialog):
         lay.addLayout(top, 1)
         lay.addLayout(brow)
 
-        for w in (self.kind, self.model, self.handle, self.element, self.icon, self.card_pic):
+        for w in (self.kind, self.model, self.handle, self.element, self.icon, self.card_pic,
+                  self.shine):
             w.currentIndexChanged.connect(lambda _i: self._changed())
-        for w in (self.length, self.slide):
+        for w in (self.length, self.slide, self.fx_start):
             w.valueChanged.connect(lambda _v: self._changed())
+        for box in self.fx.values():
+            box.currentIndexChanged.connect(lambda _i: self._changed())
         self.turn.valueChanged.connect(lambda _v: self._changed())
         self.combo.toggled.connect(lambda _v: self._changed())
         for w in (self.item1, self.item2):
@@ -357,7 +376,9 @@ class WeaponDialog(QDialog):
         return nw.WeaponSpec(name=name, kind=self.kind.currentData(), names=names, model=model,
                              handle=self.handle.currentData(),
                              length=self.length.value() or None, turn=float(self.turn.value()),
-                             slide=self.slide.value(), damage=self.damage.value() or None,
+                             slide=self.slide.value(), effect_start=self.fx_start.value(),
+                             shine=self.shine.currentData(),
+                             damage=self.damage.value() or None,
                              durability=self.durability.value() or None,
                              element=self.element.currentData(), effects=effects, icon=icon,
                              combo=combo)
@@ -386,6 +407,8 @@ class WeaponDialog(QDialog):
         self.length.setValue(s.length or 0)
         self.turn.setValue(int(s.turn))
         self.slide.setValue(s.slide)
+        self.fx_start.setValue(s.effect_start)
+        self.shine.setCurrentIndex(max(self.shine.findData(s.shine), 0))
         self.damage.setValue(s.damage or 0)
         self.durability.setValue(s.durability or 0)
         self.element.setCurrentIndex(max(self.element.findData(s.element), 0))

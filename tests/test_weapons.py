@@ -132,6 +132,17 @@ def _parts():
                         img.astype(np.float32) / 255)]
 
 
+def test_effect_locator_runs_along_the_blade():
+    import numpy as np
+    from dr2kit.formats.scene import quat_rotate
+    frame = wf.Frame(np.array([0, 0, -0.3]), np.array([0.0, 0, 1]), np.array([0.0, 1, 0]),
+                     np.array([-1.0, 0, 0]), 1.2, grip=np.array([0.01, 0, -0.11]))
+    pos, rot = wf.effect_locator(frame, 0.1)
+    assert pos == pytest.approx([0.01, 0, -0.01])
+    assert quat_rotate(rot, (0, 1, 0)) == pytest.approx((0, 0, 1), abs=1e-6)  # +y → the tip
+    assert sum(v * v for v in rot) == pytest.approx(1.0)
+
+
 def test_weapon_icon():
     pic = icon.weapon_icon(_parts(), _frame())
     assert pic.shape == (64, 128, 4)
@@ -188,7 +199,8 @@ def test_make_weapon_builds(game, game_root, tmp_path):
                          names={"en": "Test Blade", "fr": "Lame d'essai"}, model="sample",
                          damage=150, element="freeze",
                          effects={"impact": 181, "held": "snowtrail_wpn_bs_1"},
-                         combo=nw.Combo(["BowieKnife", "FireExtinguisher"]))
+                         combo=nw.Combo(["BowieKnife", "FireExtinguisher"]),
+                         shine="little", effect_start=0.12)
     made = nw.make_weapon(tree, game, mod, spec)
     assert manifest.Mod.load(mod).games == (game,)
     assert nw.weapons_of(mod) == ["TestBlade"]
@@ -214,6 +226,24 @@ def test_make_weapon_builds(game, game_root, tmp_path):
         bank = StringBank.parse(out.resolve(f"data/frontend/str_{lang}.bcs").data())
         assert bank.strings[made.string_ids["name"]] == want
     assert bank.strings[made.string_ids["card"]] == "TEST BLADE"
+    # the effect point (locator 16) along the blade in both copies, and the shine
+    import struct
+    from dr2kit.formats.scene import Scene
+    scene_e = next(e for e in BigArchive.parse(pack.data(), pack.vpath).entries
+                   if e.name.lower() == "testblade.big")
+    sc = BigArchive.parse(scene_e.data(), "s")
+    inner = BigArchive.parse(next(e for e in sc.entries if e.name == "persistent.big").data(),
+                             "p")
+    want = json.loads((mod / "add/data/streamedassets.big/TestBlade.big.copy.json")
+                      .read_text())["locators"]["16"]
+    for arc in (sc, inner):
+        data = next(e for e in arc.entries if e.name == "LocatorArray").data()
+        recs = [struct.unpack_from(">I3f4f", data, i) for i in range(0, len(data), 52)]
+        (r16,) = [r for r in recs if r[0] == 16]
+        assert r16[1:4] == pytest.approx(want["position"], abs=1e-5)
+        assert r16[4:8] == pytest.approx(want["rotation"], abs=1e-5)
+    assert [m.params for m in Scene.parse(scene_e.data(), "s").materials if m.slots] == \
+        [pytest.approx(nw.SHINES["little"][1])]
     cards = out.resolve("data/frontend/combocards.tex")
     cnames = {e.name for e in BigArchive.parse(cards.data(), cards.vpath).entries}
     assert {"comboc_testblade.bct", "comboc_testblade_no.bct"} <= cnames

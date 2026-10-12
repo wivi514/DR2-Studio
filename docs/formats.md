@@ -1722,6 +1722,34 @@ Sledgehammer's `LOC_rhand` is at y = 0.60 of a 0.99 m handle whose head is at y 
 `LOC_rhand1`, `LOC_rhand_frank`, `IK_lhand`, `LOC_lhand`, `LOC_WEP_<x>_R` / `_L`
 (names are `geo_<model>.<node>` in the scene).
 
+### Locators and the effect point ✅ (in game, CZ, 2026-10-12)
+
+A model's `LocatorArray` (with `NumLocatorArray`, a count) holds 52-byte big-endian records:
+`u32 type`, position `3f`, rotation `4f` (x y z w), then five words (0, an offset into the
+nested `__STRING_STORAGE__`, 0, 0, 0). The strings name a default effect per locator
+(`<None>`, or `beersplat_elm_bs_2` for the Broadsword's type 16). Types seen on the
+Broadsword and CW's Katana: 9 (right hand), 27 (left hand), 30 (slice), **16 (the particle
+point, `LOC_particle_pos`)**, 19 (stuck); the Lead Pipe has 27, 16, 9. Each record repeats
+a node record (same position and rotation). **There are two copies:** in the model
+archive and in its nested `persistent.big`, and **the game reads the `persistent.big`
+copy**: moving only the first one changed nothing in game; moving both did.
+
+`PropEffectLocator<n> = 16` puts an `items.txt` effect at locator type 16. The
+Broadsword's (and the Katana's) is mid-blade, **turned 180° about the blade**, so its +y
+points across the blade: the Flaming Sword's flame (its box 0 → 0.7 m along +y) hung
+straight down from a held Broadsword-based sword. The weapon wizard moves it to 0.10 m
+above the right-hand grip with +y toward the tip (`convert.weapon_fit.effect_locator`,
+the pack recipe's `locators`, `mods.newitem.set_locators`, both copies): the flame then ran
+along the blade in game (user, windowed, 2026-10-12).
+
+**Material values.** `MatArray` records (36 bytes) hold four floats at +16
+(`Material.params`). On `LIT_CM2DDL_NM_RMX_SPEC` weapons: Broadsword (911.1, 0.7, 1.0, 1),
+Lead Pipe (4244.4, 0.2, 0.15, 1), Baseball Bat (400, 0, 0.5, 1), Sledgehammer (200, 0.7,
+2.0, 1). The 3rd looks like the reflection of the `reflection_basic` sky map ❓: with
+the Broadsword's values, WoW Frostmourne's dark picture came out black and gold in the
+sunset; the same picture on the Lead Pipe (phase 12) looked right. The wizard's *Shine*
+copies one weapon's four values (`newweapon.SHINES`, recipe `material_params`).
+
 ### Combo card pictures: the shared frame ✅ (phase 13)
 
 Every card of a game shares its frame, the corner arrow, "X2 PP!", the drawing panel

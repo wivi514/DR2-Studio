@@ -230,7 +230,9 @@ def read_skin(data: bytes) -> tuple[list[int], list[Submesh], list[tuple[int, in
 def blp_to_png(data: bytes, particle: bool = False) -> bytes:
     """A ``.blp`` (Pillow reads BLP1/BLP2) as PNG bytes. ``particle``: alpha from the
     brightness and the colour brought to full brightness (WoW adds particles onto the
-    scene; DR2 needs the see-through part in the alpha)."""
+    scene; DR2 needs the see-through part in the alpha). Otherwise (a model's picture)
+    opaque: a WoW model picture's alpha is a shine / glow mask, not see-through, and kept
+    it darkened Frostmourne's blade in DR2 (user, 2026-10-12)."""
     from PIL import Image
     import numpy as np
     im = Image.open(io.BytesIO(data)).convert("RGBA")
@@ -241,6 +243,8 @@ def blp_to_png(data: bytes, particle: bool = False) -> bytes:
             rgb = a[..., :3] / np.maximum(lum[..., None], 1e-3)
             a = np.dstack([np.clip(rgb, 0, 1), lum])
         im = Image.fromarray((a * 255 + 0.5).astype("uint8"), "RGBA")
+    else:
+        im.putalpha(255)
     out = io.BytesIO()
     im.save(out, "PNG")
     return out.getvalue()
@@ -414,8 +418,9 @@ def model_frame(m2: M2, length_m: float) -> tuple[int, float, float]:
 
 
 def emitter_changes(p: Particle, axis: int, start: float, scale: float,
-                    picture: str | None) -> dict:
-    """The DR2 field values for one WoW emitter (module docstring)."""
+                    picture: str | None, at: float = 0.0) -> dict:
+    """The DR2 field values for one WoW emitter (module docstring); ``at``: how far along
+    the weapon (metres from its lowest end) the DR2 effect point sits."""
     others = [i for i in range(3) if i != axis]
     cols = []
     for t in KEY_AT:
@@ -425,7 +430,7 @@ def emitter_changes(p: Particle, axis: int, start: float, scale: float,
     life = max(p.lifespan, 0.05)
     sizes = [max(0.0, _sample(p.scale_times, p.scales, t)) * scale for t in KEY_AT]
     # DR2: y along the weapon (the Flaming Sword's box runs 0 → 0.7 m in y), x / z across
-    offset = [(p.position[others[0]]) * scale, (p.position[axis] - start) * scale,
+    offset = [(p.position[others[0]]) * scale, (p.position[axis] - start) * scale - at,
               (p.position[others[1]]) * scale]
     hl, hw = 0.5 * p.area_length * scale, 0.5 * p.area_width * scale
     ch = {"colours": cols,
@@ -445,7 +450,7 @@ BASE_EMITTER = 0                             # the slow smoke: a steady stream
 
 
 def import_effect(m2: M2, source: Source, tree, game: str, mod_dir: Path, length_m: float,
-                  slot=None, size: float = 1.0) -> tuple[int, list[str]]:
+                  slot=None, size: float = 1.0, at: float = 0.0) -> tuple[int, list[str]]:
     """Make the model's particle emitters one effect of your own in ``mod_dir`` (module
     docstring), ``size`` × every particle's size. Returns (its number, notes)."""
     from dr2kit.mods import neweffect
@@ -478,7 +483,7 @@ def import_effect(m2: M2, source: Source, tree, game: str, mod_dir: Path, length
             pic = stem
         else:
             notes.append(f"emitter {k}: its picture is replaceable in WoW; the base's is kept")
-        emitters[str(k)] = emitter_changes(p, axis, start, scale, pic)
+        emitters[str(k)] = emitter_changes(p, axis, start, scale, pic, at)
     changes = {"layout": [BASE_EMITTER] * len(m2.particles), "emitters": emitters}
     if size != 1.0:
         changes["size"] = size
@@ -516,6 +521,9 @@ def main(argv=None) -> int:
                    help="the model's length in metres (the DR2 weapon's; default 1.1)")
     p.add_argument("--slot", help="which free slot (dr2 effects --free)")
     p.add_argument("--size", type=float, default=1.0, help="× every particle's size")
+    p.add_argument("--at", type=float, default=0.0,
+                   help="where the weapon's effect point is, metres from the handle's end "
+                        "(a wizard weapon's: about 0.3)")
     p.add_argument("--wow", help="WoW's Data folder, to find .blp pictures in the MPQs")
     a = ap.parse_args(argv)
     try:
@@ -542,7 +550,7 @@ def main(argv=None) -> int:
         from dr2kit.profiles import locate
         tree = AssetTree(locate(a.game).root)
         num, notes = import_effect(m2, src, tree, a.game, Path(a.mod), a.length, a.slot,
-                                   a.size)
+                                   a.size, a.at)
         for n in notes:
             print(n)
         print(f"{len(m2.particles)} emitter(s) → your effect number {num}: choose it in New "

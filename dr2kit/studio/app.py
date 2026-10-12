@@ -1910,10 +1910,12 @@ def install_error_hook(win: "MainWindow") -> None:
 
 
 def main(argv: list[str] | None = None, *, game: str | None = None,
-         map_level: str | None = None, at: str | None = None) -> int:
+         map_level: str | None = None, at: str | None = None, mod: str | None = None,
+         weapon: str | None = None) -> int:
     """Start DR2 Studio. ``game`` picks the game; ``map_level`` opens the Maps tab on
     that level (``dr2 studio --map living_research -g cw``), ``at`` (``"x,y,z"`` or
-    ``"x,y,z,heading°"``) puts the camera there."""
+    ``"x,y,z,heading°"``) puts the camera there; ``mod`` opens a mod folder and ``weapon``
+    then its wizard weapon's window (``dr2 studio --mod my-mod --weapon FrostBlade``)."""
     app = QApplication.instance() or QApplication(sys.argv[:1] + list(argv or []))
     app.setApplicationName("DR2 Studio")
     app.setWindowIcon(app_icon())
@@ -1933,6 +1935,10 @@ def main(argv: list[str] | None = None, *, game: str | None = None,
                 h = "null" if len(v) < 4 else repr(v[3] * 3.141592653589793 / 180)
                 win.maps_view._js(f"dr2.goTo({v[0]}, {v[1]}, {v[2]}, {h})")
         QTimer.singleShot(0, open_map)
+    if mod:
+        win._set_mod(Path(mod))
+        if weapon:
+            QTimer.singleShot(300, lambda: win.new_weapon(weapon))
     for arg in argv or []:                  # `dr2 studio x.dr2mod`, or a double-click
         if Path(arg).suffix.lower() in (".dr2mod", ".zip") and Path(arg).is_file():
             QTimer.singleShot(0, lambda a=arg: win.install_mod(a))

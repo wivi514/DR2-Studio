@@ -539,7 +539,13 @@ with a `card`). `newitem.build_card` assembles a card when the mod is built:
 everything without writing (the shape over the faded game weapon, grip nodes as red
 diamonds, the icon, the card): Studio's `weapon_dialog.WeaponDialog` runs it in a job
 after each change. `remove_weapon` takes it all out. CLI: `dr2 mod new-weapon` /
-`remove-weapon`, `dr2 effects`.
+`remove-weapon`, `dr2 effects`. Later the same day: `WeaponSpec.effect_start` and
+`shine`; `weapon_fit.effect_locator(frame, start)` (the effect point: position and
+rotation, +y toward the tip) → recipe `locators` → `newitem.set_locators` (both
+`LocatorArray` copies, the model's and its `persistent.big`'s, and the node);
+`SHINES` → recipe `material_params` → `newitem.set_material_params` (`MatArray` +16);
+`preview` draws the effect line (`_effect_line`, yellow); `dr2 studio --mod --weapon`
+(`studio.app.main`) opens a weapon's window.
 
 ### Particle effects (phase 13 step 6): `formats/effect.py`, `convert/effects.py`, `convert/effect_preview.py`, `mods/neweffect.py`, `studio/effects_dialog.py`
 Guide [`21-effects.md`](../modding/21-effects.md), [`formats.md`](../formats.md) §Particle

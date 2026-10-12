@@ -542,6 +542,14 @@ writes a `layout.bin` with the new sizes when it changes one.
 another game (a WoW model or effect brought in for yourself), so it plays on your
 computer but DR2 Studio won't share it (guide 22).
 
+**Locator.** A named point in a model (`LocatorArray`) where the game puts something:
+the hands (types 9 and 27), where blood or a slice shows, and the **effect point** (type
+16) where a weapon's effects while held or swinging appear. The weapon wizard moves the
+effect point so effects run along the blade.
+
+**Shine (weapon).** The weapon wizard's choice of how much a weapon reflects the sky: a
+game weapon's four material values copied (matte, a little, mirror).
+
 **Combo card.** The card a combo weapon shows in the game's card list: a picture at the
 top, line drawings of the two items that make it, and texts. A card has two pictures:
 found (`comboc_<name>`) and not found yet (`comboc_<name>_no`, faded red).

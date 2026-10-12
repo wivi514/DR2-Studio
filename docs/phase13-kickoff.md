@@ -178,6 +178,15 @@ game not to be started for them: in-game checks headless on a copy of their save
     Sword and card pictures load into gameplay from a copy of the user's CW save, no
     fault. The placed swords were not in view (the CW build has no position trace), so
     seeing them is the user's windowed check too.
+  * **In game with the user (windowed, CZ, 2026-10-12):** the gate's sword first stood
+    sunk in the street (placed on its tip: now laid flat on measured floor); the aura hung
+    straight down (the effect point turned across the blade, and only the second
+    `LocatorArray` copy, in `persistent.big`, counts: the wizard now writes both, and the
+    aura then ran along the blade); a WoW Frostmourne (local only) looked black and gold
+    (WoW's alpha mask, then the Broadsword's mirror material: `wow_import` makes model
+    pictures opaque, *Shine* added, its result not looked at yet). New in Studio:
+    *Weapon effects start* (a yellow line in the preview), *Shine*, `dr2 studio --mod
+    --weapon`. The user asked for phase 13.2 (below).
   * **Step 9 → phase 14** (buildings of one's own T4a/T4b, maps in empty level slots T5,
     the door's destination list, `.anm`): each needs in-game tests by the user (walking
     into collision, going through a door), so it is a phase of its own.
@@ -185,7 +194,48 @@ game not to be started for them: in-game checks headless on a copy of their save
   icon in the inventory, the combo card at a workbench (found and not found), French
   names.
 
+## Phase 13.2 (user-set 2026-10-12): see the effects in 3D, on the weapon in Chuck's hand
+
+**Direction (user, after testing Frostmourne in game):** "add the fx thing in 3d model and
+also be able to place it on Chuck in 3d view to the weapon mods we make so we properly
+align stuff". The yellow line in *New weapon…*'s preview "seemed right", but a 3D view with
+the effects playing would let modders align properly before going in game.
+
+**Where phase 13 left it (2026-10-12, user in game, windowed, CZ):** a wizard
+Frostmourne (WoW model, local only) picked up and held; its aura (the Flaming Sword
+turned blue) **runs along the blade** once the effect point (locator 16) is turned in
+**both** `LocatorArray` copies (formats.md §Weapons, "Locators and the effect point");
+the blade went black and gold with the Broadsword's mirror material, so *Shine* was added
+(*A little* = the Lead Pipe's values): **not yet looked at in game**.
+
+**Plan (proposed; decide in the fresh conversation):**
+1. **The weapon in 3D in *New weapon…*:** the fitted model (`fit_weapon`'s `.glb`) in the
+   three.js view Studio already has (`studio/model_view.py`, `web/viewer.js`), with the
+   grip nodes, the effect point and its +y line.
+2. **Effects playing in 3D:** a three.js particle system from an effect's emitters
+   (`formats.effect`): each emitter's picture (`effects.tex`, or the mod's own), its
+   colour keys over its life (`colour_times`, measured), sizes, how many particles
+   (`count_20`, measured), its box (`shape_values`), offset, gravity and speed; spawned at
+   the effect point for *while held* / *while swinging* (a swing along an arc), at the
+   tip for *on impact*. The same view in **Effects…** (an effect on a chosen weapon)
+   replaces the flat sketch. Fields not measured yet (speed, spread, `f_40`, blend modes)
+   need the one-value-at-a-time street-light runs first (§Start here's headless method).
+3. **Chuck holding it:** Chuck's model and rig (CZ `chest_young_chuck` etc., CW
+   `chest_default`) in a still holding pose (a hand-made pose of the right arm: `.anm` is
+   phase 14), the weapon hung at the right hand by its grip node, as the game does
+   (measured: the hands follow `LOC_rhand` / `LOC_WEP_<x>_R`).
+4. **Align by dragging:** handles (TransformControls, already vendored for Maps) to slide,
+   turn and lengthen the weapon in the hand and to move the effect point along the blade;
+   they write `WeaponSpec.slide / turn / length / effect_start`.
+5. **Gate:** Frostmourne aligned in Studio's 3D view (hands on the handle, the aura along
+   the blade) looks the same in game; the Effects window's 3D preview of the Flaming
+   Sword turned blue matches the game's.
+
 ## Start here (handoff, 2026-10-12 evening)
+
+**Next: phase 13.2 (above), in a fresh conversation.** First look at the last build in
+game (Frostmourne with *Shine: A little*, in the user's library: `frostmourne`, local
+only, deployed in CZ). Then the rest of the windowed checks below.
 
 **Phase 13 is built; what it owes is the user's windowed checks:** run
 `python tools/weapon_gate.py cz --out ~/.cache/dr2kit-gate13/cz --install-user` (or install

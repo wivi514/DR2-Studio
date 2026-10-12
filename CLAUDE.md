@@ -74,8 +74,12 @@ guides 21 (effects) and 22 (other games), WoW models and particles through a loc
 (`tools/wow_import.py`) into `local_only` mods that Share refuses, emitter fields measured
 in game, the gate scripted through Studio's own windows in both games
 (`tools/weapon_gate.py`), Case West loading with them. Owed: the user's windowed checks
-(`docs/phase13-kickoff.md` §Start here). Phase 14 (planned): buildings and maps of one's
-own, `.anm` (`docs/roadmap.md`).** Read these before writing code:
+(`docs/phase13-kickoff.md` §Start here). In game with the user the same day: the aura runs
+along the blade once the wizard moves the effect point (locator 16) in both
+`LocatorArray` copies (the game reads `persistent.big`'s); *Shine* and *Weapon effects
+start* added. Next, in a fresh conversation: **phase 13.2** (effects playing in 3D on the
+weapon in Chuck's hand, to align: `docs/phase13-kickoff.md` §Phase 13.2). Phase 14
+(planned): buildings and maps of one's own, `.anm` (`docs/roadmap.md`).** Read these before writing code:
 
 | Doc | What it holds |
 |---|---|
