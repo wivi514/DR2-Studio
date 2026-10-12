@@ -44,14 +44,19 @@ zombies in their areas, time of day and the sky, the collision mesh (`formats/co
 Owed: the user's own test of Maps (`docs/phase10-kickoff.md` §Status). Editing
 levels is phase 11 (`docs/phase11-kickoff.md`: edit objects and zombie spawns, and add your own
 things from prefabs: save points, usable items, zombies, buildings), started 2026-10-11 with every proposed
-default decision taken; step 1 done the same day (`.edits.json` level edits by block path,
-`formats/leveledits.py`, `convert/levelcheck.py`, `mods/leveledit.py`, `dr2 level show|edit|diff`, guide 19).** Read these before writing code:
+default decision taken, built the same day: `.edits.json` level edits by block path
+(`formats/leveledits.py`, `convert/levelcheck.py`, `mods/leveledit.py`, `dr2 level show|edit|diff`), the Maps
+tab's editor for items, doors and zombies (`studio/maps_edit.py`), prefabs (`catalog/prefabs.py`), items of
+your own (`mods/newitem.py`: a recipe, `add/` new entries), guide 19; checked in game in CZ (all) and CW
+(items, prefabs, zombie retypes). Measured: a block added inside a game mission breaks saves (refused); a mod's
+own mission runs in a new game only and its saves need it; a `.big` entry's `flags` is its declared
+alignment. Owed: level pieces (plan step 4, stretch) (`docs/phase11-kickoff.md` §Status).** Read these before writing code:
 
 | Doc | What it holds |
 |---|---|
 | `docs/ARCHITECTURE.md` | Components, data flow, the asset index, the mod package format, stack choices |
 | `docs/formats.md` | Everything known about every file format, with a status per format (cracked / partial / unknown) |
-| `docs/phase11-kickoff.md` | Phase 11 (edit levels: zombie spawns, objects; add your own things from prefabs; saved as `.edits.json` mods): research, what phase 10 already gives and what is missing, plan, gate, §Status. **In progress** |
+| `docs/phase11-kickoff.md` | Phase 11 (edit levels: zombie spawns, objects; add your own things from prefabs; saved as `.edits.json` mods): research, plan, gate, §Status (what was measured in game, what it still owes) |
 | `docs/phase10-kickoff.md` | Phase 10 (Maps: see a whole level, extract it, see your mods in it without the game): research, plan, gate, and §Status (what it still owes) |
 | `docs/phase9-kickoff.md` | Phase 9 (variants: one look per model, export as shown or organized): research, plan, gate, and §Status (what it still owes) |
 | `docs/phase8-kickoff.md` | Phase 8 (the Library, export everything at once): decisions, gate, and §Status (what it still owes) |
@@ -188,6 +193,7 @@ python tools/variant_table.py <recomp>/assets/game/default_image.bin --check cz 
 python tools/blender_variants_gate.py     # phase 9 gate in Blender (~20 s)
 dr2 level list|info|things -g cz          # levels: zones, placements, what the text files place
 dr2 level show|edit|diff <file> …          # phase 11: a mod's level edits (.edits.json, guide 19)
+dr2 mod new-item <mod> <Name> --like <item> [--glb] [--texture N=png]   # an item of your own (recipe)
 dr2 census --levels                       # every zone, placement, level text file, item model (~50 s / game)
 dr2 export prologue [--zone z05] [--whole] [--zombies] [--collision] -g cz -o out   # a level for Blender
 dr2 studio                                # the GUI (pip install -e ".[studio]")
