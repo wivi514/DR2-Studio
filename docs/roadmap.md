@@ -295,7 +295,7 @@ placements; phase 11 changes them.
 - **Gate:** every level text file round-trips byte-identical; each edit kind made in
   Studio, checked by `dr2 mod check`, and seen in the recomp in both games.
 
-## Phase 12 (started): make your own weapons, combo weapons, buildings and maps (user, 2026-10-12)
+## Phase 12 (ended 2026-10-12, its tests done; tools moved to phase 13): make your own weapons, combo weapons, buildings and maps (user, 2026-10-12)
 Researched and started 2026-10-12: [`phase12-kickoff.md`](phase12-kickoff.md) (§Status). T1 measured in game: shock = `Can_Electrocute`, fire / freeze = a child `cPropHitZombieInfoItem` (`PropHitZombieEffect` 0 / 1); `Fire` and `Can_Freeze` alone don't act on zombies.
 **Decisions (user, 2026-10-12): every proposed default; a combo weapon always gets a new
 card whose picture the modder can change.** Early in-game tests first.
@@ -327,3 +327,13 @@ card whose picture the modder can change.** Early in-game tests first.
    (Patreon, memberships, paid early access) mods for these games. Voluntary donations
    that gate nothing are allowed. Not a lawyer-reviewed text, and not OSI "open source".
 4. **Git:** local repo now; the user creates the GitHub remote later.
+
+## Phase 13 (planned): weapons of your own made easy, effects of your own (user, 2026-10-12)
+[`phase13-kickoff.md`](phase13-kickoff.md). Phase 12's in-game tests became tools: first the
+loading stall of new files, then a weapon wizard (kinds, borrowed moves, elements, the
+game's effects by name with a preview), the inventory icon rendered from the model, combo
+cards in every language, then **effects of one's own** (read `effects.big`, recolour and
+tweak a game effect, make or bring in new ones), the grip editor, models from other games
+(local only), and phase 12's buildings and maps. Gate: Frostmourne made only in Studio
+with its own icon and frost aura, shared, installed, played.
+

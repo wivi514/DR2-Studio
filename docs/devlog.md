@@ -17,6 +17,24 @@ Entry template:
 
 ---
 
+## 2026-10-12 — Phase 12 ended: Frostmourne in game, phase 13 planned
+**Done:** a weapon of one's own played in Case Zero with **replacements only**: the user's
+WoW install gave Frostmourne's `.m2` (read with `mpyq`, converted by a one-off `m2glb.py`
+into the Lead Pipe's space), put on the **Lead Pipe** (shipped, never placed) with the
+Broadsword's moves, freeze, damage, the freezer-bomb burst, a snow trail on the blade, a
+combo card (Broadsword + Fire Extinguisher, the Defiler's picture with the WoW icon in its
+square) and its name in English and French. Grip moved once by the user's eye.
+**Learned:** borrowed moves work; the hands follow the item model's own grip nodes;
+`PropEffectsOnCondition` 30 / 31 (always / swinging) work in CZ; the user plays in French
+(strings must cover every language); the inventory icon is the pack's `w_<name>.bct`
+(128×64).
+**Why it ends here:** the user chose to close phase 12 with its answers and start the
+tools in a fresh conversation, adding effects of one's own and the icon from the model.
+**Docs updated:** `formats.md` (§Weapons: the carrier item, grips, effect conditions, the
+icon; §Particle effects, new), `phase12-kickoff.md` §Status, `phase13-kickoff.md` (new),
+`roadmap.md`, `docs/README.md`, `CLAUDE.md`.
+**Next:** phase 13 step 1 (the loading stall), in a new conversation.
+
 ## 2026-10-12 — Phase 12: first in-game tests (elements), a loading stall
 **Done:** T1 (elements) in the CZ recomp, played by the user, near the safehouse exit.
 **Learned:** every effect number of a weapon (`EffectOn*`, `PyroEffect`) is a 1-based

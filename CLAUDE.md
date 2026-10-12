@@ -56,19 +56,21 @@ copied as `.pieces.json` (`formats/pieceedits.py`, `mods/pieceedit.py`), collisi
 with them (`collision.move_shapes`: the Havok tree's origin), checked in CZ; every Studio
 panel a dock window (`studio/docks.py`), Inspector, Hierarchy, Place with drag and drop
 (`studio/maps_panels.py`), arrow-key nudging. Owed: CW building checks, collision for
-copies (`docs/phase11-kickoff.md` §Status). Phase 12 (user-set 2026-10-12, started the
-same day): your own weapons (effects, grip), combo weapons, buildings, maps
-(`docs/phase12-kickoff.md`; decisions taken: all defaults, combo cards always new with a
-changeable picture). T1 done in game (CZ): shock = `Can_Electrocute`, fire / freeze = a
-child `cPropHitZombieInfoItem` with `PropHitZombieEffect` 0 / 1, effect numbers = an
-index into the executable's effect table (`formats.md` §Weapons). Next: find which added
-file (new packs, card textures, string ids) stalled the street's load, then T2-T5.** Read these before writing code:
+copies (`docs/phase11-kickoff.md` §Status). Phase 12 (user-set 2026-10-12) ended the same day with its in-game tests
+(`docs/phase12-kickoff.md` §Status): shock = `Can_Electrocute`, fire / freeze = a child
+`cPropHitZombieInfoItem` (`PropHitZombieEffect` 0 / 1), effect numbers = an index into the
+executable's effect table, borrowed moves, hands at the model's grip nodes, effects on the
+weapon (conditions 30/31), a combo card of one's own; "Frostmourne" played on a carrier
+item with replacements only, as new files (packs, card textures, string ids) stalled the
+load. Phase 13 (user-set 2026-10-12, planned, not started: `docs/phase13-kickoff.md`):
+that stall first, the weapon wizard, the icon from the model, effects of one's own.** Read these before writing code:
 
 | Doc | What it holds |
 |---|---|
 | `docs/ARCHITECTURE.md` | Components, data flow, the asset index, the mod package format, stack choices |
 | `docs/formats.md` | Everything known about every file format, with a status per format (cracked / partial / unknown) |
-| `docs/phase12-kickoff.md` | Phase 12 (started: your own weapons with effects, combo weapons, buildings, maps): research (weapon keys, combo cards, grip locators, level slots), unknowns and the in-game tests to do first, plan, decisions, gate, §Status |
+| `docs/phase13-kickoff.md` | Phase 13 (planned: weapons made easy, effects of one's own, the icon from the model, phase 12's tools): what phase 12 proved, plan, decisions, gate, handoff (where phase 12's working files are) |
+| `docs/phase12-kickoff.md` | Phase 12 (ended: your own weapons with effects, combo weapons, buildings, maps): research (weapon keys, combo cards, grip locators, level slots), unknowns and the in-game tests to do first, plan, decisions, gate, §Status |
 | `docs/phase11-kickoff.md` | Phase 11 (edit levels: zombie spawns, objects; add your own things from prefabs; saved as `.edits.json` mods): research, plan, gate, §Status (what was measured in game, what it still owes) |
 | `docs/phase10-kickoff.md` | Phase 10 (Maps: see a whole level, extract it, see your mods in it without the game): research, plan, gate, and §Status (what it still owes) |
 | `docs/phase9-kickoff.md` | Phase 9 (variants: one look per model, export as shown or organized): research, plan, gate, and §Status (what it still owes) |

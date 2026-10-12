@@ -490,3 +490,16 @@ moves with it) but not turned or resized.
 
 **Parked.** How a mod hides a building: its placement is moved 1,000 metres under the
 level, so nothing else in the zone's list has to change.
+
+**Carrier item.** An item the game ships a model for but never places (CZ's Lead Pipe).
+A mod can turn it into a weapon of its own by replacing its model, textures and settings,
+without adding any file (phase 12's Frostmourne; `formats.md` §Weapons).
+
+**Effect number.** The number in a weapon's `EffectOnImpact`, `EffectOnVictim`,
+`PyroEffect`… keys: which particle effect shows (blood, sparks, a snow trail). It counts
+into a list of effects inside the game's program (371 in Case Zero, 414 in Case West);
+it changes only what you see, not what happens to a zombie.
+
+**Element (of a weapon).** What a hit does to a zombie besides damage: shock
+(`Can_Electrocute`), fire or freeze (a `cPropHitZombieInfoItem` block with
+`PropHitZombieEffect` 0 or 1).

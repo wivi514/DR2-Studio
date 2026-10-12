@@ -1,4 +1,4 @@
-# Phase 12 kickoff: make your own weapons, combo weapons, buildings and maps
+# Phase 12 kickoff (ended 2026-10-12, continued in phase 13): make your own weapons, combo weapons, buildings and maps
 
 **Direction (user, 2026-10-12):** "make it the easiest to create new weapon, building,
 combo weapon (like mix broadsword with fire extinguisher it make Frostmourne […] they just
@@ -258,30 +258,30 @@ copy of their save or a new game (memory: *Protect the user's saves*).
 
 ## Status
 
-* **T1 (elements), CZ, played by the user 2026-10-12: done.** Shock = `Can_Electrocute`;
-  fire / freeze = a child `cPropHitZombieInfoItem` with `PropHitZombieEffect` 0 / 1;
-  effect numbers are only particles (an index into the executable's effect table). The
-  effects data file can name them (formats.md §Weapons). The user's wish from the test: a
-  freezing swing that also freezes the zombies around (no key for that: an explosive
-  thrown by an attack is the idea to try).
-* **T2 (combo card), CZ, 2026-10-12: done** with an existing result (Broadsword + Fire
-  Extinguisher → the freezing Bowie Knife, card 3 with the Defiler picture). Strings must
-  be written in every language (the user plays in French).
-* Borrowed moves (T1d), T3 and a card for a NEW item not seen yet: the first test mod's added files stalled
-  the load (formats.md §Weapons, "New items' files and the endless loading"); find the
-  cause first.
-* How the tests are made: small mods in the session scratchpad, linked into the user's
-  library (`dr2 mod link`), deployed with `dr2 play -g cz --deploy-only`, the recomp
-  started for the user. **Place test items on open floor checked against the zone's
-  collision** (`convert.level.zone_collision`: a ray down for the floor, nothing solid up
-  to 2 m around): a spot picked by eye was inside a wall. The safehouse exit
-  (`cSpawnPoint AlternateExit`, Chuck at -282.1, 3.4, -38.9) is where the user starts;
-  open floor at x -280…-276, z -40…-31.
-* **Library state (2026-10-12, 03:30):** `keep-cz-test-save`, `keep-cw-test-save`, `test_01`,
-  `my_mod` on; the user's `test_01_2`, `test_01_3` (their placed items, building edits)
-  **disabled for the tests: turn them back on afterwards**; the test mod `p12-elements`
-  (Broadsword / Bowie Knife / Chef Knife changed, placed at the safehouse exit) linked
-  from the scratchpad and deployed: remove it when the tests are done.
+**Phase 12 ended 2026-10-12 (user):** its in-game tests answered the open questions; the
+tools it planned move to **phase 13** ([`phase13-kickoff.md`](phase13-kickoff.md)), with
+the user's new requests (effects of one's own, the inventory icon from the model).
+
+* **T1 (elements), CZ: done.** Shock = `Can_Electrocute`; fire / freeze = a child
+  `cPropHitZombieInfoItem` with `PropHitZombieEffect` 0 / 1; effect numbers are only
+  particles (an index into the executable's effect table). Swords slice whatever their hit
+  reactions; no key gives a swing an area of effect.
+* **T1d (borrowed moves): done** (the Lead Pipe with the Broadsword's moves).
+* **T2 (combo card): done** (a card in the result's block, card number 3, a game card's
+  picture replaced in place with the WoW icon in its square; texts in the player's
+  language).
+* **T3 (grip): answered differently:** the hands follow the item model's own grip nodes
+  (`LOC_rhand`, `IK_lhand`); the mesh is placed to them (the guard 0.06 m above the model's
+  zero, measured by eye in game).
+* **Effects on the weapon:** conditions 30 (always) / 31 (swinging) work in CZ.
+* **"Frostmourne" played in game** (a WoW model from the user's own install on the Lead
+  Pipe carrier, replacements only): textured, the Broadsword's moves, freezes, a frost
+  trail, a combo card "DEUILLEGIVRE". Missing: its inventory icon (still the Lead Pipe's),
+  a real frost aura (the game's effects are a stopgap: effects of one's own, phase 13).
+* **Not done:** the new files' loading stall (phase 13 step 1), T4 (buildings), T5 (maps),
+  the wizard, the grip editor (all phase 13).
+* A crash while loading `zombies.big` happened twice in the user's windowed runs (a
+  co-op player present), never headless with the same mods ❓.
 
 ## Start here (handoff)
 

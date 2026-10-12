@@ -1667,6 +1667,43 @@ the test changed only `str_en.bcs`): a mod's names must be written in every lang
 Not yet tried: a card number past 50 (a fixed table ❓), a new card picture, a card for a
 new item.
 
+### A weapon of one's own on a carrier item ✅ (in game, CZ, 2026-10-12)
+
+"Frostmourne" (a model from the user's own WoW install, a local test only) was put on the
+**Lead Pipe**, an item CZ ships but never places, with **replacements only** (no added
+file): its scene from a `.glb` (`leadpipe.big.glb`, 1,179 vertices), its colour textures
+from PNGs, the Broadsword's move keys (`AnimBankName = Sword`, the attack names and every
+per-attack key) copied into its block, a freeze block, a combo card, and its name in
+`str_en` / `str_fr` / `str_lg`. In game: textured, swung with the Broadsword's moves,
+froze zombies, made at a workbench from Broadsword + Fire Extinguisher.
+
+* **Borrowed moves work:** another weapon's `AnimBankName` and attack keys give its swings.
+* **The hands follow the model's own grip nodes** (`LOC_rhand`, `IK_lhand` of the Lead
+  Pipe) even with the Sword bank, whose own weapons use `LOC_WEP_<x>_R/_L`: the mesh is
+  what has to be placed. With the sword's guard at `y = -0.13` (model space, blade along
+  +y) the hand went through the guard; at `y = -0.06` (the right-hand node at
+  `y = -0.207`, the left at `-0.306`) it held the handle right.
+* **Effects on the weapon itself:** `PropEffectsOnCondition<n>` = **30** (always, while
+  held) and **31** (while swinging) with `PyroEffect<n>`, `PropEffectLocator<n> = 16`,
+  `PropEffectLocatorIndex<n> = 0` (as CW's Tiki Torch and Blazing Aces): **they work in
+  CZ** although CZ's own items use conditions up to 29 only. `dryice_env_c_3` (286) is a
+  level fog (far too big); `snowtrail_wpn_bs_1` (215) and `snowball_elm_bs_1` (225) are
+  small.
+* **The inventory icon** is the pack's `w_<name>.bct`: 128×64 DXT1, a see-through
+  background, the weapon lying diagonally (handle top left, tip bottom right). It kept
+  the Lead Pipe's picture (not replaced yet).
+* **A combo card's picture** is replaced in place (`comboc_defiler.bct` and `_no`, 364×512
+  DXT1; the small square top left at x 21-59, y 18-57 holds a 36×36 icon).
+
+### Particle effects (`data/models/effects.big`) 🟡
+
+448 (CZ) `EFFECT_Common<k>` entries, sorted by the effect's name (not by its number), plus
+an ordinary scene's chunks. An entry starts with a 4-byte big-endian word (`0x1D`) and the
+effect's name (NUL-padded, 0x80 bytes in all ❓), then one record per **emitter**: its
+particle texture by name (`cloud_smoke2`, `fire_flame`, at a 0x1D0 stride in
+`flamingsword_wpn_c_3_unq`), and blocks of floats (sizes, rates, lifetimes, colour keys ❓).
+Not read yet: phase 13 (`phase13-kickoff.md`).
+
 ### New items' files and the endless loading ❓
 
 A test mod adding five weapon packs to `streamedassets.big` (four `.copy.json` recipes and
