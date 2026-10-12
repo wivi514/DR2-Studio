@@ -41,8 +41,9 @@ lookup table whose name hashes the game works out itself. formats.md §Animation
 **Docs updated:** formats.md, phase14-kickoff.md (new), roadmap.md, guides 03, 04, 20,
 modding/README.md, context.toml, glossary.md, dev/code-tour.md, ARCHITECTURE.md,
 CLAUDE.md.
-**Next:** the user closes Case Zero; T4a/T4b/T5 headless on a copy of their save, then
-played by the user (§Start here); then the tools.
+**Next:** the user closed their game (asked: closed by its PID) and is away; when back,
+T4a/T4b/T5 headless on a copy of their save, then played by them
+(`phase14-kickoff.md` §Start here); then the tools.
 
 ## 2026-10-12 — Phase 13.2: Chuck holding the weapon in 3D, in the game's idle; `.anm` first frames
 **Done:** `.anm` read to its first frame (`formats/anim.py`, every file of both games,

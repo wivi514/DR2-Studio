@@ -91,7 +91,7 @@ census to the last byte in both games; Chuck swings the weapon in Studio's 3D vi
 level slots, `LEVEL_FOOD_BARN`) have their in-game tests T4a, T4b, T5 built
 (`~/.cache/dr2kit-p14/`) with the toolkit pieces they need (`.pieces.json` `new`, level
 piece / plain-file copy recipes, new files with `layout.bin` records); owed: the tests
-run by the user, then the tools (`docs/phase14-kickoff.md` §Start here).** Read these before writing code:
+run by the user (away since 2026-10-12 evening; they play them when back), then the tools (`docs/phase14-kickoff.md` §Start here).** Read these before writing code:
 
 | Doc | What it holds |
 |---|---|

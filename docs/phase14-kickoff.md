@@ -143,11 +143,17 @@ What each answer gives the tools:
 * **T4a, T4b, T5 built** (`~/.cache/dr2kit-p14/mods/p14-t4a`, `p14-t4b`, `p14-t5`) and
   checked by build and pictures (the piece and the item's shape rendered from the built
   files); **not yet run**: the user's Case Zero was open (started 16:44, before this
-  session), so no headless pre-check and no deployment.
+  session), so no headless pre-check and no deployment. Then (2026-10-12, evening) the
+  user asked to close it (done, by its PID) and said they are away for a while and will
+  play the tests when back: **the three tests wait for them** (§Start here). Their
+  library and deployment are unchanged (the test mods are not linked or deployed).
 
 ## Start here (handoff, 2026-10-12)
 
-1. Ask the user to close Case Zero (`pgrep -x cz_runtime`), then run the three test mods
+**The user is away; when they are back, they play T4a, T4b and T5** (their words: "will
+test later, keep these tests for when I am back"). Case Zero is closed.
+
+1. Check Case Zero is not running (`pgrep -x cz_runtime`), then run the three test mods
    headless on a **copy** of their save (`~/.cache/dr2kit-p12-handoff/scripts/hl_run.py
    p14 150 ~/.cache/dr2kit-p14/mods/p14-t4a ~/.cache/dr2kit-p14/mods/p14-t4b
    ~/.cache/dr2kit-p14/mods/p14-t5`): no guest fault, the box in the frames (camera toward
