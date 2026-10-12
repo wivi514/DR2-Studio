@@ -100,6 +100,34 @@ imported type is added **natively** (user's decision): in the load sets and the 
 areas, factories and crates of the levels that use it (phase 11's spawn data), like the
 game's own types.
 
+### How many types and levels the engine takes (user, 2026-10-12: "as many as we want without breaking the engine limit; Dead Rising 2 got way more and still works")
+
+* **Zombie types: the engine's limit is 32.** The program keeps a zombie's type as a
+  number checked against 31 (`cmplwi r5, 0x1f` in both games' spawn code: CZ
+  `0x823000BC`, CW `0x822FC99C`) and walks the type table with a count compiled into the
+  code: **CZ 32** (`li r11, 0x20`, table `0x829DF688`), **CW 10** (`li r11, 0xA`, table
+  `0x829F2598`). Dead Rising 2 itself ships about 30 types (PC `deadrising2.exe`), Off the
+  Record about 30 too (`zombie_wrestler`, `zombie_sexyspacegirl` added): the bigger games
+  have more *content*, not a bigger engine table. So **Case Zero already takes 32 types**
+  (20 free), and **Case West can take 32 once its program is built for 32**: its table
+  and every loop over it (count 10) grown to 32. In the recomp that count is C++ code
+  generated from the PowerPC (`ctx.r11.s64 = 10`), so growing it is **a change to the Case
+  West recomp** (each place that walks the table, and any array sized by it, found by
+  the same search), the third kind of recomp change after the `game_mods/` layer and the
+  audio substitution: **it needs the user's approval** (CLAUDE.md), made in that repo
+  following its own CLAUDE.md, and the same check in Case Zero's (already 32).
+* **More types per level** is a budget, not a count: each level's load set lists the
+  types it loads with their memory cost (`zombiesets.txt` `total_cost`, the "HWM" line):
+  the importer keeps every level within the budget the game's own levels use (measured
+  per game) and says when a map asks for more.
+* **Levels:** CZ's table has 82 slots (78 free: more than Dead Rising 2's 17 level
+  folders); CW's has 10, `w_mall` free. Growing CW's level table is the same kind of
+  recomp change as its zombie table (level ids are an enum in its code; Off the Record's
+  program lists 56 `LEVEL_` ids, Dead Rising 2's 86).
+* So "as many as we want": **up to the engine's 32 zombie types and the level table's
+  slots in each game**, with Case West's tables grown to Case Zero's sizes (with the
+  user's approval of that recomp change), and every level kept within its zombie budget.
+
 ### Bosses and human enemies
 
 * Case Zero: the Mechanic (`boss_mechanic.txt`; "Mechanic" 22 times in CZ's program, once
@@ -234,11 +262,9 @@ the modder doesn't have to know. XenonLive's launcher has no mod support yet
    its entry in the level load sets (`zombiesets.txt`) and the spawn areas, factories and
    crates (`cZombieWarehouse`, `missions.txt`) that spawn it, exactly like a native type.
    No mapping to a "nearest" type. CW → CZ: into Case Zero's empty zombie slots. CZ → CW:
-   Case West's program lists 10 types and none is free, so U2 also looks for how Case
-   West can take an eleventh: whether the table is the only list the game checks (CW
-   ships `zombie_test.big`, a model its table doesn't name), a type CW doesn't use in the
-   imported level, or a slot of its debug list; the plan comes back to the user if none
-   works.
+   Case West's program is built for 10 types: **grown to the engine's 32** (§How many
+   types and levels: a Case West recomp change, needing the user's approval), and its
+   level table likewise. Every level stays within its zombie memory budget.
 2. **Shaders the target lacks:** **remap to the nearest shared shader** (works with no
    recomp change); bringing shaders over only if U3 shows the recomps can, and with the
    user's approval for any recomp change.
