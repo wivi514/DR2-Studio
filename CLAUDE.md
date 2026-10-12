@@ -91,12 +91,18 @@ census to the last byte in both games; Chuck swings the weapon in Studio's 3D vi
 level slots, `LEVEL_FOOD_BARN`) have their in-game tests T4a, T4b, T5 built
 (`~/.cache/dr2kit-p14/`) with the toolkit pieces they need (`.pieces.json` `new`, level
 piece / plain-file copy recipes, new files with `layout.bin` records); owed: the tests
-run by the user (away since 2026-10-12 evening; they play them when back), then the tools (`docs/phase14-kickoff.md` §Start here).** Read these before writing code:
+run by the user (away since 2026-10-12 evening; they play them when back), then the tools (`docs/phase14-kickoff.md` §Start here).
+Phases 15 (Case West ↔ Case Zero: items, zombies, bosses, whole maps, assigned
+automatically so nothing crashes; a requirements file for XenonLive) and 16 (the same
+from the PC Dead Rising 2 and Off the Record) are researched and planned, not started:
+`docs/phase15-kickoff.md`, `docs/phase16-kickoff.md`.** Read these before writing code:
 
 | Doc | What it holds |
 |---|---|
 | `docs/ARCHITECTURE.md` | Components, data flow, the asset index, the mod package format, stack choices |
 | `docs/formats.md` | Everything known about every file format, with a status per format (cracked / partial / unknown) |
+| `docs/phase15-kickoff.md` | Phase 15 (planned): the other game's items, zombies, bosses and maps, auto-assigned (empty slots, type maps, shaders, classes), the importer's checker, the requirements file (`[requires]`, `requirements.json`) for XenonLive; research facts, tests U1-U6, plan, decisions |
+| `docs/phase16-kickoff.md` | Phase 16 (planned): the same from PC Dead Rising 2 / Off the Record: PC formats first look, DR2 maps into CZ's own DR2 slots |
 | `docs/phase14-kickoff.md` | Phase 14 (animations played: done; buildings and maps of your own: in-game tests T4a, T4b, T5 built, not yet run): research (level pieces, item collision, the executable's level slots, `layout.bin`), the tests and what each answer gives, plan, decisions, gate, §Status, §Start here |
 | `docs/phase13-kickoff.md` | Phase 13 and 13.2 (Chuck holding it in 3D: §Status 13.2; steps 1-6.4 built; next steps in §Start here: weapons made easy, effects of one's own, the icon from the model, phase 12's tools): what phase 12 proved, plan, decisions, gate, §Status, handoff (where phase 12's working files are) |
 | `docs/phase12-kickoff.md` | Phase 12 (ended: your own weapons with effects, combo weapons, buildings, maps): research (weapon keys, combo cards, grip locators, level slots), unknowns and the in-game tests to do first, plan, decisions, gate, §Status |

@@ -1679,6 +1679,30 @@ a grown file is cut short). The build writes a record for each **new** file (has
 size, a position after every other file: `mods.build.new_layout_record`). Whether the game
 needs the record, or reads a file missing from the table at all: test T5.
 
+### Zombie types: a table in each executable 🟡 (phase 15 research, 2026-10-12)
+
+A zombie type is a model name of `data/models/zombies.big` (`zombiesets.txt` and
+`missions.txt` name them), and each program holds its **own table of type names** (with
+a debug "override" list next to it): **Case Zero 32 types**, Dead Rising 2's whole list
+(`zombie_fat`… `zombie_waitress`, `looter`, `mercenary`, `mercenary_army`,
+`mercenary_pheno`, `mercenary_tk`, `soldier`, `zombie_gas`, `pro_zombie_bowling`,
+`pro_zombie_trucker`, `pro_zombie_cop`), of which it ships models for 12; **Case West 10**
+(`zombie_fat`, `zombie_fat_female`, `zombie_skinny`, `zombie_skinny_female`,
+`zombie_gas`, `security_heavy`, `security_lab`, `security_light`, `security_light_hat`,
+`zombie_security`), all shipped. Both programs carry `GasZombie` code. Found by the
+strings' pointer arrays (CZ near `0x829DD2C4`, CW `0x829F03C0`); whether a type with no
+model of its own works when given one: `phase15-kickoff.md` U2.
+
+**Shaders across the games** (same research): a model's shader descriptions
+(`-sd.big`) are shared by name between the games (CZ 223, CW 231, 222 in common), the
+shader programs they list are compiled differently in each; the descriptions models use
+that the other game lacks: CW `ZombieGlow`, `ZombieClothRGBSpec`,
+`ZombieClothRGBReflective`, `CM_SIX`, `Larvae` and CZ `Larvae` (`phase15-kickoff.md`).
+
+**The PC games** (phase 16 research): the same `.big` index; compressed entries are zlib
+behind a 4-byte big-endian uncompressed size; payloads little-endian (a skeleton node
+record is the console's byte-swapped); `.bct` headers differ (`phase16-kickoff.md`).
+
 ## Weapons: `items.txt` blocks, elements, effect numbers 🟡
 
 Phase 12 (2026-10-12). A weapon is a `cPlayerWeaponItem` (or `cFirearmItem`,

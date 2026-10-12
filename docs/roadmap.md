@@ -386,3 +386,20 @@ steps 6-8). Each part starts with an in-game test by the user before tools are b
 Carried from 13.2: its in-game comparison if still owed, the left hand on `IK_lhand` in
 the 3D view, particle motion measured field by field (speed, spread, gravity's space).
 
+## Phase 15 (planned, not started): Case West in Case Zero and Case Zero in Case West; what a mod requires
+User-set 2026-10-12. Kickoff: [`phase15-kickoff.md`](phase15-kickoff.md). Items, zombie
+types (mutants included), bosses and whole maps (buildings, items, zombie placement) of one
+game used in the other, **everything the target's program doesn't know assigned
+automatically** (CZ's 20 empty zombie slots and 78 empty level slots, CW's `w_mall`,
+nearest types, shared shaders, classes rewritten), with a report and a checker that
+proves nothing unresolved is left (a census importing every item and level). Every mod
+states what it **requires** (`[requires]` in `mod.toml`, `requirements.json`,
+`REQUIRES.txt`: the games whose data it is built from, the game it plays in, other mods,
+saves and co-op), the contract XenonLive's launcher can read. In-game tests U1-U6 first.
+
+## Phase 16 (planned, not started): from Dead Rising 2 and Off the Record (PC)
+User-set 2026-10-12. Kickoff: [`phase16-kickoff.md`](phase16-kickoff.md). Phase 15's
+importer with the PC games as sources: PC readers (zlib `.big` entries, little-endian
+payloads, PC textures and audio), and Dead Rising 2's maps and zombies straight into Case
+Zero's own DR2 slots (its program still lists them under the same names).
+

@@ -17,6 +17,24 @@ Entry template:
 
 ---
 
+## 2026-10-12 — Phases 15 and 16 researched and planned (user away)
+**Done:** research and kickoffs for phase 15 (Case West things and maps in Case Zero and
+the other way, everything the target doesn't know assigned automatically; a requirements
+file for XenonLive) and phase 16 (the same from the PC games). Nothing built.
+**Why:** the user's next phases, set while away ("we'll prepare the next phase"); phase
+14's in-game tests wait for them.
+**Learned:** shaders are shared by description name (5 CW-only used by the gas and heavy
+security zombies, a monitor, the larvae); each executable has its own zombie type table
+(CZ 32 = DR2's, 20 empty; CW 10, none free) and level table (CZ 78 empty slots; CW 10,
+`w_mall` empty); 7 CW item classes and 7 CZ mission classes unknown to the other program;
+10 / 7 move banks missing on the other side; the PC games use zlib entries with a size
+word and little-endian payloads, and DR2 PC's level folders are exactly CZ's empty slots'
+names. formats.md §Levels ("Zombie types…"), phase15-kickoff.md, phase16-kickoff.md.
+**Docs updated:** phase15-kickoff.md, phase16-kickoff.md (new), roadmap.md, formats.md,
+CLAUDE.md.
+**Next:** when the user is back: phase 14's tests (T4a, T4b, T5), its tools, then phase
+15 (decisions, then U1-U2).
+
 ## 2026-10-12 — Phase 14: animations played; building and map tests built
 **Done:** every key of every `.anm` read as the game's own decoder reads it
 (`formats/anim.py` `decode`, census to the last byte in both games); the rig of an
