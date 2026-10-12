@@ -518,6 +518,7 @@ class HoldScene:
     textures: dict                   # particle picture name -> PNG bytes
     chuck: object = None             # convert.holding.Chuck
     notes: list = field(default_factory=list)
+    moves: list = field(default_factory=list)   # [(label, clip)]: its kind's attacks
 
 
 def _emitter_json(e) -> dict:
@@ -584,27 +585,32 @@ def hold_scene(tree: AssetTree, game: str, spec: WeaponSpec, sources: Path | Non
             notes.append(f"effect {n} ({slot}): nothing to show (an empty slot)")
             continue
         effects.append(effect_view(tree, fx, slot, n, mod_dir, textures))
+    moves = holding.move_clips(tree, m.block, chuck.idle)
     return HoldScene(weapon, holding.flat(place), chuck.pose, chuck.idle, frame,
-                     {"position": pos, "rotation": rot}, effects, textures, chuck, notes)
+                     {"position": pos, "rotation": rot}, effects, textures, chuck, notes,
+                     moves)
 
 
 def hold_glb(tree: AssetTree, game: str, spec: WeaponSpec, sources: Path | None = None,
-             textures: bool = True) -> bytes:
+             textures: bool = True, moves: bool = False) -> bytes:
     """One ``.glb`` of Chuck in the idle for ``spec``'s kind holding the weapon (for
-    Blender: ``dr2 mod hold``). The effects are not in it; an empty node marks the
-    effect point (+y along the blade)."""
+    Blender: ``dr2 hold --mod``). The effects are not in it; an empty node marks the
+    effect point (+y along the blade). ``moves``: the kind's attacks as glTF animations,
+    the weapon under his hand node (`convert.holding.hang_on_hand`)."""
     from ..convert import gltf, holding
     scene = hold_scene(tree, game, spec, sources)
     chuck = scene.chuck
     asm = gltf.Assembler()
     holding.chuck_glb(tree, game, chuck, textures=textures, assembler=asm)
     m = [[scene.placement[c * 4 + r] for c in range(4)] for r in range(4)]
-    t, q, s = holding.decompose(m)
-    node = asm.add(scene.weapon_glb, [{"name": spec.name, "translation": t, "rotation": q,
-                                       "scale": s}], source=spec.name)[0]
+    node = holding.hang_on_hand(asm, chuck, scene.weapon_glb, spec.name, m, spec.name,
+                                on_hand=moves)
     asm.empty("effect_point", node, scene.effect_point["position"],
               scene.effect_point["rotation"])
     asm.extras = {"weapon": spec.name, "idle": chuck.idle.fullbody, "hand": chuck.idle.hand}
+    if moves:
+        m = fit_weapon(tree, game, spec, sources)
+        asm.extras["moves"] = holding.add_moves(asm, tree, m.block, chuck.idle)
     return asm.to_bytes()
 
 

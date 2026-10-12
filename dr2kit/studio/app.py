@@ -279,6 +279,9 @@ class MainWindow(QMainWindow):
         self.model_view.status.connect(lambda t: self.say(f"3D view: {t}"))
         self.model_view.variants.changed.connect(self._look_changed)
         self.model_view.variants.detail.connect(self._detail_chosen)
+        from .hold_view import HoldView
+        self.anim_view = HoldView(tools=False)          # .anm played (phase 14)
+        self.anim_view.status.connect(lambda t: self.say(f"Animation: {t}"))
         self.maps_view = MapsView(self)
         self.maps_view.status.connect(lambda t: self.statusBar().showMessage(t, 8000))
         self.maps_view.open_asset.connect(self._open_from_map)
@@ -288,7 +291,7 @@ class MainWindow(QMainWindow):
         self.empty.setAlignment(Qt.AlignCenter)
         self.centre = QStackedWidget()
         for w in (self.empty, self.tex_view, self.plain_view, self.model_view, self.audio_view,
-                  self.text_view, self.strings_view, self.video_view):
+                  self.text_view, self.strings_view, self.video_view, self.anim_view):
             self.centre.addWidget(w)
 
         # --- right: details, relations, actions
@@ -558,9 +561,9 @@ class MainWindow(QMainWindow):
         shown = {
             self.btn_edit_tex: kind == "texture", self.btn_replace: kind == "texture",
             self.btn_png: kind == "texture",
-            self.btn_blender: kind in ("model", "skeleton"),
+            self.btn_blender: kind in ("model", "skeleton", "anim"),
             self.btn_tex_in: kind == "model",
-            self.btn_glb_in: kind == "model", self.btn_glb: kind in ("model", "skeleton"),
+            self.btn_glb_in: kind == "model", self.btn_glb: kind in ("model", "skeleton", "anim"),
             self.btn_audio_in: kind == "audio", self.btn_wav: kind == "audio",
             self.btn_mp4: kind == "video",
             self.btn_export_all: kind in ("model", "skeleton"),
@@ -769,6 +772,8 @@ class MainWindow(QMainWindow):
         elif row["kind"] in ("model", "skeleton"):
             lines += self._show_scene(row, data)
             lines += self._scene_relations(row)
+        elif row["kind"] == "anim" and data:
+            lines += self._show_anim(row, data)
         else:
             from ..census import content_kind
             self.plain_view.show_bytes(data, content_kind(data) == "text")
@@ -973,6 +978,53 @@ class MainWindow(QMainWindow):
         self.run_job(work, done)
         return lines
 
+    def _show_anim(self, row, data: bytes) -> list[str]:
+        """Play an animation (every key, `formats.anim`) on Chuck, or on its own rig drawn
+        as bones (zombies, cutscene props): `convert.holding.clip`, in the background."""
+        from ..formats import anim
+        try:
+            a = anim.Animation.parse(data, row["vpath"])
+        except Dr2Error as e:
+            self.error(str(e))
+            return []
+        lines = [f"animation: {a.frames} frames at {a.rate:g}/s ({a.length:.2f} s), "
+                 f"{len(a.tracks)} tracks ({sum(t.animated for t in a.tracks)} moving), "
+                 f"skeleton id {a.skeleton_id:08X}"]
+        self.centre.setCurrentWidget(self.anim_view)
+        if not self.anim_view.available:
+            return lines
+        game, vpath, view = self.game, row["vpath"], self.anim_view
+        worker_tree = self.worker_tree
+
+        def work(progress):
+            from ..convert import gltf, holding
+            from ..formats.scene import Scene
+            tree = worker_tree()
+            files = holding.companions(tree, vpath)
+            body = holding.body_for(tree, vpath)
+            clp = holding.clip(tree, files, rig=holding.RIG if body == "chuck" else None)
+            glb = None
+            if not view.body_shown(game, body):
+                glb = holding.rest_glb(tree, game) if body == "chuck" else \
+                    gltf.skeleton_to_glb(Scene.from_archive(tree.open_archive(body), body))
+            return body, files, clp, glb
+
+        def done(result, err):
+            if err:
+                self.error(err)
+                return
+            if self.current is None or self.current["vpath"] != vpath:
+                return
+            body, files, clp, glb = result
+            view.show_animation(game, glb, row["name"], clp, body)
+            shown = "Chuck" if body == "chuck" else f"the bones of {body}"
+            extra = [f.rsplit("/", 2)[-2] + "/" + f.rsplit("/", 1)[-1] for f in files
+                     if f != vpath]
+            self.details.append(f"played on {shown}" + (f", with {', '.join(extra)}"
+                                                        if extra else ""))
+        self.run_job(work, done)
+        return lines
+
     def _show_movie(self, row, data: bytes) -> list[str]:
         """Show a Bink movie; its sound is decoded in the background."""
         from ..convert import video
@@ -1104,12 +1156,19 @@ class MainWindow(QMainWindow):
 
     def export_glb(self) -> None:
         a = self.current
-        if not a or a["kind"] not in ("model", "skeleton"):
+        if not a or a["kind"] not in ("model", "skeleton", "anim"):
             return
         stem = a["name"].rsplit(".", 1)[0]
         path, _ = QFileDialog.getSaveFileName(self, "Export glTF binary", stem + ".glb",
                                               "glTF binary (*.glb)")
         if not path:
+            return
+        if a["kind"] == "anim":
+            from ..convert import holding
+            data, clp = holding.animation_glb(self.asset_tree(), self.game, a["vpath"])
+            Path(path).write_bytes(data)
+            self.say(f"exported {a['vpath']} -> {path} (the move as an animation, "
+                     f"{clp['length']:.2f} s, on {len(clp['nodes'])} nodes)")
             return
         from ..convert import gltf
         from ..convert.model import TextureFinder, model_glb
@@ -1550,7 +1609,7 @@ class MainWindow(QMainWindow):
 
     def open_blender(self) -> None:
         a = self.current
-        if not a or a["kind"] not in ("model", "skeleton"):
+        if not a or a["kind"] not in ("model", "skeleton", "anim"):
             return
         game, vpath, mod_dir = self.game, a["vpath"], self.mod_dir
         look = self._look_choice()
@@ -1562,6 +1621,9 @@ class MainWindow(QMainWindow):
                 return mod_glb.read_bytes()
             from ..convert.model import export_glb, export_skeleton_glb
             tree = self.asset_tree()
+            if a["kind"] == "anim":
+                from ..convert import holding
+                return holding.animation_glb(tree, game, vpath)[0]
             return export_glb(tree, vpath, game=game, variant=look) if a["kind"] == "model" \
                 else export_skeleton_glb(tree, vpath)
 
@@ -1574,6 +1636,10 @@ class MainWindow(QMainWindow):
                 open_in_blender(game, vpath, glb, mod_dir)
             except Dr2Error as e:
                 self.error(str(e))
+                return
+            if a["kind"] == "anim":
+                self.say("Blender is starting with the animation: press Space in the 3D view "
+                         "to play it (the move is an Action on the rig).")
                 return
             self.say("Blender is starting with the model. In its DR2 tab (N key → DR2): "
                      "Check rig, then Export to mod" + ("" if mod_dir else " (choose a mod "

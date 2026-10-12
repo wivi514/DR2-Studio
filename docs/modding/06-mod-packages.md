@@ -35,6 +35,12 @@ puts a new entry into that archive. A new item's model pack is
 `add/data/streamedassets.big/MyItem.big.copy.json`, a *recipe* that copies another item's
 pack from the player's game when the mod is built; your own `.glb` and PNGs for it sit in
 `sources/` ([`19-edit-a-level.md`](19-edit-a-level.md#steps-an-item-of-your-own-your-own-model)).
+Under a **folder** instead of an archive (`add/data/models/environment/food_barn/zonelist.big`),
+it is a whole new file of the game (phase 14, for maps of your own; the build lists it in
+the game's `layout.bin`). A recipe can also copy a level's text file with changes
+(`"edits"`, as in an `.edits.json`) or a level piece with your shape and picture
+(`"texture_names"` gives the picture a name of its own); Studio's tools for buildings and
+maps of your own will write these for you (phase 14, after its in-game tests).
 
 Letter case doesn't matter (`DATA/Models/…` works). A mod only ever holds **your** files:
 no game archives, nothing copied from the game. That's what makes it safe to share.

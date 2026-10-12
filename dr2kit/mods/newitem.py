@@ -24,6 +24,18 @@ Phase 13 (the weapon wizard, `mods.newweapon`) adds to a pack's recipe:
   ``<name>.bct`` in Case West, named by the block's ``IconFilename``) gets the picture and
   that name, so the new item doesn't share the template's icon.
 
+Phase 14 (buildings of one's own) copies **level pieces**: a zone's
+``<piece>.big`` (its scene is ``_COMP_<piece>.big``, renamed with it) and its ``<piece>.tex``
+/ ``<piece>_LOD.tex`` packs (``textures`` then go straight into the pack's ``.bct``
+entries), with ``"texture_names": {"page_barrel_white_cm": "mod_box01_cm"}`` giving the
+pictures names of their own in the packs and the material slots (`rename_textures`: a
+zone shows the first texture of a name it finds).
+
+A recipe can also copy a **plain file** (not an archive: a level's ``.txt``), with
+``"edits"`` holding the changes an ``.edits.json`` would (`_build_plain`), and an
+``add/`` file whose folder is a folder becomes a **new file** (``mods.build``, kind
+``file``): a map of one's own copies the game's level files under an empty slot's names.
+
 and a recipe can copy a **texture** (a ``.bct``) instead of a pack, for a combo card's
 picture in ``data/frontend/combocards.tex``::
 
@@ -84,6 +96,9 @@ def build_copy(tree: AssetTree, recipe: dict, mod_root: Path, where: str = "") -
         return _build_texture(tree, recipe, src, Path(mod_root) / SOURCES_DIR, pre)
     if recipe.get("effect") is not None:
         return _build_effect(recipe, src, pre)
+    from ..container.big import is_big
+    if not is_big(src.data()):
+        return _build_plain(recipe, src, pre)
     pack = BigArchive.parse(src.data(), src.vpath)
     for old, new in (recipe.get("rename") or {}).items():
         for e in pack.entries:
@@ -92,8 +107,17 @@ def build_copy(tree: AssetTree, recipe: dict, mod_root: Path, where: str = "") -
                 if low == old.lower() + suffix:
                     e.name = new + e.name[len(old):]
                     e.hash = None
+                elif low == "_comp_" + old.lower() + suffix:    # a level piece's scene
+                    e.name = e.name[:6] + new + e.name[6 + len(old):]
+                    e.hash = None
     sources = Path(mod_root) / SOURCES_DIR
     scene_name = next((n for n in (recipe.get("rename") or {}).values()), None)
+    if scene_name and not any(e.name.lower() == f"{scene_name.lower()}.big"
+                              for e in pack.entries):
+        comp = f"_comp_{scene_name.lower()}.big"         # a level piece: _COMP_<name>.big
+        if any(e.name.lower() == comp for e in pack.entries):
+            scene_name = next(e.name for e in pack.entries
+                              if e.name.lower() == comp)[:-4]
     if recipe.get("glb"):
         from ..convert.model_import import import_glb
         from ..formats.scene import Scene
@@ -113,6 +137,14 @@ def build_copy(tree: AssetTree, recipe: dict, mod_root: Path, where: str = "") -
         for tex, file in recipe["textures"].items():
             f = sources / file
             done = False
+            for t in pack.entries:          # a texture pack itself (a level piece's .tex)
+                if t.name.lower().removesuffix(".bct") == tex.lower() and \
+                        is_bct(t.data()[:4]):
+                    t.set_data(replace_image(Bct.parse(t.data(), t.name),
+                                             png.read(f)).to_bytes())
+                    done = True
+            if done:
+                continue
             for e in pack.entries:
                 if not e.name.lower().endswith(".tex") or e.name.lower().endswith("_lod.tex"):
                     continue
@@ -141,7 +173,96 @@ def build_copy(tree: AssetTree, recipe: dict, mod_root: Path, where: str = "") -
         e.set_data(set_locators(e.data(), recipe["locators"], pre))
     if recipe.get("icon") or recipe.get("icon_name"):
         _set_icon(pack, recipe, sources, pre)
+    if recipe.get("texture_names"):
+        rename_textures(pack, recipe["texture_names"], pre)
     return pack.to_bytes()
+
+
+SLOT_RECORD = 100                    # MatTextureInfoArray: number, name (to +0x38), hash…
+SLOT_NAME = (4, 0x38)
+
+
+def rename_textures(pack: BigArchive, names: dict, pre: str = "") -> None:
+    """Give textures new names (``{"page_barrel_white_cm": "mod_box01_cm"}``) in a copied
+    pack: its ``.bct`` entries (a texture pack itself, or the ``.tex`` packs it holds) and
+    every material slot naming them (``MatTextureInfoArray`` of the scenes in it: the name
+    only; the word at +0x38 is the sampler's hash, not the name's). Why: a zone uses the
+    **first** texture of a name it finds (docs/formats.md §Levels), so a new level piece
+    whose picture kept the template's name would show the template's."""
+    import struct
+    from ..formats.bct import is_bct
+    want = {k.lower(): v for k, v in names.items()}
+    for v in want.values():
+        if not NAME.match(v) or len(v) >= SLOT_NAME[1] - SLOT_NAME[0] - 4:
+            raise Dr2Error(f"{pre}texture name {v!r}: letters, digits and _ only, at most "
+                           f"47 of them")
+    hit = set()
+
+    def bcts(arc: BigArchive) -> bool:
+        changed = False
+        for e in arc.entries:
+            low = e.name.lower()
+            base, dot = (low[:-4], e.name[-4:]) if low.endswith(".bct") else (low, "")
+            if base in want and is_bct(e.data()[:4]):
+                e.name = want[base] + dot
+                e.hash = None
+                hit.add(base)
+                changed = True
+        return changed
+
+    def slots(arc: BigArchive) -> bool:
+        e = next((x for x in arc.entries if x.name == "MatTextureInfoArray"), None)
+        if e is None:
+            return False
+        data = bytearray(e.data())
+        changed = False
+        for o in range(0, len(data) - SLOT_RECORD + 1, SLOT_RECORD):
+            a, b = o + SLOT_NAME[0], o + SLOT_NAME[1]
+            name = bytes(data[a:b]).split(b"\0", 1)[0].decode("latin-1").lower()
+            if name in want:
+                data[a:b] = want[name].encode("latin-1").ljust(b - a, b"\0")
+                hit.add(name)
+                changed = True
+        if changed:
+            e.set_data(bytes(data))
+        return changed
+
+    bcts(pack)
+    slots(pack)
+    for e in pack.entries:
+        low = e.name.lower()
+        if not low.endswith((".big", ".tex")):
+            continue
+        try:
+            inner = BigArchive.parse(e.data(), e.name)
+        except Exception:                        # noqa: BLE001 - not an archive
+            continue
+        if bcts(inner) | slots(inner):
+            e.set_data(inner.to_bytes())
+    missing = sorted(set(want) - hit)
+    if missing:
+        raise Dr2Error(f"{pre}texture_names: no texture {', '.join(missing)} in the copied "
+                       f"pack")
+
+
+def _build_plain(recipe: dict, src, pre: str) -> bytes:
+    """A copy of a file that is not an archive (a level's text file, ``zonelist.big``'s
+    neighbours…), with ``"edits"`` (what an ``.edits.json`` holds: set / add / remove by
+    block path) applied when it is a level text file. Phase 14: a map of one's own is
+    the game's level files copied under the empty slot's names."""
+    data = src.data()
+    if not recipe.get("edits"):
+        return data
+    from ..errors import FormatError
+    from ..formats import leveledits
+    from ..formats.levelscript import Document
+    try:
+        e = leveledits.from_json(json.dumps(recipe["edits"]), f"{pre}edits")
+        doc = Document.parse(data, src.vpath)
+        leveledits.apply(doc, e, f"{pre}edits")
+    except FormatError as ex:
+        raise Dr2Error(str(ex)) from None
+    return doc.to_bytes()
 
 
 def set_material_params(scene_data: bytes, params, pre: str = "") -> bytes:

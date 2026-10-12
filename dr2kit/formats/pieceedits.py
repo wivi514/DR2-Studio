@@ -28,6 +28,20 @@ The file (``replace/data/models/environment/prologue/prologue_z05.big/ZONE_ORGAN
   (``NumModelInstance`` grows). A copy is drawn from the same piece archive; it is named
   ``<piece>#<n>`` (n from 1, in list order) in Studio. **A copy has no collision** (in
   game, 2026-10-11: the copied van could be walked through).
+* ``new`` (phase 14, buildings of one's own): records for **pieces the game doesn't
+  have**, whose archives a mod adds to the zone (``add/…/<zone>.big/<piece>.big`` and its
+  ``.tex`` / ``_LOD.tex``)::
+
+      "new": [{"piece": "mod_box01", "like": "z02_hardware",
+               "bounds": [[-2, 0, -2], [2, 3, 2]], "draw_distance": 200,
+               "position": [-277, 3.26, -40.5], "rotation": [0, 0, 0, 1], "scale": [1, 1, 1]}]
+
+  The record is the ``like`` piece's (the bytes nobody understands, its flags) with the
+  new name, a piece number no record of the zone uses (``index``: past the zone's
+  highest), the box of the new piece's shape in its own space (``bounds``, which gives
+  the world bounds, centre and radius), its ``draw_distance`` (metres; the ``like``
+  piece's when left out) and where it goes. Whether the game draws such a piece is the
+  test T4a (docs/phase14-kickoff.md).
 * ``collision``: the zone's collision shapes (``MERGED_COLLISION.big``, by group name
   ``meshCOL_pro_351``) a building edit moves (``move``: an offset in the shape's own
   space) or sends away (``hidden``: `PARK_DROP` metres down), `formats.collision.move_shapes`.
@@ -66,15 +80,16 @@ class Edits:
     pieces: dict[str, dict] = field(default_factory=dict)
     copies: list[dict] = field(default_factory=list)
     collision: dict[str, dict] = field(default_factory=dict)
+    new: list[dict] = field(default_factory=list)
 
     def __bool__(self) -> bool:
-        return bool(self.pieces or self.copies or self.collision)
+        return bool(self.pieces or self.copies or self.collision or self.new)
 
     def count(self) -> int:
-        return len(self.pieces) + len(self.copies) + len(self.collision)
+        return len(self.pieces) + len(self.copies) + len(self.collision) + len(self.new)
 
     def placements_part(self) -> "Edits":
-        return Edits(self.pieces, self.copies)
+        return Edits(self.pieces, self.copies, new=self.new)
 
     def collision_part(self) -> "Edits":
         return Edits(collision=self.collision)
@@ -126,7 +141,7 @@ def from_json(text: str, where: str = "<pieces>") -> Edits:
         raise FormatError(f"{where}: not JSON ({e})") from None
     if not isinstance(d, dict) or d.get("format") != FORMAT:
         raise FormatError(f"{where}: not a piece edit file (format must be {FORMAT!r})")
-    extra = set(d) - {"format", "pieces", "copies", "zone", "collision"}
+    extra = set(d) - {"format", "pieces", "copies", "zone", "collision", "new"}
     if extra:
         raise FormatError(f"{where}: unknown keys {sorted(extra)}")
     pieces = {str(k): _spec(v, f"{where}: {k}") for k, v in (d.get("pieces") or {}).items()}
@@ -145,8 +160,41 @@ def from_json(text: str, where: str = "<pieces>") -> Edits:
             c["hidden"] = True
         if c:
             collision[str(k)] = c
+    new = d.get("new") or []
+    if not isinstance(new, list):
+        raise FormatError(f"{where}: new must be a list")
     return Edits(pieces, [_spec(c, f"{where}: copy {i + 1}", copy=True)
-                          for i, c in enumerate(copies)], collision)
+                          for i, c in enumerate(copies)], collision,
+                 [_new_spec(c, f"{where}: new {i + 1}") for i, c in enumerate(new)])
+
+
+def _new_spec(d, where: str) -> dict:
+    """A ``new`` piece's record (module docstring), checked."""
+    if not isinstance(d, dict):
+        raise FormatError(f"{where}: must be an object")
+    for k in ("piece", "like", "bounds"):
+        if k not in d:
+            raise FormatError(f"{where}: needs {k!r}")
+    out = {}
+    for k in ("piece", "like"):
+        v = d[k]
+        if not isinstance(v, str) or not v or len(v.encode("latin-1", "replace")) > 31:
+            raise FormatError(f"{where}: {k} must be a name of at most 31 letters")
+        out[k] = v
+    b = d["bounds"]
+    if not isinstance(b, (list, tuple)) or len(b) != 2:
+        raise FormatError(f"{where}: bounds is [[min x, y, z], [max x, y, z]]")
+    lo, hi = _vec(b[0], 3, f"{where}.bounds"), _vec(b[1], 3, f"{where}.bounds")
+    if any(a > c for a, c in zip(lo, hi)):
+        raise FormatError(f"{where}: bounds min is above max")
+    out["bounds"] = [lo, hi]
+    if "draw_distance" in d:
+        out["draw_distance"] = _vec([d["draw_distance"]], 1, f"{where}.draw_distance")[0]
+    rest = {k: v for k, v in d.items() if k not in ("piece", "like", "bounds", "draw_distance")}
+    out.update(_spec(rest, where))
+    if out.pop("hidden", None) is not None:
+        raise FormatError(f"{where}: a new piece can't be hidden (leave it out)")
+    return out
 
 
 def _round(v) -> list[float]:
@@ -156,7 +204,8 @@ def _round(v) -> list[float]:
 def to_json(e: Edits, zone: str = "") -> str:
     """The ``.pieces.json`` text (pieces sorted by name; numbers to 0.1 mm)."""
     def clean(s):
-        return {k: (_round(v) if isinstance(v, list) else v) for k, v in s.items()}
+        return {k: ([_round(x) for x in v] if k == "bounds" else
+                    _round(v) if isinstance(v, list) else v) for k, v in s.items()}
     one = json.dumps                       # one line per piece: easy to read and diff
     lines = ['{"format": ' + one(FORMAT) + ","]
     if zone:
@@ -172,8 +221,15 @@ def to_json(e: Edits, zone: str = "") -> str:
         lines += [f"  {one(clean(c))}" + ("," if i < len(e.copies) - 1 else "")
                   for i, c in enumerate(e.copies)]
         lines.append(" ]" + ("," if e.collision else ""))
+    if e.new:
+        if lines[-1].endswith(("}", "]")) and not lines[-1].endswith(","):
+            lines[-1] += ","
+        lines.append(' "new": [')
+        lines += [f"  {one(clean(c))}" + ("," if i < len(e.new) - 1 else "")
+                  for i, c in enumerate(e.new)]
+        lines.append(" ]" + ("," if e.collision else ""))
     if e.collision:
-        if not e.copies and lines[-1].endswith("}"):
+        if not e.copies and not e.new and lines[-1].endswith("}"):
             lines[-1] += ","
         names = sorted(e.collision, key=str.lower)
         lines.append(' "collision": {')
@@ -262,7 +318,31 @@ def apply(org: ZoneOrganization, e: Edits, where: str = "") -> ZoneOrganization:
     for c in e.copies:
         src = org.placements[by[c["piece"].lower()]]
         out.append(placed(src, c.get("position"), c.get("rotation"), c.get("scale")))
+    next_index = max((p.index for p in org.placements), default=-1) + 1
+    for c in e.new:
+        if c["like"].lower() not in by:
+            raise FormatError(f"{where}: the zone places no piece named {c['like']} "
+                              f"(a new piece's like)")
+        if c["piece"].lower() in by:
+            raise FormatError(f"{where}: the zone already has a piece {c['piece']}: "
+                              f"give the new one another name")
+        out.append(new_placement(org.placements[by[c["like"].lower()]], c, next_index))
+        next_index += 1
     return ZoneOrganization(out, org.dynamic, org.info)
+
+
+def new_placement(like: Placement, spec: dict, index: int) -> Placement:
+    """A record for a new piece (module docstring, ``new``): ``like``'s record renamed,
+    numbered ``index``, its box ``spec["bounds"]`` placed as asked."""
+    lo, hi = (tuple(v) for v in spec["bounds"])
+    radius = math.dist(lo, hi) / 2
+    base = replace(like, piece=spec["piece"], name2=spec["piece"], raw_names=b"",
+                   scale=(1.0, 1.0, 1.0), rotation=(0.0, 0.0, 0.0, 1.0),
+                   position=(0.0, 0.0, 0.0), bounds_min=lo, bounds_max=hi,
+                   centre=tuple((a + b) / 2 for a, b in zip(lo, hi)), radius=radius,
+                   index=index, draw_distance=spec.get("draw_distance", like.draw_distance))
+    return placed(base, spec.get("position", (0.0, 0.0, 0.0)), spec.get("rotation"),
+                  spec.get("scale"))
 
 
 def collision_bytes(archive: bytes, e: Edits, where: str = "") -> bytes:
@@ -337,5 +417,6 @@ def merge(layers: list[Layer]) -> tuple[Edits, list[tuple[str, str, str]], list[
             owner[key] = L
             out.collision[name] = spec
         out.copies += L.edits.copies
+        out.new += L.edits.new
     return out, shadowed, problems
 

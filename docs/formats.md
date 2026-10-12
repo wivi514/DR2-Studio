@@ -19,7 +19,7 @@ Case West census before they count as rules (CLAUDE.md rule 7).
 | audio scene scripts `.txt` | `audio/Prologue.txt` (CZ), `audio/*.txt` + `scenegraph.txt` | ✅ text | `cAudioScene` / `cAudioJukebox` tree, `Asset = "music.big/<name>"`. **CZ's `Prologue.txt` is digest-checked by the executable: an edited copy crashes the game** |
 | `.bcs` string bank | `frontend/str_<lang>.bcs` | ✅ read + write | `dr2kit/formats/bcs.py` (§Strings). All 16 banks of both games re-write byte-identically (census); `.bcs.json` mod overrides change strings by id; a changed string checked in game in both recomps |
 | `.bcf` font | `system/**` | 🟡 | 9 of 11 in CZ and 6 of 11 in CW are plain `.big` archives (read by the census); the rest start `04 03 02 01`, an unknown sibling container ❓ |
-| `.anm` animation | `anim/**` (`default.big/<part>.big`), weapon banks `streamedassets.big/anm_<bank>.big` | 🟡 first frame read | `dr2kit/formats/anim.py` (§Animations): header, track table, key mask and the **first key of every track** of every `.anm` of both games (census `--anims`); the later keys are packed, not read. The idle per item kind comes from `sgraph.txt` (`convert/holding.py`) |
+| `.anm` animation | `anim/**` (`default.big/<part>.big`), weapon banks `streamedassets.big/anm_<bank>.big` | ✅ every key read | `dr2kit/formats/anim.py` (§Animations): header, track table, key mask and **every key** of every `.anm` of both games, read as the game's decoder reads them, to the file's last byte (census `--anims`); the rig from the skeleton id. Played in Studio and exported as glTF animations (`convert/holding.py`). The idle per item kind comes from `sgraph.txt` |
 | ragdoll `.dat` | `skeleton/*_ragdoll.dat` | ❓ | Havok likely (`hkp*` RTTI in the XEX) |
 | shader banks `.vo/.po/.vdo/.pdo/.sdo/.scv` | `shaders/*-{vs,ps,vd,pd,sc,sd,ss}.big` | 🟡 | `.vo`/`.po` are standard 360 D3D shader containers (`10 2A 11 01`, XenosRecomp translates them); `.sdo` = a shader name's permutations (`5cef4d20.sdo` → `ProtoSkinnedClothRGB`). Models carry their **own** vertex declarations, so the decoder doesn't need `-vd.big` (phase 0 guessed it did) |
 | mission / data `.txt`, `.csv` | `datafile.big`, CW loose `.csv` | ✅ text | engine scripting; edited for co-op in the CZ recomp |
@@ -1551,6 +1551,23 @@ went away only when they were sent away themselves). Studio therefore moves and 
 building's collision with it. Not measured: whether a copy can get collision (it would
 need new shapes in `persistent.big` and `_COLLISIONLIST_`).
 
+**New pieces** (phase 14, built 2026-10-12; **in game: test T4a**, `phase14-kickoff.md`).
+A piece the game doesn't have is three new entries of the zone archive, made by copy
+recipes from a game piece (`mods/newitem.py`): `<new>.big` (the piece archive, its scene
+`_COMP_<new>.big` renamed with it, the modder's `.glb` shape fitted into the template's
+first shape: `convert/weapon_fit.fitted_glb`), `<new>.tex` and `<new>_LOD.tex` (the
+template's texture packs with the modder's picture, full size and the `_LOD` size). **The
+picture gets a texture name of its own** (`texture_names`: the `.bct` entry and the
+material slot's name at +4…+0x37; the word at +0x38 is the sampler's hash and stays),
+because a zone shows the first texture of a name it finds (above). Its record is a `new`
+entry of the `.pieces.json`: the record of a `like` piece (unknown bytes, flags, LOD
+distance) renamed, numbered past the zone's highest piece number (+196 is **not** the
+piece's place in the archive: z05's 19 pieces carry numbers 2…20 in another order, z03's
+126 numbers up to 205), its own box placed for the world bounds, centre and radius, and
+its `draw_distance`. Template used by the test: `z02_hardware` (shader `LIT_CM`: lit,
+colour map only, **no lightmap**: 40 such pieces in CZ's street; 256 use `CM_LM`, whose
+lightmap a new shape has no UVs for).
+
 **Buildings** (`convert/buildings.py`, 2026-10-11/12). The game has no building object: a
 building is several pieces (walls, boarded windows, writing, roof units) and one or more
 collision shapes, often with no name in common (the store's walls are `pro_351`). The
@@ -1619,6 +1636,48 @@ What the classes hold (counts: CZ `prologue` / CW `living_research`):
   min_z, max_z` in columns 4-7, then the basement / second-floor heights), room rows
   (`pr101, 1709, …`: string ids), and **points**: `workbench_1, -186.4, 3.4, -114.2,
   LEVEL_PROLOGUE` (workbenches, save points, the safehouse).
+
+### Level slots: the executable's level table 🟡 (phase 14, 2026-10-12)
+
+Level ids (`LEVEL_PROLOGUE`, `LEVEL_FOOD_BARN`) are an enum compiled into the executable,
+with two tables of 82 pointers in the same order (CZ `default_image.bin`): **script
+names** at `0x829D4DFC` (a second copy at `0x829DBB64`): `americana_casino.txt`,
+`arena_backstage.txt`… `prologue.txt`, `prologue_bowling.txt`, `prologue_menu2.txt`,
+`prologue_menu.txt`, `prologue_safehouse.txt`… `food_barn.txt`, `fortune_exterior.txt`…
+16 × `testlevel.txt` at the end; and **zone lists** (relative to
+`data/models/environment/`) at `0x829D5F7C`: `americana_casino/zonelist.big`…
+`prologue/zonelist.big` (twice: the street and the safehouse **share** it),
+`prologue_bowling/zonelist.big`, `food_barn/zonelist.big`, `fortune_exterior/
+zonelist_rooftop_hotel.big`… and 16 developers' test levels (`z_frank/zonelist.big`,
+`z_vincent/…`, all with `testlevel.txt`). Case Zero ships the files of 4 slots
+(`prologue`, `_safehouse`, `_menu`, `_menu2`); the others are **empty slots**.
+
+What a level is made of, read from the shipped ones:
+
+* `data/datafile.big/<script>.txt` (spawn points, items, doors, zombie areas),
+  `waypoint_<script>.txt` (trigger volumes: doors, save points), `nm_<script>.txt` (the
+  navigation mesh);
+* its zone list; **a zone list names its zones as `folder/zone`** (`prologue/prologue_z05`),
+  so a slot's zone list can name another level's zones: the safehouse script plays on
+  the street's zones this way;
+* named by level id elsewhere: `zombiesets.txt` (`cZombieLoadSet LEVEL_<X>`, also in
+  `persistent_filecache.big` and `preload4.big`'s copy), `fe_map_points_<level>.csv` (the
+  in-game map), `missions.txt` (`LevelRequiredToStartName`), cutscenes
+  (`PreferedLevel`).
+
+**A map of one's own** (test T5, built 2026-10-12, not yet in game): the slot's script
+files as copies (new entries of `datafile.big`), its zone list as a **new file**, and a
+door (`cTriggerVolume`, `ActionType 3`, `Level = LEVEL_<SLOT>`) to it.
+
+**`layout.bin`** (the game root, opened first: CZ `0x82786230` reads it) is the game's
+table of loose files: 238 records (CZ) of 152 bytes: the path (128 bytes), a hash word,
+the size (big-endian, +132), the file's position on the disc (64-bit, +136: each file
+starts where the one before ends, rounded up to 0x800, but for 11), 8 zero bytes. The game
+**works each name's hash out itself** when it reads the table (and keeps its own when the
+stored one differs), then looks files up by it; the size pins how much is read (phase 13:
+a grown file is cut short). The build writes a record for each **new** file (hash 0, its
+size, a position after every other file: `mods.build.new_layout_record`). Whether the game
+needs the record, or reads a file missing from the table at all: test T5.
 
 ## Weapons: `items.txt` blocks, elements, effect numbers 🟡
 
@@ -1836,61 +1895,86 @@ loaded and showed: the sample sword standing in the street, textured. The user's
 runs of phase 12 are not explained ❓ (two crashes loading `zombies.big` with a co-op
 player present).
 
-## Animations (`.anm`) 🟡 first frame read (phase 13.2, 2026-10-12)
+## Animations (`.anm`) ✅ every key read (phase 13.2 first frames, phase 14 every key)
 
-Implemented by `dr2kit/formats/anim.py` (reader, `census`), used by
-`dr2kit/convert/holding.py` (Chuck frozen in an idle, an item in his hand).
+Implemented by `dr2kit/formats/anim.py` (reader, `decode`, `census`), used by
+`dr2kit/convert/holding.py` (Chuck in an idle, his moves played, glTF animations).
 
 **Where.** `data/anim/default.big` holds one archive per skeleton part: `fullbody.big`
 (1,371 in CZ), `root.big` (the same names), `hand.big` (170: finger poses), `upperbody.big`
 (33), `facial.big` (46); also `zombies.big`, `mercs.big`, `battle/`, `cinematic/`,
 `survivor_custom/`, `weapon/`. A weapon's moves are `streamedassets.big/anm_<AnimBankName>.big`
-with `root.big` and `fullbody.big` inside. **Track numbers are node indices of the part's
-skeleton file**: `fullbody` → `data/skeleton/playerfullbody.big` (98 nodes, the same rig
-every part of Chuck's body carries), `root` → `playerroot.big` (2 nodes: `dummy01.root`,
-`arrow`), `hand` → `playerhand.big` (30 finger nodes), `upperbody` → `playerupperbdy.big`.
+with `root.big` and `fullbody.big` inside; its `items.txt` block names them
+(`AnimationAttackName0…`, e.g. the Broadsword's `male_attack_sword_6_to_1_a`).
+
+**Which rig.** The first word is the **skeleton id**, the same number a skeleton file
+stores as word 1 of its `_ANIMCHANNELINFO_` (word 0 = its node count): fullbody
+`0x24F628C0` = `data/skeleton/playerfullbody.big` (98 nodes; the child, female and large
+full bodies share it), root `0xAD2B0240` = `playerroot.big` (`dummy01.root`, `arrow`),
+hand `0x70CB2D80` = `playerhand.big` (30 finger nodes), upper body `0xDA1D8000`, face
+`0xADC1BFE0`, **zombies `0x45E6F8E0` = `zombiefullbody.big`** (30 nodes: zombies' and
+mercs' full-body moves), cutscene casts `0xDDEA5800` (`cineplayer.big`…), props
+`0xE23F8460`, cameras `0x1C5D5480`. The game refuses a mismatch ("*** the anim data does
+not match the skeleton that it is being played on! ***", CZ `0x827BB5F8`). **Track numbers
+are node indices of that skeleton file.** *Checked:* every skeleton file of CZ searched for
+the ids (2026-10-12).
 
 **Layout** (big-endian):
 
 | Offset | Type | Meaning |
 |---|---|---|
-| 0x00 | u32 | one value per skeleton part (fullbody `0x24F628C0`, root `0xAD2B0240`, hand `0x70CB2D80`; 16 values in CZ) ❓ how it is made |
+| 0x00 | u32 | skeleton id (above) |
 | 0x04 | f32 | length in seconds = (frames − 1) / rate |
 | 0x08 | f32 | frames per second (30, 29.86, 60…) |
 | 0x0C | u16 | key mask offset = 0x16 + 2 × tracks |
 | 0x0E | u16 | first keys' offset = the mask's end rounded up to 4; **0 when that is past 0xFFFF** (26 long cutscenes of both games: `701_chuck_arrives_in_town~chuck.anm`…) |
 | 0x10 | u16 | frames |
 | 0x12 | u16 | tracks |
-| 0x14 | tracks × (u8 node, u8 kind) | sorted by kind: animated rotations, animated translations, fixed translations, fixed rotations |
+| 0x14 | tracks × (u8 node, u8 kind) | **in the decoder's kind order**: `0x22`, `0x02`, `0x01`, `0x05`, `0x11`, `0x12`, `0x31` (every file of both games) |
 | | `FF 00` | end of the table (every file) |
 | mask | frames × ⌈tracks / 8⌉ bytes | bit *t* of frame *f*: track *t* has a key at frame *f*; every track has keys at the first two and last two frames |
-| keys | | the first key of every track, in track order; then the later keys of the animated tracks |
+| keys | | the first key of every track, in track order; then the later keys (below) |
 
-Track kinds and their first key:
+Track kinds and their keys (the scales are floats in the executable, CZ `0x820B28C4`…):
 
-| Kind | What | First key |
-|---|---|---|
-| `0x01` | rotation, animated | **8 bytes**: two 16-bit words whose low 15 bits are x and y (signed, /16384; each word's top bit is a flag ❓, always 0 in the first word), then z and w as signed 16-bit (/32767) |
-| `0x02` | translation, animated | three floats (metres) |
-| `0x12` | translation, fixed | three floats |
-| `0x31` | rotation, fixed | four signed 16-bit (/32767), x y z w |
-| `0x05` | a camera (`…~cameras.anm`) | 32 bytes per frame: a float quaternion, a position, one float (field of view ❓) |
-| `0x22` | cutscenes only (65 tracks in CZ) ❓ | taken as three floats |
+| Kind | What | First key | Later key |
+|---|---|---|---|
+| `0x01` | rotation, animated | **8 bytes**, one 64-bit number: x = bits 62-47 (16 bits, /32767), y = bits 46-32 (15 bits, /16383), z = bits 31-16, w = bits 15-0 (/32767) | **top bit 0**: 8 bytes as the first key; **top bit 1**: 4 bytes, a **change from the previous key**: x = bits 30-23 (/12700), y = bits 22-16 (7 bits, /6300), z = bits 15-8, w = bits 7-0 (/12700). Either way the result is scaled by 1.5 − \|q\|²/2 |
+| `0x02` | translation, animated | three floats (metres) | **top bit 1**: 8 bytes, three 21-bit signed numbers (bits 62-42, 41-21, 20-0) × 300 / (2²⁰ − 1), the position itself; top bit 0: three floats |
+| `0x12` | translation, fixed | three floats | none |
+| `0x31` | rotation, fixed | four signed 16-bit (/32767), x y z w, normalised | none |
+| `0x05` | a camera (`…~cameras.anm`) | 32 bytes: a float quaternion, a position, one float (field of view ❓) | 32 bytes |
+| `0x22` | cutscenes only (65 tracks in CZ) ❓ | three floats | three floats |
+| `0x11` | (none in either game) | four floats | a signed 16-bit number × 9.5877e-05 (the fourth value) |
 
-*How it was found and checked:* `male_hand_hold_2x4_pose.anm` (30 fixed rotations) ends
-exactly 30 × 8 bytes after its keys' offset; fixed rotations and translations equal the
-skeleton's rest values on nodes that don't move (`jiggle` (−½, −½, −½, ½) and its offset
-(0.034, 0.175, −0.003)); animated first keys came out unit quaternions only once x and y
-were read as 15 bits. **Census (`dr2 census --anims`): every `.anm` of both games
-reads** (CZ 5,785 files, 601,403 frames; CW 6,268 files, 585,326 frames); every first
-rotation is a unit quaternion (CZ 74,738 animated + 42,466 fixed; CW 80,894 + 43,782);
-the empty entries are named (CZ 7, CW 3: helicopter props, `zombie_hitreaction_auger_idle`).
+**The order of the later keys.** The game steps through the frames (CZ `0x827B5090`): at
+frame *f*, for every track in table order with a key at *f*, it reads that track's **next**
+key (the next frame whose mask bit is set), 4-aligned (2 for `0x11`). So a key follows
+when the key before it on the same track is reached, not frame by frame. Between keys the
+toolkit turns rotations the short way (nlerp) and moves positions in a straight line.
 
-**Not read yet:** the later keys. An animated translation's are 8 bytes (three 21-bit
-numbers at bits 42-0, ×≈2.9e-4 of the first key's scale ❓); an animated rotation's are
-4 bytes (packed ❓). They are stored in the order they are *needed* (a key follows when the
-key before it on the same track is reached), not frame by frame: on `root.big/
-male_idle_samurai_sword.anm` that order matches the mask except a few entries ❓.
+*How it was found:* the first keys from the hand poses (`male_hand_hold_2x4_pose.anm`: 30
+fixed rotations end exactly after 30 × 8 bytes) and the skeletons' rest values (`jiggle`
+(−½, −½, −½, ½), offset (0.034, 0.175, −0.003)); the later keys from the game's own
+decoder (2026-10-12, read with the CZ recomp's `tools/gdis.py`): `0x8279B0B0` reads the
+first keys, `0x827B5090` steps a frame, `0x8279AB98` reads a rotation key (4 or 8 bytes by
+its top bit), `0x8279AF68` a translation key (8 or 12 bytes), `0x8279AEA8` a fixed
+rotation. **Census (`dr2 census --anims`): every `.anm` of both games is read to its last
+byte** (CZ 5,785 files, 601,403 frames, 6,655,401 keys; CW 6,268 files, 585,326 frames,
+6,850,259 keys), and every rotation key is within 0.0002 of unit length before the
+rescale; the empty entries are named (CZ 7, CW 3: helicopter props,
+`zombie_hitreaction_auger_idle`).
+
+**Retraction (phase 13.2 → 14):** the first key's x and y were read as two 15-bit numbers
+/16384, with "each word's top bit a flag ❓". The game reads **x as 16 bits across the two
+words** (that "flag" is x's lowest bit) **and y as 15 bits /16383**; the old reading was off
+by less than 1/16384, which is why it passed the unit-length check. Also retracted: "an
+animated translation's later keys are 8 bytes, ×≈2.9e-4 of the first key's scale" (the
+scale is 300 / (2²⁰ − 1), absolute; a top bit of 0 means three floats).
+
+**Root motion.** `root.big`'s move of the same name moves `dummy01.root`: where the hips
+are and how far the move carries him (`male_sword_a_2_to_8_360` travels 2.08 m forward,
+`male_attack_sword_6_to_1_a` 1.83 m). Studio's *In place* takes that straight line out.
 
 ### Which idle the game plays for an item ✅ (from the game's files)
 

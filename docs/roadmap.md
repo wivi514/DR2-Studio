@@ -361,7 +361,9 @@ with particles and drag handles; `dr2 hold` (a `.glb` for Blender, a picture). O
 comparison with the game (`phase13-kickoff.md` §Status 13.2). Full playback (the later
 keys) stays in phase 14.
 
-## Phase 14 (planned, not started): buildings and maps of your own, animations played
+## Phase 14 (started 2026-10-12): buildings and maps of your own, animations played
+Kickoff and status: [`phase14-kickoff.md`](phase14-kickoff.md). Part 3 (animations) is
+built and checked; parts 1-2 have their in-game tests built (T4a, T4b, T5), not yet run.
 Phase 13's step 9, carried from phase 12 (`phase12-kickoff.md` §Research T4-T6, plan
 steps 6-8). Each part starts with an in-game test by the user before tools are built:
 
@@ -375,10 +377,11 @@ steps 6-8). Each part starts with an in-game test by the user before tools are b
    and ships 4, e.g. `LEVEL_FOOD_BARN`; CW `LEVEL_W_MALL`): a copy of a small level
    (`prologue_menu2`) under a slot's name, and a door prefab with that `Level` and a
    destination list (T5: does it load, what else does it ask for?).
-3. **Animations played**: the rest of `.anm` (the later keys, packed: 8-byte
-   translations, 4-byte rotations, stored in the order they are needed), so Chuck swings
-   the weapon in Studio's 3D view and animations play in the Library; a census decoding
-   every key of both games.
+3. **Animations played** ✅ (2026-10-12): the rest of `.anm` (every key, read as the
+   game's decoder does: 4-byte changes and 8-byte absolute rotations, packed or float
+   translations, stored in the order they are needed), so Chuck swings the weapon in
+   Studio's 3D view, every animation plays in the asset browser and exports to Blender;
+   the census reads every key of both games to the last byte.
 
 Carried from 13.2: its in-game comparison if still owed, the left hand on `IK_lhand` in
 the 3D view, particle motion measured field by field (speed, spread, gravity's space).

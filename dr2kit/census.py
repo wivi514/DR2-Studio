@@ -72,9 +72,10 @@ Phase 13 adds **particle effects** (always, under a second; `check_effects`,
 with an effect and the free slots are counted.
 
 Phase 13.2 adds **animations** (``anims=True``, `check_anims`, `dr2kit.formats.anim`):
-every ``.anm`` of every archive reads its header, track table and key mask, and its first
-keys come out as unit quaternions and translations (the frozen poses Studio shows); the
-few empty entries are named.
+every ``.anm`` of every archive reads its header, track table and key mask; since phase
+14 **every key** is read the way the game's decoder reads it, and must end at the file's
+last byte with every rotation within 0.003 of unit length; the few empty entries are
+named.
 
 Phase 10 adds levels (``levels=True``, `check_levels`; `dr2kit.formats.level`):
 
@@ -560,12 +561,12 @@ def run_census(game: str, tree: AssetTree, *, python_lzx: bool = False,
 
 
 def check_anims(rep: "CensusReport", tree: AssetTree) -> None:
-    """Phase 13.2 (module docstring): every ``.anm`` reads its header, track table, key
-    mask and first keys (every rotation a unit quaternion); empty entries are named."""
+    """Phases 13.2 and 14 (module docstring): every ``.anm`` reads to its last key, to the
+    file's last byte (every rotation a unit quaternion); empty entries are named."""
     from .formats import anim
     r = anim.census(tree)
     rep.problems += [("anim", p) for p in r["problems"]]
-    rep.anims = {"files": r["files"], "frames": r["frames"],
+    rep.anims = {"files": r["files"], "frames": r["frames"], "keys": r["keys"],
                  "kinds": {f"{k:#04x}": v for k, v in sorted(r["kinds"].items())},
                  "unread": r["unread"]}
 
@@ -1331,8 +1332,8 @@ def format_report(rep: CensusReport) -> str:
           f"{'the same' if e['preload copy same'] else 'DIFFERENT'}")
     if rep.anims:
         a = rep.anims
-        w(f"animations (.anm): {a['files']} read (first pose: every rotation a unit "
-          f"quaternion), {a['frames']:,} frames; tracks by kind {_fmt(a['kinds'], sort_keys=True)}; "
+        w(f"animations (.anm): {a['files']} read to their last byte, {a['keys']:,} keys "
+          f"(every rotation a unit quaternion), {a['frames']:,} frames; tracks by kind {_fmt(a['kinds'], sort_keys=True)}; "
           f"empty: {len(a['unread'])}")
     if rep.string_banks:
         counts = set(rep.strings.values())

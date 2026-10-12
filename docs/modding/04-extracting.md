@@ -68,7 +68,14 @@ dr2 extract --glb --skeleton data/models/npcs.big/boss_mechanic.big -o out
 dr2 extract --glb data/skeleton/playerfullbody.big -o out
 # without textures (smaller, faster)
 dr2 extract --glb --no-textures data/models/npcs.big/boss_mechanic.big -o out
+# an animation: Chuck (or the rig it is made for) with the move as a Blender Action
+dr2 extract --glb data/streamedassets.big/anm_Sword.big/fullbody.big/male_attack_sword_6_to_1_a.anm -o out
 ```
+
+An **animation** (`.anm`) exports with its partner of the same name (`fullbody.big` with
+`root.big`: the root one carries how far the move takes him) on Chuck's outfit when it is
+made for the player's rig, or on the bones of its own rig (`dr2 info <.anm>` says which).
+In Blender press Space to play it.
 
 The file is `out/<vpath>.glb`, e.g. `out/data/models/npcs.big/boss_mechanic.big.glb`.
 `dr2 info data/models/npcs.big/boss_mechanic.big` lists its materials (with their

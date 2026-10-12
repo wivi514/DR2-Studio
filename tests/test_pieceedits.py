@@ -269,3 +269,26 @@ def test_case_zero_store_is_one_building_with_its_collision(game_root):
     assert b.shapes == ["meshCOL_pro_351", "meshCOL_z04_camera"]
     f = cb.building_of(bs, "z04_roof_vent_04")
     assert f.name == "z04_gen_f_detail" and "z04_gen_f_decal_2" in f.parts
+
+
+def test_new_piece_record():
+    """Phase 14: a record for a piece the game doesn't have: the like piece's record
+    renamed, a free piece number, its own box placed."""
+    org = lvl.ZoneOrganization.from_entries(_entries(organization(
+        placement_record("box", 7, (0, 0, 0), lo=(-1, 0, -2), hi=(1, 1, 2)),
+        placement_record("shed", 3, (10, 0, 0), lo=(9, -1, -1), hi=(11, 1, 1)))))
+    text = json.dumps({"format": pe.FORMAT, "new": [
+        {"piece": "my_box", "like": "shed", "bounds": [[-2, 0, -2], [2, 3, 2]],
+         "draw_distance": 150, "position": [5, 1, 5]}]})
+    e = pe.from_json(text)
+    assert pe.from_json(pe.to_json(e)).new == e.new
+    out = pe.apply(org, e)
+    new = out.placements[-1]
+    assert new.piece == new.name2 == "my_box" and new.index == 8 and new.draw_distance == 150
+    assert new.bounds_min == (3, 1, 3) and new.bounds_max == (7, 4, 7)
+    assert new.radius == pytest.approx(math.dist((-2, 0, -2), (2, 3, 2)) / 2)
+    assert lvl.Placement.parse(new.to_bytes()).piece == "my_box"
+    with pytest.raises(FormatError, match="already has"):
+        pe.apply(org, pe.Edits(new=[{**e.new[0], "piece": "box"}]))
+    with pytest.raises(FormatError, match="needs 'bounds'"):
+        pe.from_json(json.dumps({"format": pe.FORMAT, "new": [{"piece": "a", "like": "b"}]}))

@@ -19,7 +19,9 @@ it. The build does that and nothing else:
    (`dr2kit.formats.pieceedits`; several mods merge by piece and shape); any other file
    replaces the asset with the same
    vpath, byte for byte. Files under ``add/`` are **new entries** of an archive
-   (`manifest`; inserted in name order, compressed like their neighbours). Unknown paths, wrong
+   (`manifest`; inserted in name order, compressed like their neighbours), or, where the
+   folder above is a folder (or one the game doesn't have), **new files** (kind
+   ``file``, phase 14: a level of one's own, ``data/models/environment/<slot>/zonelist.big``). Unknown paths, wrong
    sizes, files the game digest-checks and conflicts between mods at the same priority
    are errors, reported all at once. Between different priorities the higher one wins,
    and `plan_mods` lists what lost (``ModPlan.shadowed``) for the mod manager. A change
@@ -32,7 +34,7 @@ it. The build does that and nothing else:
    replacement; CLAUDE.md rule 4), and every encode is verified by decoding.
 3. **Re-pin** ``layout.bin`` (`repin_layout`): the game reads each file by the size
    this table pins, so a build whose files changed size carries a ``layout.bin`` with
-   their new sizes.
+   their new sizes, and a record for every new file.
 4. **Verify** the output: read every override back through a fresh `AssetTree` over the
    build folder and compare it with what was meant to be written.
 
@@ -88,6 +90,7 @@ class BuildResult:
     base_used: dict = field(default_factory=dict)     # file vpath -> base folder used
     warnings: list[str] = field(default_factory=list)
     shadowed: list = field(default_factory=list)      # (vpath, losing mod, winning mod)
+    new_files: list[str] = field(default_factory=list)   # kind "file": not in the game
 
 
 def _disk_parts(tree: AssetTree, vpath: str) -> int:
@@ -284,6 +287,22 @@ def plan_mods(mods: list[Mod], game: str, tree: AssetTree) -> ModPlan:
                     problems.append(str(e))
                     continue
             parent, _, name = rel.rpartition("/")
+            folder = _new_file_folder(tree, parent)
+            if folder is not None:                       # a new file, not an entry
+                vp = join(folder, name) if folder else rel
+                if (tree.root.joinpath(*split(vp))).exists():
+                    problems.append(f"{mod.id}: {ADD_DIR}/{rel}: the game already has "
+                                    f"{vp}; put a changed copy under replace/ instead")
+                    continue
+                key = vp.lower()
+                if key in plan and plan[key].mod.priority == mod.priority:
+                    problems.append(f"{vp}: added by both {plan[key].mod.id} and {mod.id}")
+                    continue
+                if key in plan:
+                    shadowed.append((vp, plan[key].mod.id, mod.id))
+                plan[key] = Planned(Override(vp, src, "file"), mod, vp, len(split(vp)),
+                                    data=recipe)
+                continue
             try:
                 node = tree.resolve(parent)
                 arc = tree.open_archive(node.vpath)
@@ -356,6 +375,7 @@ def plan_mods(mods: list[Mod], game: str, tree: AssetTree) -> ModPlan:
             from ..formats.levelscript import Document
             if facts is None:
                 facts = levelcheck.GameFacts(tree)
+                _added_scripts(facts, plan)
                 for stem, names in added_spawns.items():
                     facts.spawn_points(stem).update(names)
                 facts.added_items = {path.split(" ", 1)[1].lower()
@@ -568,9 +588,9 @@ def effect_bytes(original: bytes, src: Path, vpath: str) -> bytes:
 
 def new_bytes(p: Planned, original: bytes) -> bytes:
     """The replacement bytes for one override, given the asset's current bytes."""
-    if p.override.kind == "add" and p.data is not None:
+    if p.override.kind in ("add", "file") and p.data is not None:
         return p.data
-    if p.override.kind in ("raw", "add"):
+    if p.override.kind in ("raw", "add", "file"):
         return p.override.source.read_bytes()
     if p.override.kind in MERGED:
         return merged_bytes([p], original)
@@ -666,6 +686,48 @@ def register_in_scene(arc: BigArchive, names: list[str]) -> None:
     head.set_data(bytes(h))
 
 
+def _added_scripts(facts, plan: dict) -> None:
+    """Level scripts the mods add (phase 14, maps of one's own: ``add/…/datafile.big/
+    <x>.txt`` with ``waypoint_<x>.txt`` or ``nm_<x>.txt``) count as levels for the level
+    checks, with their spawn points, so a door can lead to them."""
+    from ..formats.levelscript import Document
+    added = {p.vpath.rsplit("/", 1)[-1].lower(): p for p in plan.values()
+             if p.override.kind == "add" and p.vpath.lower().startswith("data/datafile.big/")}
+    for name, p in added.items():
+        if not name.endswith(".txt") or name.startswith(("waypoint_", "nm_")):
+            continue
+        stem = name[:-4]
+        if f"waypoint_{stem}.txt" not in added and f"nm_{stem}.txt" not in added:
+            continue
+        facts.scripts.add(stem)
+        try:
+            doc = Document.parse(new_bytes(p, b""), p.vpath)
+        except Dr2Error:
+            continue
+        facts.spawn_points(stem).update(b.name.lower() for b in doc.blocks
+                                        if b.cls == "cSpawnPoint")
+
+
+def _new_file_folder(tree: AssetTree, parent: str) -> str | None:
+    """Where an ``add/`` file goes when it is a new file (kind ``file``): its folder's
+    vpath with the game's letter case for the part that exists (new folders as written),
+    or None when ``parent`` is (inside) an archive: then it is a new entry."""
+    parts = split(parent)
+    if not parts or parts[0].lower() != "data":
+        return None
+    here, out = tree.root, []
+    for i, p in enumerate(parts):
+        nxt = next((c for c in here.iterdir() if c.name.lower() == p.lower()), None) \
+            if here.is_dir() else None
+        if nxt is None:
+            return join(*out, *parts[i:]) if here.is_dir() else None
+        if nxt.is_file():
+            return None                                  # an archive on disk
+        out.append(nxt.name)
+        here = nxt
+    return join(*out)
+
+
 def evict_entry(arc: BigArchive, name: str) -> None:
     """Make the game's lookups miss entry ``name`` of ``arc`` (its index hash changed, its
     bytes kept), so it reads the loose file instead (`PRELOAD`). Already evicted (by the
@@ -713,6 +775,15 @@ def build(mods: list[Mod], game: str, tree: AssetTree, out_dir: str | Path,
         file_vp = join(*split(p.vpath)[:p.disk_parts])
         by_file.setdefault(file_vp, []).append(p)
     for file_vp, items in sorted(by_file.items()):
+        if items[0].override.kind == "file":           # a new file: its bytes as they are
+            dest = out.joinpath(*split(file_vp))
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(new_bytes(items[-1], b""))
+            res.files.append(file_vp)
+            res.new_files.append(file_vp)
+            if progress:
+                progress(file_vp)
+            continue
         src = tree.root.joinpath(*split(file_vp))
         base = next((Path(b) for b in base_dirs if Path(b).joinpath(*split(file_vp)).is_file()),
                     None)
@@ -769,10 +840,24 @@ def build(mods: list[Mod], game: str, tree: AssetTree, out_dir: str | Path,
 
 LAYOUT = "layout.bin"
 LAYOUT_RECORD = 152                 # name (128), a word, BE size at +132, disc position
+LAYOUT_ALIGN = 0x800                # a file's disc position: the one before's end, rounded
+
+
+def new_layout_record(vpath: str, size: int, position: int) -> bytes:
+    """A ``layout.bin`` record for a file the game doesn't have (phase 14): its name, a
+    hash word left 0 (the game works the name's hash out itself when it reads the table
+    and keeps that: CZ ``0x82786230``), its size, and a disc position after every other
+    file (a 64-bit number at +136; files are laid out every 0x800 bytes)."""
+    name = vpath.encode("latin-1")
+    if len(name) >= 128:
+        raise ModError(f"{vpath}: a file name is at most 127 characters")
+    return (name.ljust(128, b"\0") + (0).to_bytes(4, "big") + size.to_bytes(4, "big")
+            + position.to_bytes(8, "big") + bytes(8))
 
 
 def repin_layout(res: BuildResult, tree: AssetTree, base_dirs=()) -> bool:
-    """Write ``layout.bin`` into the build with the built files' sizes, when one changed.
+    """Write ``layout.bin`` into the build with the built files' sizes, when one changed,
+    and a record for every new file (`new_layout_record`).
 
     Why: ``layout.bin`` (the game root's, opened first) pins every file's size in
     152-byte records (the name, then the size big-endian at +132), and the loader reads a
@@ -788,12 +873,23 @@ def repin_layout(res: BuildResult, tree: AssetTree, base_dirs=()) -> bool:
     data = bytearray(src.read_bytes())
     sizes = {f.lower(): res.out_dir.joinpath(*split(f)).stat().st_size for f in res.files}
     changed = False
+    listed, end = set(), 0
     for at in range(0, len(data) - LAYOUT_RECORD + 1, LAYOUT_RECORD):
         name = bytes(data[at:at + 128]).split(b"\0")[0].decode("latin-1").lower()
+        listed.add(name)
         size = sizes.get(name)
         if size is not None and int.from_bytes(data[at + 132:at + 136], "big") != size:
             data[at + 132:at + 136] = size.to_bytes(4, "big")
             changed = True
+        old = int.from_bytes(data[at + 132:at + 136], "big")
+        end = max(end, int.from_bytes(data[at + 136:at + 144], "big") + old)
+    for f in getattr(res, "new_files", []):
+        if f.lower() in listed:
+            continue
+        end = (end + LAYOUT_ALIGN - 1) // LAYOUT_ALIGN * LAYOUT_ALIGN
+        data += new_layout_record(f, sizes[f.lower()], end)
+        end += sizes[f.lower()]
+        changed = True
     if changed:
         (res.out_dir / LAYOUT).write_bytes(bytes(data))
     return changed
@@ -843,7 +939,7 @@ def verify(res: BuildResult, tree: AssetTree, base_dirs=()) -> None:
         if p.override.kind == "evict":                # its bytes stay; the hash changed
             continue
         got = built.resolve(p.vpath).data()
-        if p.override.kind in ("raw", "add"):
+        if p.override.kind in ("raw", "add", "file"):
             want = new_bytes(p, b"")
         else:
             original = _original(tree, base_dirs, p)

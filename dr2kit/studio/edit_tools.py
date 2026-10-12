@@ -176,6 +176,11 @@ def run():
         if not obj.get("dr2_shown", True):
             obj.hide_set(True)
             obj.hide_render = True
+    # an animation (phase 14): the timeline spans the move, so Space plays all of it
+    if bpy.data.actions:
+        ranges = [a.frame_range for a in bpy.data.actions]
+        bpy.context.scene.frame_start = int(min(r[0] for r in ranges))
+        bpy.context.scene.frame_end = int(max(r[1] for r in ranges))
     # show the textures: Material Preview in every 3D view (Solid view draws grey)
     for win in bpy.context.window_manager.windows:
         for area in win.screen.areas:

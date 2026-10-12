@@ -83,14 +83,21 @@ start* added. Phase 13.2 (user-set 2026-10-12) built the same day: `.anm` read t
 effects playing and drag handles (`studio/hold_view.py`, `web/hold.js`, in *New weapon…*
 and *Effects…*), `dr2 hold`. Owed: the comparison with the game by the user
 (`docs/phase13-kickoff.md` §Status 13.2). Phase 14
-(planned, not started): buildings of one's own (look as a level piece, collision as an
-invisible item), maps in the executables' empty level slots, `.anm` played (its later keys:
-Chuck swinging); each part starts with an in-game test by the user (`docs/roadmap.md`).** Read these before writing code:
+(user-set 2026-10-12, "Do phase 14", started the same day: `docs/phase14-kickoff.md`):
+**animations played** done (every key of every `.anm` read as the game's decoder does,
+census to the last byte in both games; Chuck swings the weapon in Studio's 3D view, any
+`.anm` plays in the asset browser on its rig, `.glb` Actions for Blender); **buildings**
+(a new level piece + an invisible collision item) and **maps** (the executable's empty
+level slots, `LEVEL_FOOD_BARN`) have their in-game tests T4a, T4b, T5 built
+(`~/.cache/dr2kit-p14/`) with the toolkit pieces they need (`.pieces.json` `new`, level
+piece / plain-file copy recipes, new files with `layout.bin` records); owed: the tests
+run by the user, then the tools (`docs/phase14-kickoff.md` §Start here).** Read these before writing code:
 
 | Doc | What it holds |
 |---|---|
 | `docs/ARCHITECTURE.md` | Components, data flow, the asset index, the mod package format, stack choices |
 | `docs/formats.md` | Everything known about every file format, with a status per format (cracked / partial / unknown) |
+| `docs/phase14-kickoff.md` | Phase 14 (animations played: done; buildings and maps of your own: in-game tests T4a, T4b, T5 built, not yet run): research (level pieces, item collision, the executable's level slots, `layout.bin`), the tests and what each answer gives, plan, decisions, gate, §Status, §Start here |
 | `docs/phase13-kickoff.md` | Phase 13 and 13.2 (Chuck holding it in 3D: §Status 13.2; steps 1-6.4 built; next steps in §Start here: weapons made easy, effects of one's own, the icon from the model, phase 12's tools): what phase 12 proved, plan, decisions, gate, §Status, handoff (where phase 12's working files are) |
 | `docs/phase12-kickoff.md` | Phase 12 (ended: your own weapons with effects, combo weapons, buildings, maps): research (weapon keys, combo cards, grip locators, level slots), unknowns and the in-game tests to do first, plan, decisions, gate, §Status |
 | `docs/phase11-kickoff.md` | Phase 11 (edit levels: zombie spawns, objects; add your own things from prefabs; saved as `.edits.json` mods): research, plan, gate, §Status (what was measured in game, what it still owes) |
@@ -240,9 +247,11 @@ python tools/weapon_gate.py cz|cw --out ~/.cache/dr2kit-gate13/cz [--install-use
 python tools/wow_import.py extract|model|effect …   # WoW 3.3.5 → .glb / an own effect (local only, guide 22)
 python tools/effect_table.py <recomp>/assets/game/default_image.bin --check cz   # effects.toml = exe?
 dr2 census --levels                       # every zone, placement, level text file, item model (~50 s / game)
-dr2 census --anims                        # every .anm: header, tracks, first pose (~10 s / game)
+dr2 census --anims                        # every .anm: every key, to the last byte (~30 s / game)
 dr2 hold Broadsword -g cz -o out --png    # Chuck in the item's idle holding it (.glb + picture);
 dr2 hold FrostBlade --mod my-mod -o out   #   or a mod's wizard weapon
+dr2 hold Broadsword --moves -g cz -o out  # + every attack as a glTF animation (Blender Action)
+dr2 extract --glb -g cz <.anm vpath> -o out   # an animation on Chuck (or its rig's bones)
 dr2 export prologue [--zone z05] [--whole] [--zombies] [--collision] -g cz -o out   # a level for Blender
 dr2 studio                                # the GUI (pip install -e ".[studio]")
 dr2 help [page] / dr2 help --search <words>          # the guides (= Studio's help)

@@ -212,6 +212,15 @@ def _scene_glb(args, tree, vpath: str, data: bytes) -> bytes:
     from ..convert import gltf
     from ..convert.model import TextureFinder
     from ..formats.scene import Scene, is_scene
+    if vpath.lower().endswith(".anm"):
+        from ..convert import holding
+        glb, clp = holding.animation_glb(tree, args.game, vpath, textures=not args.no_textures)
+        if not args.quiet:
+            body = "Chuck" if holding.body_for(tree, vpath) == "chuck" else "its rig's bones"
+            print(f"    the move on {body}: {clp['length']:.2f} s, {len(clp['nodes'])} nodes "
+                  f"({', '.join(f.rsplit('/', 2)[-2] for f in clp['files'])}); Blender: an "
+                  f"Action, Space plays it", file=sys.stderr)
+        return glb
     if not is_big(data) or not is_scene(BigArchive.parse(data, vpath)):
         raise Dr2Error(f"{vpath} is not a model or skeleton (no SceneHeader); --glb "
                        f"needs one, e.g. data/models/npcs.big/boss_mechanic.big")
@@ -490,16 +499,17 @@ def cmd_info(args) -> int:
 
         from ..formats import anim
         a = anim.Animation.parse(data, node.vpath)
-        part = anim.part_of(node.vpath)
         kinds = Counter(f"{anim.KINDS[t.kind][0]}{' (animated)' if t.animated else ''}"
                         for t in a.tracks)
         print(f"animation:  {a.frames} frames at {a.rate:g}/s ({a.length:.2f} s), "
               f"{len(a.tracks)} tracks: " + ", ".join(f"{n} {k}" for k, n in kinds.items()))
-        if part:
-            print(f"skeleton:   {anim.SKELETONS[part]} (track numbers are its nodes)")
-        pose = a.first_pose()
-        print(f"first pose: {len(pose.rotations)} rotations, {len(pose.translations)} "
-              f"translations (later keys are packed, not read yet)")
+        c = a.decode()
+        keys = sum(len(ch.frames) for ch in c.channels)
+        print(f"keys:       {keys:,} (every one read; dr2 extract --glb plays it in Blender)")
+        from ..convert import holding
+        sk = holding.skeleton_for(tree, a, node.vpath)
+        print(f"rig:        {sk or 'unknown'} (skeleton id {a.skeleton_id:08X}; track numbers "
+              f"are its nodes)")
     elif node.vpath.lower().endswith(".sfx"):
         from ..formats.audioscript import sfx_tracks
         names = {e.name.lower() for e in node.archive.entries} if node.kind == "entry" else set()
@@ -1096,7 +1106,8 @@ def cmd_hold(args) -> int:
         mod_dir = Path(args.mod)
         spec = nw.load_spec(mod_dir, args.item)
         sources = mod_dir / "sources"
-        glb = nw.hold_glb(tree, args.game, spec, sources, textures=not args.no_textures)
+        glb = nw.hold_glb(tree, args.game, spec, sources, textures=not args.no_textures,
+                          moves=args.moves)
         scene = nw.hold_scene(tree, args.game, spec, sources, mod_dir)
         chuck, name = scene.chuck, spec.name
         m = nw.fit_weapon(tree, args.game, spec, sources)
@@ -1104,7 +1115,7 @@ def cmd_hold(args) -> int:
         place = [[scene.placement[c * 4 + r] for c in range(4)] for r in range(4)]
     else:
         glb, chuck = holding.item_hold_glb(tree, args.game, args.item,
-                                           textures=not args.no_textures)
+                                           textures=not args.no_textures, moves=args.moves)
         name = args.item
         parts = place = None
         if args.png:
@@ -1123,6 +1134,11 @@ def cmd_hold(args) -> int:
           f"(hand value {idle.hand_value})")
     for n in idle.notes:
         print(f"  note: {n}")
+    if args.moves:
+        from ..convert.gltf import Glb
+        moves = Glb.parse(glb).gltf["asset"].get("extras", {}).get("dr2", {}).get("moves") or []
+        print(f"  moves (glTF animations, Blender Actions; the item follows his hand): "
+              + (", ".join(moves) or "none"))
     if args.png:
         if not render.available():
             raise Dr2Error("--png needs numpy (pip install numpy)")
@@ -1747,6 +1763,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--png", action="store_true", help="also a picture (front, side, "
                    "three-quarter)")
     p.add_argument("--no-textures", action="store_true", help="no pictures in the .glb")
+    p.add_argument("--moves", action="store_true", help="also its attacks, as animations "
+                   "(Blender Actions): Chuck swinging it")
     game_opt(p)
     p.set_defaults(func=cmd_hold)
 
@@ -1840,8 +1858,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--levels", action="store_true",
                    help="also read every level: zones, placements, pieces (~1 min per game)")
     p.add_argument("--anims", action="store_true",
-                   help="also read every animation (.anm): header, tracks, first pose "
-                        "(~10 s per game)")
+                   help="also read every animation (.anm): header, tracks, every key "
+                        "(~30 s per game)")
     p.add_argument("--workers", type=int,
                    help="processes for --reencode / --audio (default: all CPUs)")
     p.add_argument("-q", "--quiet", action="store_true", help="no per-archive progress")

@@ -264,6 +264,9 @@ my_mod/
                               # buildings: hidden, moved, copied; their collision (phase 11)
   add/                        # new entries (phase 11): add/<archive vpath>/<name>, or a
     data/streamedassets.big/MyItem.big.copy.json   # recipe that makes it from the player's game
+    data/models/environment/prologue/prologue_z02.big/my_box.big.copy.json   # a new level piece
+    data/models/environment/food_barn/zonelist.big.copy.json  # a NEW FILE (phase 14): its
+                              # folder is a folder, not an archive
   sources/                    # the modder's own .glb / PNGs a recipe uses
 ```
 
@@ -331,6 +334,24 @@ compressed like their neighbours, declaring their siblings' alignment in `flags`
 game hangs on a new entry declared 0). *Decision:* a new item copied from a game item is
 stored as a **recipe** (`.copy.json`, `mods/newitem.py`), never as the copied bytes, so a
 shared mod holds no game data; the build makes the pack from the player's own game.
+
+**New loose files and new level pieces (phase 14).** An `add/` file whose folder is a
+folder (or a folder the game doesn't have) is a **new file** of the build (kind `file`),
+and `layout.bin` gets a record for it (the game's table of loose files; it hashes the
+names itself: `formats.md` §Levels, "Level slots"). A copy recipe also copies plain files
+(a level's text files, with level edits applied) and level pieces (the scene inside
+renamed, its pictures given names of their own: a zone shows the first texture of a
+name). *Decisions (phase 12, the user's):* a building of one's own is a **new level piece
+plus an invisible collision item**; a map of one's own goes only into the executable's
+**empty level slots**, started as a copy of a level. Whether the game takes them: the
+in-game tests T4a, T4b, T5 (`phase14-kickoff.md`).
+
+**Animations (phase 14).** Every `.anm` is read to its last key (`formats/anim.py`); a
+move is turned into a clip by node name (`convert/holding.py`) that Studio's three.js
+pages sample each frame (`web/hold.js`: the weapon follows the hand node) and that goes
+into `.glb` files as a glTF animation (Blender: an Action) on every copy of the rig's
+nodes (each of Chuck's parts carries the rig). Nodes a move doesn't touch get Chuck's
+rig's rest values, never a part's own (the boots' rest pose differs).
 
 **Particle effects (phase 13).** A mod changes a game effect with an `.effect.json`
 (its name and the changes: hue, size, pictures…; `convert/effects.py`) or adds one of its

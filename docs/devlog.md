@@ -17,6 +17,33 @@ Entry template:
 
 ---
 
+## 2026-10-12 — Phase 14: animations played; building and map tests built
+**Done:** every key of every `.anm` read as the game's own decoder reads it
+(`formats/anim.py` `decode`, census to the last byte in both games); the rig of an
+animation from its skeleton id; an item's attacks, clips by node name, glTF animations
+(`convert/holding.py`); Studio's 3D view plays the weapon kind's attacks with the weapon
+in his hand (Move, Pause, time slider, In place), and any `.anm` plays in the asset
+browser (on Chuck or as bones) and exports to Blender (`dr2 extract --glb <.anm>`, `dr2
+hold --moves`). For buildings and maps: `.pieces.json` `new` records, copy recipes of
+level pieces with textures renamed, plain-file copies with level edits, new files in mod
+builds with `layout.bin` records, the level checker taking a mod's own scripts; the three
+in-game tests T4a, T4b, T5 built (`phase14-kickoff.md`).
+**Why:** the user's "Do phase 14" (roadmap: buildings and maps of one's own, animations
+played; each part starts with an in-game test).
+**Learned:** the later keys are read one frame at a time, each track's *next* key when its
+current one is reached; a 4-byte rotation key is a change from the previous key
+(x, z, w /12700, y /6300) and the game rescales by 1.5 − |q|²/2; 13.2's first-key reading
+was slightly off (x is 16 bits across the two words: retraction in formats.md); the
+skeleton id is in each skeleton's `_ANIMCHANNELINFO_`; the executable's level tables
+(82 scripts, 82 zone lists, the safehouse sharing the street's zones); `layout.bin` is a
+lookup table whose name hashes the game works out itself. formats.md §Animations, §Levels
+("New pieces", "Level slots").
+**Docs updated:** formats.md, phase14-kickoff.md (new), roadmap.md, guides 03, 04, 20,
+modding/README.md, context.toml, glossary.md, dev/code-tour.md, ARCHITECTURE.md,
+CLAUDE.md.
+**Next:** the user closes Case Zero; T4a/T4b/T5 headless on a copy of their save, then
+played by the user (§Start here); then the tools.
+
 ## 2026-10-12 — Phase 13.2: Chuck holding the weapon in 3D, in the game's idle; `.anm` first frames
 **Done:** `.anm` read to its first frame (`formats/anim.py`, every file of both games,
 `census --anims`, `dr2 info`); the idle for each item kind and the fingers' pose followed

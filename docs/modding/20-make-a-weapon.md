@@ -70,6 +70,12 @@ fist.
      **Effect point** (drag the arrow: where the effects start along the blade). When you
      let go, the value goes into the boxes below and the model is fitted again. *Look*
      puts the handles away. Only a model of your own moves: the game weapon's shape stays.
+   * **See him swing it**: the **Move** box under the buttons lists the kind's attacks
+     (the game's own animations, every frame): choose one and Chuck plays it in a loop,
+     your weapon in his hand. **Pause** stops on a frame, the slider goes to any moment
+     (handy to check the blade doesn't go through his arm at the top of a swing).
+     **In place** keeps him where he stands (in game a move carries him forward, up to
+     2 m). *Standing still* goes back to the idle.
    * **Its handle is**: if the blade ended up in the hands, choose *one end* / *the other
      end*.
    * **Length** (0 = the game weapon's), **Turn about its length** (try 90°), **Slide**
@@ -126,6 +132,8 @@ dr2 studio --mod my-mod --weapon FrostBlade      # open Studio on the weapon's w
 dr2 hold FrostBlade --mod my-mod -o out --png    # Chuck holding it: out/FrostBlade_held.glb
                                                  # (for Blender) and a picture
 dr2 hold Broadsword -o out --png -g cz           # the same with a game weapon
+dr2 hold FrostBlade --mod my-mod --moves -o out  # + every attack as a Blender Action
+                                                 #   (Space plays it; the sword follows his hand)
 dr2 level edit my-mod prologue add "cItemPlacement MyFrostBlade" \
     ItemName=FrostBlade Location=-278,3.6,-36
 dr2 play -g cz

@@ -34,7 +34,7 @@ dr2kit/
     leveledits.py      .edits.json: a mod's changes to a text file by block path; apply, diff, merge (phase 11)
     collision.py       a zone's collision: Havok triangle meshes in MERGED_COLLISION.big (phase 10)
     effect.py          particle effects of effects.big: emitters, fields (phase 13)
-    anim.py            animations (.anm): header, tracks, key mask, the first pose (phase 13.2)
+    anim.py            animations (.anm): header, tracks, key mask, every key (phases 13.2, 14)
   convert/
     png.py             pure-Python PNG reader/writer (Pillow used when present)
     dxt.py             DXT1/DXT5/DXN block decode + encode (numpy, pure-Python fallback)
@@ -603,6 +603,39 @@ under an `align` group whose TransformControls do slide / turn / length, the eff
 point, `Emitter` particles drawn added); a handle let go sends `dr2:align {…}`, which
 `WeaponDialog._aligned` puts in its boxes. The *Effects…* window shows the selected
 effect, with its unsaved changes, on a game weapon of a chosen kind.
+
+### Animations played (phase 14): `formats/anim.py` `decode`, `convert/holding.py` clips
+[`formats.md`](../formats.md) §Animations. `Animation.decode()` reads every key the way the
+game's decoder does (`_first_keys`, then frame by frame each track's next key:
+`packed_rotation`, `delta_rotation`, `packed_translation`; `_rescale` is the game's Newton
+step) into a `Clip` of `Channel`s (frames + values; `Channel.at` / `Clip.pose` interpolate,
+`nlerp`); it raises when the keys don't end at the file's last byte. `convert.holding`:
+`skeleton_ids` (skeleton id → skeleton file from `_ANIMCHANNELINFO_`), `skeleton_for`,
+`companions` (a `fullbody.big` move with its `root.big` partner), `move_files` /
+`item_moves` → `Move` (an item's `AnimationAttackName…` in its `AnimBankName` bank),
+`clip` (layered files → JSON-able keys by node name; `rig=` fills every other node of
+Chuck's rig with its rest value, as `full_pose` does for the parts), `cached_clip`,
+`move_clips` (an item's attacks with its hand pose, for the *Move* box), `body_for`
+(Chuck or a skeleton), `add_animation` (a clip as a glTF animation on every copy of each
+node), `animation_glb` (`dr2 extract --glb <.anm>`, Studio's Export / Open in Blender),
+`hang_on_hand` / `add_moves` (`dr2 hold --moves`: the item under the hand node).
+`mods.newweapon.HoldScene.moves` carries the kind's attacks; `studio.hold_view.HoldView`
+has the *Move* box, *Pause*, a time slider and *In place*, and with `tools=False` is the
+Library's animation view (`MainWindow._show_anim`); `hold.js` samples the clip each frame
+(`sampleKeys`), moves the weapon with the hand (`rememberHand` / `followHand`), takes the
+travel out of `dummy01.root` (*In place*) and draws bones as lines (`setBones`).
+
+### Buildings and maps of one's own (phase 14, the toolkit side)
+[`phase14-kickoff.md`](../phase14-kickoff.md). `formats.pieceedits`: a `.pieces.json`'s
+`new` list (`_new_spec`, `new_placement`: a `like` piece's record renamed, numbered past
+the zone's highest, its own box placed). `mods.newitem.build_copy`: level pieces (the
+`_COMP_<piece>.big` scene renamed with the piece; `textures` straight into a copied
+`.tex` pack), `rename_textures` (`texture_names`: `.bct` entries and material slot
+names), `_build_plain` (a plain file copied, level `edits` applied). `mods.build`:
+`_new_file_folder` (an `add/` file under a folder is a new file, kind `file`),
+`new_layout_record` and `repin_layout` (a `layout.bin` record per new file),
+`_added_scripts` (a mod's own level scripts count as levels for the door checks). The
+test mods are made by scripts outside the repo (`~/.cache/dr2kit-p14/scripts/`).
 
 ### Other games and the phase 13 gate: `tools/wow_import.py`, `tools/weapon_gate.py`
 `wow_import` is a **local tool** (guide [`22-from-other-games.md`](../modding/22-from-other-games.md);

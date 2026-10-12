@@ -454,10 +454,11 @@ def rest_glb(tree: AssetTree, game: str, outfit: str = OUTFIT) -> bytes:
 
 # --- for the command line: Chuck holding a game item ----------------------------------
 
-def item_hold_glb(tree: AssetTree, game: str, item: str, *, textures: bool = True
-                  ) -> tuple[bytes, Chuck]:
+def item_hold_glb(tree: AssetTree, game: str, item: str, *, textures: bool = True,
+                  moves: bool = False) -> tuple[bytes, Chuck]:
     """Chuck in the idle for a game item (its ``items.txt`` name) holding its model, as
-    one ``.glb`` (``dr2 hold``)."""
+    one ``.glb`` (``dr2 hold``). ``moves``: its attacks too, as glTF animations, the item
+    hung under his hand node so it swings with him (`hang_on_hand`)."""
     from . import gltf, placed
     from .model import model_glb
     models = placed.ItemModels(tree)
@@ -470,12 +471,39 @@ def item_hold_glb(tree: AssetTree, game: str, item: str, *, textures: bool = Tru
     scene = Scene.parse(tree.resolve(scene_vp).data(), scene_vp)
     asm = gltf.Assembler()
     chuck_glb(tree, game, chuck, textures=textures, assembler=asm)
-    t, q, s = decompose(item_placement(chuck.hand, grip_matrix(scene)))
-    asm.add(model_glb(tree, scene, game=game, textures=textures, mode="shown"),
-            [{"name": block.name, "translation": t, "rotation": q, "scale": s}],
-            source=scene_vp)
+    glb = model_glb(tree, scene, game=game, textures=textures, mode="shown")
+    place = item_placement(chuck.hand, grip_matrix(scene))
+    hang_on_hand(asm, chuck, glb, block.name, place, scene_vp, on_hand=moves)
     asm.extras = {"item": block.name, "idle": chuck.idle.fullbody, "hand": chuck.idle.hand}
+    if moves:
+        asm.extras["moves"] = add_moves(asm, tree, block, chuck.idle)
     return asm.to_bytes(), chuck
+
+
+def hang_on_hand(asm, chuck: Chuck, glb: bytes, name: str, placement, source: str,
+                 on_hand: bool = False) -> int:
+    """Put an item's ``.glb`` in Chuck's hand: at ``placement`` (its matrix in Chuck's
+    space), or with ``on_hand`` as a child of his first ``dummy01.r_hand_prop`` node
+    (hand⁻¹ × placement), so it follows the hand when a move plays (Blender parents it
+    to that bone). Returns its node."""
+    parent = None
+    if on_hand:
+        parent = next((i for i, n in enumerate(asm.b.gltf["nodes"])
+                       if (n.get("name") or "").lower() == HAND_PROP), None)
+    m = placement if parent is None else mat_mul(mat_inverse_affine(chuck.hand), placement)
+    t, q, s = decompose(m)
+    return asm.add(glb, [{"name": name, "translation": t, "rotation": q, "scale": s}],
+                   parent, source=source)[0]
+
+
+def add_moves(asm, tree: AssetTree, block, idle: Idle | None) -> list[str]:
+    """Every attack of ``block`` (`move_clips`) as a glTF animation of ``asm`` (named after
+    the move). Returns their names."""
+    names = []
+    for label, clp in move_clips(tree, block, idle):
+        if add_animation(asm, label.split("  ")[0], clp):
+            names.append(label)
+    return names
 
 
 def picture(tree: AssetTree, game: str, chuck: Chuck, item_parts: list, placement,
@@ -508,3 +536,260 @@ def picture(tree: AssetTree, game: str, chuck: Chuck, item_parts: list, placemen
     views = (((1, 0, 0), (0, 1, 0), (0, 0, 1)), ((0, 0, -1), (0, 1, 0), (1, 0, 0)), None)
     pics = [render.render(parts, width=width, height=height, basis=b, fill=0.9) for b in views]
     return np.concatenate([p for p in pics if p is not None], axis=1)
+
+
+# --- animations played (phase 14) ---------------------------------------------------------
+#
+# Every key of an ``.anm`` is read (`formats.anim.Animation.decode`), so a move plays: an
+# attack of the weapon's kind with the weapon in Chuck's hand (Studio's "Chuck holding it"
+# view), any animation of the game on the rig it was made for (the Library), or as a glTF
+# animation in Blender (`dr2 extract --glb <.anm>`, `dr2 hold --moves`).
+#
+# Which rig: an ``.anm``'s first word is its skeleton's id, the same number every skeleton
+# file stores in its ``_ANIMCHANNELINFO_`` (word 1); the game refuses an animation whose
+# id differs from the skeleton's ("the anim data does not match the skeleton that it is
+# being played on!"). Several skeleton files share an id (player, child, female and large
+# full bodies are the same rig): `skeleton_for` prefers the player's.
+
+SKELETON_DIR = "data/skeleton"
+CHUCK_IDS = {0x24F628C0, 0xAD2B0240, 0x70CB2D80, 0xDA1D8000, 0xADC1BFE0}
+BANKS = "data/streamedassets.big"
+
+_skeletons: dict[str, dict[int, str]] = {}
+
+
+def skeleton_ids(tree: AssetTree) -> dict[int, str]:
+    """Skeleton id → the skeleton file (vpath) whose ``_ANIMCHANNELINFO_`` holds it (the
+    player's first when several share it), read once per game folder."""
+    import struct
+    key = str(tree.root)
+    if key not in _skeletons:
+        found: dict[int, str] = {}
+        names = [vp.rsplit("/", 1)[-1] for vp, _p in tree.files()
+                 if vp.lower().startswith(SKELETON_DIR + "/") and vp.count("/") == 2]
+        names.sort(key=lambda n: (not n.lower().startswith("player"),
+                                  not n.lower().startswith("zombie"), n.lower()))
+        for n in names:
+            if not n.lower().endswith(".big"):
+                continue
+            vp = f"{SKELETON_DIR}/{n}"
+            try:
+                arc = tree.open_archive(vp)
+            except Dr2Error:
+                continue
+            for e in arc.entries:
+                if e.name == "_ANIMCHANNELINFO_":
+                    d = e.data()
+                    if len(d) >= 8:
+                        found.setdefault(struct.unpack_from(">I", d, 4)[0], vp)
+        _skeletons[key] = found
+    return _skeletons[key]
+
+
+def skeleton_for(tree: AssetTree, anim: "fanim.Animation", vpath: str = "") -> str | None:
+    """The skeleton file an animation plays on: by its id, else by its part's archive."""
+    sk = skeleton_ids(tree).get(anim.skeleton_id)
+    if sk is None:
+        part = fanim.part_of(vpath)
+        sk = fanim.SKELETONS.get(part) if part else None
+    return sk
+
+
+def companions(tree: AssetTree, vpath: str) -> list[str]:
+    """An animation with its partner of the same name: a ``fullbody.big`` move gets the
+    ``root.big`` one (where the hips are, how the body travels) and the other way round.
+    Full body first, then root."""
+    parts = vpath.split("/")
+    if len(parts) < 2:
+        return [vpath]
+    folder = parts[-2].lower()
+    out = [vpath]
+    for mine, other in (("fullbody.big", "root.big"), ("root.big", "fullbody.big")):
+        if folder == mine:
+            try:
+                partner = tree.resolve("/".join(parts[:-2] + [parts[-2][:-len(mine)] + other,
+                                                              parts[-1]])).vpath
+            except Dr2Error:
+                break
+            out = [vpath, partner] if mine == "fullbody.big" else [partner, vpath]
+            break
+    return out
+
+
+def move_files(tree: AssetTree, name: str, bank: str | None = None) -> list[str]:
+    """A move's ``.anm`` files by its name (``AnimationAttackName``): the weapon's bank
+    ``streamedassets.big/anm_<bank>.big`` first, then ``data/anim/default.big``; the full
+    body then the root one. Empty when the game has neither."""
+    stem = name.removesuffix(".anm")
+    places = [f"{BANKS}/anm_{bank}.big"] if bank else []
+    places.append(ANIM_DIR)
+    for place in places:
+        try:
+            return companions(tree, tree.resolve(f"{place}/fullbody.big/{stem}.anm").vpath)
+        except Dr2Error:
+            continue
+    return []
+
+
+@dataclass
+class Move:
+    """One of an item's moves: what the game calls it, a label for people, its files."""
+    name: str
+    label: str
+    files: list[str]
+
+
+def item_moves(tree: AssetTree, block) -> list[Move]:
+    """The attacks of an ``items.txt`` block (``AnimationAttackName<i>``, in the weapon's
+    ``AnimBankName`` bank), the ones whose files the game has."""
+    if block is None:
+        return []
+    bank = block.get("AnimBankName")
+    out, seen = [], set()
+    for i in range(32):
+        name = block.get(f"AnimationAttackName{i}")
+        if not name or name.lower() in seen:
+            continue
+        seen.add(name.lower())
+        files = move_files(tree, name, bank)
+        if not files:
+            continue
+        air = "JUMP" in (block.get(f"ActionRequiredAnimState{i}") or "")
+        label = f"{name}{'  (in the air)' if air else ''}"
+        out.append(Move(name, label, files))
+    return out
+
+
+def clip(tree: AssetTree, vpaths: list[str], digits: int = 5, rig: str | None = None
+         ) -> dict:
+    """Animations played together (layered in order: full body, root, hands) as one
+    clip by node name: ``{"length": s, "rate": fps, "frames": n, "nodes": {name: {"r":
+    {"t": [s…], "v": [[x, y, z, w]…]}, "p": {"t": […], "v": [[x, y, z]…]}}}}``. Times are
+    seconds; between keys a rotation turns the short way (nlerp) and a position moves in
+    a straight line, as `formats.anim.Channel.at`.
+
+    ``rig`` (a skeleton file, Chuck's `RIG`): every node of it the animations don't move
+    gets its rest value as a one-key channel, so each of Chuck's parts is drawn on the
+    one rig and not on its own rest pose (`full_pose`: the boots' differs)."""
+    from ..formats.scene import Scene
+    names: dict[str, list[str]] = {}
+    nodes: dict[str, dict] = {}
+    length, rate, frames = 0.0, 30.0, 1
+    for vp in vpaths:
+        a = fanim.Animation.parse(tree.resolve(vp).data(), vp)
+        sk = skeleton_for(tree, a, vp)
+        if sk is None:
+            raise Dr2Error(f"{vp}: no skeleton file with its id {a.skeleton_id:08X}")
+        if sk not in names:
+            names[sk] = [n.name for n in Scene.from_archive(tree.open_archive(sk)).skeleton.nodes]
+        nm = names[sk]
+        c = a.decode()
+        if c.length > length:
+            length, rate, frames = c.length, c.rate, c.frames
+        for ch in c.channels:
+            what = ch.track.what
+            if ch.track.node >= len(nm) or what not in ("rotation", "translation"):
+                continue
+            key = "r" if what == "rotation" else "p"
+            t = [round(f / c.rate, 6) for f in ch.frames] if c.rate else [0.0]
+            nodes.setdefault(nm[ch.track.node].lower(), {})[key] = {
+                "t": t, "v": [[round(x, digits) for x in v] for v in ch.values]}
+    if rig is not None:
+        for n in Scene.from_archive(tree.open_archive(rig)).skeleton.nodes:
+            keys = nodes.setdefault(n.name.lower(), {})
+            keys.setdefault("r", {"t": [0.0], "v": [[round(x, digits) for x in n.rotation]]})
+            keys.setdefault("p", {"t": [0.0], "v": [[round(x, digits) for x in n.translation]]})
+    return {"length": length, "rate": rate, "frames": frames, "nodes": nodes,
+            "files": list(vpaths)}
+
+
+_clips: dict[tuple, dict] = {}
+
+
+def cached_clip(tree: AssetTree, vpaths: list[str], rig: str | None = RIG) -> dict:
+    """`clip`, kept (the weapon wizard redraws often; at most 64 kept)."""
+    key = (str(tree.root), tuple(vpaths), rig)
+    if key not in _clips:
+        if len(_clips) >= 64:
+            _clips.pop(next(iter(_clips)))
+        _clips[key] = clip(tree, vpaths, rig=rig)
+    return _clips[key]
+
+
+def move_clips(tree: AssetTree, block, idle: Idle | None = None) -> list[tuple[str, dict]]:
+    """An item's attacks as ``(label, clip)`` for Studio's *Move* box: each move's full
+    body and root animations, then the item's hand pose (`Idle.hand`) so the fingers hold
+    it; on Chuck's rig. A move that doesn't read is left out."""
+    out = []
+    for mv in item_moves(tree, block):
+        files = mv.files + ([idle.hand] if idle is not None and idle.hand else [])
+        try:
+            out.append((mv.label, cached_clip(tree, files)))
+        except (Dr2Error, FormatError):
+            continue
+    return out
+
+
+def body_for(tree: AssetTree, vpath: str) -> str:
+    """Who an animation is shown on: ``chuck`` for the player's rigs, else the skeleton
+    file it plays on (drawn as bones)."""
+    a = fanim.Animation.parse(tree.resolve(vpath).data(), vpath)
+    if a.skeleton_id in CHUCK_IDS:
+        return "chuck"
+    return skeleton_for(tree, a, vpath) or "chuck"
+
+
+def add_animation(asm, name: str, clp: dict) -> int:
+    """A clip (`clip`) as a glTF animation on every node of ``asm`` (a
+    `convert.gltf.Assembler`) whose name it moves: each of Chuck's parts carries its own
+    copy of the rig, and all of them move. Returns the number of channels."""
+    b = asm.b
+    by_name: dict[str, list[int]] = {}
+    for i, n in enumerate(b.gltf["nodes"]):
+        if n.get("name"):
+            by_name.setdefault(n["name"].lower(), []).append(i)
+    samplers, channels = [], []
+    for node, keys in clp["nodes"].items():
+        targets = by_name.get(node)
+        if not targets:
+            continue
+        for key, path, type_ in (("r", "rotation", "VEC4"), ("p", "translation", "VEC3")):
+            if key not in keys:
+                continue
+            t, v = keys[key]["t"], keys[key]["v"]
+            if len(t) == 1:                 # glTF wants a time range: hold the one key
+                t, v = [0.0, max(clp["length"], 1 / 30)], [v[0], v[0]]
+            inp = b.accessor(t, "SCALAR", minmax=True, target=None)
+            out = b.accessor([tuple(x) for x in v], type_, target=None)
+            s = len(samplers)
+            samplers.append({"input": inp, "output": out, "interpolation": "LINEAR"})
+            channels += [{"sampler": s, "target": {"node": i, "path": path}} for i in targets]
+    if channels:
+        b.add("animations", {"name": name, "samplers": samplers, "channels": channels})
+    return len(channels)
+
+
+def animation_glb(tree: AssetTree, game: str, vpath: str, *, textures: bool = True
+                  ) -> tuple[bytes, dict]:
+    """An animation (and its root / full-body partner, `companions`) as a ``.glb``:
+    Chuck's parts (the player's rigs) or the skeleton's bones, with the move as a glTF
+    animation (Blender: an Action). Returns the bytes and the clip."""
+    from . import gltf
+    files = companions(tree, vpath)
+    body = body_for(tree, vpath)
+    clp = clip(tree, files, rig=RIG if body == "chuck" else None)
+    asm = gltf.Assembler()
+    if body == "chuck":
+        from .model import model_glb, read_scene
+        group = asm.group("Chuck", None)
+        for vp in outfit_parts(tree):
+            scene = read_scene(tree, vp)
+            asm.add(model_glb(tree, scene, game=game, textures=textures, mode="shown"),
+                    [{"name": vp.rsplit("/", 1)[-1].removesuffix(".big")}], group, source=vp)
+    else:
+        scene = Scene.from_archive(tree.open_archive(body), body)
+        asm.add(gltf.skeleton_to_glb(scene), [{"name": body.rsplit("/", 1)[-1]}], source=body)
+    name = vpath.rsplit("/", 1)[-1].removesuffix(".anm")
+    add_animation(asm, name, clp)
+    asm.extras = {"animation": files, "body": body}
+    return asm.to_bytes(), clp

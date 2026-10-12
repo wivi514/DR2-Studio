@@ -191,3 +191,74 @@ def test_layout_bin_is_repinned_when_a_file_grows(game, tmp_path):
     (same / "replace" / "data" / "notes.txt").write_bytes(b"x" * notes.stat().st_size)
     res = mbuild.build([Mod.load(same)], "cz", AssetTree(game), tmp_path / "out2")
     assert "layout.bin" not in res.files                                 # nothing to pin
+
+
+def test_new_files_and_their_layout_records(game, tmp_path):
+    """Phase 14 (maps of one's own): an ``add/`` file whose folder is a folder (here a
+    new one) is a new file of the build, by copy recipe or as written, and layout.bin gets
+    a record for it after every other file (hash 0: the game works it out)."""
+    def record(name, size, at):
+        return name.encode().ljust(128, b"\0") + b"\x12\x34\x56\x78" + size.to_bytes(4, "big") \
+            + at.to_bytes(8, "big") + bytes(8)
+    notes = game / "data" / "notes.txt"
+    (game / "layout.bin").write_bytes(record("data/notes.txt", notes.stat().st_size, 0x1000))
+    mod = make_mod(tmp_path)
+    add = mod / "add" / "data" / "models" / "environment" / "mine"
+    add.mkdir(parents=True)
+    (add / "zonelist.big.copy.json").write_text(json.dumps(
+        {"format": "dr2kit-copy/1", "copy": "data/notes.txt"}))
+    (mod / "add" / "data" / "extra.txt").write_bytes(b"new text")
+    res = mbuild.build([Mod.load(mod)], "cz", AssetTree(game), tmp_path / "out")
+    out = tmp_path / "out"
+    assert (out / "data/models/environment/mine/zonelist.big").read_bytes() == b"original notes"
+    assert (out / "data/extra.txt").read_bytes() == b"new text"
+    assert sorted(res.new_files) == ["data/extra.txt", "data/models/environment/mine/zonelist.big"]
+    lay = (out / "layout.bin").read_bytes()
+    assert len(lay) == 3 * 152
+    names = [lay[i:i + 128].split(b"\0")[0].decode() for i in range(0, len(lay), 152)]
+    assert set(names[1:]) == set(res.new_files)
+    first = names.index("data/extra.txt")
+    rec = lay[first * 152:(first + 1) * 152]
+    assert rec[128:132] == bytes(4) and int.from_bytes(rec[132:136], "big") == 8
+    assert int.from_bytes(rec[136:144], "big") % 0x800 == 0
+    assert int.from_bytes(rec[136:144], "big") >= 0x1000 + notes.stat().st_size
+    clash = make_mod(tmp_path, "clash")
+    (clash / "add" / "data").mkdir(parents=True)
+    (clash / "add" / "data" / "notes.txt").write_bytes(b"x")
+    with pytest.raises(ModError, match="already has"):
+        mbuild.build([Mod.load(clash)], "cz", AssetTree(game), tmp_path / "out2")
+
+
+def test_copy_recipe_renames_textures_and_copies_text(game, tmp_path):
+    """Phase 14: a copied level piece's picture gets a name of its own, in its texture
+    pack and in the material slot (a zone shows the first texture of a name); a plain
+    file copies with level edits applied."""
+    from dr2kit.mods.newitem import build_copy
+    slot = (1).to_bytes(4, "big") + b"hero_cm".ljust(52, b"\0") + b"\xab\xcd\xef\x01" + bytes(40)
+    scene = make_archive(("MatTextureInfoArray", slot))
+    piece = make_archive(("_COMP_hero.big", scene.to_bytes()))
+    tex = make_archive(("hero_cm", make_bct("DXT1", 32, 32, 3)))
+    zone = make_archive(("hero.big", piece.to_bytes()), ("hero.tex", tex.to_bytes()))
+    (game / "data" / "zone.big").write_bytes(zone.to_bytes())
+    tree = AssetTree(game)
+    out = BigArchive.parse(build_copy(tree, {"format": "dr2kit-copy/1", "copy": "data/zone.big/hero.big",
+                                             "rename": {"hero": "mine"},
+                                             "texture_names": {"hero_cm": "mine_cm"}}, tmp_path))
+    assert [e.name for e in out.entries] == ["_COMP_mine.big"]
+    rec = BigArchive.parse(out.entries[0].data()).entries[0].data()
+    assert rec[4:11] == b"mine_cm" and rec[0x38:0x3C] == b"\xab\xcd\xef\x01"
+    red_png(tmp_path / "sources" / "red.png")
+    t = BigArchive.parse(build_copy(tree, {"format": "dr2kit-copy/1", "copy": "data/zone.big/hero.tex",
+                                           "textures": {"hero_cm": "red.png"},
+                                           "texture_names": {"hero_cm": "mine_cm"}}, tmp_path))
+    assert [e.name for e in t.entries] == ["mine_cm"]
+    assert to_image(Bct.parse(t.entries[0].data())).rgba[:4] == bytes((255, 0, 0, 255))
+    with pytest.raises(Exception, match="no texture"):
+        build_copy(tree, {"format": "dr2kit-copy/1", "copy": "data/zone.big/hero.tex",
+                          "texture_names": {"other_cm": "x_cm"}}, tmp_path)
+    (game / "data" / "datafile.big").write_bytes(make_archive(
+        ("lvl.txt", b'cSpawnPoint Start\n{\n\tLocation0 = "1,2,3"\n}\n')).to_bytes())
+    text = build_copy(AssetTree(game), {"format": "dr2kit-copy/1", "copy": "data/datafile.big/lvl.txt",
+                                        "edits": {"add": {"cSpawnPoint Two": {"Location0": "4,5,6"}}}},
+                      tmp_path)
+    assert b"cSpawnPoint Two" in text and b"cSpawnPoint Start" in text

@@ -71,6 +71,16 @@ steps = [
 ]
 guide = "11-text.md"
 
+[anim]
+title = "An animation"
+steps = [
+  "It plays here: on Chuck when it is made for the player's rig, as blue lines on its own rig otherwise (zombies, cutscene props). Pause and the slider stop on any frame; In place keeps the body where it stands.",
+  "Export .glb… or Open in Blender: the move as a Blender Action (Space plays it).",
+  "A weapon's moves are in data/streamedassets.big/anm_<its AnimBankName>.big; New weapon… shows Chuck swinging yours ([how](20-make-a-weapon.md)).",
+  "Animations can't be replaced yet.",
+]
+guide = "03-browsing.md"
+
 [video]
 title = "A Case West movie"
 steps = [

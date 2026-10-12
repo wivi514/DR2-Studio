@@ -13,6 +13,12 @@ which models use it (and which textures a model uses).   **Time:** ~10 min.
 > Sounds: click any `.xma` to see its waveform and **Play** it; the Related list shows
 > the `.sfx` and game events that play it. Details in [`10-audio.md`](10-audio.md).
 
+> Animations: click any `.anm` (`data/anim/…`, a weapon's moves in
+> `data/streamedassets.big/anm_<name>.big`) and it **plays**: on Chuck when it is made for
+> the player's rig, as blue lines on its own rig otherwise (zombies, cutscene props,
+> cameras). **Pause** and the slider stop on any frame; **In place** keeps the body where
+> it stands. **Export .glb…** / **Open in Blender** give the move as a Blender Action.
+
 The games hold about 125,000 (Case Zero) and 172,000 (Case West) files, most of them
 inside archives inside archives. The **index** is the toolkit's catalogue of all of them,
 with a small picture of every texture. It is built once and refreshed when the game

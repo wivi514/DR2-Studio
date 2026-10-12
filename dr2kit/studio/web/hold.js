@@ -15,6 +15,15 @@
 //   dr2.setEffects(list, pictures)   effects: {slot, at: 'point' | 'tip', emitters: […]};
 //                                    pictures: particle picture name -> url
 //   dr2.setMode(mode)                'look', 'slide', 'turn', 'length' or 'effect'
+//   dr2.playClip(clip)               play a move (phase 14; dr2kit/convert/holding.py
+//                                    clip: node name -> rotation / position keys, times
+//                                    in seconds), looping; null: back to the still pose.
+//                                    The weapon follows the right-hand prop node.
+//   dr2.pauseClip(on), dr2.seekClip(fraction)   stop on a frame / go to a moment
+//   dr2.setInPlace(on)               take out the move's travel (dummy01.root's straight
+//                                    line from its first to its last key, on the ground)
+//   dr2.setBones(on)                 draw the rig as lines (on its own for a rig that
+//                                    has no model: zombies, cutscene props, cameras)
 //   dr2.show(what, on)               'chuck', 'effects', 'grips'
 //   dr2.resetView()
 //
@@ -79,6 +88,114 @@ function applyPose() {
   }
   chuck.updateMatrixWorld(true);
   posed = n;
+}
+
+// --- moves played (phase 14) ------------------------------------------------------------
+// A clip's channels are sampled each frame: rotations turned the short way between keys
+// (nlerp), positions in a straight line, as the toolkit reads them (formats/anim.py).
+let clip = null, clipTime = 0, clipPaused = false, clipBones = null;
+let handBone = null;                     // Chuck's right-hand prop node
+let inPlace = true;
+const ROOT = 'dummy01root';               // clean('dummy01.root'): where the body travels
+const handOffset = new THREE.Matrix4();  // weapon placement relative to the hand
+
+function sampleKeys(k, t, out, isQuat) {
+  const ts = k.t, vs = k.v;
+  if (ts.length === 1 || t <= ts[0]) return out.fromArray(vs[0]);
+  const n = ts.length - 1;
+  if (t >= ts[n]) return out.fromArray(vs[n]);
+  let lo = 0, hi = n;
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (ts[m] <= t) lo = m; else hi = m; }
+  const f = (t - ts[lo]) / (ts[hi] - ts[lo]);
+  const a = vs[lo], b = vs[hi];
+  if (isQuat) {
+    const s = (a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3]) < 0 ? -1 : 1;
+    out.set(a[0] + (s * b[0] - a[0]) * f, a[1] + (s * b[1] - a[1]) * f,
+            a[2] + (s * b[2] - a[2]) * f, a[3] + (s * b[3] - a[3]) * f);
+    return out.normalize();
+  }
+  return out.set(a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f);
+}
+
+function bindClip() {
+  clipBones = [];
+  if (!clip || !chuck) return;
+  const keys = new Map();
+  for (const [name, k] of Object.entries(clip.nodes)) keys.set(clean(name), k);
+  for (const [bone, r] of rest) {
+    const k = keys.get(clean(bone.userData.name || bone.name));
+    if (k) clipBones.push([bone, k]);
+  }
+}
+
+function applyClip(t) {
+  if (!clipBones) bindClip();
+  for (const [bone, k] of clipBones) {
+    if (k.r) sampleKeys(k.r, t, bone.quaternion, true);
+    if (k.p) {
+      sampleKeys(k.p, t, bone.position, false);
+      if (inPlace && k.p.v.length > 1 && clean(bone.userData.name || bone.name) === ROOT) {
+        const a = k.p.v[0], b = k.p.v[k.p.v.length - 1];
+        const f = Math.min(1, t / Math.max(clip.length, 1e-6));
+        bone.position.x -= (b[0] - a[0]) * f;
+        bone.position.z -= (b[2] - a[2]) * f;
+      }
+    }
+  }
+  chuck.updateMatrixWorld(true);
+  followHand();
+}
+
+function findHand() {
+  handBone = null;
+  if (!chuck) return;
+  for (const bone of rest.keys())
+    if (clean(bone.userData.name || bone.name) === clean('dummy01.r_hand_prop')) { handBone = bone; break; }
+}
+
+function rememberHand() {
+  // called with the still pose on: where the weapon sits relative to the hand
+  if (!handBone || !weapon) return;
+  chuck.updateMatrixWorld(true);
+  handOffset.copy(handBone.matrixWorld).invert().multiply(holder.matrix);
+}
+
+function followHand() {
+  if (!handBone || !weapon) return;
+  holder.matrix.multiplyMatrices(handBone.matrixWorld, handOffset);
+  holder.matrixWorldNeedsUpdate = true;
+}
+
+// --- bones as lines ---------------------------------------------------------------------
+let bonesOn = false, boneLines = null;
+function buildBones() {
+  if (boneLines) { scene.remove(boneLines); boneLines.geometry.dispose(); boneLines = null; }
+  if (!chuck || !bonesOn) return;
+  const pairs = [];
+  const seen = new Set();
+  for (const bone of rest.keys()) {
+    const key = clean(bone.userData.name || bone.name);
+    if (seen.has(key)) continue;           // one copy of the rig is enough
+    seen.add(key);
+    if (bone.parent && bone.parent.isBone) pairs.push([bone.parent, bone]);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pairs.length * 6), 3));
+  boneLines = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0x7fd4ff, depthTest: false }));
+  boneLines.renderOrder = 9;
+  boneLines.frustumCulled = false;
+  boneLines.userData.pairs = pairs;
+  scene.add(boneLines);
+}
+const _v = new THREE.Vector3();
+function updateBones() {
+  if (!boneLines) return;
+  const a = boneLines.geometry.attributes.position.array;
+  boneLines.userData.pairs.forEach(([p, c], i) => {
+    p.getWorldPosition(_v); a.set([_v.x, _v.y, _v.z], i * 6);
+    c.getWorldPosition(_v); a.set([_v.x, _v.y, _v.z], i * 6 + 3);
+  });
+  boneLines.geometry.attributes.position.needsUpdate = true;
 }
 
 // --- the weapon -------------------------------------------------------------------------
@@ -345,12 +462,29 @@ window.dr2 = {
         if (o.isMesh) { o.frustumCulled = false; for (const m of [].concat(o.material)) m.side = THREE.DoubleSide; }
       });
       scene.add(chuck);
+      let meshes = 0;
+      chuck.traverse(o => { if (o.isMesh) meshes++; });
+      bonesOn = bonesOn || meshes === 0;
+      findHand();
       applyPose();
+      clipBones = null;
+      buildBones();
       frameView();
-      say(`Chuck loaded, ${posed} bones posed`);
+      say(meshes ? `Chuck loaded, ${posed} bones posed` : `${rest.size} bones loaded`);
     } catch (err) { say('could not load Chuck: ' + (err.message || err)); }
   },
-  setPose(p) { pose = p; applyPose(); if (chuck) say(`${posed} bones posed`); },
+  setPose(p) { pose = p; applyPose(); rememberHand(); if (clip) applyClip(clipTime); if (chuck) say(`${posed} bones posed`); },
+  playClip(c) {
+    clip = c; clipTime = 0; clipBones = null;
+    if (!clip) { applyPose(); if (weapon && handBone) followHand(); say('still'); return; }
+    clipPaused = false;
+    say(`playing ${clip.length.toFixed(2)} s (${clip.frames} frames at ${Math.round(clip.rate)}/s)`);
+  },
+  pauseClip(on) { clipPaused = !!on; },
+  seekClip(f) { if (clip) { clipTime = Math.max(0, Math.min(1, f)) * clip.length; applyClip(clipTime); } },
+  clipState() { return clip ? { time: clipTime, length: clip.length, paused: clipPaused } : null; },
+  setBones(on) { bonesOn = !!on; buildBones(); },
+  setInPlace(on) { inPlace = !!on; if (clip) applyClip(clipTime); },
   async setWeapon(url, placement, fr, effectPoint, keepView) {
     try {
       const gltf = await load(url);
@@ -360,6 +494,7 @@ window.dr2 = {
       meshParent.add(weapon);
       holder.matrix.fromArray(placement);
       holder.matrixWorldNeedsUpdate = true;
+      if (clip) { applyPose(); rememberHand(); applyClip(clipTime); } else rememberHand();
       frame = fr;
       setAlign();
       point.position.copy(v3(effectPoint.position));
@@ -411,11 +546,19 @@ window.addEventListener('resize', () => {
 });
 
 const clock = new THREE.Clock();
+let lastTime = 0;
 renderer.setAnimationLoop(() => {
   const t = clock.getElapsedTime();
   // pixels per metre at distance 1: the particles' size on screen
   const scale = renderer.domElement.height / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2));
   for (const em of emitters) em.update(t, scale);
+  const dt = Math.min(t - lastTime, 0.1);
+  lastTime = t;
+  if (clip && chuck) {
+    if (!clipPaused) clipTime = (clipTime + dt) % Math.max(clip.length, 1e-3);
+    applyClip(clipTime);
+  }
+  updateBones();
   controls.update();
   renderer.render(scene, camera);
 });

@@ -576,7 +576,21 @@ it changes only what you see, not what happens to a zombie.
 idle) in `data/anim/**`: for each bone it moves, the bone's turn (and sometimes its
 offset) over time, at 30 frames a second. One file per skeleton part: *full body*,
 *root* (where the hips are), *hand* (the fingers), *upper body*, *face*. The toolkit
-reads the first frame of every one (phase 13.2); playing them through is for later.
+reads every frame of every one (phase 14) and plays them in DR2 Studio and Blender.
+
+<a id="keyframe"></a>**Key (keyframe).** A moment where an animation stores a bone's
+value; between keys the value is worked out (a straight line between the two). The game
+stores few keys where a bone moves smoothly, and most keys as a small change from the one
+before (4 bytes instead of 8).
+
+<a id="root-motion"></a>**Root motion.** How far a move carries the whole body (a sword
+lunge goes 2 m forward): the `dummy01.root` bone's travel in the *root* animation. In game
+Chuck really moves that far; DR2 Studio's *In place* takes it out so he stays in view.
+
+<a id="skeleton-id"></a>**Skeleton id.** The number at the start of an animation that
+says which rig it is for; each skeleton file stores its own in `_ANIMCHANNELINFO_`. The
+game refuses an animation on the wrong rig; the toolkit uses it to show zombie moves on
+the zombie rig and Chuck's on Chuck.
 
 <a id="idle-pose"></a>**Idle pose.** How Chuck stands when you don't touch the pad. It
 depends on what he holds: arms loose with a one-hand weapon, a box hugged with both arms,
@@ -592,3 +606,16 @@ item's idle, as the game does.
 
 **Hand prop node (`r_hand_prop`).** A bone in Chuck's right hand where held items hang:
 the item's right-hand grip node is put on it (`dr2kit/convert/holding.py`).
+
+<a id="level-slot"></a>**Level slot.** One of the levels the game's program knows by id
+(`LEVEL_PROLOGUE`, `LEVEL_FOOD_BARN`…): a fixed list inside the executable, with the
+name of each level's script file and zone list. Case Zero's program still lists Dead
+Rising 2's 82 levels but ships the files of 4; the others are **empty slots** a map of
+one's own can fill (no mod can add a new id).
+
+<a id="new-piece"></a>**New piece.** A level piece the game doesn't have (a building of
+one's own): a copy of a game piece with the modder's shape and picture, added to a zone
+and placed by a record of its own (`.pieces.json` `new`).
+
+<a id="layout-bin"></a>**`layout.bin`.** The game's list of its loose files with their
+sizes. A mod build writes a new one when a file changes size or a mod adds a file.
