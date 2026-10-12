@@ -1654,6 +1654,19 @@ an area of effect**: damage in an area comes only from explosives (`ExplodeRadiu
 `HeavyDamageRadius`, `MediumDamageRadius`; CW's Freezer Bomb freezes its blast with
 `Can_Freeze`).
 
+### Combo cards of one's own ✅ (in game, CZ, 2026-10-12)
+
+A `cComboCardItem` added inside an existing weapon's block (`BowieKnife`) with
+`Weapon_1 = "Broadsword"`, `Weapon_2 = "FireExtinguisher"`, a free `CardIndexNumber`
+(3: CZ's cards use 0, 1, 2, 4, 13, 24, 26, 46, 48), `IconAsset = "comboc_defiler"` (a Dead
+Rising 2 card picture CZ ships in `frontend/combocards.tex` but no CZ card uses) and the
+Defiler's string ids: at a workbench the two items made the Bowie Knife, and the card
+showed with that picture and label. The card's texts are the string ids' text **in the
+game's language** (the user's French game showed "Profanateur", the French Defiler, as
+the test changed only `str_en.bcs`): a mod's names must be written in every language.
+Not yet tried: a card number past 50 (a fixed table ❓), a new card picture, a card for a
+new item.
+
 ### New items' files and the endless loading ❓
 
 A test mod adding five weapon packs to `streamedassets.big` (four `.copy.json` recipes and

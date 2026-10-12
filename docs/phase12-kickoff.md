@@ -264,7 +264,10 @@ copy of their save or a new game (memory: *Protect the user's saves*).
   effects data file can name them (formats.md §Weapons). The user's wish from the test: a
   freezing swing that also freezes the zombies around (no key for that: an explosive
   thrown by an attack is the idea to try).
-* Borrowed moves (T1d) and T2 / T3 not seen yet: the first test mod's added files stalled
+* **T2 (combo card), CZ, 2026-10-12: done** with an existing result (Broadsword + Fire
+  Extinguisher → the freezing Bowie Knife, card 3 with the Defiler picture). Strings must
+  be written in every language (the user plays in French).
+* Borrowed moves (T1d), T3 and a card for a NEW item not seen yet: the first test mod's added files stalled
   the load (formats.md §Weapons, "New items' files and the endless loading"); find the
   cause first.
 * How the tests are made: small mods in the session scratchpad, linked into the user's

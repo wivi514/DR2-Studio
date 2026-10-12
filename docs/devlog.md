@@ -33,7 +33,10 @@ loading `zombies.big` happened twice in the user's windowed runs (with a second,
 player) and never headless with the same mods ❓.
 **Docs updated:** `formats.md` (§Weapons, new; the format table), `phase12-kickoff.md`
 §Status (new).
-**Next:** find which added file stalls the load; then T2 (combo card), T3 (grip).
+Then T2 with no new files: a card added inside the Bowie Knife's block (Broadsword + Fire
+Extinguisher, card 3, the unused Defiler picture) works at a workbench; its label showed
+in French (the user's language) because only the English bank was changed.
+**Next:** find which added file stalls the load; then a card for a new item, T3 (grip).
 
 ## 2026-10-12 — Phase 12 researched and planned
 **Done:** `phase12-kickoff.md` for the user's next phase: the easiest way to make a new
