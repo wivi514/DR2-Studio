@@ -94,11 +94,11 @@ its own table of type names** (found 2026-10-12): CZ `0x829DD2C4` region, CW
 
 So **CW → CZ**: a Case West type takes one of Case Zero's empty slots (`security_light`
 as `zombie_dealer`, `zombie_gas` as `zombie_gas`), its model copied under the slot's name,
-its colour choices with it (phase 9). **CZ → CW**: no slot is free, so a Case Zero zombie
-becomes a Case West type of the same build (`zombie_cop` → `zombie_security`,
-`zombie_bertha` → `zombie_fat_female`…), keeping its look only if the mod replaces that
-type's model for the whole map. Every spawn (`missions.txt` factories, single spawns,
-crates; `zombiesets.txt` load sets: phase 11) is rewritten through that table.
+its colour choices with it (phase 9). **CZ → CW**: no slot is free in Case West's table;
+how Case West takes a type of its own is part of U2 (decision 1). Either way the
+imported type is added **natively** (user's decision): in the load sets and the spawn
+areas, factories and crates of the levels that use it (phase 11's spawn data), like the
+game's own types.
 
 ### Bosses and human enemies
 
@@ -155,7 +155,7 @@ turret as an unmovable item) or left out, listed in the import report.
 | Test | Question |
 |---|---|
 | **U1** an item | A Case West weapon with its own move bank (the Laser Sword: `anm_Laser_Sword.big` added to CZ's `streamedassets.big`, its effects by name) in Case Zero's street: does it swing, hit, show its effects? |
-| **U2** a zombie type | Case West's `security_light` in Case Zero's empty slot `zombie_dealer`, and `zombie_gas` as `zombie_gas`: do they spawn, walk, attack; do gas zombies do their gas? |
+| **U2** a zombie type | Case West's `security_light` in Case Zero's empty slot `zombie_dealer`, and `zombie_gas` as `zombie_gas`, added to the street's load set and spawn areas: do they spawn there, walk, attack; do gas zombies do their gas? And Case Zero's `zombie_cop` in Case West as an eleventh type (decision 1) |
 | **U3** a shader | the gas zombie's `ZombieGlow` in Case Zero: remapped (works?) or brought over (does the recomp draw a shader its cache lacks?) |
 | **U4** a CW map in CZ | `storage_pens` in Case Zero's slot `food_barn` (after T5 proves slots): loads, its items and zombies remapped, doors in and out |
 | **U5** a CZ map in CW | the street (`prologue`) in Case West's `w_mall` |
@@ -174,7 +174,8 @@ turret as an unmovable item) or left out, listed in the import report.
 3. **Import an item** (Studio: the other game's Library, *Use in Case Zero*; `dr2 mod
    import-item <mod> <item> --from cw`): the pack, its move bank, effects by name, icon,
    name and description strings, sounds, its `items.txt` block rewritten.
-4. **Import a zombie type** into an empty slot (or as a mapped type).
+4. **Import a zombie type** natively (decision 1): its model in a type slot of the target,
+   colour choices, load sets, and the spawn areas / factories / crates that use it.
 5. **Import a map** into a slot (*Import level…*): zones, scripts, navigation mesh,
    zombies, items (each through step 3), light settings, map points, doors; then open it
    in the Maps editor.
@@ -226,8 +227,18 @@ the modder doesn't have to know. XenonLive's launcher has no mod support yet
 
 ## Decisions to take (proposed defaults in bold)
 
-1. **Zombies of the other game:** **CW → CZ into empty zombie slots**, CZ → CW **as the
-   nearest CW type** (table above, editable per mod).
+1. **Zombies of the other game: DECIDED (user, 2026-10-12): added the way the game's own
+   are, as real types of their own, working with the spawn areas** ("foreign zombies are
+   added how it would natively and work with their zombie spawn area"): each imported
+   type gets its model under a type name the target's program knows, its colour choices,
+   its entry in the level load sets (`zombiesets.txt`) and the spawn areas, factories and
+   crates (`cZombieWarehouse`, `missions.txt`) that spawn it, exactly like a native type.
+   No mapping to a "nearest" type. CW → CZ: into Case Zero's empty zombie slots. CZ → CW:
+   Case West's program lists 10 types and none is free, so U2 also looks for how Case
+   West can take an eleventh: whether the table is the only list the game checks (CW
+   ships `zombie_test.big`, a model its table doesn't name), a type CW doesn't use in the
+   imported level, or a slot of its debug list; the plan comes back to the user if none
+   works.
 2. **Shaders the target lacks:** **remap to the nearest shared shader** (works with no
    recomp change); bringing shaders over only if U3 shows the recomps can, and with the
    user's approval for any recomp change.
