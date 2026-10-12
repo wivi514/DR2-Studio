@@ -1296,6 +1296,8 @@ class MapsView(QWidget):
             elif op == "add":
                 name, states = ed.add(msg["file"], msg["item"], msg["position"])
                 self._target = {"file": msg["file"], "name": name}
+                for s in states:
+                    s.snap = True
             elif op == "item":
                 states = ed.set_item(msg["file"], msg["name"], msg["item"])
             elif op == "prefab":
@@ -1303,6 +1305,8 @@ class MapsView(QWidget):
                 pre = msg["prefab"]
                 names, states = pf.place(ed, pre, self.game, self._script(), msg["position"])
                 done = names
+                for s in states:
+                    s.snap = True
                 if pre.file == "level" and states:
                     self._target = {"file": pre.file_for(self._script()), "name": names[0]}
                 if pre.file == "waypoint" or pre.id == "spawn_point":

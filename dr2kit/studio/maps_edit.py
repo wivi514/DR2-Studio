@@ -82,12 +82,14 @@ class ItemState:
     props: dict = field(default_factory=dict)
     model: str | None = None            # its scene, when the page must load a new one
     new_model: bool = False
+    snap: bool = False                  # just placed: the page drops it onto the floor
 
     def to_dict(self) -> dict:
         d = {"name": self.name, "file": self.file, "removed": self.removed}
         if not self.removed:
             d.update(item=self.item, position=self.position, rotation=self.rotation,
-                     props=self.props, model=self.model, new_model=self.new_model)
+                     props=self.props, model=self.model, new_model=self.new_model,
+                     snap=self.snap)
         return d
 
 

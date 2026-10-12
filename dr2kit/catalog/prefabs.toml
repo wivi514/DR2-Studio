@@ -19,7 +19,7 @@ group = "Save points"
 file = "waypoint"
 anchor = "ActionPoint"
 description = "Chuck stands at the clicked spot and presses the button to save, as at the game's toilets. Nothing is drawn: put a toilet or a sign there."
-checked = "Case Zero 2026-10-11: the prompt shows, saving works, the save loads"
+checked = "Case Zero and Case West 2026-10-11: the prompt shows, saving works"
 source.cz = ["waypoint_prologue.txt", "cTriggerVolume UncleBills_SaveTrigger"]
 source.cw = ["waypoint_living_research.txt", "cTriggerVolume LabsSave1"]
 
@@ -29,7 +29,7 @@ name = "Workbench (combine weapons)"
 group = "Stations"
 file = "level"
 description = "The game's workbench: combine two items into a combo weapon."
-checked = "Case Zero 2026-10-11: combines (a baseball bat was put on it)"
+checked = "Case Zero and Case West 2026-10-11: combines"
 source.cz = ["prologue.txt", "cItemPlacement Workbench1"]
 source.cw = ["living_research.txt", "cItemPlacement Workbench1"]
 
@@ -61,7 +61,7 @@ name = "Blocker (something the player can't pass)"
 group = "Static models"
 file = "level"
 description = "An item that can't be moved and that the player bumps into: Case Zero's road block, Case West's army Humvee (Case West ships no road block model). Turn it with the handles; copy it to make a longer wall."
-checked = "Case Zero 2026-10-11: the road block blocks the player"
+checked = "Case Zero (road block) and Case West (Humvee) 2026-10-11: blocks the player"
 source.cz = ["prologue.txt", "cItemPlacement MilitaryHummer1"]
 source.cw = ["living_research.txt", "cItemPlacement Workbench1"]
 item.cz = "MilitaryBarrier"

@@ -902,7 +902,11 @@ function applyOverride(st, within) {
       addedRoot.add(gltf.scene);
       for (const n of itemNodes(st.name)) n.visible = false;
       const node = itemNodes(st.name, gltf.scene)[0];
-      if (node && editing) { pickNode(node); }
+      if (node && editing) {
+        pickNode(node);
+        // a new item stands on the floor by its bottom (a Humvee's origin is its middle)
+        if (st.snap && editTarget) snapToFloor(editTarget);
+      }
     });
     return;
   }

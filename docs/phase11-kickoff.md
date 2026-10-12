@@ -79,6 +79,9 @@ fixing the new entry's `flags` (the declared alignment: a new entry declared 0 m
 game load forever). Not done: new level pieces (step 4 stretch), textures of a new item
 from Studio (CLI `--texture` only).
 
+**Case West checked (2026-10-11, new game):** added and new items, workbench, save point,
+blocker, retyped zombies work; the own mission's pack and CW's save rules unchecked.
+
 ### Earlier status: researched, re-checked against phase 10, prefabs added
 
 The user will start this phase **in a fresh conversation** (2026-10-11). Phase 10 is

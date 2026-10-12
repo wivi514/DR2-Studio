@@ -17,6 +17,17 @@ Entry template:
 
 ---
 
+## 2026-10-11 — Phase 11: Case West checked, the gate
+**Done:** a CW build in the Storage Pens (new game): an added Katana, a new red Katana item
+(recipe), workbench, save point, Humvee blocker, every zombie retyped to fat; all work in
+game (the own mission's security pack wasn't checked). The Humvee sank into the floor (an
+item stands by its origin, the Humvee's is its middle), so Studio now drops a newly placed
+item onto the floor by its bottom. Gate: `dr2 census --levels` 0 problems in both games;
+396 tests pass.
+**Docs updated:** `formats.md`, `prefabs.toml` (checked in CW), guide index,
+`phase11-kickoff.md`.
+**Next:** level pieces (plan step 4, stretch) need an in-game collision test first.
+
 ## 2026-10-11 — Phase 11: items of your own (new files in archives)
 **Done:** mods can add entries to archives (`add/`, kind `add` in `mods/build.py`,
 inserted in name order, compressed like their neighbours; shown by *With my mods*). A new

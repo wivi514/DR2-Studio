@@ -1500,8 +1500,14 @@ holds the state of every mission, in a form that a block added inside a
 mission breaks (two missions of the same structure plus one: likely a fixed layout or
 count ❓), while it simply doesn't know a new mission (never started from that save).
 The toolkit refuses a block added inside a game mission (`levelcheck.SAVE_BREAK`) and puts
-new mission things in the mod's own mission, saying they need a new game. Case West not
-checked yet (rule 7: a CZ fact until CW agrees). **The CZ recomp's `game_patched/data/datafile.big` differs
+new mission things in the mod's own mission, saying they need a new game. **Case West** (new game, the Storage Pens, 2026-10-11): an added Katana, a new item
+(`Dr2kitKatana`, a Katana pack copy with a red texture, by recipe), a workbench, a save
+point cloned from `LabsSave1` (its world-space corners moved with it) and the Humvee
+blocker all work; every crowd and single zombie retyped to `zombie_fat` shows. Not seen:
+whether the mod's own mission's 8 `zombie_security` showed (unchecked), the save-loading
+rules (CZ facts until CW agrees, rule 7). A placed item stands by its *origin*: the
+Humvee's is its middle, so it sank; Studio now drops a newly placed item onto the floor by
+its bottom. **The CZ recomp's `game_patched/data/datafile.big` differs
 from the shipped one in `missions.txt` and `outfits.csv`** (its co-op edits); CW's recomp
 has no `game_patched`.
 
