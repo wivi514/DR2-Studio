@@ -278,7 +278,15 @@ measured: the left hand (the game moves it to `IK_lhand`, the view doesn't); par
 motion (speed, spread, gravity in the effect point's space or the world's ❓; the count
 factor is a guess).
 
-## Start here (handoff, 2026-10-12 evening)
+## Start here (handoff after 13.2, 2026-10-12 night)
+
+**Phase 13.2 is built** (§Status 13.2). Next: the user's comparison of Studio's 3D view
+with the game (CZ was started with `frostmourne` deployed; Studio's picture of it:
+`~/.cache/dr2kit-p132/gate/Frostmourne_held.png`, delete when done), then **phase 14**
+(`roadmap.md`: buildings, maps, animations played), each part starting with an in-game
+test by the user.
+
+## Start here (handoff, 2026-10-12 evening, kept for its notes)
 
 **Next: phase 13.2 (above), in a fresh conversation.** First look at the last build in
 game (Frostmourne with *Shine: A little*, in the user's library: `frostmourne`, local

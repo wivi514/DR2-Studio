@@ -37,7 +37,8 @@ bone names (match on `userData.name`). `formats.md` §Animations, "Which idle".
 **Docs updated:** formats.md, guides 20 and 21, modding/README.md, context.toml,
 glossary.md, dev/code-tour.md, ARCHITECTURE.md, roadmap.md, phase13-kickoff.md, CLAUDE.md.
 **Next:** the user compares Studio's view with the game (a wizard sword, then a non-sword
-kind); then phase 14 (the later keys: Chuck swinging; buildings and maps).
+kind); then phase 14 (roadmap.md, written out the same night: own buildings T4a/T4b/T6,
+maps in empty level slots T5, `.anm` later keys; carried: the left hand, particle motion).
 
 ## 2026-10-12 — Phase 13 in game with the user: the effect point, Shine; 13.2 planned
 **Done:** fixes from the user's windowed tests of the gate's Frostmourne: laid flat on

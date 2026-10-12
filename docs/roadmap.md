@@ -361,11 +361,25 @@ with particles and drag handles; `dr2 hold` (a `.glb` for Blender, a picture). O
 comparison with the game (`phase13-kickoff.md` §Status 13.2). Full playback (the later
 keys) stays in phase 14.
 
-## Phase 14 (planned): buildings and maps of your own, animations
-Phase 13's step 9, carried from phase 12 (`phase12-kickoff.md` T4-T6, plan steps 6-8):
-a `.glb` building as a new level piece with its collision as an invisible item, maps in
-the executables' empty level slots with a door destination list, and the rest of the
-`.anm` format (its later keys: Chuck swinging a weapon in the 3D view and the Library;
-the first frame is read since phase 13.2). Each needs in-game tests by
-the user (walking into collision, going through a door) before tools are built.
+## Phase 14 (planned, not started): buildings and maps of your own, animations played
+Phase 13's step 9, carried from phase 12 (`phase12-kickoff.md` §Research T4-T6, plan
+steps 6-8). Each part starts with an in-game test by the user before tools are built:
+
+1. **Buildings of one's own** from a `.glb` (a box with a doorway first): its **look** as
+   a new level piece added to a zone with a placement record (T4a: does it show from
+   everywhere, with its far textures, like the game's buildings?) and its **collision** as
+   an invisible unmovable item, `MeshVisible = false` like the game's blocking volumes
+   (T4b: does it block Chuck, as a box, a hull or the mesh?). Stretch (T6): copied level
+   buildings keep their collision (shapes copied into `persistent.big`, moved only).
+2. **Maps of one's own** in the executables' empty level slots (CZ lists 83 DR2 levels
+   and ships 4, e.g. `LEVEL_FOOD_BARN`; CW `LEVEL_W_MALL`): a copy of a small level
+   (`prologue_menu2`) under a slot's name, and a door prefab with that `Level` and a
+   destination list (T5: does it load, what else does it ask for?).
+3. **Animations played**: the rest of `.anm` (the later keys, packed: 8-byte
+   translations, 4-byte rotations, stored in the order they are needed), so Chuck swings
+   the weapon in Studio's 3D view and animations play in the Library; a census decoding
+   every key of both games.
+
+Carried from 13.2: its in-game comparison if still owed, the left hand on `IK_lhand` in
+the 3D view, particle motion measured field by field (speed, spread, gravity's space).
 

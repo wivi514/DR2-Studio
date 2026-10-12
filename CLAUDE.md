@@ -83,7 +83,9 @@ start* added. Phase 13.2 (user-set 2026-10-12) built the same day: `.anm` read t
 effects playing and drag handles (`studio/hold_view.py`, `web/hold.js`, in *New weapon…*
 and *Effects…*), `dr2 hold`. Owed: the comparison with the game by the user
 (`docs/phase13-kickoff.md` §Status 13.2). Phase 14
-(planned): buildings and maps of one's own, `.anm` (`docs/roadmap.md`).** Read these before writing code:
+(planned, not started): buildings of one's own (look as a level piece, collision as an
+invisible item), maps in the executables' empty level slots, `.anm` played (its later keys:
+Chuck swinging); each part starts with an in-game test by the user (`docs/roadmap.md`).** Read these before writing code:
 
 | Doc | What it holds |
 |---|---|
