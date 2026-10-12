@@ -78,7 +78,8 @@ in game, the gate scripted through Studio's own windows in both games
 along the blade once the wizard moves the effect point (locator 16) in both
 `LocatorArray` copies (the game reads `persistent.big`'s); *Shine* and *Weapon effects
 start* added. Next, in a fresh conversation: **phase 13.2** (effects playing in 3D on the
-weapon in Chuck's hand, to align: `docs/phase13-kickoff.md` §Phase 13.2). Phase 14
+weapon in Chuck's hand, Chuck frozen in the game's idle animation for that item kind, so
+`.anm` gets read; to align: `docs/phase13-kickoff.md` §Phase 13.2). Phase 14
 (planned): buildings and maps of one's own, `.anm` (`docs/roadmap.md`).** Read these before writing code:
 
 | Doc | What it holds |

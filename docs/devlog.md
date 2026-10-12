@@ -32,7 +32,8 @@ layout, material values).
 **Docs updated:** formats.md, guides 12, 20, 22, glossary, code tour, phase13-kickoff
 (§Phase 13.2, §Status, §Start here), roadmap.
 **Next:** phase 13.2 in a fresh conversation (the user's request: effects in 3D on the
-weapon in Chuck's hand, to align).
+weapon in Chuck's hand, to align; Chuck posed by the frozen idle animation of the item's
+kind, so `.anm` reading moves into 13.2).
 
 ## 2026-10-12 — Phase 13: guides 21-22, WoW particles, the gate through Studio, Case West
 **Done:** guide 21 (effects) and the docs owed for step 6; `dr2 effects --free`; the

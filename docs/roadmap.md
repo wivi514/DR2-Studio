@@ -348,8 +348,9 @@ Studio's own windows in both games (`tools/weapon_gate.py`). State: `phase13-kic
 
 ## Phase 13.2 (planned, user 2026-10-12): effects in 3D, on the weapon in Chuck's hand
 `phase13-kickoff.md` §Phase 13.2: the wizard weapon in a 3D view with its effects playing
-(a particle system from the effect's emitters), also in *Effects…*; Chuck holding it in a
-still pose; handles to slide / turn the weapon and move the effect point. Gate: aligned in
+(a particle system from the effect's emitters), also in *Effects…*; Chuck holding it, posed
+by one frozen frame of the game's idle animation for that kind of item (sword, box…: the
+`.anm` format read for it, moved here from phase 14); handles to slide / turn the weapon and move the effect point. Gate: aligned in
 Studio, the same in game.
 
 ## Phase 14 (planned): buildings and maps of your own, animations

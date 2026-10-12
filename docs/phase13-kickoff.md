@@ -220,15 +220,25 @@ the blade went black and gold with the Broadsword's mirror material, so *Shine* 
    tip for *on impact*. The same view in **Effects…** (an effect on a chosen weapon)
    replaces the flat sketch. Fields not measured yet (speed, spread, `f_40`, blend modes)
    need the one-value-at-a-time street-light runs first (§Start here's headless method).
-3. **Chuck holding it:** Chuck's model and rig (CZ `chest_young_chuck` etc., CW
-   `chest_default`) in a still holding pose (a hand-made pose of the right arm: `.anm` is
-   phase 14), the weapon hung at the right hand by its grip node, as the game does
-   (measured: the hands follow `LOC_rhand` / `LOC_WEP_<x>_R`).
+3. **Chuck holding it, in the game's own idle pose for that kind of item** (user,
+   2026-10-12: "his animation of the right idle item like sword, box or whatever: there is
+   an idle animation, and it is stopped so he doesn't move around"): Chuck's model and rig
+   (CZ `chest_young_chuck` etc., CW `chest_default`) posed by **one frame of the idle
+   animation of the weapon's moves** (the kind's game weapon: its `AnimBankName`,
+   `anm_<bank>.big`, the idle `.anm` in it; a box, a two-hander, a knife each have their
+   own), frozen, with the weapon hung at his hands by its grip nodes, as the game does
+   (measured: the hands follow `LOC_rhand` / `LOC_WEP_<x>_R`, `IK_lhand`). This needs the
+   **`.anm` format read** (at least one pose of the idle animations; phase 12's notes:
+   `phase12-kickoff.md` §Research, `anm_Sword.big` holds `root.big` and `fullbody.big`,
+   one `.anm` per move), so that part of phase 14 moves here: read `.anm`, a census over
+   every bank of both games, find each item kind's idle, pose the skeleton. Full playback
+   (Chuck swinging) stays for later.
 4. **Align by dragging:** handles (TransformControls, already vendored for Maps) to slide,
    turn and lengthen the weapon in the hand and to move the effect point along the blade;
    they write `WeaponSpec.slide / turn / length / effect_start`.
-5. **Gate:** Frostmourne aligned in Studio's 3D view (hands on the handle, the aura along
-   the blade) looks the same in game; the Effects window's 3D preview of the Flaming
+5. **Gate:** Frostmourne aligned in Studio's 3D view, Chuck in the sword idle pose (hands
+   on the handle, the aura along the blade), looks the same in game (a screenshot of
+   Chuck standing still with it); the same for a non-sword kind (a box or a two-hander); the Effects window's 3D preview of the Flaming
    Sword turned blue matches the game's.
 
 ## Start here (handoff, 2026-10-12 evening)
