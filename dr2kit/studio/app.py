@@ -427,6 +427,13 @@ class MainWindow(QMainWindow):
         P.add("mod", "Mod and log", bw, tip="The mod you are making, and what Studio did")
         P.arrange()
         P.restore()
+        # Ctrl+Z / Ctrl+Y undo and redo level edits wherever the keyboard is (the 3D page
+        # has its own, used when it has the keyboard; a text field keeps its own undo)
+        from PySide6.QtGui import QKeySequence, QShortcut
+        for keys, op in (("Ctrl+Z", "undo"), ("Ctrl+Y", "redo"), ("Ctrl+Shift+Z", "redo")):
+            sc = QShortcut(QKeySequence(keys), self)
+            sc.setContext(Qt.ApplicationShortcut)
+            sc.activated.connect(lambda op=op: self.maps_view.undo_redo(op))
         windows = QToolButton()
         windows.setText("Windows")
         windows.setToolTip("Show or hide each panel; put every window back; reset the layout")

@@ -627,7 +627,9 @@ def test_maps_buildings_place_and_hierarchy(tmp_path, monkeypatch):
     assert mv.whole_box.isChecked()
     mv.hierarchy.filter.setText("sign")
     assert not box.isHidden() and shed.isHidden()
-    mv._message("edit " + json.dumps({"op": "undo"}))   # the copy goes
+    mv.undo_redo("undo")                            # Ctrl+Z anywhere: the copy goes
     assert not f.exists()
+    mv.undo_redo("redo")                            # Ctrl+Y: it comes back
+    assert json.loads(f.read_text())["copies"][0]["piece"] == "shed"
     assert win.wait_for_jobs()
     win.close()

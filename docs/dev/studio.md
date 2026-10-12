@@ -312,7 +312,12 @@ item's **Item** (a completer of `items.txt`), **Position** (`ed_pos`), **Rotatio
 `ed_turn` is its y, the only one a zombie has) and **Size** (`ed_scale`, buildings only)
 fields, the *Move / Turn / Size* mode buttons (`dr2.setGizmo`), *Whole building*
 (`whole_box`) and *Part of* (`part_of`), *Turn handles tilt too* (`dr2.setRotateAll`),
-*Onto floor*, *Copy*, *Delete* / *Show*, *Put back*, *Add item…*, *Undo*, *Redo*. A rotation
+*Onto floor*, *Copy*, *Delete* / *Show*, *Put back*, *Add item…*, *Undo*, *Redo*. The
+turn handles show all three rings by default (the user, 2026-10-12; a zombie only the up
+one). Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z are also window-wide `QShortcut`s
+(`Qt.ApplicationShortcut`, `MapsView.undo_redo`), skipped while the page has the keyboard
+(its own keys send `edit undo`, so one press is one step) and inside text fields (their
+own undo takes the key first). A rotation
 typed unchanged (within 0.05°) keeps the stored quaternion (`_rotation_typed`). More page messages: `edit {op, name, file, position, rotation}` (op `move`,
 `delete`, `duplicate`, `undo`, `redo`) and `place {point}`; Python calls
 `dr2.setEditing(on)`, `dr2.itemState([…])`, `dr2.askPlace()`, `dr2.selectItem(name)`.

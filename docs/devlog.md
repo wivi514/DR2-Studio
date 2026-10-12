@@ -17,6 +17,14 @@ Entry template:
 
 ---
 
+## 2026-10-12 — Undo keys everywhere, turning about every axis
+**Done:** Ctrl+Z / Ctrl+Y (and Ctrl+Shift+Z) undo and redo level edits wherever the
+keyboard is in Studio, not only in the 3D view; the turn handles show all three rings by
+default (*Turn handles for every axis*), zombies keep one.
+**Why:** the user's test: undo only worked after clicking in the view, and turning only
+offered the green ring unless the option was found.
+**Docs updated:** guide 19, `dev/studio.md`.
+
 ## 2026-10-12 — Placing from the Place panel, fixed
 **Done:** the user dragged an item onto the 3D view: a ring followed, beside the mouse, and
 nothing was placed. Now the page takes the drop itself (HTML5 `dragover` / `drop`, the

@@ -826,9 +826,10 @@ class MapsView(QWidget):
         prow.addWidget(self.part_of, 1)
         self.part_of_row.setVisible(False)
         sl.addWidget(self.part_of_row)
-        self.tilt_box = QCheckBox("Turn handles tilt too (every axis)")
-        self.tilt_box.setToolTip("Off: the turn handle only turns about the up axis, which "
-                                 "is what most things need")
+        self.tilt_box = QCheckBox("Turn handles for every axis")
+        self.tilt_box.setChecked(True)
+        self.tilt_box.setToolTip("On: three rings, to turn and tilt it any way. Off: one "
+                                 "ring, it only turns about the up axis (a zombie always)")
         self.tilt_box.toggled.connect(lambda on: self._js(f"dr2.setRotateAll({str(on).lower()})"))
         sl.addWidget(self.tilt_box)
         row = QHBoxLayout()
@@ -926,6 +927,23 @@ class MapsView(QWidget):
         sl.addWidget(self.btn_new_item)
         self._btarget: dict | None = None         # {file, path}: a picked trigger / spawn
         self._refresh_edit_panel()
+
+    def undo_redo(self, op: str) -> None:
+        """Ctrl+Z / Ctrl+Y from anywhere in the window (`app.MainWindow`): undo or redo a
+        level edit while editing. Not when the 3D page has the keyboard: it sends its own
+        (so one key press is one step)."""
+        from PySide6.QtWidgets import QApplication
+        fw = QApplication.focusWidget()
+        if self.view is not None and fw is not None and (fw is self.view or
+                                                          self.view.isAncestorOf(fw)):
+            return
+        if not self.edit_box.isChecked() or self.editor is None:
+            self.status.emit("Maps: nothing to undo (tick Edit the level)")
+            return
+        if not (self.editor.can_undo() if op == "undo" else self.editor.can_redo()):
+            self.status.emit(f"Maps: nothing to {op}")
+            return
+        self._edit({"op": op})
 
     def _mod_dir(self):
         return getattr(self.window, "mod_dir", None)

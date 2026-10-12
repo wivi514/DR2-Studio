@@ -39,7 +39,8 @@
 //                                  Down up and down, [ ] turn, - = size; Shift: bigger
 //                                  steps, Alt: smaller)
 //   dr2.setGizmo(mode)             'translate', 'rotate' or 'scale' (as T, R, G)
-//   dr2.setRotateAll(on)           turn about every axis, not only the up axis
+//   dr2.setRotateAll(on)           turn about every axis (the default), or only the up
+//                                  axis (a zombie: always only the up axis)
 //   dr2.pieceState([state…])       buildings after a change (mods/pieceedit.py
 //                                  PieceState): moved, hidden, and the zone's copies (the
 //                                  list of a zone's copies ends with a state with no name)
@@ -964,7 +965,7 @@ const added = new Map();          // lower name -> the object loaded for it (add
 const pieceOverrides = new Map(); // lower "zone/piece" -> the last pieceState for it
 const pieceCopies = new Map();    // zone -> [pieceState of each copy]
 let pendingFocus = null;          // dr2.focus waiting for its zone to load
-let rotateAll = false;            // turn about every axis (dr2.setRotateAll)
+let rotateAll = true;             // turn about every axis (dr2.setRotateAll; the user, 2026-10-12)
 let gizmoWanted = null;           // a mode asked for while nothing was selected
 let ghost = null;                 // where a dragged thing would land
 let nudgeTimer = null;
@@ -984,7 +985,8 @@ function setGizmoMode(mode) {
   }
   gizmo.setMode(mode);
   gizmo.setSpace(mode === 'scale' ? 'local' : 'world');
-  const flat = mode === 'rotate' && !rotateAll;          // turn about the up axis only
+  // a zombie only has a heading: it always turns about the up axis alone
+  const flat = mode === 'rotate' && (!rotateAll || (editTarget && editTarget.kind === 'zombie'));
   gizmo.showX = gizmo.showZ = !flat;
   gizmo.showY = true;
 }
@@ -994,19 +996,20 @@ function attachGizmo(node) {
   const u = node.userData;
   editTarget = { node, kind: 'item', name: u.dr2_name, file: u.dr2_file };
   gizmo.attach(node);
-  if (gizmo.getMode() === 'scale') setGizmoMode('translate');
+  setGizmoMode(gizmo.getMode() === 'scale' ? 'translate' : gizmo.getMode());
 }
 function attachPiece(node, zone) {
   editTarget = { node, kind: 'piece', name: node.userData.dr2_piece, zone };
   gizmo.attach(node);
-  if (gizmoWanted) { setGizmoMode(gizmoWanted); gizmoWanted = null; }
+  setGizmoMode(gizmoWanted || gizmo.getMode());
+  gizmoWanted = null;
 }
 function attachZombie(group) {          // a single zombie's cone, or a clearing's circle
   const z = group.userData.zombie;
   if (!z || (z.spawn !== 'single' && z.spawn !== 'removal')) return false;
   editTarget = { node: group, kind: 'zombie', path: z.path, zombie: z };
   gizmo.attach(group);
-  if (gizmo.getMode() === 'scale') setGizmoMode('translate');
+  setGizmoMode(gizmo.getMode() === 'scale' ? 'translate' : gizmo.getMode());
   if (selBox) { scene.remove(selBox); selBox.geometry.dispose(); }
   selBox = new THREE.BoxHelper(group, 0xffff00);
   selBox.material.depthTest = false;

@@ -103,9 +103,11 @@ remembers your layout.
      look (**Shift**: 1 m, **Alt**: 1 cm); **Page Up / Page Down** move it up and down.
      A row of presses is saved as one change;
    - or type a new **Position**.
-6. **Turn it:** **[** and **]** turn it 15° (**Shift**: 90°, **Alt**: 1°). Or press **R**
-   (or **Turn**) and drag the green ring; **T** (or **Move**) goes back to moving. Tick
-   **Turn handles tilt too** to tilt it about the other axes. Or type a **Rotation**.
+6. **Turn it:** **[** and **]** turn it 15° about the up axis (**Shift**: 90°, **Alt**:
+   1°). Or press **R** (or **Turn**) and drag one of the three rings: green turns it, red
+   and blue tilt it; **T** (or **Move**) goes back to moving. Untick **Turn handles for
+   every axis** to keep only the green ring (a zombie only ever has that one). Or type a
+   **Rotation**.
 7. **Onto the floor:** press **F** (or **Onto floor**). It drops onto the floor below it,
    the one the game walks on (the collision mesh, [glossary](../glossary.md)), so it
    doesn't float or sink.
@@ -119,7 +121,9 @@ remembers your layout.
     ring under the mouse shows the spot, **Esc** cancels. Double-click puts it where the
     middle of the view meets the floor; **Add item…** does the same from a list. Only
     items whose model this game has are listed.
-11. **Undo / Redo:** **Ctrl+Z / Ctrl+Y** (or the buttons), as many times as you like.
+11. **Undo / Redo:** **Ctrl+Z / Ctrl+Y** (or **Ctrl+Shift+Z**, or the buttons), as many
+    times as you like, wherever you clicked last in DR2 Studio (in a text box they undo
+    your typing instead).
 12. Click **Play** to try it in the game.
 
 Items have no **Size**: the game's item placements can't be resized (only buildings can).
