@@ -18,7 +18,8 @@ clean library, played. This script drives the real dialogs offscreen
 5. **Share…** (`library.pack` after the share check) → one ``.dr2mod``;
 6. **Install mod…** on a clean library B, and the mod's files listed.
 
-Then, with ``--install-user``, the ``.dr2mod`` is installed into the *user's* library
+The link Studio makes to the temporary mod in the user's library is removed. Then, with
+``--install-user``, the ``.dr2mod`` is installed into the *user's* library
 and deployed (``play.deploy_library``) for the windowed check by a person: pick it up,
 swing it, the icon, the card at a workbench, the French name. Without it, everything is
 temporary and removed.
@@ -140,9 +141,14 @@ def main() -> int:
     print("6. installed on a clean library:", installed.id,
           [rel for rel, _ in Mod.load(installed.root).files()][:4], "…", flush=True)
 
+    # Studio links the mod it opens into the user's library: forget that link (the
+    # temporary folder goes away), whatever happens next
+    lib = ModLibrary()
+    for e in lib.entries():
+        if e.mod.root.resolve().is_relative_to(work.resolve()):
+            lib.remove(e.mod.id)
     if a.install_user:
         from dr2kit.mods import play
-        lib = ModLibrary()
         user = lib.install(package)
         lib.enable(user.id)
         files, _ = play.deploy_library(game, lib)
