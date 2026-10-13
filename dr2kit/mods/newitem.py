@@ -188,10 +188,14 @@ def build_copy(tree: AssetTree, recipe: dict, mod_root: Path, where: str = "") -
         _set_icon(pack, recipe, sources, pre)
     if recipe.get("texture_names"):
         rename_textures(pack, recipe["texture_names"], pre)
+    out = pack.to_bytes()
     if recipe.get("shaders"):                      # draw with brought shaders (phase 15)
         from ..convert.shadercarry import convert_pack
-        return convert_pack(pack.to_bytes(), recipe["shaders"], src.vpath)
-    return pack.to_bytes()
+        out = convert_pack(out, recipe["shaders"], src.vpath)
+    if recipe.get("from"):                         # scenes as the target's program reads
+        from ..convert.crossgame import fit_scenes, other
+        out = fit_scenes(out, other(recipe["from"]), src.vpath)
+    return out
 
 
 SLOT_RECORD = 100                    # MatTextureInfoArray: number, name (to +0x38), hash…

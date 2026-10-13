@@ -315,7 +315,10 @@ one. The importer resolves every name an item uses (kept / brought / renumbered 
 dropped with a reason); `dr2 census --import` checks every item of each game resolves
 into the other. Engine limit found on the way: the renderer's pool of shader constant
 sets (CZ 384, CW 1,340, one per pixel shader) leaves room for ~26 brought pixel shaders
-in CZ and ~3 in CW; growing it is a recomp change (asked, 2026-10-12).
+in CZ and ~3 in CW; growing it is a recomp change (approved and built 2026-10-12: 4,096
+in both, §Recomp integration 4). Case West's scenes also lack the `_BONEHIERARCHY_`
+chunk Case Zero's program needs (it hangs a load without it), so a copied scene gets it
+written (`crossgame.fit_scenes`, profile data `scene_hierarchy`).
 
 **What a mod needs (phase 15, `mods/requires.py`).** A mod made from the other game's
 files (a recipe with `"from": "cw"`) can only be built where that game's data is, and
@@ -577,7 +580,12 @@ Timing: (1) landed with phase 2, (2) with phase 5.
    with a `CW_` off switch and the census of every place changed; Case Zero gets the same
    check (already 32). `phase15-kickoff.md` §How many types and levels.
 4. **Growing the shader constant set pool** (approved by the user 2026-10-12 for phase
-   15, "Yes you got my approval"; not built yet), **in both recomps**. The renderer's
+   15, "Yes you got my approval"; **built 2026-10-12**, both recomps,
+   `runtime/cpu/shader_pool.cpp`: CZ `6be8e81` + `d2e5701`, CW `2bb20d1` + `1933315`;
+   *as built:* Case Zero's boot stores 1300 over the image's 384, so each recomp hooks its
+   renderer's pool builder and raises **two** words to 4,096 just before it reads them,
+   CZ `0x829ED7F4`/`0x829ED7EC`, CW `0x82A00D34`/`0x82A00D2C`: the second pool ran out in
+   Case West too; formats.md §Across the games), **in both recomps**. The renderer's
    pool of shader constant sets (one per loaded pixel shader) is sized from a table in
    the executable's data: CZ `0x829ED7F4` = 384 (~26 free), CW `0x82A00D34` = 1,340 (~3
    free); more brought pixel shaders assert "Shader constant set overflow" (formats.md

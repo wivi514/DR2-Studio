@@ -186,7 +186,8 @@ every entry of both games by the census).
 
 ### `dr2kit/profiles/`
 `load_profile("cz")` reads `cz.toml`: name, title ID, where a recomp keeps the data,
-the files the executable digest-checks (`digest_checked`), and the census totals the
+the files the executable digest-checks (`digest_checked`), whether its program needs
+`_BONEHIERARCHY_` in every scene (`scene_hierarchy`, Case Zero), and the census totals the
 game-data tests expect. `get_config` / `set_config` read and write the user config file
 (`[games]`, `[mods]`). `locate("cz")` finds the data: the
 `DR2_CZ_DATA` environment variable, then the user config file (`dr2 games set`), then a
@@ -794,6 +795,10 @@ pictures are drawn: bump `index.build.THUMB_VERSION`, and the next build redraws
   classes the other game uses that a program doesn't name, each game's shader
   descriptions); `zombie_types`, `level_slots`, `empty_level_slots`, `unknown_classes`;
   `source_tree(game)` opens the game a recipe copies from, or says the mod needs it.
+  `fit_scenes(data, game)`: scenes of the other game made right for `game`'s program
+  (Case Zero's needs `_BONEHIERARCHY_`, profile `scene_hierarchy`; written from the node
+  records by `formats.scene.Skeleton.hierarchy_pairs`), run by `newitem.build_copy` on
+  every recipe with `"from"`.
 - `convert/shadercarry.py` (phase 15): a model of the other game drawn with its own
   game's shaders. `used_shaders(pack)` (descriptions from every `UsedShaders.txt`, pixel
   shaders from every value set), `plan(src_tree, dst_tree, src, dst, sd, ps)` → `Carry`

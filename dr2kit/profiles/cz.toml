@@ -23,6 +23,11 @@ recomp_executables = ["cz_runtime", "cz_runtime.exe", "CaseZeroRecomp-linux-x86_
                       "runtime/build/Release/cz_runtime.exe"]
 # The variable that turns mods off for one run (Play without mods).
 no_mods_env = "CZ_NO_MODS"
+# Case Zero's program needs a scene's node pairs written out (_BONEHIERARCHY_): placing an
+# item whose scene lacks them hangs the load for ever (the parent walk sub_827ACAD8 never
+# ends; phase 15, 2026-10-12). Every scene of Case Zero has them; scenes brought from
+# Case West get them written (dr2kit/convert/crossgame.py fit_scenes).
+scene_hierarchy = true
 # What a release build sets in its cz_defaults.env (next to the program) for playing.
 # Source builds have no such file and start with the renderer OFF (the recomp's default
 # for headless test runs: "[vk] renderer OFF (set CZ_VKDRAW=1 to enable it)"), so Play

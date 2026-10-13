@@ -48,6 +48,7 @@ class Profile:
     variants: dict = field(default_factory=dict)  # the shape-group table (convert/variants.py)
     map_floors: tuple = ()      # the in-game map's floor pictures, placed (convert/mapdata.py)
     preload_evict: dict = field(default_factory=dict)   # loose file -> its preload4.big entry
+    scene_hierarchy: bool = False   # its program needs _BONEHIERARCHY_ in every scene (CZ)
 
 
 def load_profile(game: str) -> Profile:
@@ -68,7 +69,8 @@ def load_profile(game: str) -> Profile:
                    variants=dict(raw.get("variants", {})),
                    map_floors=tuple(raw.get("map_floors", ())),
                    preload_evict={str(k): str(v) for k, v in
-                                  raw.get("preload_evict", {}).items()})
+                                  raw.get("preload_evict", {}).items()},
+                   scene_hierarchy=bool(raw.get("scene_hierarchy", False)))
 
 
 def config_path() -> Path:

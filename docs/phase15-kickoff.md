@@ -321,17 +321,25 @@ the modder doesn't have to know. XenonLive's launcher has no mod support yet
   again.
 * Effects the target lacks are left off (listed); bringing them into the effect table's
   free slots (phase 13's own effects) is next after U1.
+* **Recomp change 4 built 2026-10-12 (both recomps), U1 passes headless.** Each recomp
+  grows two pools to 4,096 (Case Zero's pool was 1,300, not 384: its boot overwrites the
+  image's value; a second pool runs out too: formats.md §Across the games). Then the Laser
+  Sword still hung Case Zero's load: Case West's scenes lack `_BONEHIERARCHY_`, which Case
+  Zero's program walks (`sub_827ACAD8`); the build now writes it
+  (`crossgame.fit_scenes`). Headless on copies of the user's saves: the Laser Sword (45
+  pixel shaders) plays in Case Zero's street, Case Zero's Parasol (14) plays in Case
+  West's Storage Pens. **Owed: U1 in a window with the user** (looks, moves, sounds, card).
 
 ### What is left (2026-10-12)
 
 | Step | State |
 |---|---|
-| 1 both games at once, 2 cross-game table, 3 import an item | built; in game: blocked (shader pool) |
-| Recomp change: grow the shader constant set pool (CZ, CW) | **approved by the user 2026-10-12**, not made: ARCHITECTURE.md §Recomp integration 4 |
-| U1 the Laser Sword in CZ | headless: crashes on the pool; again after the recomp change |
+| 1 both games at once, 2 cross-game table, 3 import an item | built; plays headless both ways (Laser Sword in CZ, Parasol in CW) |
+| Recomp change: grow the shader constant set pool (CZ, CW) | **built 2026-10-12** (two pools, 4,096; ARCHITECTURE.md §Recomp integration 4) |
+| U1 the Laser Sword in CZ | headless: plays (after the pools and `_BONEHIERARCHY_`); in a window with the user: owed |
 | Effects the target lacks → own effects in free slots | not started |
 | 4 zombie types (CW → CZ empty slots; CW's type table grown, approved) + U2 | not started |
-| U3 shaders in game | waits for the pool |
+| U3 shaders in game | the pools grown; seen with U1 |
 | 5 maps (CZ slots, `w_mall`, CW level table grown) + U4/U5 | waits for phase 14's T5 |
 | 6 the checker for levels and zombies | items done (`dr2 census --import`) |
 | 7 bosses + U6 | not started |

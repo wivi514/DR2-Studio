@@ -75,3 +75,29 @@ def test_every_item_resolves_both_ways(both):
         r = importitem.census(both[src], both[dst], src, dst)
         assert r["refused"] == [] and r["unresolved"] == [], (src, dst, r["unresolved"][:5])
         assert r["planned"] == r["items"]
+
+
+def test_case_west_scenes_get_case_zeros_hierarchy(both):
+    """Case Zero's program hangs placing an item whose scene lacks _BONEHIERARCHY_ (U1,
+    2026-10-12): a Case West pack built for Case Zero gets it, right after the nodes, the
+    same pairs as the node records; for Case West nothing changes."""
+    from dr2kit.container.big import BigArchive
+    from dr2kit.convert.crossgame import fit_scenes
+    from dr2kit.formats.scene import Scene
+    data = both["cw"].resolve("data/streamedassets.big/combo_lightsaber.big").data()
+    assert fit_scenes(data, "cw") is data
+    scene = BigArchive.parse(fit_scenes(data, "cz")).get("combo_lightsaber.big").data()
+    arc = BigArchive.parse(scene)
+    names = [e.name for e in arc.entries]
+    at = names.index("_BONEHIERARCHY_")
+    assert all(e.size == 52 for e in arc.entries[:at]) and arc.entries[at + 1].size != 52
+    s = Scene.parse(scene)
+    assert sorted(s.hierarchy) == sorted((n.index, n.parent) for n in s.skeleton.nodes)
+
+
+def test_hierarchy_order_is_case_zeros(both):
+    """`Skeleton.hierarchy_pairs` writes what Case Zero's own tools wrote (Broadsword)."""
+    from dr2kit.formats.scene import Scene
+    s = Scene.parse(both["cz"].resolve(
+        "data/streamedassets.big/broadsword.big/broadsword.big").data())
+    assert s.skeleton.hierarchy_pairs() == [tuple(p) for p in s.hierarchy]

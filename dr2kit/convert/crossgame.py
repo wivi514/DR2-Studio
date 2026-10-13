@@ -81,3 +81,60 @@ def source_tree(game: str, why: str = "") -> AssetTree:
                            f"{name}'s game data on this computer (Game folders… in Studio, "
                            f"or dr2 games set {game} <folder>)") from None
     return _TREES[game]
+
+
+# --- scenes the target's program reads differently ---------------------------------------
+
+HIERARCHY = "_BONEHIERARCHY_"
+
+
+def fit_scenes(data: bytes, game: str, name: str = "pack") -> bytes:
+    """``data`` (a pack or scene archive from the other game) made right for ``game``'s
+    program: when the profile says so (``scene_hierarchy``, Case Zero), every scene that
+    lacks ``_BONEHIERARCHY_`` gets it, written from its node records
+    (`Skeleton.hierarchy_pairs`) right after them, stored, declared alignment 4: where
+    and how Case Zero's own scenes hold it.
+
+    Why: Case West ships no scene with that chunk and its program copes; Case Zero's
+    program walks a placed item's node parents through it (``sub_827ACAD8``) and, without
+    it, never finishes: the load hangs on the loading screen (Laser Sword test U1,
+    2026-10-12; docs/formats.md §Across the games). Unchanged bytes when nothing lacks it."""
+    from ..profiles import load_profile
+    if not load_profile(game).scene_hierarchy:
+        return data
+    from ..container.big import BigArchive
+    arc = BigArchive.parse(data, name)
+    return arc.to_bytes() if _fit(arc, name) else data
+
+
+def _fit(arc, where: str) -> bool:
+    from ..container.big import BigArchive, is_big
+    changed = False
+    names = {e.name for e in arc.entries}
+    if "SceneHeader" in names and HIERARCHY not in names:
+        _add_hierarchy(arc, where)
+        changed = True
+    for e in arc.entries:
+        if e.name.lower().endswith((".big", ".tex")) and is_big(e.data()):
+            try:
+                inner = BigArchive.parse(e.data(), e.name)
+            except Exception:                                   # noqa: BLE001
+                continue
+            if _fit(inner, f"{where}/{e.name}"):
+                e.set_data(inner.to_bytes())
+                changed = True
+    return changed
+
+
+def _add_hierarchy(arc, where: str) -> None:
+    import struct
+    from ..formats.scene import Scene
+    sk = Scene.parse(arc.to_bytes(), where).skeleton
+    data = b"".join(struct.pack(">Ii", i, p) for i, p in sk.hierarchy_pairs())
+    node_names = {n.name for n in sk.nodes}
+    # after the last node record (Case Zero: nodes, then this chunk, then the data)
+    at = max((k + 1 for k, e in enumerate(arc.entries) if e.name in node_names and
+              e.size == 52), default=0)
+    e = arc.add(HIERARCHY, data, flags=4, alignment=4)
+    arc.entries.remove(e)
+    arc.entries.insert(at, e)

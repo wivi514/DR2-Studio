@@ -186,6 +186,26 @@ class Skeleton:
             go(i)
         return out
 
+    def hierarchy_pairs(self) -> list[tuple[int, int]]:
+        """The ``_BONEHIERARCHY_`` pairs a Case Zero tool would write for these nodes:
+        every node's (index, parent), parents first, ordered by (depth, parent, index).
+        That order is Case Zero's own in 1,473 of its 1,485 scenes with the chunk; the
+        other 12 (rigs with two roots) are parents first too, in another order (census,
+        2026-10-12, docs/formats.md §Chunks in the scene archive)."""
+        by = {n.index: n for n in self.nodes}
+        depth: dict[int, int] = {}
+
+        def d(i: int, steps: int = 0) -> int:
+            if i not in depth:
+                if steps > len(self.nodes):
+                    raise FormatError("skeleton has a parent cycle")
+                n = by[i]
+                depth[i] = 0 if n.is_root or n.parent not in by else d(n.parent, steps + 1) + 1
+            return depth[i]
+
+        order = sorted(self.nodes, key=lambda n: (d(n.index), n.parent, n.index))
+        return [(n.index, n.parent) for n in order]
+
     def world_positions(self) -> list[tuple[float, float, float]]:
         return [(m[0][3], m[1][3], m[2][3]) for m in self.world_matrices()]
 

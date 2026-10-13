@@ -99,10 +99,11 @@ requirements (`mods/requires.py`, `dr2 mod info`), the cross-game table
 (`tools/crossgame_table.py`), shader bank files (`formats/shaderbank.py`), the other
 game's own shaders brought (user's decision; `convert/shadercarry.py`), the item importer
 (`mods/importitem.py`, `dr2 mod import-item`, Studio *Other game's items…*, guide 23,
-`dr2 census --import`: 0 unresolved). **Blocked** on the engine's shader constant set
-pool (CZ 384, CW 1,340: ~26 / ~3 free; formats.md §Across the games): growing it in both
-recomps was **approved by the user 2026-10-12** (`ARCHITECTURE.md` §Recomp integration 4),
-not built yet; then test U1. Next conversation: `docs/phase15-kickoff.md` §Start here. Rest (zombies, maps, bosses, effects):
+`dr2 census --import`: 0 unresolved). The engine's shader pools grown in both recomps
+(2026-10-12, approved: two pools to 4,096, `runtime/cpu/shader_pool.cpp`; `ARCHITECTURE.md`
+§Recomp integration 4) and Case West scenes given the `_BONEHIERARCHY_` chunk Case Zero's
+program needs (`crossgame.fit_scenes`): U1 plays headless both ways; owed: U1 in a window
+with the user. Next conversation: `docs/phase15-kickoff.md` §Start here. Rest (zombies, maps, bosses, effects):
 `docs/phase15-kickoff.md` §Status. Phase 16 (the same from the PC Dead Rising 2 and Off
 the Record) is planned, not started: `docs/phase16-kickoff.md`.** Read these before writing code:
 

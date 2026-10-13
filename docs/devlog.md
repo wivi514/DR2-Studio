@@ -17,6 +17,32 @@ Entry template:
 
 ---
 
+## 2026-10-13 — Phase 15: the shader pools grown in both recomps; Case Zero needs `_BONEHIERARCHY_`
+**Done:** the approved recomp change 4 in both recomps (`runtime/cpu/shader_pool.cpp`: the
+renderer's pool builder hooked, two pool sizes raised to 4,096 just before it reads them,
+`CZ_/CW_NO_SHADER_POOL_GROWTH=1`; CZ `6be8e81` `d2e5701`, CW `2bb20d1` `1933315`, each with
+a gotcha). In the toolkit: `crossgame.fit_scenes` writes the `_BONEHIERARCHY_` chunk into
+Case West scenes built for Case Zero (profile `scene_hierarchy`,
+`Skeleton.hierarchy_pairs`), run by every recipe with `"from"`; two tests.
+**Why:** phase 15 restart, step 1 (test U1 headless before the user plays it).
+**Learned:** (1) Case Zero's pool was never 384: its boot stores 1300 over two words of
+the size table; Case West's 1,340 is its own; a second pool beside the constant sets runs
+out too, in Case West as a failed allocation (a null read far from any pool), found by
+arms: 1 brought pixel shader plays, 14 fault, 4 vertex shaders play. (2) With the pools
+grown the Laser Sword still **hung** Case Zero's load (no fault, no frames): arms showed
+the Case West model pack itself (Case Zero's Broadsword pack under the same block plays);
+`gdb` on the stuck recomp put the main thread in `sub_827ACAD8`, a parent walk over the
+(index, parent) pairs, and Case West ships **no** scene with `_BONEHIERARCHY_` (Case Zero:
+every one). Written from the node records, the Laser Sword plays. The formats.md claim
+"every scene" is corrected (Case Zero only). Headless, on copies of the user's saves: the
+Laser Sword (45 brought pixel shaders) plays in Case Zero's street; Case Zero's Parasol (14)
+plays in Case West's Storage Pens.
+**Docs updated:** formats.md (§Across the games: the pools, retraction; scenes; the chunk
+table row), ARCHITECTURE.md (§Recomp integration 4 built, the other game's things),
+code-tour, phase15-kickoff §Status, CLAUDE.md status; both recomps' instruments/gotchas.
+**Next:** U1 in a window with the user; effects the target lacks into free slots; zombie
+types (step 4, U2) with Case West's type table grown.
+
 ## 2026-10-12 — Phase 15: the other game's items, shaders brought, the engine's shader pool
 **Done:** the cross-game table (`tools/crossgame_table.py` → `profiles/crossgame.toml`:
 each program's zombie type and level tables found by the code that builds their address,

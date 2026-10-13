@@ -19,6 +19,10 @@ recomp_executables = ["cw_runtime", "cw_runtime.exe", "CaseWestRecomp-linux-x86_
                       "runtime/build/Release/cw_runtime.exe"]
 # The variable that turns mods off for one run (Play without mods).
 no_mods_env = "CW_NO_MODS"
+# Case West's scenes never carry _BONEHIERARCHY_ (0 of all its scenes; its program copes
+# without). Case Zero's scenes brought here keep theirs (Case West's program names the
+# chunk too).
+scene_hierarchy = false
 # What a release build sets in its cw_defaults.env (next to the program) for playing.
 # Source builds have no such file and start with the renderer OFF (the recomp's default
 # for headless test runs: "[vk] renderer OFF (set CW_VKDRAW=1 to enable it)"), so Play

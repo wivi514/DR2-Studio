@@ -355,7 +355,7 @@ any archive with a `SceneHeader` entry: 1,510 in CZ (1,397 models, 113 skeletons
 | `SceneDescription` | 36·n | a 32-byte NUL-padded name + u32 kind: **2 = transform node, 0 = shape** (✅) |
 | `_BONENAMES_` | 31·n | the skeleton's node names, **31 bytes each**; a name longer than 30 characters is **cut to 30** (✅, see below) |
 | `<node name>` | **52** | one per node: the node record below (✅) |
-| `_BONEHIERARCHY_` | 8·n | (u32 index, s32 parent) pairs: the **same pairs as the node records, in a parents-first order** (✅ every scene; equal to the records' order in characters, different in 158 CZ props) |
+| `_BONEHIERARCHY_` | 8·n | (u32 index, s32 parent) pairs: the **same pairs as the node records, in a parents-first order** (✅ every scene **of Case Zero**; equal to the records' order in characters, different in 158 CZ props). *Corrected 2026-10-12:* "every scene" held for Case Zero only: **Case West has none** (0 scenes), and Case Zero's program hangs without it (§Across the games) |
 | `MatArray` | 36·n | one per material (✅ layout, below) |
 | `MatTextureInfoArray` | 100·n | texture slots; name at +4 (52 bytes), a hash at +0x38 (below) |
 | `UsedShaders.txt` | text | `0x5CEF4D20 : ProtoSkinnedClothRGB` lines: shader hash → name |
@@ -1767,6 +1767,38 @@ shaders, and the second value builds the pool kept at renderer `+3492` (CZ `0x82
 `lwz r4, 0x829ED7F4`). So the pool holds one constant set per loaded pixel shader (CZ:
 ~358 used of 384, CW: ~1,337 of 1,340) ❓ the exact count used. **Bringing shaders past
 this needs the pool grown** (a recomp change: the value set at boot), in both games.
+*Retracted 2026-10-12 (the same day): Case Zero's pool is not 384.* The boot budget
+function `sub_825D37C8` (called unconditionally) stores **1300** over both `0x829ED7EC`
+(420 in the image) and `0x829ED7F4` (384) before the renderer reads them, so CZ runs
+1,280 pixel shaders against 1,300 sets (~20 free, which fits the 26 / 29 measured above);
+Case West's 1,340 is its image's own (no store to it). **Two pools limit brought pixel
+shaders**: the constant sets (CZ `0x829ED7F4`, renderer `+3492`; CW `0x82A00D34`, `+3504`)
+and the pool beside them (CZ `0x829ED7EC`, `+3480`; CW `0x82A00D2C`, 1,340, `+3492`).
+Case West showed the second: with only the first grown, 14 brought pixel shaders faulted
+while the save loaded (a failed allocation, then a read of address `0x1C`), 1 loaded.
+**Grown in both recomps to 4,096 each (2026-10-12)**: each hooks its renderer's pool
+builder (CZ `sub_827BE658`, CW `sub_8275A168`) and raises both words just before it reads
+them; off switch `CZ_/CW_NO_SHADER_POOL_GROWTH=1`, log `[shaderpool] … 1300 -> 4096`.
+Checked headless on copies of the user's saves: the Laser Sword (45 Case West pixel
+shaders) plays in Case Zero; 14 Case Zero pixel shaders, and the Parasol with them, play
+in Case West. (ARCHITECTURE.md §Recomp integration 4; the recomps' gotchas 643 / 332.)
+
+**Scenes: `_BONEHIERARCHY_` is Case Zero's, and its program needs it** (2026-10-12).
+Every streamed item scene of Case Zero has the chunk (192 of 192; 1,485 scenes in all) and
+**no scene of Case West does** (0 of 237 item scenes, 0 anywhere): Case West's program
+copes without it. Case Zero's does not: placing an item whose scene lacks it **hangs the
+load** on the loading screen, no fault: the main thread loops in `sub_827ACAD8`, which
+walks a node's parents through the (index, parent) pairs (found by attaching `gdb` to the
+stuck recomp; the recompiled functions are native frames named `sub_…`), while two
+threads wait on locks it holds. Bisected on the Laser Sword (headless): its block with
+Case Zero's Broadsword pack loads, Case West's pack hangs with or without its shaders,
+move bank and sounds. So a Case West scene going into Case Zero gets the chunk written
+from its node records (`convert/crossgame.fit_scenes`, profile `scene_hierarchy`), right
+after them, stored, `flags` 4, as Case Zero's own; the Laser Sword then plays. Pair
+order: Case Zero writes parents first, sorted by (depth, parent, index) in 1,473 of 1,485
+scenes (the other 12, two-root rigs, parents first in another order;
+`Skeleton.hierarchy_pairs`). Case Zero's scenes going into Case West keep theirs (both
+programs name the chunk; the Parasol plays in Case West with it).
 
 All of it is read and written by `dr2kit/formats/shaderbank.py`; `dr2 census` checks every
 description, parameter file and string table of both games writes back byte for byte (0
