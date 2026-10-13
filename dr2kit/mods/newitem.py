@@ -106,9 +106,11 @@ def build_copy(tree: AssetTree, recipe: dict, mod_root: Path, where: str = "") -
         return build_entry(src_tree, tree, recipe["shader"], where)
     from ..formats.bct import is_bct
     if is_bct(src.data()[:4]):                     # a texture (named with or without .bct)
+        if recipe.get("from") and not (recipe.get("image") or recipe.get("card")):
+            return src.data()                      # the other game's picture, as it is
         return _build_texture(tree, recipe, src, Path(mod_root) / SOURCES_DIR, pre)
     if recipe.get("effect") is not None:
-        return _build_effect(recipe, src, pre)
+        return _build_effect(recipe, src, pre, tree)
     from ..container.big import is_big
     if not is_big(src.data()):
         return _build_plain(recipe, src, pre)
@@ -117,7 +119,8 @@ def build_copy(tree: AssetTree, recipe: dict, mod_root: Path, where: str = "") -
         for e in pack.entries:
             low = e.name.lower()
             for suffix in (".big", ".tex", "_lod.tex"):
-                if low == old.lower() + suffix:
+                if low == old.lower() + suffix or re.fullmatch(       # a detail level:
+                        re.escape(old.lower()) + r"_\d" + re.escape(suffix), low):  # x_2.big
                     e.name = new + e.name[len(old):]
                     e.hash = None
                 elif low == "_comp_" + old.lower() + suffix:    # a level piece's scene
@@ -378,8 +381,9 @@ def _set_icon(pack: BigArchive, recipe: dict, sources: Path, pre: str) -> None:
         e.hash = None                          # (entries keep their place: order is free)
 
 
-def _build_effect(recipe: dict, src, pre: str) -> bytes:
-    """A copied particle effect under a new name, with changes (`convert.effects`)."""
+def _build_effect(recipe: dict, src, pre: str, tree: AssetTree | None = None) -> bytes:
+    """A copied particle effect under a new name, with changes (`convert.effects`); one
+    of the other game (``"from"``) in the target's layout (`Effect.as_version`)."""
     from ..convert.effects import apply_changes
     from ..formats.effect import Effect, is_effect
     data = src.data()
@@ -392,6 +396,9 @@ def _build_effect(recipe: dict, src, pre: str) -> bytes:
                        f"{fx.name!r} in this game")
     if spec.get("name"):
         fx.rename(spec["name"])
+    if recipe.get("from") and tree is not None:            # the target's version
+        from ..formats.effect import game_version
+        fx = fx.as_version(game_version(tree))
     return apply_changes(fx, spec.get("changes") or {}, pre.rstrip(": ")).to_bytes()
 
 

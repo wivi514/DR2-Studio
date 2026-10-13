@@ -329,6 +329,21 @@ the modder doesn't have to know. XenonLive's launcher has no mod support yet
   (`crossgame.fit_scenes`). Headless on copies of the user's saves: the Laser Sword (45
   pixel shaders) plays in Case Zero's street, Case Zero's Parasol (14) plays in Case
   West's Storage Pens. **Owed: U1 in a window with the user** (looks, moves, sounds, card).
+* **Step 3 rest and step 4 (Case West → Case Zero) built 2026-10-13.** Effects the target
+  lacks are brought into free slots of its table (`importitem._bring_effect`, in the
+  target's layout, `Effect.as_version`, with missing particle pictures): Case West → Case
+  Zero needs 27 of Case Zero's 36 free slots; `PropAudioType` keeps the target's bits (the
+  Impact Hammer faulted Case Zero's load with bit 17; found by bisecting its keys); keys
+  naming a dropped child are left out. Zombie types: `mods/importzombie.py`, `dr2 mod
+  import-zombie` (slot, model + shaders, class, behaviours, load sets with the budget
+  warning, the `persistent_filecache.big` copy), `dr2 census --import` (7 Case West types
+  into 7 slots). A third shader pool (descriptions) grown in both recomps (the gas zombie
+  faulted without it). Headless on copies of the user's saves: the Impact Hammer plays in
+  Case Zero; the gas zombie, `security_light` and `security_heavy` load with every street
+  crowd retyped to them. **Owed: U2 in a window** (do they show, walk, fight, gas?).
+* **Case Zero → Case West zombies: blocked on recomp change 3, which is bigger than
+  planned** (formats.md §Zombie types: Case West's type data sits in arrays inline in a
+  manager object, so growing it means re-laying out that object). Asked the user.
 
 ### What is left (2026-10-12)
 
@@ -337,14 +352,14 @@ the modder doesn't have to know. XenonLive's launcher has no mod support yet
 | 1 both games at once, 2 cross-game table, 3 import an item | built; plays headless both ways (Laser Sword in CZ, Parasol in CW) |
 | Recomp change: grow the shader constant set pool (CZ, CW) | **built 2026-10-12** (two pools, 4,096; ARCHITECTURE.md §Recomp integration 4) |
 | U1 the Laser Sword in CZ | headless: plays (after the pools and `_BONEHIERARCHY_`); in a window with the user: owed |
-| Effects the target lacks → own effects in free slots | not started |
-| 4 zombie types (CW → CZ empty slots; CW's type table grown, approved) + U2 | not started |
+| Effects the target lacks → own effects in free slots | **built** (27 of 36 slots for every CW item into CZ) |
+| 4 zombie types (CW → CZ empty slots; CW's type table grown, approved) + U2 | CW → CZ **built**, loads headless; U2 owed; CZ → CW waits for recomp change 3 (bigger than a count: asked) |
 | U3 shaders in game | the pools grown; seen with U1 |
 | 5 maps (CZ slots, `w_mall`, CW level table grown) + U4/U5 | waits for phase 14's T5 |
 | 6 the checker for levels and zombies | items done (`dr2 census --import`) |
 | 7 bosses + U6 | not started |
 | 8 requirements | built; checked before Play through the build; in-launcher: XenonLive has no mod support yet |
-| 9 guides | 23 and 06 written; zombies/maps sections to come |
+| 9 guides | 23 (items, effects, zombies) and 06 written; maps section to come |
 
 ## Start here (next conversation: complete phase 15)
 

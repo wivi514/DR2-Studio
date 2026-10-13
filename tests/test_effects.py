@@ -108,6 +108,34 @@ def test_layout_change():
 
 # --- the real games ---------------------------------------------------------------------
 
+def test_effect_between_the_games_layouts():
+    """Case West's 3 header words ↔ Case Zero's 4 (a 0 third), emitters unchanged."""
+    cw = fx.Effect.parse(make_effect(version=0x20))
+    assert cw.as_version(0x1D).to_bytes() == make_effect(version=0x1D)
+    cz = fx.Effect.parse(make_effect(version=0x1D))
+    assert cz.as_version(0x20).to_bytes() == make_effect(version=0x20)
+    assert cz.as_version(0x1D) is cz
+    with pytest.raises(FormatError):
+        cz.as_version(7)
+
+
+@pytest.mark.gamedata
+def test_case_west_effects_in_case_zeros_layout(game_root):
+    """Every effect both games have with the same emitters converts to Case Zero's bytes,
+    except Case Zero's 7 with the third word set (census, 2026-10-13)."""
+    from dr2kit.container.vpath import AssetTree
+    cz = fx.read_all(AssetTree(game_root("cz")))
+    cw = fx.read_all(AssetTree(game_root("cw")))
+    same = differ = 0
+    for name, (_, e) in cz.items():
+        if name in cw and [m.raw for m in e.emitters] == [m.raw for m in cw[name][1].emitters]:
+            if cw[name][1].as_version(0x1D).to_bytes() == e.to_bytes():
+                same += 1
+            else:
+                differ += 1
+    assert same >= 390 and differ <= 10, (same, differ)
+
+
 @pytest.mark.gamedata
 @pytest.mark.parametrize("game", ["cz", "cw"])
 def test_effects_census(game, game_root):

@@ -389,6 +389,10 @@ def plan_mods(mods: list[Mod], game: str, tree: AssetTree) -> ModPlan:
             if facts is None:
                 facts = levelcheck.GameFacts(tree)
                 _added_scripts(facts, plan)
+                facts.zombie_types |= {      # zombie types a mod fills (phase 15)
+                    p.vpath.rsplit("/", 1)[-1].lower()[:-4] for p in plan.values()
+                    if p.override.kind == "add" and p.vpath.lower().startswith(
+                        "data/models/zombies.big/") and p.vpath.lower().endswith(".big")}
                 for stem, names in added_spawns.items():
                     facts.spawn_points(stem).update(names)
                 facts.added_items = {path.split(" ", 1)[1].lower()

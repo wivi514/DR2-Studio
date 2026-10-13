@@ -835,6 +835,24 @@ def cmd_mod(args) -> int:
               f"data to build (dr2 mod info {args.mod}). Place it from the Maps tab "
               f"(Add item…), or dr2 level edit.")
         return 0
+    if args.action == "import-zombie":
+        from ..mods import importzombie
+        from ..mods.deploy import recomp_folders
+        patched = recomp_folders(loc.root)["patched"]
+        src = args.source or ("cw" if game == "cz" else "cz")
+        levels = tuple(args.level or ())
+        if args.dry_run:
+            from ..convert.crossgame import source_tree
+            p = importzombie.plan(source_tree(src), tree, src, game, args.type, args.slot,
+                                  levels, importzombie.mod_slots(args.mod))
+            print(p.report())
+            return 0
+        p, files = importzombie.import_zombie(args.mod, args.type, src, game, tree, args.slot,
+                                              levels, [patched] if patched.is_dir() else [])
+        print(p.report())
+        print(f"wrote {len(files)} files into {args.mod}. Spawn it as {p.slot!r}: the Maps "
+              f"tab's zombies (retype a crowd, add spawns), or dr2 level edit.")
+        return 0
     if args.action in ("new-weapon", "remove-weapon"):
         return _cmd_weapon(args, tree, loc)
     if args.action in ("effect", "new-effect", "effect-picture"):
@@ -1422,6 +1440,14 @@ def cmd_census(args) -> int:
             reports_json = getattr(args, "_imports", [])
             reports_json.append({"from": src, "into": dst, **r})
             args._imports = reports_json
+        from ..mods import importzombie                   # zombie types (step 4)
+        z = importzombie.census(trees["cw"], trees["cz"], "cw", "cz")
+        print(f"zombie types cw -> cz: {z['types']} the target lacks, {z['planned']} "
+              f"planned into slots {z['slots']}, {len(z['refused'])} refused")
+        for x in z["refused"]:
+            print(f"  PROBLEM {x}")
+        bad = bad or bool(z["refused"])
+        args._imports.append({"zombies_from": "cw", "into": "cz", **z})
     if args.json:
         Path(args.json).write_text(json.dumps([r.to_json() for r in reports] +
                                               getattr(args, "_imports", []), indent=1))
@@ -1701,6 +1727,21 @@ def build_parser() -> argparse.ArgumentParser:
                          "text are brought, every name checked (phase 15)")
     pm.add_argument("mod", help="the mod folder")
     pm.add_argument("item", help="the item's items.txt name in the other game")
+    pm.add_argument("--from", dest="source", choices=GAME_IDS,
+                    help="the game it comes from (default: the other one)")
+    pm.add_argument("-g", "--game", choices=GAME_IDS, default="cz",
+                    help="the game it goes into (default: cz)")
+    pm.add_argument("-n", "--dry-run", action="store_true", help="only say what it would do")
+    pm = msub.add_parser("import-zombie", help="use a zombie type of the other game (Case "
+                         "West's in Case Zero): its model and shaders in an empty type slot, "
+                         "its class and behaviours, the levels' load sets (phase 15)")
+    pm.add_argument("mod", help="the mod folder")
+    pm.add_argument("type", help="the zombie type in the other game (security_light, "
+                                 "zombie_gas…)")
+    pm.add_argument("--slot", help="the type name it takes in this game (default: the same "
+                                   "name when empty, else a free one)")
+    pm.add_argument("--level", action="append", metavar="SCRIPT",
+                    help="add it to this level's load set (prologue); repeat for more")
     pm.add_argument("--from", dest="source", choices=GAME_IDS,
                     help="the game it comes from (default: the other one)")
     pm.add_argument("-g", "--game", choices=GAME_IDS, default="cz",

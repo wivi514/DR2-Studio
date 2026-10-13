@@ -576,16 +576,21 @@ Timing: (1) landed with phase 2, (2) with phase 5.
    checked against 31 in both games) and Case Zero is built for 32 types and 82 levels.
    The Case West recomp grows its zombie type table to 32 (every place that walks it, and
    any array sized by it) and its level table (script names, zone lists, ids), so mods
-   can add zombie types and maps natively. Made in the CW repo following its CLAUDE.md,
+   can add zombie types and maps natively. *Measured 2026-10-13, not built:* more than a
+   count. The five functions walking the table are the same in both programs apart from
+   the count, but the object they serve keeps per-type arrays inline (Case Zero's is
+   ~1,540 bytes longer from the first of them), so Case West's object has to be re-laid
+   out and every access past it moved (formats.md §Zombie types). Made in the CW repo following its CLAUDE.md,
    with a `CW_` off switch and the census of every place changed; Case Zero gets the same
    check (already 32). `phase15-kickoff.md` §How many types and levels.
 4. **Growing the shader constant set pool** (approved by the user 2026-10-12 for phase
    15, "Yes you got my approval"; **built 2026-10-12**, both recomps,
-   `runtime/cpu/shader_pool.cpp`: CZ `6be8e81` + `d2e5701`, CW `2bb20d1` + `1933315`;
-   *as built:* Case Zero's boot stores 1300 over the image's 384, so each recomp hooks its
-   renderer's pool builder and raises **two** words to 4,096 just before it reads them,
-   CZ `0x829ED7F4`/`0x829ED7EC`, CW `0x82A00D34`/`0x82A00D2C`: the second pool ran out in
-   Case West too; formats.md §Across the games), **in both recomps**. The renderer's
+   `runtime/cpu/shader_pool.cpp`: CZ `6be8e81` `d2e5701` `090bb9b`, CW `2bb20d1` `1933315`
+   `429cc9a`; *as built:* Case Zero's boot stores 1300 over the image's 384, so each recomp
+   hooks its renderer's pool builder and raises **three** words to 4,096 just before it
+   reads them, CZ `0x829ED7F4`/`0x829ED7EC`/`0x829ED7E4`, CW `0x82A00D34`/`0x82A00D2C`/
+   `0x82A00D24`: two constant-set pools and the shader description pool, each found
+   running out with a brought model; formats.md §Across the games), **in both recomps**. The renderer's
    pool of shader constant sets (one per loaded pixel shader) is sized from a table in
    the executable's data: CZ `0x829ED7F4` = 384 (~26 free), CW `0x82A00D34` = 1,340 (~3
    free); more brought pixel shaders assert "Shader constant set overflow" (formats.md

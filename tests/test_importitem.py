@@ -101,3 +101,30 @@ def test_hierarchy_order_is_case_zeros(both):
     s = Scene.parse(both["cz"].resolve(
         "data/streamedassets.big/broadsword.big/broadsword.big").data())
     assert s.skeleton.hierarchy_pairs() == [tuple(p) for p in s.hierarchy]
+
+
+def test_missing_effects_brought_into_free_slots(both, tmp_path):
+    """Case West's Impact Hammer uses two effects Case Zero lacks: each gets a free slot of
+    the table (a recipe reading Case West, in Case Zero's layout at build time), the
+    particle picture Case Zero lacks comes too, and a second import reuses the slots."""
+    root = create(tmp_path / "hammer", "hammer")
+    p, _ = importitem.import_item(root, "ImpactHammer", "cw", "cz", both["cz"])
+    assert set(p.effects) == {"impact_wpn_bs_1", "groundblast_wpn_dbs_1"}
+    free = {n for n, _ in importitem._game("cz", both["cz"]).free_slots}
+    assert set(p.effects.values()) <= free
+    assert "data/models/effects.tex/fire_ring.copy.json" in p.recipes
+    brought, used = importitem.mod_effects(root)
+    assert brought == p.effects and used == set(p.effects.values())
+    again = importitem.plan(both["cw"], both["cz"], "cw", "cz", "ImpactHammer",
+                            taken_effects=brought, used_slots=used)
+    assert again.effects == p.effects
+
+
+def test_audio_type_keeps_the_targets_bits(both):
+    """Case West's Impact Hammer has PropAudioType bit 17, which only Case West's items use;
+    placed in Case Zero with it, the load faulted (key bisect, 2026-10-13)."""
+    p = importitem.plan(both["cw"], both["cz"], "cw", "cz", "ImpactHammer")
+    props = dict(p.blocks[0][2])
+    assert props["PropAudioType"] == "1024"
+    assert any(r.how == "renumbered" and "audio type 132096 -> 1024" in r.what for r in p.log)
+    assert "AttachmentItemName" not in props          # it named a block left out

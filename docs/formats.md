@@ -1693,6 +1693,29 @@ a debug "override" list next to it): **Case Zero 32 types**, Dead Rising 2's who
 strings' pointer arrays (CZ near `0x829DD2C4`, CW `0x829F03C0`); whether a type with no
 model of its own works when given one: `phase15-kickoff.md` U2.
 
+**What a type is in the data** (phase 15 step 4, 2026-10-13): besides its table name, a
+type is (1) its model pack `zombies.big/<type>.big`: detail levels `<type>_2/_3/_4` (`.big`
+scene + `.tex` + `_LOD.tex`, some empty), (2) a `cZombieClassItem <type>` block of
+`items.txt` (health, damage multipliers, `BehaviourNames<n>` / `ChanceOfBehaviour<n>`):
+**Case Zero has one for all 32 names**, shipped or not; Case West for its 10, (3) the
+`cZombieBehaviourItem` blocks it names (Case West adds `EnemyRanged`, `EnemyHazardUnit`,
+`EnemyZombieController`; Case Zero's program knows the class), (4) its entries in the
+levels' load sets (`zombiesets.txt`, with a cost per type: CZ 752-6,176, CW 768-5,556; a
+level's `total_cost` peaks at CZ 18,304 / CW 23,436). `zombiesets.txt` has byte-identical
+copies in `data/datafile/persistent_filecache.big` and `preload4.big`'s copy of that
+archive; which one the game reads ❓ (test U2). **Growing Case West's table is more than a
+count:** the five functions that walk it (CW `sub_822FC948`, `sub_82499870`,
+`sub_82585158`, `sub_82587190`, `sub_82588390`; CZ `sub_82300068`, `sub_82490780`,
+`sub_825B3670`, `sub_825B5B98`, `sub_825B6FC8`) are the same code apart from the count
+(10 / 32), but the object they work on keeps per-type arrays **inline**: a byte per type at
+CW `+700` / CZ `+2196`, and its later fields sit at CW `+1812…` / CZ `+3352…`, about 70
+bytes more per type, so Case West's object would have to be re-laid out (2026-10-13).
+**Case West's types in Case Zero, headless** (2026-10-13, a copy of the user's save, every
+street crowd and single zombie retyped): `security_light`, `security_heavy` and the gas
+zombie (each in an empty slot, its load-set entry added) load into gameplay; together
+(gas + `security_light`) too. Whether they show, walk, fight and gas: the user's test U2
+(the night street near the safehouse shows no zombie in view even unmodded).
+
 **Shaders across the games** (same research): a model's shader descriptions
 (`-sd.big`) are shared by name between the games (CZ 223, CW 231, 222 in common), the
 shader programs they list are compiled differently in each; the descriptions models use
@@ -1782,6 +1805,14 @@ them; off switch `CZ_/CW_NO_SHADER_POOL_GROWTH=1`, log `[shaderpool] … 1300 ->
 Checked headless on copies of the user's saves: the Laser Sword (45 Case West pixel
 shaders) plays in Case Zero; 14 Case Zero pixel shaders, and the Parasol with them, play
 in Case West. (ARCHITECTURE.md §Recomp integration 4; the recomps' gotchas 643 / 332.)
+**A third pool: one per shader description** (2026-10-13): CZ `0x829ED7E4` (128 in the
+image, the boot stores **228**; 223 descriptions shipped), renderer `+3472`; CW
+`0x82A00D24` (the boot, `sub_825A6000`, stores **231**: exactly its 231 descriptions,
+none free), `+3484`. Case West's gas zombie brings 8 descriptions: Case Zero's free list
+returned -1 in `sub_827D4CD8` and the fallback faulted at guest `0x8` while the title
+drew. Grown to 4,096 with the other two in both recomps. A pool sized 192
+(CZ `0x829ED7F0`, CW `0x82A00D30`; renderer CZ `+3488`) sits beside them; its size is
+close to the vertex shader counts (143 / 146) ❓ not measured, not grown.
 
 **Scenes: `_BONEHIERARCHY_` is Case Zero's, and its program needs it** (2026-10-12).
 Every streamed item scene of Case Zero has the chunk (192 of 192; 1,485 scenes in all) and
@@ -1985,6 +2016,24 @@ Flaming Sword's flame recoloured green showed green in game. Other fields: guess
 copied), an own effect (slot 6), a changed Flaming Sword and new card pictures loads into
 gameplay from a copy of the user's save (Storage Bay), no fault: the CW build's eviction
 and `layout.bin` re-pin work there too. The effects themselves not yet seen in CW.
+
+**`PropAudioType` is a bit set each program reads up to its own bits** (2026-10-13): Case
+Zero's items use bits 0-11 (`0xF77`), Case West's add bits 13 and 17 (`0x22F72`). Case
+West's Impact Hammer (`132096` = bit 17 + 1024) placed in Case Zero **faults the load**
+(found by bisecting the block's keys headless, 7 rounds; the fault's `r28` held
+`0x00020400`). The importer keeps only the target's bits (`importitem`; 3 Case West items,
+2 Case Zero ones the other way).
+
+**The two games' layouts (phase 15, 2026-10-13):** Case Zero's four header words are Case
+West's three with a **0 inserted third** (Case Zero has it 1 on 7 of its 445 named effects:
+`firecracker_wpn_c_2_unq`, `lawnmower_bld_dc_3_unq`…; Case West dropped it); emitters are
+the same layout, byte-identical in 398 of the 412 effects both games name with the same
+emitter count (the rest are other content). So an effect of the other game is converted
+by the version word and that third word (`Effect.as_version`); checked on every shared
+effect (`tests/test_effects.py`). The importer brings an effect the target lacks into a
+free slot this way, with the particle pictures the target's `effects.tex` lacks
+(`importitem._bring_effect`): Case West → Case Zero needs 27 effects (51 uses), within
+Case Zero's 36 free slots; Case Zero → Case West needs none.
 
 **Emitter fields, one value at a time (CZ, headless, 2026-10-12, phase 13):** nine copies
 of the Flaming Sword's flame emitter (turned blue, ×3 size), each with one field changed,

@@ -50,8 +50,10 @@ digest_checked = [
 # index hash is changed, lookups miss, the game reads the loose file (the recomp's
 # "part 60" road). Loose vpath -> the entry's name in preload4.big; only measured ones.
 # The shader banks (phase 15: shaders brought from the other game) are evicted the same
-# way; measured for the effects only so far, the banks wait for test U3.
-preload_evict = { "data/models/effects.big" = "effects.big", "data/models/effects.tex" = "effects.tex", "data/shaders/deadrisingepilogue-sd.big" = "deadrisingepilogue-sd.big", "data/shaders/deadrisingepilogue-vs.big" = "deadrisingepilogue-vs.big", "data/shaders/deadrisingepilogue-vd.big" = "deadrisingepilogue-vd.big", "data/shaders/deadrisingepilogue-ps.big" = "deadrisingepilogue-ps.big", "data/shaders/deadrisingepilogue-pd.big" = "deadrisingepilogue-pd.big", "data/shaders/deadrisingepilogue-sc.big" = "deadrisingepilogue-sc.big", "data/shaders/deadrisingepilogue-ss.big" = "deadrisingepilogue-ss.big" }
+# way (measured: brought shaders load, 2026-10-12). persistent_filecache.big holds a copy
+# of zombiesets.txt that an imported zombie type changes (phase 15 step 4; whether the game
+# reads that copy or datafile.big's: test U2), so it is evicted the same way.
+preload_evict = { "data/models/effects.big" = "effects.big", "data/models/effects.tex" = "effects.tex", "data/shaders/deadrisingepilogue-sd.big" = "deadrisingepilogue-sd.big", "data/shaders/deadrisingepilogue-vs.big" = "deadrisingepilogue-vs.big", "data/shaders/deadrisingepilogue-vd.big" = "deadrisingepilogue-vd.big", "data/shaders/deadrisingepilogue-ps.big" = "deadrisingepilogue-ps.big", "data/shaders/deadrisingepilogue-pd.big" = "deadrisingepilogue-pd.big", "data/shaders/deadrisingepilogue-sc.big" = "deadrisingepilogue-sc.big", "data/shaders/deadrisingepilogue-ss.big" = "deadrisingepilogue-ss.big" , "data/datafile/persistent_filecache.big" = "persistent_filecache.big" }
 
 
 # The in-game map's other floors (phase 10): see cz.toml. map_2f fitted to the blueprint

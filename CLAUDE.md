@@ -103,7 +103,11 @@ game's own shaders brought (user's decision; `convert/shadercarry.py`), the item
 (2026-10-12, approved: two pools to 4,096, `runtime/cpu/shader_pool.cpp`; `ARCHITECTURE.md`
 §Recomp integration 4) and Case West scenes given the `_BONEHIERARCHY_` chunk Case Zero's
 program needs (`crossgame.fit_scenes`): U1 plays headless both ways; owed: U1 in a window
-with the user. Next conversation: `docs/phase15-kickoff.md` §Start here. Rest (zombies, maps, bosses, effects):
+with the user. 2026-10-13: effects the target lacks brought into free slots, `PropAudioType`
+cut to the target's bits, Case West's zombie types into Case Zero's empty slots
+(`mods/importzombie.py`, `dr2 mod import-zombie`; a third shader pool, descriptions, grown in
+both recomps); loads headless, U2 owed. Case Zero → Case West zombies wait for recomp
+change 3, which turned out bigger than a count (asked the user). Next conversation: `docs/phase15-kickoff.md` §Start here. Rest (zombies, maps, bosses, effects):
 `docs/phase15-kickoff.md` §Status. Phase 16 (the same from the PC Dead Rising 2 and Off
 the Record) is planned, not started: `docs/phase16-kickoff.md`.** Read these before writing code:
 
@@ -269,6 +273,7 @@ dr2 census --anims                        # every .anm: every key, to the last b
 dr2 census cz --import                    # phase 15: every item of each game planned into the other
 dr2 mod import-item <mod> <Item> --from cw -g cz [-n]   # the other game's item (guide 23)
 dr2 mod info <mod> [--json]               # what a mod needs (requirements.json)
+dr2 mod import-zombie <mod> security_light --from cw -g cz [--slot zombie_dealer] [--level prologue]
 python tools/crossgame_table.py [--check] # profiles/crossgame.toml from both executables
 dr2 hold Broadsword -g cz -o out --png    # Chuck in the item's idle holding it (.glb + picture);
 dr2 hold FrostBlade --mod my-mod -o out   #   or a mod's wizard weapon

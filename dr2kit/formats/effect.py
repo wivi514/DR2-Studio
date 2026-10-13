@@ -234,6 +234,20 @@ class Effect:
             out += e.raw
         return bytes(out)
 
+    def as_version(self, version: int) -> "Effect":
+        """This effect in the other game's layout (phase 15): Case Zero's header has a
+        third word Case West's lacks (0 in 438 of Case Zero's 445 effects, 1 in 7);
+        emitters are the same layout (byte-identical in 398 of the 412 effects both games
+        name with the same emitter count; the rest are other content). So 0x20 → 0x1D
+        inserts a 0 third, 0x1D → 0x20 drops it (docs/formats.md §Particle effects)."""
+        if version not in VERSIONS:
+            raise FormatError(f"version {version:#x}, expected 0x1D or 0x20")
+        if version == self.version:
+            return self
+        head = list(self.head)
+        head = head[:2] + [0] + head[2:] if version == 0x1D else head[:2] + head[3:]
+        return Effect(version, self.name, self.name_field, head, list(self.emitters))
+
     def rename(self, name: str) -> None:
         b = name.encode("ascii")
         if not b or len(b) >= NAME_SIZE:
@@ -258,6 +272,13 @@ def read_all(tree) -> dict[str, tuple[str, Effect]]:
             fx = Effect.parse(e.data(), f"{EFFECTS_BIG}/{e.name}")
             out.setdefault(fx.name, (e.name, fx))
     return out
+
+
+def game_version(tree) -> int:
+    """The effect layout version a game's ``effects.big`` uses (0x1D CZ, 0x20 CW)."""
+    arc = tree.open_archive(tree.resolve(EFFECTS_BIG).vpath)
+    e = next(e for e in arc.entries if e.name.startswith("EFFECT_"))
+    return struct.unpack_from(">I", e.data())[0]
 
 
 def census_effects(tree) -> dict:

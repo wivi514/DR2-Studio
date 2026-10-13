@@ -17,6 +17,28 @@ Entry template:
 
 ---
 
+## 2026-10-13 — Phase 15: effects brought, audio-type bits, Case West's zombie types in Case Zero
+**Done:** effects the target lacks go into free slots of its table (`importitem._bring_effect`,
+`Effect.as_version`, particle pictures with them); `PropAudioType` cut to the target's bits;
+keys naming a dropped child left out; `mods/importzombie.py` + `dr2 mod import-zombie`
+(slot, model with its shaders, class, behaviours, load sets with a budget warning, the
+`persistent_filecache.big` copy, profile `preload_evict` for it); the build's level check
+counts zombie models a mod adds; `dr2 census --import` covers zombie types. In both recomps
+a third pool grown (shader descriptions: CZ `090bb9b`, CW `429cc9a`). Tests.
+**Why:** phase 15 steps 3 (rest) and 4.
+**Learned:** effects: Case Zero's header is Case West's with a 0 third word, emitters the
+same layout. The Impact Hammer faulted Case Zero's load: a 7-round headless bisect of its
+block's keys named `PropAudioType` (bit 17, Case West's only; the fault dump's `r28` already
+held the value). The gas zombie faulted Case Zero's title: the renderer's description pool
+(228 for 223 shipped) was full; Case West's is exactly full (231). Zombie types are data
+(model, `cZombieClassItem`, `cZombieBehaviourItem`, load sets) but growing Case West's type
+table is not a count: its manager object keeps per-type arrays inline. I named a scratch
+script `bisect.py`, which shadowed Python's module and started a bogus second bisect; rounds
+after 3 were redone (scratch scripts now have distinctive names).
+**Docs updated:** formats.md (pools, `PropAudioType`, effect layouts, zombie types),
+ARCHITECTURE.md (recomp changes 3 and 4), guide 23, code-tour, phase15-kickoff, CLAUDE.md.
+**Next:** the user's in-game tests (U1, U2, phase 14's T5); their decision on recomp change 3.
+
 ## 2026-10-13 — Phase 15: the shader pools grown in both recomps; Case Zero needs `_BONEHIERARCHY_`
 **Done:** the approved recomp change 4 in both recomps (`runtime/cpu/shader_pool.cpp`: the
 renderer's pool builder hooked, two pool sizes raised to 4,096 just before it reads them,

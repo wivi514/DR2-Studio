@@ -8,16 +8,16 @@ Zero item in Case West) into your mod, with everything it needs, and place it in
 ([`06-mod-packages.md`](06-mod-packages.md)).
 
 > Phase 15, started 2026-10-12. Every item of each game plans into the other with no
-> name left unresolved (`dr2 census --import`), and a mod with one builds. **Not yet seen
-> in game**: the in-game tests U1-U3 (does a brought item's model draw with its own
-> game's shaders, do its moves play, do its sounds play) are next. Until they pass,
-> treat an imported item as an experiment and keep a copy of your save.
+> name left unresolved (`dr2 census --import`), and a mod with one builds. **Seen
+> loading (headless, 2026-10-13):** Case West's Laser Sword lying in Case Zero's street,
+> Case Zero's Parasol in Case West's Storage Pens. **Not yet played** (tests U1-U3: does
+> it draw right, swing, sound right): treat an imported item as an experiment and keep a
+> copy of your save.
 >
-> **Known limit (2026-10-12):** the game keeps room for only about **26** extra pixel
-> shaders in Case Zero (3 in Case West), and one Case West weapon brings ~45. Until the
-> recomps grow that room, a mod whose item brings more **crashes while loading**
-> ("Shader constant set overflow" in the log). The report lists how many each item
-> brings.
+> The game keeps room for a fixed number of shaders; the recomps were changed on
+> 2026-10-12 to keep room for many more, so a recomp **older than that** crashes while
+> loading a mod whose item brings many shaders ("Shader constant set overflow" in the
+> log). Update the recomp if you see that.
 
 ## Why both games are needed
 
@@ -40,10 +40,12 @@ every setting of the item (its block of `items.txt`) and decides, for each name:
 | Its moves (`AnimBankName`) | the other game's move bank is copied when this game lacks it |
 | Its sounds (`AudioFilename`) | the other game's sound bank is copied when this game lacks it |
 | Its name and texts | new text numbers in your mod; the words are read from the other game's text when the mod is built, in every language |
-| Effects (fire, sparks…) | matched **by name**: the two games number them differently after 370. An effect this game doesn't have is left off (listed) |
+| Effects (fire, sparks…) | matched **by name**: the two games number them differently after 370. An effect this game doesn't have is **brought** into one of the effect table's free numbers (the same ones [your own effects](21-effects.md) use), with any particle picture this game lacks; two imported items needing the same effect share its number. There are 36 free numbers; when your mod has used them all, the effect is left off (listed) |
 | Other items it names (a combo's two items, a weapon's pieces) | kept if this game has them, otherwise imported too |
 | A combo card | its picture copied, its card number changed if this game uses it |
-| Parts this game's program doesn't know (Case West's `cExternalLocatorItem`, `cTurretInfoItem`…) | left out, listed: Case Zero's program couldn't build them |
+| Its sound kind (`PropAudioType`) | only the kinds this game's program knows are kept (Case West's Impact Hammer has one Case Zero doesn't, which crashed the load) |
+| Parts this game's program doesn't know (Case West's `cExternalLocatorItem`, `cTurretInfoItem`…) | left out, listed: Case Zero's program couldn't build them; a setting naming a part left out is left out too |
+| The model's insides | made the way this game's program reads them: a Case West model gets the node list Case Zero needs (without it Case Zero hangs while loading) |
 | A model this game has under the same name (`clothesbox`, `bowieknife`) | this game's own copy is used: it is the same object |
 
 The window shows this list for the item you pick before anything is written.
@@ -85,7 +87,39 @@ out` builds without errors. In game, the item lies where you placed it.
 | `… needs Case West's game data on this computer` | The other game's folder isn't set | **Game folders…** in Studio, or `dr2 games set cw <folder>` |
 | `Case Zero already has an item named X` | Both games have it | Use this game's own (place it from the Maps tab) |
 | The window says *This window needs both games' data* | Same as the first row | Same fix |
-| An effect is missing on the weapon | The report says *Case Zero has no effect …* | Pick one of this game's effects for it ([guide 21](21-effects.md)) |
+| An effect is missing on the weapon | The report says *… no free effect slot is left* | Your mod's effects (yours and brought ones) used all 36 free numbers: take some out (**Effects…**, guide 21) or split the mod |
+| The game hangs on the loading screen, or stops with a fault, after you placed a Case West item | An older toolkit built it (the model lacked a part Case Zero needs, written since 2026-10-13), or an item kind Case Zero can't use | Build again with this toolkit; if it still happens, take the item out and tell us which one |
+
+## The other game's zombies
+
+Case West's zombie types (the gas zombies, the security guards, the female fat zombie)
+can be added to Case Zero **as real types of their own**, spawned like Case Zero's.
+
+Why it works: Case Zero's program has room for **32 zombie types** (the whole of Dead
+Rising 2's list) and ships 12, so 20 **slots** are empty. A Case West type takes one: its
+own name when Case Zero's list has it (`zombie_gas`, `zombie_fat_female`), otherwise a free
+name such as `zombie_bride`. Then, as for an item, the importer brings:
+
+| What | What happens |
+|---|---|
+| The model and its detail levels | copied from Case West under the slot's name, drawn with Case West's own shaders |
+| Its settings (health, damage, how it fights) | Case Zero's settings for that slot get Case West's |
+| Its behaviours (`EnemyRanged` for the guards…) | Case Zero's own when it has one of that name, else brought |
+| A level's zombie memory (the *load set*) | it is added to the levels you name, with its memory cost. If a level then needs more than any of Case Zero's own levels, you get a **warning**: spawn fewer types there |
+
+Then spawn it with the slot's name: **Maps** tab → a crowd's type or a zombie's type
+([guide 19](19-edit-a-level.md)).
+
+```
+dr2 mod import-zombie my_mod zombie_gas --from cw -g cz --level prologue
+dr2 mod import-zombie my_mod security_light --from cw -g cz --level prologue --slot zombie_dealer
+```
+
+> **Seen loading (headless, 2026-10-13)**: the gas zombie and the security guards with every
+> crowd of Case Zero's street changed to them. **Not yet seen walking and fighting** (test
+> U2). **Case Zero's zombies in Case West** need Case West's
+> program to have room for more than its own 10 types: that is a change to the Case West
+> recomp, not done yet, so the command says so and stops.
 
 ## Going further
 

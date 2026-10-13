@@ -15,10 +15,14 @@ blocks and resolves each name in the target game, one of:
   ``anm_<AnimBankName>.big``, its sound bank ``fx_<AudioFilename>(_p).big``, its combo
   card's pictures, another item it names, its text);
 * **renumbered**: an effect number by the effect's name (the tables differ after 370),
+  or, for an effect the target lacks, the number of a **free slot** of its table the
+  effect is brought into (phase 13's own effects, `dr2kit.mods.neweffect`: the other
+  game's effect copied under the slot's name, in the target's layout, with the particle
+  pictures the target's ``effects.tex`` lacks; one slot per effect for the whole mod),
   a string id to a new id of the mod (the text copied from the source game's banks), a
   combo card number to a free one;
 * **dropped**, with the reason: a child block of a class the target's program doesn't
-  name (`crossgame.unknown_classes`), an effect the target lacks, an item reference the
+  name (`crossgame.unknown_classes`), an effect when no free slot is left, an item reference the
   source game can't give, a paint-variant list naming the source game's textures.
 
 Nothing is left unresolved: `Plan.unresolved` must be empty, and the census
@@ -48,6 +52,8 @@ from .newitem import COPY_EXT, COPY_FORMAT
 
 STREAMED = placed.STREAMED
 CARDS = "data/frontend/combocards.tex"
+EFFECTS_BIG = "data/models/effects.big"
+EFFECTS_TEX = "data/models/effects.tex"
 ITEM_KEYS = re.compile(r"^(PieceWeaponName\d*|PropToShoot|PropToThrow|DispensedItem|ItemName\d*|"
                        r"PreciousItem|Weapon_\d|FIRE_WeaponToMimic|DamageProp|"
                        r"PrimaryPropAssetName|SecondaryPropAssetName)$")
@@ -78,6 +84,8 @@ class Plan:
     strings: dict[int, int] = field(default_factory=dict)   # new id -> source id
     log: list[Resolution] = field(default_factory=list)
     unresolved: list[str] = field(default_factory=list)
+    effects: dict[str, int] = field(default_factory=dict)   # brought effect -> its slot
+    used_slots: set[int] = field(default_factory=set)       # effect slots taken in the mod
 
     def report(self) -> str:
         names = {"cz": "Case Zero", "cw": "Case West"}
@@ -105,6 +113,44 @@ class _Game:
         self.effects = weapons.names(game)
         self.cards = {e.name.lower() for e in tree.open_archive(CARDS).entries}
         self._en = None
+        self._fx = self._free = self._pictures = self._audio = None
+
+    @property
+    def audio_bits(self) -> int:
+        """Every bit the game's own items use in ``PropAudioType`` (CZ: bits 0-11)."""
+        if self._audio is None:
+            self._audio = 0
+            for blk in self.models.blocks.values():
+                for x in blk.walk():
+                    v = x.get("PropAudioType")
+                    if v and v.isdigit():
+                        self._audio |= int(v)
+        return self._audio
+
+    @property
+    def effect_entries(self) -> dict:
+        """effect name (lower case) → (entry, `Effect`) of ``effects.big``."""
+        if self._fx is None:
+            from ..formats.effect import read_all
+            self._fx = {n.lower(): v for n, v in read_all(self.tree).items()}
+        return self._fx
+
+    @property
+    def free_slots(self) -> list[tuple[int, str]]:
+        """(number, name) of the effect table's free slots (`neweffect.free_slots`)."""
+        if self._free is None:
+            names = self.effect_entries
+            self._free = [(i + 1, n) for i, n in enumerate(self.effects)
+                          if n.lower() not in names]
+        return self._free
+
+    @property
+    def pictures(self) -> dict[str, str]:
+        """particle picture name (lower case, no ``.bct``) → its ``effects.tex`` entry."""
+        if self._pictures is None:
+            arc = self.tree.open_archive(self.tree.resolve(EFFECTS_TEX).vpath)
+            self._pictures = {e.name.lower().removesuffix(".bct"): e.name for e in arc.entries}
+        return self._pictures
 
     @property
     def strings(self) -> dict[int, str]:
@@ -132,16 +178,22 @@ def _game(game: str, tree: AssetTree) -> _Game:
 
 def plan(src_tree: AssetTree, dst_tree: AssetTree, src: str, dst: str, item: str,
          mod_id: str = "import", taken_ids: set[int] | None = None,
-         taken_cards: set[str] | None = None) -> Plan:
+         taken_cards: set[str] | None = None,
+         taken_effects: dict[str, int] | None = None, used_slots: set[int] | None = None
+         ) -> Plan:
     """What importing ``item`` (an ``items.txt`` name of ``src``) into ``dst`` does
-    (module docstring). Raises `Dr2Error` when it can't be done at all (no such item, or
-    the target has an item of that name already)."""
+    (module docstring). ``taken_effects``: effects the mod brought already (name → slot,
+    reused); ``used_slots``: effect slots the mod uses already (`mod_effects`). Raises
+    `Dr2Error` when it can't be done at all (no such item, or the target has an item of
+    that name already)."""
     a, b = _game(src, src_tree), _game(dst, dst_tree)
     if item.lower() not in a.models.blocks:
         raise Dr2Error(f"{item!r} is not an item of {src.upper()}'s items.txt")
     if item.lower() in b.models.blocks:
         raise Dr2Error(f"{dst.upper()} already has an item named {item!r}: use its own")
     p = Plan(src, dst)
+    p.effects = {k.lower(): v for k, v in (taken_effects or {}).items()}
+    p.used_slots = set(used_slots or ()) | set(p.effects.values())
     ids = _IdPool(mod_id, set(b.strings), taken_ids or set())
     cards = set(taken_cards or ()) | {x.get("CardIndexNumber") for blk in b.models.blocks.values()
                                       for x in blk.walk() if x.cls == "cComboCardItem"}
@@ -176,10 +228,19 @@ class _IdPool:
 
 def _block(a: _Game, b: _Game, p: Plan, blk: Block, name: str, ids: _IdPool, cards: set,
            todo: list, seen: set) -> tuple[str, str, list, list]:
-    """``(cls, name, props, children)`` of the block as the target gets it."""
+    """``(cls, name, props, children)`` of the block as the target gets it. A key whose
+    value names a child block left out is left out too: the program would look that block
+    up and find nothing (Case West's Impact Hammer: ``AttachmentItemName`` naming its
+    ``cPropCharacterAttachmentItem``; Case Zero's program doesn't name that key, so there
+    it is only tidy, but a key both programs know would not be)."""
+    gone = {c.name.lower() for c in blk.children if c.name and
+            (c.cls in crossgame.unknown_classes(b.game) or c.cls in DROP_CHILDREN)}
     props = []
     for pr in blk.props:
         where = f"{name}: {pr.key}"
+        if pr.value.lower() in gone:
+            p.log.append(Resolution(where, "dropped", f"it names {pr.value}, a block left out"))
+            continue
         v = _value(a, b, p, pr.key, pr.value, where, ids, cards, todo, seen)
         if v is not None:
             props.append((pr.key, v))
@@ -232,8 +293,7 @@ def _value(a: _Game, b: _Game, p: Plan, key: str, value: str, where: str, ids: _
             p.log.append(Resolution(where, "renumbered" if m != n else "kept",
                                     f"{fx} {n} -> {m}" if m != n else fx))
             return str(m)
-        p.log.append(Resolution(where, "dropped", f"{b.game.upper()} has no effect {fx}"))
-        return "0"
+        return _bring_effect(a, b, p, fx, where)
     if STRING_KEYS.match(key) and value.isdigit() and int(value) in a.strings:
         new = ids.take()
         p.strings[new] = int(value)
@@ -257,6 +317,15 @@ def _value(a: _Game, b: _Game, p: Plan, key: str, value: str, where: str, ids: _
                                                        "copy": f"{CARDS}/{n}"}
                 p.log.append(Resolution(where, "brought", f"card picture {n}"))
         return value
+    if key == "PropAudioType" and value.isdigit():
+        # a bit only the source game uses faults the target's load when the item is
+        # placed (Case West's Impact Hammer, bit 17, in Case Zero: 2026-10-13)
+        kept = int(value) & b.audio_bits
+        if kept != int(value):
+            p.log.append(Resolution(where, "renumbered",
+                                    f"audio type {value} -> {kept} (bits {b.game.upper()}'s "
+                                    f"program doesn't use: {int(value) & ~b.audio_bits:#x})"))
+            return str(kept)
     if key == "AnimBankName" and value:
         _bring_pack(a, b, p, f"anm_{value}", where, "move bank")
         return value
@@ -267,6 +336,56 @@ def _value(a: _Game, b: _Game, p: Plan, key: str, value: str, where: str, ids: _
         return value
     p.log.append(Resolution(where, "kept", value))
     return value
+
+
+def _bring_effect(a: _Game, b: _Game, p: Plan, fx: str, where: str) -> str:
+    """An effect the target lacks, brought into a free slot of its table (module
+    docstring): the slot's number, or "0" (dropped) when none is left."""
+    from .neweffect import OWN_ENTRY
+    key = fx.lower()
+    if key not in a.effect_entries:
+        p.log.append(Resolution(where, "dropped", f"{fx}: {a.game.upper()}'s table names it "
+                                                  f"but its effects.big has no such effect"))
+        return "0"
+    num = p.effects.get(key)
+    if num is None:
+        free = next(((n, s) for n, s in b.free_slots if n not in p.used_slots), None)
+        if free is None:
+            p.log.append(Resolution(where, "dropped", f"{b.game.upper()} has no effect {fx} "
+                                                      f"and no free effect slot is left"))
+            return "0"
+        num = free[0]
+        p.effects[key] = num
+        p.used_slots.add(num)
+    slot = b.effects[num - 1]
+    path = f"{EFFECTS_BIG}/EFFECT_Common{OWN_ENTRY + num}{COPY_EXT}"
+    if path not in p.recipes:
+        entry, effect = a.effect_entries[key]
+        p.recipes[path] = {"format": COPY_FORMAT, "from": a.game,
+                           "copy": f"{EFFECTS_BIG}/{entry}",
+                           "effect": {"from": effect.name, "name": slot, "changes": {}}}
+        for em in effect.emitters:
+            pic = em.texture.lower()
+            if pic and pic not in b.pictures and pic in a.pictures:
+                pp = f"{EFFECTS_TEX}/{pic}{COPY_EXT}"
+                if pp not in p.recipes:
+                    p.recipes[pp] = {"format": COPY_FORMAT, "from": a.game,
+                                     "copy": f"{EFFECTS_TEX}/{a.pictures[pic]}"}
+                    p.log.append(Resolution(where, "brought", f"particle picture {pic}"))
+    p.log.append(Resolution(where, "brought", f"effect {fx} into the free slot {num} "
+                                              f"({slot})"))
+    return str(num)
+
+
+def mod_effects(mod_dir: str | Path) -> tuple[dict[str, int], set[int]]:
+    """(effects the mod brought from the other game: name → slot, every slot it uses)."""
+    from .neweffect import own_effects
+    brought, used = {}, set()
+    for num, recipe in own_effects(mod_dir):
+        used.add(num)
+        if recipe.get("from") and (recipe.get("effect") or {}).get("from"):
+            brought[recipe["effect"]["from"].lower()] = num
+    return brought, used
 
 
 def _bring_pack(a: _Game, b: _Game, p: Plan, name: str, where: str, what: str) -> None:
@@ -380,7 +499,9 @@ def import_item(mod_dir: str | Path, item: str, src: str, dst: str, dst_tree: As
     """Plan and write (module docstring). The mod becomes a mod for ``dst``."""
     from .manifest import Mod
     m = Mod.load(mod_dir)
-    p = plan(crossgame.source_tree(src), dst_tree, src, dst, item, m.id, taken_ids(mod_dir))
+    brought, used = mod_effects(mod_dir)
+    p = plan(crossgame.source_tree(src), dst_tree, src, dst, item, m.id, taken_ids(mod_dir),
+             taken_effects=brought, used_slots=used)
     files = write(p, mod_dir, dst_tree, base_dirs)
     m = Mod.load(mod_dir)
     if tuple(m.games) != (dst,):

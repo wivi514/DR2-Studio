@@ -812,13 +812,25 @@ pictures are drawn: bump `index.build.THUMB_VERSION`, and the next build redraws
   src, dst, item)` → `Plan`: every key of the block and its children resolved
   (`Resolution`: kept / brought / renumbered / dropped, or `unresolved`), the closure of
   items it names, recipes (pack with `"shaders"`, move bank, sound banks, card pictures,
-  shader bank entries), text copies; `write` (blocks into `items.txt.edits.json`,
+  shader bank entries, effects the target lacks into free slots of its table with their
+  particle pictures: `_bring_effect`, `mod_effects`; `PropAudioType` cut to the target's
+  bits, `_Game.audio_bits`; keys naming a dropped child left out), text copies; `write` (blocks into `items.txt.edits.json`,
   recipes, `.bcs.json` `"copy"` in every language, `[requires] games`,
   `sources/imported.json`); `import_item`; `census` (every item both ways, `dr2 census
   --import`). Studio: `studio/import_dialog.py` (*Other game's items…*). The build side:
-  `newitem.build_copy` reads `"from"` (`crossgame.source_tree`), `"shader"` and
+  `newitem.build_copy` reads `"from"` (`crossgame.source_tree`; an effect then in the
+  target's layout, `formats.effect.Effect.as_version`; a picture copied as it is), `"shader"` and
   `"shaders"`; `build._copied_strings` makes a `.bcs.json`'s `"copy"` texts; the
   profiles' `preload_evict` lists the seven shader banks.
+- `mods/importzombie.py` (phase 15 step 4): a zombie type of the other game. `plan(src_tree,
+  dst_tree, src, dst, type, slot, levels, taken, sets_text)` → `ZombiePlan`: the slot
+  (`empty_slots`: the target's type table names with no model shipped; the same name first,
+  then one the source game doesn't name), the model recipe (renamed to the slot, its
+  shaders `shadercarry`), the `cZombieClassItem` keys, the `cZombieBehaviourItem` blocks
+  the target lacks, the load sets with `costs` and the `budget` warning; `write` (also
+  mirrors `zombiesets.txt`'s edits into `persistent_filecache.big`'s copy), `import_zombie`,
+  `mod_slots`, `census`. CLI `dr2 mod import-zombie`. The build's level check counts the
+  zombie models mods add (`build.plan_mods`: `facts.zombie_types`).
 - `requires` (phase 15): what a mod needs. `Mod.requires` is `[requires]` as written
   (keys checked by `manifest._requires_table`); `infer(mod)` → `Requirements` (games,
   play, sources = games its recipes copy from via `"from"`, mods with version specs,
