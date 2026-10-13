@@ -391,33 +391,34 @@ the modder doesn't have to know. XenonLive's launcher has no mod support yet
 | 8 requirements | **done** (XenonLive's launcher has no mod support yet) |
 | 9 guides | 23 (items, effects, zombies) and 06 written; maps and bosses sections to come |
 
-## Start here (next conversation, updated 2026-10-13)
+## Start here (next conversation, updated 2026-10-13 evening)
 
-Built and committed: requirements, cross-game table, shader banks, the item importer with
-effects into free slots, `PropAudioType` bits, moves carried into the animation graph
-(`convert/graphcarry.py`), the zombie importer (Case West → Case Zero, `dr2 mod
-import-zombie`, gas zombies' animation bank), three shader pools grown in both recomps
-(CZ `6be8e81` `d2e5701` `090bb9b`, CW `2bb20d1` `1933315` `429cc9a`), `_BONEHIERARCHY_`
-for Case West scenes. The user played U1/U2 once (§Status). In order:
+Done since the morning (commits `0505cc2`..`34716f9`) and **played by the user in Case Zero:
+U1 and U2 pass** (§Status): brought pixel shaders read the target's constant registers
+(`formats/xenos.py`), their materials' value sets too, Case West's engine-only parameters
+read 1.0 (the Laser Sword's glow), gas zombie voice banks, the hammer's grip, armed guards
+(`importzombie`: mercenary slot, Case Zero's `ArmyMerc`, Case West's rifle as
+`MercAssaultRifle`; single spawns only, `levelcheck` warns about crowds). In order:
 
-1. **Brought shaders draw untextured** (formats.md §Zombie types, "The user's in-game test
-   U1/U2"). Known: the same Impact Hammer pack with Case Zero's same-named descriptions is
-   textured; with the brought ones it is flat white, also with `CZ_VK_NO_SHADER_JIT=1`;
-   the brought pixel shaders are bound (new `[imload]` hashes); `CZ_VK_DIM_DISAGREE` finds
-   no dimension disagreement. Next: capture one brought draw in the recomp (its fetch
-   constants and which textures the renderer binds; `docs/instruments.md` of the CZ repo)
-   and compare with the same draw drawn with Case Zero's description. Test mods:
-   `~/.cache/dr2kit-p15/hammer-cz` (brought), `hamN` (Case Zero's shaders); scripts in the
-   session scratchpad were throwaway (`place.py` = `TextEdits.doc.add` of a
-   `cItemPlacement`; `p15deploy.py` = build + deploy without the library).
-2. **U1/U2 again with the user** once (1) is fixed: Laser Sword and Impact Hammer (looks,
-   attacks, effects), gas zombies (`zomb-cz`: crowds retyped).
-3. **Case West's guards in Case Zero**: their moves need graph *states* (154 `mercs.big`
-   moves, `cNPCAIAnimationState`…) merged into Case Zero's `sgraph.txt` (the importer warns).
-4. ~~Recomp change 3, Case West's zombie type table~~: **deferred by the user
-   2026-10-13**, left for a contributor ([`TODO.md`](TODO.md) #1). Case Zero → Case West
-   zombies wait for it; Case West's level table (maps) likewise not examined.
-5. Phase 14's T5 with the user, then maps (step 5, U4/U5), bosses (U6), guides.
+1. **The memory limit with everything at once.** `security_light` + gas zombies + Laser
+   Sword + Impact Hammer in the street: the load faults (guest `0x1C`, "Failed to allocate
+   memory!" at `0x820B0188`, in `sub_8277E778` after a `SURF` allocation, called from the
+   renderer `0x827B7E08`); any two of the four load (headless bisect on a copy of the user's
+   save, `hl_run.py` in `~/.cache/dr2kit-p12-handoff/scripts/`). Find which pool or heap
+   (like the shader pools, formats.md §Across the games: shader banks); growing it is a
+   recomp change: **ask the user's approval first**.
+2. **`security_heavy` / `security_lab`**: no `Range_Shoot`, so they keep Case West's
+   `EnemyHazardUnit` / `EnemyZombieController`, whose moves Case Zero's graph lacks (the
+   light guard with Case West's behaviour aimed once and fell): pick Case Zero behaviours for
+   them, or merge their graph states (`mercs.big`, 154 moves).
+3. Phase 14's T5 with the user, then maps (step 5, U4/U5), bosses (U6), guides.
+4. Case Zero → Case West zombies: deferred ([`TODO.md`](TODO.md) #1).
+
+Test mods kept in `~/.cache/dr2kit-p15`: `v-merc` (gas zombies in crowds + armed guards in
+the `SherriffDept1-7` / `JunkyardLurker` single spawns: works), `v-noguard` (both weapons
+at the safehouse exit + gas zombies: works), `session-cz` (all four: faults, item 1).
+Deploy one with `dr2 mod deploy -g cz ~/.local/share/dr2kit/mods/keep-cz-test-save <mod>`;
+the user's own deployment is `dr2 play -g cz --deploy-only`.
 
 ## Start here (when phase 15 starts)
 
