@@ -107,6 +107,7 @@ name such as `zombie_bride`. Then, as for an item, the importer brings:
 | The model and its detail levels | copied from Case West under the slot's name, drawn with Case West's own shaders |
 | Its settings (health, damage, how it fights) | Case Zero's settings for that slot get Case West's |
 | Its behaviours (`EnemyRanged` for the guards…) | Case Zero's own when it has one of that name, else brought |
+| Its moves and voices | the animation and voice banks Case Zero's own files already name but don't ship (the gas zombies' `gaszombies.big` and their six voices) are copied: without the voices the street's load crashed |
 | A level's zombie memory (the *load set*) | it is added to the levels you name, with its memory cost. If a level then needs more than any of Case Zero's own levels, you get a **warning**: spawn fewer types there |
 
 Then spawn it with the slot's name: **Maps** tab → a crowd's type or a zombie's type

@@ -17,6 +17,19 @@ Entry template:
 
 ---
 
+## 2026-10-13 — Phase 15: the combined test crashed: voices, then the guard
+**Done:** `importzombie.voice_banks` (voice banks the target's sound list names but lacks:
+the six gas zombie voices); test. The combined test (both weapons, gas zombies, guards)
+faulted while the street loaded; headless bisect: without the guard in the load set it
+loads (gas zombies, items), with it the renderer fails to allocate a surface
+("Failed to allocate memory!", guest `0x1C`), with the shader change on or off. The user got
+the build without guards.
+**Why:** the user: "the game crashed".
+**Learned:** formats.md §Zombie types (voice banks). The guard's fault is in surface
+allocation while the load set loads ❓ (slot `zombie_bride`, or memory).
+**Docs updated:** formats.md, guide 23, code-tour.
+**Next:** guard variants (`zombie_dealer` slot, guard alone) headless.
+
 ## 2026-10-13 — Phase 15: why brought shaders drew white (constant registers)
 **Done:** `dr2kit/formats/xenos.py` reads a 360 shader's constant table and microcode and
 moves its constant operands; `shadercarry.move_registers` makes every brought pixel shader

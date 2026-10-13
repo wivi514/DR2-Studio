@@ -841,7 +841,8 @@ pictures are drawn: bump `index.build.THUMB_VERSION`, and the next build redraws
   (`empty_slots`: the target's type table names with no model shipped; the same name first,
   then one the source game doesn't name), the model recipe (renamed to the slot, its
   shaders `shadercarry`), the `cZombieClassItem` keys, the `cZombieBehaviourItem` blocks
-  the target lacks, the load sets with `costs` and the `budget` warning; `write` (also
+  the target lacks, `anim_banks` and `voice_banks` (move and voice banks the target names
+  but lacks), the load sets with `costs` and the `budget` warning; `write` (also
   mirrors `zombiesets.txt`'s edits into `persistent_filecache.big`'s copy), `import_zombie`,
   `mod_slots`, `census`. CLI `dr2 mod import-zombie`. The build's level check counts the
   zombie models mods add (`build.plan_mods`: `facts.zombie_types`).

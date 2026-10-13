@@ -2080,6 +2080,14 @@ to Case West's types stayed **empty** (only scattered native zombies). Found sin
   after edits (`leveledits.recount`). Its reader is also strict about style (numbers
   unquoted, keys in file order): carried blocks are written as their source text
   (`"@text"` adds).
+* **Gas zombies need their voice banks too** (2026-10-13): Case Zero's sound list
+  (`data/datafile.big/scenegraph.txt`, `cVoiceTalentEntry … Source = "fx_gzombieakalem"`)
+  names six gas zombie voices and the looters' `fx_looter`, but Case Zero ships none of
+  their banks (`data/streamedassets.big/fx_gzombie<voice>1.big` / `2.big`, Case West's). With
+  gas zombies in the street's load set the load asked for
+  `data/audio/fx_gzombieakalem2.big` (the loose fallback name) and faulted at guest `0x1C`
+  ❓ (a guard was in the same build: see below). `importzombie.voice_banks` brings every bank of a voice the
+  target's list names and lacks.
 * **Gas zombies need `data/anim/gaszombies.big`**, which only Case West ships; Case Zero's
   program asks for it and **its graph names all 69 of its moves** (Case Zero is ready for
   gas zombies). The guards' moves are not: of Case West's 154 extra `mercs.big` moves,

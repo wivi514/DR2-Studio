@@ -85,3 +85,10 @@ def test_build_knows_a_filled_slot(both, tmp_path):
     ed.save()
     res = build([Mod.load(root)], "cz", both["cz"], tmp_path / "out")
     assert any(f.endswith("zombies.big") for f in map(str, res.files))
+
+
+def test_gas_zombies_bring_their_voices(both):
+    """Case Zero's sound list names the gas zombies' voices but ships none of their banks."""
+    banks = [b for b, _ in iz.voice_banks(both["cw"], both["cz"])]
+    assert "data/streamedassets.big/fx_gzombieakalem2.big" in banks
+    assert not any("fx_zombieakalema" in b for b in banks)       # Case Zero has these

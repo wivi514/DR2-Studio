@@ -219,6 +219,13 @@ def plan(src_tree: AssetTree, dst_tree: AssetTree, src: str, dst: str, zombie: s
         p.recipes.setdefault(f"{bank}{COPY_EXT}", {"format": COPY_FORMAT, "from": src,
                                                   "copy": bank})
         p.log.append(Resolution(f"{slot}: animations", "brought", f"{bank} ({why})"))
+    # 2c. voice banks likewise: Case Zero's sound list (scenegraph.txt) names the gas
+    # zombies' voices (fx_gzombieakalem…) but ships none of their banks; the street's load
+    # faulted (guest 0x1C) right after asking for data/audio/fx_gzombieakalem2.big
+    for bank, why in voice_banks(src_tree, dst_tree):
+        p.recipes.setdefault(f"{bank}{COPY_EXT}", {"format": COPY_FORMAT, "from": src,
+                                                  "copy": bank})
+        p.log.append(Resolution(f"{slot}: voices", "brought", f"{bank} ({why})"))
     if p.behaviours:
         p.warnings.append(
             f"its behaviours ({', '.join(b[1] for b in p.behaviours)}) are "
@@ -267,6 +274,31 @@ def anim_banks(src_tree: AssetTree, dst_tree: AssetTree) -> list[tuple[str, str]
         if moves and named >= 0.9 * len(moves):
             out.append((vp, f"{named} of its {len(moves)} moves are in this game's "
                             f"animation graph"))
+    return out
+
+
+SCENEGRAPH = "data/datafile.big/scenegraph.txt"
+STREAMED = "data/streamedassets.big"
+
+
+def voice_banks(src_tree: AssetTree, dst_tree: AssetTree) -> list[tuple[str, str]]:
+    """``data/streamedassets.big/<voice><n>.big`` banks of every voice the target's sound
+    list names (``cVoiceTalentEntry`` ``Source``) whose banks the target lacks and the
+    source has: the target's program asks for them when a zombie of that voice loads."""
+    try:
+        text = dst_tree.resolve(SCENEGRAPH).data().decode("latin-1")
+    except Exception:                                           # noqa: BLE001
+        return []
+    voices = {v.lower() for v in re.findall(r'Source = "(\w+)"', text)}
+    have = {e.name.lower() for e in dst_tree.open_archive(STREAMED).entries}
+    theirs = [e.name for e in src_tree.open_archive(STREAMED).entries]
+    out = []
+    for v in sorted(voices):
+        if any(re.fullmatch(rf"{v}\d*\.big", n) for n in have):
+            continue
+        for n in theirs:
+            if re.fullmatch(rf"{v}\d*\.big", n.lower()):
+                out.append((f"{STREAMED}/{n}", f"voice {v}, named by this game's sound list"))
     return out
 
 
