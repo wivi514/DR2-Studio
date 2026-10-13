@@ -102,6 +102,9 @@ game's own types.
 
 ### How many types and levels the engine takes (user, 2026-10-12: "as many as we want without breaking the engine limit; Dead Rising 2 got way more and still works")
 
+* *Retracted 2026-10-13 (the "check against 31" below is a byte of the looked-up name's
+  string object in the name → type lookup, not the type number; no engine limit on the
+  type count is proven: `TODO.md` #1).*
 * **Zombie types: the engine's limit is 32.** The program keeps a zombie's type as a
   number checked against 31 (`cmplwi r5, 0x1f` in both games' spawn code: CZ
   `0x823000BC`, CW `0x822FC99C`) and walks the type table with a count compiled into the
@@ -351,7 +354,8 @@ the modder doesn't have to know. XenonLive's launcher has no mod support yet
 * **Case Zero → Case West zombies: blocked on recomp change 3, which is bigger than
   planned** (formats.md §Zombie types: Case West's type data sits in arrays inline in a
   manager object, so growing it means re-laying out that object). **User's decision
-  2026-10-13: do the full re-layout** (several sessions of recomp work, census-proven).
+  2026-10-13: do the full re-layout**, then the same day: **not now; kept as open work for a
+  contributor**, everything found in [`TODO.md`](TODO.md) #1.
 
 ### What is left (2026-10-12)
 
@@ -361,7 +365,7 @@ the modder doesn't have to know. XenonLive's launcher has no mod support yet
 | Recomp change: grow the shader constant set pool (CZ, CW) | **built 2026-10-12** (two pools, 4,096; ARCHITECTURE.md §Recomp integration 4) |
 | U1 the Laser Sword in CZ | headless: plays (after the pools and `_BONEHIERARCHY_`); in a window with the user: owed |
 | Effects the target lacks → own effects in free slots | **built** (27 of 36 slots for every CW item into CZ) |
-| 4 zombie types (CW → CZ empty slots; CW's type table grown, approved) + U2 | CW → CZ **built**, loads headless; U2 owed; CZ → CW waits for recomp change 3 (bigger than a count: asked) |
+| 4 zombie types (CW → CZ empty slots; CW's type table grown, approved) + U2 | CW → CZ **built**, loads headless; U2 owed; CZ → CW **deferred** (CW's table: `TODO.md` #1) |
 | U3 shaders in game | the pools grown; seen with U1 |
 | 5 maps (CZ slots, `w_mall`, CW level table grown) + U4/U5 | waits for phase 14's T5 |
 | 6 the checker for levels and zombies | items done (`dr2 census --import`) |
@@ -392,10 +396,9 @@ for Case West scenes. The user played U1/U2 once (§Status). In order:
    attacks, effects), gas zombies (`zomb-cz`: crowds retyped).
 3. **Case West's guards in Case Zero**: their moves need graph *states* (154 `mercs.big`
    moves, `cNPCAIAnimationState`…) merged into Case Zero's `sgraph.txt` (the importer warns).
-4. **Recomp change 3, Case West's zombie type table → 32: the user chose the full
-   re-layout** (2026-10-13): map every access to the manager object that keeps per-type
-   arrays inline (CW `+700…`, CZ `+2196…`; the five functions in formats.md §Zombie types),
-   move them, census-proven; then Case Zero → Case West zombies; then Case West's level table.
+4. ~~Recomp change 3, Case West's zombie type table~~: **deferred by the user
+   2026-10-13**, left for a contributor ([`TODO.md`](TODO.md) #1). Case Zero → Case West
+   zombies wait for it; Case West's level table (maps) likewise not examined.
 5. Phase 14's T5 with the user, then maps (step 5, U4/U5), bosses (U6), guides.
 
 ## Start here (when phase 15 starts)

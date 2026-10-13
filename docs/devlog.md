@@ -17,6 +17,20 @@ Entry template:
 
 ---
 
+## 2026-10-13 — Growing Case West's zombie table deferred: `docs/TODO.md`
+**Done:** a new `docs/TODO.md` (open work for contributors, linked from docs/README.md,
+CONTRIBUTING.md, CLAUDE.md); item 1 holds everything found about growing Case West's
+zombie type table (the table, its five users in each game, the inline per-type arrays,
+how it was found, where to start). `importzombie` points its refusal there.
+**Why:** the user: "For now we will not do this but keep it as thing to do later for
+someone else in the github with full documentation."
+**Learned:** re-checking the code for the write-up showed the "type checked against 31"
+claim was a misread (the compare is on a byte of the looked-up name's string object);
+retracted where it was made (formats.md, ARCHITECTURE.md, phase15-kickoff.md).
+**Docs updated:** TODO.md (new), README.md, CONTRIBUTING.md, CLAUDE.md, ARCHITECTURE.md,
+formats.md, phase15-kickoff.md, guide 23.
+**Next:** as in phase15-kickoff §Start here (the untextured brought shaders first).
+
 ## 2026-10-13 — Phase 15: the user's U1/U2, the animation graph, untextured brought shaders
 **Done:** the user played U1/U2 in Case Zero (sword: swings and sounds, untextured handle,
 no glow; hammer: untextured, attacks broken; retyped crowds empty). `convert/graphcarry.py`

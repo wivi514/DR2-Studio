@@ -1712,6 +1712,10 @@ count:** the five functions that walk it (CW `sub_822FC948`, `sub_82499870`,
 (10 / 32), but the object they work on keeps per-type arrays **inline**: a byte per type at
 CW `+700` / CZ `+2196`, and its later fields sit at CW `+1812…` / CZ `+3352…`, about 70
 bytes more per type, so Case West's object would have to be re-laid out (2026-10-13).
+Deferred, written up for a contributor: [`TODO.md`](TODO.md) #1. *Retraction (2026-10-13):*
+the phase 15 note that the type is "checked against 31" (CZ `0x823000BC`, CW `0x822FC99C`)
+misread the name → type lookup: that compare is on a byte of the looked-up name's string
+object (inline text or a pointer), so no engine limit on the number of types is proven.
 **Case West's types in Case Zero, headless** (2026-10-13, a copy of the user's save, every
 street crowd and single zombie retyped): `security_light`, `security_heavy` and the gas
 zombie (each in an empty slot, its load-set entry added) load into gameplay; together

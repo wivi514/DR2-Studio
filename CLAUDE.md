@@ -107,7 +107,8 @@ with the user. 2026-10-13: effects the target lacks brought into free slots, `Pr
 cut to the target's bits, Case West's zombie types into Case Zero's empty slots
 (`mods/importzombie.py`, `dr2 mod import-zombie`; a third shader pool, descriptions, grown in
 both recomps); loads headless, U2 owed. Case Zero → Case West zombies wait for recomp
-change 3, which turned out bigger than a count (user: do the full re-layout). User's in-game
+change 3, which turned out bigger than a count; **deferred by the user 2026-10-13, left for a
+contributor: `docs/TODO.md` #1**. User's in-game
 U1/U2 (2026-10-13): items untextured, hammer attacks and retyped crowds broken; since then the
 moves are carried into the animation graph (`convert/graphcarry.py`) and the gas zombies'
 animation bank brought; **open: brought shaders draw untextured** (formats.md, U1 notes). Next conversation: `docs/phase15-kickoff.md` §Start here. Rest (zombies, maps, bosses, effects):
@@ -119,6 +120,7 @@ the Record) is planned, not started: `docs/phase16-kickoff.md`.** Read these bef
 | `docs/ARCHITECTURE.md` | Components, data flow, the asset index, the mod package format, stack choices |
 | `docs/formats.md` | Everything known about every file format, with a status per format (cracked / partial / unknown) |
 | `docs/phase15-kickoff.md` | Phase 15 (in progress; §Status): the other game's items, zombies, bosses and maps, auto-assigned (empty slots, type maps, shaders, classes), the importer's checker, the requirements file (`[requires]`, `requirements.json`) for XenonLive; research facts, tests U1-U6, plan, decisions |
+| `docs/TODO.md` | Open work for contributors, fully documented (1: growing Case West's zombie type table, deferred by the user 2026-10-13) |
 | `docs/phase16-kickoff.md` | Phase 16 (planned): the same from PC Dead Rising 2 / Off the Record: PC formats first look, DR2 maps into CZ's own DR2 slots |
 | `docs/phase14-kickoff.md` | Phase 14 (animations played: done; buildings and maps of your own: in-game tests T4a, T4b, T5 built, not yet run): research (level pieces, item collision, the executable's level slots, `layout.bin`), the tests and what each answer gives, plan, decisions, gate, §Status, §Start here |
 | `docs/phase13-kickoff.md` | Phase 13 and 13.2 (Chuck holding it in 3D: §Status 13.2; steps 1-6.4 built; next steps in §Start here: weapons made easy, effects of one's own, the icon from the model, phase 12's tools): what phase 12 proved, plan, decisions, gate, §Status, handoff (where phase 12's working files are) |

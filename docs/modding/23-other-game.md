@@ -120,7 +120,8 @@ dr2 mod import-zombie my_mod security_light --from cw -g cz --level prologue --s
 > crowd of Case Zero's street changed to them. **Not yet seen walking and fighting** (test
 > U2). **Case Zero's zombies in Case West** need Case West's
 > program to have room for more than its own 10 types: that is a change to the Case West
-> recomp, not done yet, so the command says so and stops.
+> recomp, not done yet (open for contributors: [`docs/TODO.md`](../TODO.md) #1), so the
+> command says so and stops.
 
 ## Going further
 

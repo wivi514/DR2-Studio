@@ -574,14 +574,18 @@ Timing: (1) landed with phase 2, (2) with phase 5.
    built yet). Case West's program is built for 10 zombie types (its type table and every
    loop over it, count `0xA`) and 10 level slots; the engine takes 32 types (the type is
    checked against 31 in both games) and Case Zero is built for 32 types and 82 levels.
+   *Retracted 2026-10-13:* that "check against 31" compares a byte of the looked-up name's
+   string object, not the type number; 32 is Case Zero's table size, no engine limit is
+   proven (`TODO.md` #1).
    The Case West recomp grows its zombie type table to 32 (every place that walks it, and
    any array sized by it) and its level table (script names, zone lists, ids), so mods
    can add zombie types and maps natively. *Measured 2026-10-13, not built:* more than a
    count. The five functions walking the table are the same in both programs apart from
    the count, but the object they serve keeps per-type arrays inline (Case Zero's is
    ~1,540 bytes longer from the first of them), so Case West's object has to be re-laid
-   out and every access past it moved (formats.md §Zombie types); **the user chose the
-   full re-layout** (2026-10-13). Made in the CW repo following its CLAUDE.md,
+   out and every access past it moved (formats.md §Zombie types); **the user first chose the
+   full re-layout, then (2026-10-13) **deferred it**: left for a contributor with
+   everything found, [`TODO.md`](TODO.md) #1. Made in the CW repo following its CLAUDE.md,
    with a `CW_` off switch and the census of every place changed; Case Zero gets the same
    check (already 32). `phase15-kickoff.md` §How many types and levels.
 4. **Growing the shader constant set pool** (approved by the user 2026-10-12 for phase

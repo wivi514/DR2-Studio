@@ -11,6 +11,8 @@ the right guide.
   turns out wrong, mark it retracted and explain; don't delete it.
 - **Guides:** follow the template in [`docs/modding/README.md`](docs/modding/README.md),
   and test the guide by following it from scratch.
+- **Looking for something to do?** [`docs/TODO.md`](docs/TODO.md) lists researched work
+  nobody is doing, each with what was found and where to start.
 - **Never** commit game files or anything extracted from them.
 - By contributing you agree that your work is shared under the project's
   [`LICENSE`](LICENSE) (free, non-commercial, no paywalled mods).

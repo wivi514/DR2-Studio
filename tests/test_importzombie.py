@@ -30,7 +30,7 @@ def test_every_case_west_type_has_a_slot_in_case_zero(both):
 
 
 def test_case_zero_into_case_west_waits_for_the_recomp(both):
-    with pytest.raises(Dr2Error, match="Recomp integration 3"):
+    with pytest.raises(Dr2Error, match="TODO.md #1"):
         iz.plan(both["cz"], both["cw"], "cz", "cw", "zombie_cop")
 
 

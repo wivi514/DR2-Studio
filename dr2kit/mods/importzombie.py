@@ -32,8 +32,8 @@ Spawning it is then the same as for a native type: the Maps editor's zombie rety
 spawns (phase 11, guide 19) name the slot.
 
 Case Zero → Case West needs Case West's table grown from 10 to the engine's 32 (a recomp
-change approved by the user, ARCHITECTURE.md §Recomp integration 3, not built yet): until
-then `plan` refuses it, saying so.
+change, deferred and written up for a contributor: docs/TODO.md #1): until then `plan`
+refuses it, saying so.
 
 The mod gets recipes and edits only, never game data (LICENSE).
 """
@@ -147,8 +147,8 @@ def plan(src_tree: AssetTree, dst_tree: AssetTree, src: str, dst: str, zombie: s
     table = [t.lower() for t in crossgame.zombie_types(dst)]
     if len(table) < 32 and dst == "cw":
         raise Dr2Error("Case West's program has room for its own 10 zombie types only; "
-                       "growing it to the engine's 32 is a change to the Case West recomp "
-                       "(approved, not built yet: ARCHITECTURE.md §Recomp integration 3)")
+                       "growing that table is a change to the Case West recomp that is "
+                       "not done yet (docs/TODO.md #1)")
     free = empty_slots(dst_tree, dst, set(taken))
     if slot is None:
         prev = next((s for s, t in taken.items() if t.lower() == zl), None)
