@@ -357,21 +357,22 @@ the modder doesn't have to know. XenonLive's launcher has no mod support yet
   2026-10-13: do the full re-layout**, then the same day: **not now; kept as open work for a
   contributor**, everything found in [`TODO.md`](TODO.md) #1.
 
-### What is left (2026-10-12)
+### What is left (2026-10-13)
 
 | Step | State |
 |---|---|
-| 1 both games at once, 2 cross-game table, 3 import an item | built; plays headless both ways (Laser Sword in CZ, Parasol in CW) |
-| Recomp change: grow the shader constant set pool (CZ, CW) | **built 2026-10-12** (two pools, 4,096; ARCHITECTURE.md §Recomp integration 4) |
-| U1 the Laser Sword in CZ | headless: plays (after the pools and `_BONEHIERARCHY_`); in a window with the user: owed |
-| Effects the target lacks → own effects in free slots | **built** (27 of 36 slots for every CW item into CZ) |
-| 4 zombie types (CW → CZ empty slots; CW's type table grown, approved) + U2 | CW → CZ **built**, loads headless; U2 owed; CZ → CW **deferred** (CW's table: `TODO.md` #1) |
-| U3 shaders in game | the pools grown; seen with U1 |
-| 5 maps (CZ slots, `w_mall`, CW level table grown) + U4/U5 | waits for phase 14's T5 |
-| 6 the checker for levels and zombies | items done (`dr2 census --import`) |
-| 7 bosses + U6 | not started |
-| 8 requirements | built; checked before Play through the build; in-launcher: XenonLive has no mod support yet |
-| 9 guides | 23 (items, effects, zombies) and 06 written; maps section to come |
+| 1 both games at once, 2 cross-game table | **done** |
+| 3 import an item | **built**: brought shaders, effects into free slots, moves into the animation graph, `PropAudioType` bits, `_BONEHIERARCHY_`; loads headless both ways. **Open: brought shaders draw untextured** (user's U1) |
+| Recomp change 4: shader pools (CZ, CW) | **done** (three pools, 4,096 each) |
+| U1 items in game (Laser Sword, Impact Hammer) | played once by the user: untextured, hammer attacks broken (moves now carried); **again after the texture fix** |
+| U3 shaders in game | same as the texture fix |
+| 4 zombie types CW → CZ + U2 | **built** (`dr2 mod import-zombie`, gas zombies' animation bank); played once: crowds empty (fixed headless for gas zombies); **open: the guards need graph states merged**; U2 again |
+| 4 zombie types CZ → CW | **deferred by the user**: Case West's type table, [`TODO.md`](TODO.md) #1 |
+| 5 maps (CZ slots, `w_mall`, CW level table) + U4/U5 | **not started**: waits for phase 14's T5 (user); Case West's level table not examined (beside `TODO.md` #1) |
+| 6 the checker | items and zombie types done (`dr2 census --import`); levels with maps |
+| 7 bosses + U6 | **not started** |
+| 8 requirements | **done** (XenonLive's launcher has no mod support yet) |
+| 9 guides | 23 (items, effects, zombies) and 06 written; maps and bosses sections to come |
 
 ## Start here (next conversation, updated 2026-10-13)
 

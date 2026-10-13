@@ -612,6 +612,19 @@ each, *choosers* that pick an animation from a number (the item's idle value, th
 type, whether a chainsaw is running…). The toolkit follows it to find each kind of
 item's idle, as the game does.
 
+<a id="chooser-value"></a>**Chooser value.** A number in an item's settings
+(`AnimationAttackChooserValue0 = "396"`) that the [animation graph](#animation-graph) turns
+into an animation. An item brought from the other game needs its values to exist in this
+game's graph, so the importer copies the missing entries (`dr2kit/convert/graphcarry.py`).
+
+<a id="zombie-type-slot"></a>**Zombie type slot.** A name in the program's fixed list of
+zombie types (Case Zero 32, of which 20 have no model: **empty slots**; Case West 10, all
+used). A zombie type from the other game takes an empty slot's name.
+
+<a id="shader-pool"></a>**Shader pool.** A fixed-size table the game's renderer fills as it
+loads shaders (one entry per pixel shader, per shader description…). Shaders brought from
+the other game need room in them; both recomps make them bigger (4,096 entries).
+
 **Hand prop node (`r_hand_prop`).** A bone in Chuck's right hand where held items hang:
 the item's right-hand grip node is put on it (`dr2kit/convert/holding.py`).
 

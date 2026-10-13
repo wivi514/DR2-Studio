@@ -401,15 +401,17 @@ saves and co-op), the contract XenonLive's launcher can read. In-game tests U1-U
 shaders under new names, added to the shader compilation), not remapped to the nearest;
 Case West's level table grows so it takes several Case Zero levels.
 
-**Status 2026-10-12** (`phase15-kickoff.md` §Status): done: requirements (step 8), both
-games at once and the cross-game table (steps 1-2), the item importer with brought
-shaders (step 3: `dr2 mod import-item`, Studio *Other game's items…*, guide 23, `dr2
-census --import` 0 unresolved both ways). Blocked: the engine's shader constant set pool
-(CZ 384, CW 1,340) is too small for brought pixel shaders: growing it is a recomp change
-approved by the user 2026-10-12 (not built yet), then test U1 in game. Not started: effects brought into
-free slots, zombie types (step 4, with Case West's type table grown), maps (step 5, after
-phase 14's T5), bosses (step 7), the requirements shown before Play, guide 06/requirements
-in game tests, tests U2-U6.
+**Status 2026-10-13** (`phase15-kickoff.md` §Status, §What is left): done: requirements
+(step 8), both games at once and the cross-game table (steps 1-2), the item importer
+(step 3: brought shaders, effects into free slots, moves carried into the animation graph,
+`PropAudioType` bits; `dr2 mod import-item`, Studio *Other game's items…*, guide 23),
+Case West's zombie types into Case Zero (step 4: `dr2 mod import-zombie`), the checker
+(`dr2 census --import`, items and zombie types), the engine's shader pools grown in both
+recomps (recomp change 4, three pools). The user played U1/U2 once (2026-10-13): **open:
+brought shaders draw untextured**; Case West's security guards need animation-graph states
+merged. **Deferred** by the user: growing Case West's zombie type table (Case Zero's
+zombies in Case West), left for a contributor in [`TODO.md`](TODO.md) #1. Not started:
+maps (step 5, after phase 14's T5), bosses (step 7, U6).
 
 ## Phase 16 (planned, not started): from Dead Rising 2 and Off the Record (PC)
 User-set 2026-10-12. Kickoff: [`phase16-kickoff.md`](phase16-kickoff.md). Phase 15's
