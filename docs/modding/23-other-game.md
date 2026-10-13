@@ -43,6 +43,7 @@ every setting of the item (its block of `items.txt`) and decides, for each name:
 | Effects (fire, sparks…) | matched **by name**: the two games number them differently after 370. An effect this game doesn't have is **brought** into one of the effect table's free numbers (the same ones [your own effects](21-effects.md) use), with any particle picture this game lacks; two imported items needing the same effect share its number. There are 36 free numbers; when your mod has used them all, the effect is left off (listed) |
 | Other items it names (a combo's two items, a weapon's pieces) | kept if this game has them, otherwise imported too |
 | A combo card | its picture copied, its card number changed if this game uses it |
+| Its moves in the game's animation graph | brought when this game lacks them (the Impact Hammer's attacks; the Laser Sword's are already in Case Zero) |
 | Its sound kind (`PropAudioType`) | only the kinds this game's program knows are kept (Case West's Impact Hammer has one Case Zero doesn't, which crashed the load) |
 | Parts this game's program doesn't know (Case West's `cExternalLocatorItem`, `cTurretInfoItem`…) | left out, listed: Case Zero's program couldn't build them; a setting naming a part left out is left out too |
 | The model's insides | made the way this game's program reads them: a Case West model gets the node list Case Zero needs (without it Case Zero hangs while loading) |

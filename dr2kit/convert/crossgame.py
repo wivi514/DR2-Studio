@@ -89,9 +89,10 @@ HIERARCHY = "_BONEHIERARCHY_"
 
 
 def fit_scenes(data: bytes, game: str, name: str = "pack") -> bytes:
-    """``data`` (a pack or scene archive from the other game) made right for ``game``'s
-    program: when the profile says so (``scene_hierarchy``, Case Zero), every scene that
-    lacks ``_BONEHIERARCHY_`` gets it, written from its node records
+    """``data`` (a pack, scene archive or picture from the other game) made right for
+    ``game``'s program: every texture gets the game's writer version (profile
+    ``texture_version``, `_fit_texture`), and, when the profile says so
+    (``scene_hierarchy``, Case Zero), every scene that lacks ``_BONEHIERARCHY_`` gets it, written from its node records
     (`Skeleton.hierarchy_pairs`) right after them, stored, declared alignment 4: where
     and how Case Zero's own scenes hold it.
 
@@ -100,27 +101,47 @@ def fit_scenes(data: bytes, game: str, name: str = "pack") -> bytes:
     it, never finishes: the load hangs on the loading screen (Laser Sword test U1,
     2026-10-12; docs/formats.md §Across the games). Unchanged bytes when nothing lacks it."""
     from ..profiles import load_profile
-    if not load_profile(game).scene_hierarchy:
-        return data
-    from ..container.big import BigArchive
-    arc = BigArchive.parse(data, name)
-    return arc.to_bytes() if _fit(arc, name) else data
-
-
-def _fit(arc, where: str) -> bool:
+    prof = load_profile(game)
     from ..container.big import BigArchive, is_big
+    from ..formats.bct import is_bct
+    if is_bct(data[:4]):                                  # a loose picture
+        return _fit_texture(data, prof.texture_version)
+    if not is_big(data):
+        return data
+    arc = BigArchive.parse(data, name)
+    return arc.to_bytes() if _fit(arc, name, prof) else data
+
+
+def _fit_texture(data: bytes, version: int) -> bytes:
+    """A ``.bct`` with the target's writer version at byte 9 (profile ``texture_version``:
+    Case Zero draws a Case West texture, 0x24, as flat white; docs/formats.md
+    §Textures, U1 2026-10-13)."""
+    if not version or len(data) < 10 or data[9] == version:
+        return data
+    return data[:9] + bytes([version]) + data[10:]
+
+
+def _fit(arc, where: str, prof) -> bool:
+    from ..container.big import BigArchive, is_big
+    from ..formats.bct import is_bct
     changed = False
     names = {e.name for e in arc.entries}
-    if "SceneHeader" in names and HIERARCHY not in names:
+    if prof.scene_hierarchy and "SceneHeader" in names and HIERARCHY not in names:
         _add_hierarchy(arc, where)
         changed = True
     for e in arc.entries:
-        if e.name.lower().endswith((".big", ".tex")) and is_big(e.data()):
+        data = e.data()
+        if is_bct(data[:4]):
+            new = _fit_texture(data, prof.texture_version)
+            if new is not data:
+                e.set_data(new)
+                changed = True
+        elif e.name.lower().endswith((".big", ".tex")) and is_big(data):
             try:
-                inner = BigArchive.parse(e.data(), e.name)
+                inner = BigArchive.parse(data, e.name)
             except Exception:                                   # noqa: BLE001
                 continue
-            if _fit(inner, f"{where}/{e.name}"):
+            if _fit(inner, f"{where}/{e.name}", prof):
                 e.set_data(inner.to_bytes())
                 changed = True
     return changed

@@ -17,6 +17,26 @@ Entry template:
 
 ---
 
+## 2026-10-13 — Phase 15: the user's U1/U2, the animation graph, untextured brought shaders
+**Done:** the user played U1/U2 in Case Zero (sword: swings and sounds, untextured handle,
+no glow; hammer: untextured, attacks broken; retyped crowds empty). `convert/graphcarry.py`
+carries an item's moves into the target's `sgraph.txt` (`importitem._carry_moves`);
+`leveledits.recount` keeps the graph's `# <class> <count>` header true (Case Zero faulted at
+boot without it); `"@text"` adds keep a carried block's own style; repeated sibling names
+are `name#n`; the gas zombies' `data/anim/gaszombies.big` comes with a zombie import
+(`importzombie.anim_banks`), the guards get a warning; textures copied from the other game
+get the target's byte 9 (profile `texture_version`). Tests. The user's deployment restored.
+**Why:** U1/U2 findings.
+**Learned:** an item's moves are chooser values into the animation graph, not names; the
+graph's header counts size the game's pools; Case Zero is ready for gas zombies (all 69
+moves in its graph) but not for Case West's guards. The untextured brought shaders: not the
+texture version byte, names, hashes, samplers or slots (the same pack with Case Zero's
+descriptions is textured; with JIT off it is still white): a recomp draw capture is next.
+**Docs updated:** formats.md, phase15-kickoff, ARCHITECTURE (user's re-layout decision),
+code-tour, guide 23, CLAUDE.md.
+**Next:** capture a brought-shader draw in the recomp; graph states for the guards; Case
+West's zombie table re-layout; U1/U2 again.
+
 ## 2026-10-13 — Phase 15: effects brought, audio-type bits, Case West's zombie types in Case Zero
 **Done:** effects the target lacks go into free slots of its table (`importitem._bring_effect`,
 `Effect.as_version`, particle pictures with them); `PropAudioType` cut to the target's bits;

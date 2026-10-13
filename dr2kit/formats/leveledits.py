@@ -21,10 +21,14 @@ The file (``replace/data/datafile.big/prologue.txt.edits.json``)::
      "remove": ["cItemPlacement Shampoo"]}
 
 * A **block path** is ``cls name`` per level joined with ``/`` (`levelscript.Document.find`):
-  mission blocks nest and their names are only unique within their parent.
+  mission blocks nest and their names are only unique within their parent. Where a name
+  repeats among siblings (the animation graph's ``cCategoryChooser cRandomChooser``), each
+  is ``cls name#n``, n counting from 1.
 * ``add`` values are the block's keys; a value that is itself an object is a child block
   (its key ``cls name``); ``"@values"`` is a list of bare values (nav-mesh vertices);
-  ``"@after"`` names the sibling it goes after (``""``: first; default: last), which
+  ``"@text"`` is instead the block's whole text, written as it is (re-indented): blocks
+  copied from a hand-written file whose reader cares about quoting and key order (the
+  animation graph, `convert.graphcarry`); ``"@after"`` names the sibling it goes after (``""``: first; default: last), which
   `diff` writes so that applying edits and then their reverse gives the file back byte
   for byte.
 * Order of work: adds, then sets (a set can change a block the same file adds), then
@@ -41,6 +45,7 @@ level loads) are `dr2kit.convert.levelcheck`.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 
 from ..errors import FormatError
@@ -139,6 +144,9 @@ def _check_spec(spec, where: str) -> None:
         if k == "@values":
             if not isinstance(v, list) or not all(isinstance(x, str) for x in v):
                 raise FormatError(f"{where}: @values is a list of text values")
+        elif k == "@text":
+            if not isinstance(v, str) or not v.strip():
+                raise FormatError(f"{where}: @text is the block's text")
         elif k == "@after":
             if not isinstance(v, str):
                 raise FormatError(f"{where}: @after names a sibling block (text)")
@@ -199,7 +207,10 @@ def apply(doc: Document, e: Edits, where: str = "") -> list[str]:
                     index = k + 1
         cls, name, props, kids, values = _tuple_of(parts[-1], spec)
         try:
-            doc.add(parent, cls, name, props, kids, index, values)
+            if "@text" in spec:                 # written as its source had it
+                doc.add(parent, cls, name, index=index, text=spec["@text"])
+            else:
+                doc.add(parent, cls, name, props, kids, index, values)
         except FormatError as ex:
             problems.append(f"add {path}: {_strip(ex, doc)}")
     for path, keys in e.set.items():
@@ -260,13 +271,18 @@ def diff(before: Document, after: Document) -> Edits:
 
 
 def _keyed(blocks: list[Block]) -> list[tuple[str, Block]]:
+    """Each block's path part: ``cls name``, or ``cls name#n`` (n from 1) for every block
+    whose name repeats among its siblings (`levelscript.Document.find` reads it)."""
+    count: dict[str, int] = {}
+    for b in blocks:
+        count[seg(b).lower()] = count.get(seg(b).lower(), 0) + 1
     seen: dict[str, int] = {}
     out = []
     for b in blocks:
         k = seg(b)
-        n = seen.get(k.lower(), 0)
-        seen[k.lower()] = n + 1
-        out.append((k if n == 0 else f"{k}#{n}", b))
+        n = seen.get(k.lower(), 0) + 1
+        seen[k.lower()] = n
+        out.append((k if count[k.lower()] == 1 else f"{k}#{n}", b))
     return out
 
 
@@ -283,7 +299,7 @@ def _diff(old: list[Block], new: list[Block], pre: str, e: Edits) -> None:
         if "#" in k and k.lower() not in a:
             raise FormatError(f"{pre}{k}: two blocks share this path; can't diff them")
         if k.lower() not in a:
-            spec = spec_of(blk)
+            spec = {"@text": blk.raw} if blk.raw is not None else spec_of(blk)
             if i < len(order) - 1:
                 spec["@after"] = order[i - 1] if i else ""
             e.add[pre + k] = spec
@@ -366,4 +382,35 @@ def apply_all(data: bytes, layers: list[Layer], where: str = "") -> tuple[bytes,
                                       if norm(p).lower() not in later}, edits.remove)
             edits.set = {p: v for p, v in edits.set.items() if norm(p).lower() not in later}
         notes += apply(doc, edits, f"{L.mod}: {where}" if where else L.mod)
-    return doc.to_bytes(), notes
+    return recount(doc.to_bytes(), doc), notes
+
+
+HEADER_COUNT = re.compile(rb"^# (\w+) (\d+)(\r?)$", re.M)
+
+
+def recount(data: bytes, doc: Document) -> bytes:
+    """A file opening with ``# <class> <count>`` lines (the animation graph
+    ``sgraph.txt``: one per block class, exactly the file's counts in both games) with
+    those counts made true again after edits. The game sizes its pools from them: Case
+    Zero faulted at boot (a null call) on a graph with blocks added and the old counts
+    (2026-10-13). A class the header lacks is added after the last count line."""
+    if not data.startswith(b"# "):
+        return data
+    from collections import Counter
+    have = Counter(b.cls for b in doc.walk())
+    seen: set[str] = set()
+
+    def fix(m):
+        cls = m.group(1).decode("latin-1")
+        seen.add(cls)
+        return b"# " + m.group(1) + b" " + str(have.get(cls, 0)).encode() + m.group(3)
+    out = HEADER_COUNT.sub(fix, data)
+    extra = [c for c in have if c not in seen]
+    if extra and seen:
+        last = list(HEADER_COUNT.finditer(out))[-1]
+        nl = last.group(3) + b"\n"
+        at = last.end() + 1                          # after the last count line's "\n"
+        add = b"".join(b"# " + c.encode("latin-1") + b" " + str(have[c]).encode() + nl
+                       for c in sorted(extra))
+        out = out[:at] + add + out[at:]
+    return out

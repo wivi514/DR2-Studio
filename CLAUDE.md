@@ -107,7 +107,10 @@ with the user. 2026-10-13: effects the target lacks brought into free slots, `Pr
 cut to the target's bits, Case West's zombie types into Case Zero's empty slots
 (`mods/importzombie.py`, `dr2 mod import-zombie`; a third shader pool, descriptions, grown in
 both recomps); loads headless, U2 owed. Case Zero → Case West zombies wait for recomp
-change 3, which turned out bigger than a count (asked the user). Next conversation: `docs/phase15-kickoff.md` §Start here. Rest (zombies, maps, bosses, effects):
+change 3, which turned out bigger than a count (user: do the full re-layout). User's in-game
+U1/U2 (2026-10-13): items untextured, hammer attacks and retyped crowds broken; since then the
+moves are carried into the animation graph (`convert/graphcarry.py`) and the gas zombies'
+animation bank brought; **open: brought shaders draw untextured** (formats.md, U1 notes). Next conversation: `docs/phase15-kickoff.md` §Start here. Rest (zombies, maps, bosses, effects):
 `docs/phase15-kickoff.md` §Status. Phase 16 (the same from the PC Dead Rising 2 and Off
 the Record) is planned, not started: `docs/phase16-kickoff.md`.** Read these before writing code:
 

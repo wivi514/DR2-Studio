@@ -341,9 +341,17 @@ the modder doesn't have to know. XenonLive's launcher has no mod support yet
   faulted without it). Headless on copies of the user's saves: the Impact Hammer plays in
   Case Zero; the gas zombie, `security_light` and `security_heavy` load with every street
   crowd retyped to them. **Owed: U2 in a window** (do they show, walk, fight, gas?).
+* **U1/U2 played by the user 2026-10-13 (Case Zero, windowed):** sword swings and sounds
+  right, but untextured handle, no glow; hammer untextured, attacks broken; retyped crowds
+  empty. Fixed since (headless): the items' moves carried into the animation graph
+  (`convert/graphcarry.py`, with the graph's header counts and source-style text), the gas
+  zombies' animation bank brought; Case West's guards need graph *states* merged (warned,
+  not done). **Open: brought shaders draw without textures** (formats.md §Zombie types /
+  U1 notes; a recomp draw capture is next). Then U1/U2 again with the user.
 * **Case Zero → Case West zombies: blocked on recomp change 3, which is bigger than
   planned** (formats.md §Zombie types: Case West's type data sits in arrays inline in a
-  manager object, so growing it means re-laying out that object). Asked the user.
+  manager object, so growing it means re-laying out that object). **User's decision
+  2026-10-13: do the full re-layout** (several sessions of recomp work, census-proven).
 
 ### What is left (2026-10-12)
 

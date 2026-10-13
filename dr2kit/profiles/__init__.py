@@ -49,6 +49,7 @@ class Profile:
     map_floors: tuple = ()      # the in-game map's floor pictures, placed (convert/mapdata.py)
     preload_evict: dict = field(default_factory=dict)   # loose file -> its preload4.big entry
     scene_hierarchy: bool = False   # its program needs _BONEHIERARCHY_ in every scene (CZ)
+    texture_version: int = 0        # byte 9 of its .bct headers (CZ 0x23, CW 0x24); 0 = any
 
 
 def load_profile(game: str) -> Profile:
@@ -70,7 +71,8 @@ def load_profile(game: str) -> Profile:
                    map_floors=tuple(raw.get("map_floors", ())),
                    preload_evict={str(k): str(v) for k, v in
                                   raw.get("preload_evict", {}).items()},
-                   scene_hierarchy=bool(raw.get("scene_hierarchy", False)))
+                   scene_hierarchy=bool(raw.get("scene_hierarchy", False)),
+                   texture_version=int(raw.get("texture_version", 0)))
 
 
 def config_path() -> Path:

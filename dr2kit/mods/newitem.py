@@ -107,8 +107,13 @@ def build_copy(tree: AssetTree, recipe: dict, mod_root: Path, where: str = "") -
     from ..formats.bct import is_bct
     if is_bct(src.data()[:4]):                     # a texture (named with or without .bct)
         if recipe.get("from") and not (recipe.get("image") or recipe.get("card")):
-            return src.data()                      # the other game's picture, as it is
-        return _build_texture(tree, recipe, src, Path(mod_root) / SOURCES_DIR, pre)
+            out = src.data()                                     # the other game's picture
+        else:
+            out = _build_texture(tree, recipe, src, Path(mod_root) / SOURCES_DIR, pre)
+        if recipe.get("from"):                     # in this game's texture version
+            from ..convert.crossgame import fit_scenes, other
+            out = fit_scenes(out, other(recipe["from"]), src.vpath)
+        return out
     if recipe.get("effect") is not None:
         return _build_effect(recipe, src, pre, tree)
     from ..container.big import is_big

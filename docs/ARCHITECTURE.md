@@ -580,7 +580,8 @@ Timing: (1) landed with phase 2, (2) with phase 5.
    count. The five functions walking the table are the same in both programs apart from
    the count, but the object they serve keeps per-type arrays inline (Case Zero's is
    ~1,540 bytes longer from the first of them), so Case West's object has to be re-laid
-   out and every access past it moved (formats.md §Zombie types). Made in the CW repo following its CLAUDE.md,
+   out and every access past it moved (formats.md §Zombie types); **the user chose the
+   full re-layout** (2026-10-13). Made in the CW repo following its CLAUDE.md,
    with a `CW_` off switch and the census of every place changed; Case Zero gets the same
    check (already 32). `phase15-kickoff.md` §How many types and levels.
 4. **Growing the shader constant set pool** (approved by the user 2026-10-12 for phase

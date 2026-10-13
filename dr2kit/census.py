@@ -760,7 +760,7 @@ def check_level_edits(rep: CensusReport, tree: AssetTree, sample: int = 30) -> N
         step = max(1, len(blocks) // sample)
         for b in blocks[::step]:
             path = doc.path(b)
-            if doc.get(path) is not b:                 # not addressable (a repeated path)
+            if "#" in path or doc.get(path) is not b:  # a repeated name (n-th of several)
                 lc["sampled blocks with a repeated path (skipped)"] += 1
                 continue
             # a hand-edited block is changed key by key only: removed and added back it

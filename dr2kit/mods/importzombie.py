@@ -212,6 +212,19 @@ def plan(src_tree: AssetTree, dst_tree: AssetTree, src: str, dst: str, zombie: s
     p.log.append(Resolution(f"{slot}: class", "brought",
                             f"cZombieClassItem {zombie}'s {len(p.class_keys)} keys"))
 
+    # 2b. animation banks the target lacks but its own animation graph names: Case Zero's
+    # graph has all 69 of the gas zombies' moves and asks for data/anim/gaszombies.big,
+    # which only Case West ships (U2, 2026-10-13: the gas crowds stayed empty without it)
+    for bank, why in anim_banks(src_tree, dst_tree):
+        p.recipes.setdefault(f"{bank}{COPY_EXT}", {"format": COPY_FORMAT, "from": src,
+                                                  "copy": bank})
+        p.log.append(Resolution(f"{slot}: animations", "brought", f"{bank} ({why})"))
+    if p.behaviours:
+        p.warnings.append(
+            f"its behaviours ({', '.join(b[1] for b in p.behaviours)}) are "
+            f"{src.upper()}'s own: {dst.upper()}'s animation graph has no states for their "
+            f"moves yet, so it may not spawn or move (docs/formats.md §Zombie types)")
+
     # 3. the load sets
     p.cost = costs(src_tree).get(zl, 0)
     limit = budget(dst_tree)
@@ -232,6 +245,35 @@ def plan(src_tree: AssetTree, dst_tree: AssetTree, src: str, dst: str, zombie: s
                               f"levels ({limit}): it may run out of zombie memory; spawn "
                               f"fewer types there")
     return p
+
+
+def anim_banks(src_tree: AssetTree, dst_tree: AssetTree) -> list[tuple[str, str]]:
+    """``data/anim/*.big`` banks the source game has and the target lacks, whose moves the
+    target's own animation graph (``sgraph.txt``) names (most of them): the target's
+    program asks for these files, so they come with any zombie type."""
+    from ..container.big import BigArchive
+    have = {n.lower() for n, _ in _anim_files(dst_tree)}
+    graph = dst_tree.resolve("data/datafile.big/sgraph.txt").data().decode("latin-1").lower()
+    out = []
+    for name, vp in _anim_files(src_tree):
+        if name.lower() in have:
+            continue
+        moves = set()
+        for e in BigArchive.parse(src_tree.resolve(vp).data(), vp).entries:
+            if e.name.lower().endswith(".big"):
+                inner = src_tree.open_archive(f"{vp}/{e.name}")
+                moves |= {x.name.lower().removesuffix(".anm") for x in inner.entries}
+        named = sum(m in graph for m in moves)
+        if moves and named >= 0.9 * len(moves):
+            out.append((vp, f"{named} of its {len(moves)} moves are in this game's "
+                            f"animation graph"))
+    return out
+
+
+def _anim_files(tree: AssetTree) -> list[tuple[str, str]]:
+    return [(path.rsplit("/", 1)[-1], path) for path, _ in tree.files()
+            if path.lower().startswith("data/anim/") and path.count("/") == 2
+            and path.lower().endswith(".big")]
 
 
 def _next_block(text: str, at: int) -> int:

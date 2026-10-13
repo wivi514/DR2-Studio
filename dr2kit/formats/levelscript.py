@@ -78,6 +78,7 @@ class Block:
     values: list[tuple[str, int]] = field(default_factory=list)
     children: list["Block"] = field(default_factory=list)
     end: int = -1                               # the closing brace's line
+    raw: str | None = field(default=None, repr=False, compare=False)   # added from text
 
     def get(self, key: str, default: str | None = None) -> str | None:
         """The first value of ``key`` (case-insensitive), or ``default``."""
@@ -193,7 +194,12 @@ class Document:
         found: Block | None = None
         done = []
         for part in split_path(path):
-            hits = [b for b in here if seg(b).lower() == part.lower()]
+            m = OCCURRENCE.search(part)                 # "cls name#2": the 2nd of that name
+            want = part[:m.start()] if m else part
+            hits = [b for b in here if seg(b).lower() == want.lower()]
+            if m:
+                k = int(m.group(1))
+                hits = hits[k - 1:k] if 0 < k <= len(hits) else []
             if not hits:
                 raise FormatError(f"{self.source}: no block {part!r}"
                                   + (f" in {'/'.join(done)}" if done else ""))
@@ -227,8 +233,12 @@ class Document:
         parts = []
         b: Block | None = block
         while b is not None:
-            parts.append(seg(b))
-            b = self.parent(b)
+            up = self.parent(b)
+            same = [x for x in (up.children if up else self.blocks)
+                    if seg(x).lower() == seg(b).lower()]
+            parts.append(seg(b) if len(same) == 1 else
+                         f"{seg(b)}#{next(i for i, x in enumerate(same, 1) if x is b)}")
+            b = up
         return "/".join(reversed(parts))
 
     def text(self, block: Block) -> str:
@@ -306,12 +316,14 @@ class Document:
     def add(self, parent: Block | None, cls: str, name: str = "",
             props: list[tuple[str, str]] | dict | None = None,
             children: list | None = None, index: int | None = None,
-            values: list[str] | None = None) -> Block:
+            values: list[str] | None = None, text: str | None = None) -> Block:
         """Add a block under ``parent`` (None: at the top of the file), at ``index``
         among its siblings (default: last), written in the tool's style (`render`).
         ``children`` are ``(cls, name, props, children[, values])`` tuples (the same
-        shape, nested; `to_spec`). Returns the new block (with its lines). Raises `FormatError` when a
-        sibling already has that class and name."""
+        shape, nested; `to_spec`). ``text``: the block's own text instead (`block_text`),
+        written as it is, re-indented (the block keeps it in ``raw``). Returns the new
+        block (with its lines). Raises `FormatError` when a sibling already has that class
+        and name."""
         sibs = parent.children if parent else self.blocks
         key = f"{cls} {name}".strip().lower()
         if name and any(seg(b).lower() == key for b in sibs):
@@ -319,7 +331,11 @@ class Document:
                               + (f" in {self.path(parent)}" if parent else ""))
         depth = self._depth(parent) + 1 if parent else 0
         nl = self.newline
-        body = render(cls, name, props, children, depth, nl, values)
+        if text is not None:
+            body = [("\t" * depth + ln if ln.strip() else "") + nl
+                    for ln in text.replace("\r\n", "\n").rstrip("\n").split("\n")]
+        else:
+            body = render(cls, name, props, children, depth, nl, values)
         if index is None or index > len(sibs):
             index = len(sibs)
         gap = [nl] * self._gap(parent)
@@ -339,6 +355,8 @@ class Document:
         start = at + (len(gap) if sibs and index > 0 else 0)
         made = Document.parse("".join(body), self.source).blocks[0]
         _move(made, start)
+        if text is not None:
+            made.raw = block_text_of_lines(body)
         sibs.insert(index, made)
         return made
 
@@ -389,6 +407,16 @@ class Document:
             b.values = [(v, k + n if k >= at else k) for v, k in b.values]
         for p in self.props:
             p.line += n if p.line >= at else 0
+
+
+def block_text_of_lines(lines: list[str]) -> str:
+    """Lines of a block as `Document.add`'s ``text``: no common leading tabs, ``\n``."""
+    rows = [ln.rstrip("\r\n") for ln in lines]
+    cut = min((len(r) - len(r.lstrip("\t")) for r in rows if r.strip()), default=0)
+    return "\n".join(r[cut:] for r in rows) + "\n"
+
+
+OCCURRENCE = re.compile(r"#(\d+)$")   # a path part naming the n-th block of a repeated name
 
 
 def seg(block: Block) -> str:

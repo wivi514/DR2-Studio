@@ -23,6 +23,10 @@ no_mods_env = "CW_NO_MODS"
 # without). Case Zero's scenes brought here keep theirs (Case West's program names the
 # chunk too).
 scene_hierarchy = false
+# Byte 9 of every texture header is this game's (CZ 0x23 on all 12,224 textures, CW 0x24 on
+# all but 6 of 23,120). Case Zero's (0x23) brought here get 0x24 (U1, 2026-10-13); textures copied from the other game get
+# this value (dr2kit/convert/crossgame.py fit_scenes).
+texture_version = 0x24
 # What a release build sets in its cw_defaults.env (next to the program) for playing.
 # Source builds have no such file and start with the renderer OFF (the recomp's default
 # for headless test runs: "[vk] renderer OFF (set CW_VKDRAW=1 to enable it)"), so Play

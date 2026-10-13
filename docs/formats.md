@@ -202,7 +202,9 @@ description.
 0x03  u8   flags        bit 0x02 always set; 0x08 = cube map; 0x04 = alpha? (table below)
 0x04  u16  width, u16 height
 0x08  u8   format       engine code: 08 DXT1, 0A DXT5, 1B DXN, 00 A8R8G8B8, 21 L8
-0x09  u8   0x23 (every CZ texture) / 0x24 (all but 4 CW textures): writer version?
+0x09  u8   0x23 (every CZ texture) / 0x24 (all but 6 of CW's 23,120): writer version? (the
+           toolkit gives a texture brought from the other game the target's value,
+           profile texture_version; whether the game cares is not known: 2026-10-13)
 0x0A  u8   mip levels   stored levels, base included (1-10)
 0x0B  u8   bits per pixel (4, 8 or 32; always agrees with the format)
 0x0C  u32  unknown      differs per texture, low 5 bits always 0; not the name hash,
@@ -2016,6 +2018,38 @@ Flaming Sword's flame recoloured green showed green in game. Other fields: guess
 copied), an own effect (slot 6), a changed Flaming Sword and new card pictures loads into
 gameplay from a copy of the user's save (Storage Bay), no fault: the CW build's eviction
 and `layout.bin` re-pin work there too. The effects themselves not yet seen in CW.
+
+**The user's in-game test U1/U2 (2026-10-13, Case Zero, windowed)**: the Laser Sword swings
+and sounds right but its handle had **no texture** and the blade no glow; the Impact
+Hammer was there, untextured, and **didn't attack properly**; the street's crowds retyped
+to Case West's types stayed **empty** (only scattered native zombies). Found since:
+* **Animations live in the graph, not only in the move bank.** An item's
+  `AnimationAttackChooserValue<n>` (→ chooser `ATTACKWEAPONTYPE`), `WeaponImpactAnimation`
+  (`WEAPONIMPACT`) and `AnimationChooserValueForThrow` (`THROWTYPE`) select entries of
+  `sgraph.txt` (measured: every value of every item of both games in that one chooser
+  type). Case Zero's graph has the Laser Sword's attacks (Dead Rising 2's) but not the
+  Impact Hammer's; `convert/graphcarry.py` brings the entries and their `cAnimRef` blocks.
+  Animation block ids (`cAnimRef`, `cAnimGroup`) are dense, 0-4407 in Case Zero, 0-5021 in
+  Case West; state numbers are another space and **differ between the games** (CW 482 =
+  `WEAPONIMPACT`, CZ 493).
+* **`sgraph.txt` opens with `# <class> <count>` lines, exactly the file's block counts**
+  (131 classes CZ, 130 CW, all exact). With blocks added and the old counts Case Zero
+  **faulted at boot** (a null call while reading the graph); the build now rewrites them
+  after edits (`leveledits.recount`). Its reader is also strict about style (numbers
+  unquoted, keys in file order): carried blocks are written as their source text
+  (`"@text"` adds).
+* **Gas zombies need `data/anim/gaszombies.big`**, which only Case West ships; Case Zero's
+  program asks for it and **its graph names all 69 of its moves** (Case Zero is ready for
+  gas zombies). The guards' moves are not: of Case West's 154 extra `mercs.big` moves,
+  Case Zero's graph names 2 (a merge of graph *states*, not done).
+* **Brought shaders draw without textures** (open ❓): the same Impact Hammer pack drawn
+  with Case Zero's own same-named descriptions shows its yellow and black textures; with
+  the brought Case West descriptions and programs it is flat white, also with the
+  recomp's shader JIT off (and no "no translated shader" report), so the brought programs
+  are probably not what the draw binds. Not the cause: the textures' byte 9 (CZ `0x23`,
+  CW `0x24`, now set to the target's anyway, profile `texture_version`), their names and
+  hashes, the sampler names (the same in both games' programs), the materials' slots.
+  Next: a draw capture in the recomp.
 
 **`PropAudioType` is a bit set each program reads up to its own bits** (2026-10-13): Case
 Zero's items use bits 0-11 (`0xF77`), Case West's add bits 13 and 17 (`0x22F72`). Case

@@ -28,6 +28,10 @@ no_mods_env = "CZ_NO_MODS"
 # ends; phase 15, 2026-10-12). Every scene of Case Zero has them; scenes brought from
 # Case West get them written (dr2kit/convert/crossgame.py fit_scenes).
 scene_hierarchy = true
+# Byte 9 of every texture header is this game's (CZ 0x23 on all 12,224 textures, CW 0x24 on
+# all but 6 of 23,120). Case West's (0x24) brought into Case Zero drew flat white (U1, 2026-10-13); textures copied from the other game get
+# this value (dr2kit/convert/crossgame.py fit_scenes).
+texture_version = 0x23
 # What a release build sets in its cz_defaults.env (next to the program) for playing.
 # Source builds have no such file and start with the renderer OFF (the recomp's default
 # for headless test runs: "[vk] renderer OFF (set CZ_VKDRAW=1 to enable it)"), so Play

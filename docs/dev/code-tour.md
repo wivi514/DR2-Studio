@@ -822,6 +822,13 @@ pictures are drawn: bump `index.build.THUMB_VERSION`, and the next build redraws
   target's layout, `formats.effect.Effect.as_version`; a picture copied as it is), `"shader"` and
   `"shaders"`; `build._copied_strings` makes a `.bcs.json`'s `"copy"` texts; the
   profiles' `preload_evict` lists the seven shader banks.
+- `convert/graphcarry.py` (phase 15): an item's moves into the other game's animation
+  graph: `KEYS` (item key → chooser type), `carry(src_doc, dst_doc, type, value)`
+  (entry + its `cAnimRef`/`cAnimGroup` copied as source text, renumbered past the graph's
+  largest id, a free value); `importitem._carry_moves` runs it at write time on the mod's
+  `sgraph.txt` edits. `formats.leveledits.recount` rewrites the graph's `# <class> <count>`
+  header after edits; `"@text"` adds (`Document.add(text=…)`) keep a block's own style;
+  repeated sibling names are addressed `cls name#n`.
 - `mods/importzombie.py` (phase 15 step 4): a zombie type of the other game. `plan(src_tree,
   dst_tree, src, dst, type, slot, levels, taken, sets_text)` → `ZombiePlan`: the slot
   (`empty_slots`: the target's type table names with no model shipped; the same name first,

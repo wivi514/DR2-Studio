@@ -459,8 +459,9 @@ def write(p: Plan, mod_dir: str | Path, dst_tree: AssetTree, base_dirs=()) -> li
         f.parent.mkdir(parents=True, exist_ok=True)
         f.write_text(json.dumps(recipe, indent=1) + "\n", "utf-8")
         out.append(f)
+    blocks = _carry_moves(p, mod_dir, dst_tree, base_dirs, out)
     s = TextEdits(mod_dir, "items.txt", dst_tree, base_dirs)
-    for cls, name, props, children in p.blocks:
+    for cls, name, props, children in blocks:
         if s.doc.get(f"{cls} {name}") is None:
             s.doc.add(None, cls, name, props, children)
     out.append(s.save())
@@ -482,6 +483,54 @@ def write(p: Plan, mod_dir: str | Path, dst_tree: AssetTree, base_dirs=()) -> li
                        "log": [r.__dict__ for r in p.log if r.how != "kept"]}
     log.write_text(json.dumps(old, indent=1) + "\n", "utf-8")
     return out + [log]
+
+
+def _carry_moves(p: Plan, mod_dir, dst_tree: AssetTree, base_dirs, out: list) -> list:
+    """The plan's blocks with their chooser values made to select the same moves in the
+    target's animation graph (`convert.graphcarry`; the graph's additions go to the mod's
+    ``sgraph.txt.edits.json``). Logged in ``p.log``."""
+    from ..convert import graphcarry
+    from ..formats.levelscript import Document
+    from .leveledit import TextEdits
+    wanted = [(pr[0], pr[1]) for blk in p.blocks for pr in _all_props(blk)
+              if graphcarry.chooser_type(pr[0]) and pr[1].lstrip("-").isdigit()
+              and int(pr[1]) >= 0]
+    if not wanted:
+        return p.blocks
+    src = Document.parse(crossgame.source_tree(p.src).resolve(graphcarry.GRAPH).data(),
+                         graphcarry.GRAPH)
+    g = TextEdits(mod_dir, "sgraph.txt", dst_tree, base_dirs)
+    remap: dict[tuple[str, str], str] = {}
+    for key, value in wanted:
+        ctype = graphcarry.chooser_type(key)
+        if (ctype, value) in remap:
+            continue
+        c = graphcarry.carry(src, g.doc, ctype, value)
+        remap[(ctype, value)] = c.value
+        where = f"{p.items[0]}: {key}"
+        if c.missing:
+            p.log.append(Resolution(where, "kept", f"{ctype} {value} (no move in "
+                                                   f"{p.src.upper()}'s graph either)"))
+        elif c.added:
+            p.log.append(Resolution(where, "brought", f"{ctype} {value} -> {c.value}: "
+                                                      f"{', '.join(c.entries)} into the "
+                                                      f"animation graph"))
+    if any(v != k[1] for k, v in remap.items()) or g.doc.to_bytes() != g.original_bytes:
+        out.append(g.save())
+
+    def fix(blk):
+        cls, name, props, children = blk
+        props = [(k, remap.get((graphcarry.chooser_type(k), v), v)
+                  if graphcarry.chooser_type(k) else v) for k, v in props]
+        return (cls, name, props, [fix(c) for c in children])
+    return [fix(b) for b in p.blocks]
+
+
+def _all_props(blk):
+    cls, name, props, children = blk[:4]
+    yield from props
+    for c in children:
+        yield from _all_props(c)
 
 
 def taken_ids(mod_dir: str | Path) -> set[int]:
