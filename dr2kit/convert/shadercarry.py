@@ -203,6 +203,19 @@ def number_map(src_root: str, dst_root: str) -> dict[str, int]:
     return out
 
 
+@lru_cache(maxsize=4)
+def register_moves(src_root: str, dst_root: str) -> dict[int, int]:
+    """Source pixel register -> target register, for every register of every parameter
+    (`number_map`): what a brought material's value set must be renumbered by."""
+    from pathlib import Path
+    numbers = number_map(src_root, dst_root)
+    out = {}
+    for name, (reg, n) in _pixel_extents(AssetTree(Path(src_root))).items():
+        for k in range(n):
+            out[reg + k] = numbers[name] + k
+    return out
+
+
 def move_registers(raw: bytes, numbers: dict[str, int], where: str = "") -> bytes:
     """A brought pixel shader reading each parameter at the target's register
     (`number_map`; formats/xenos.py says why). Raises `Dr2Error` when a parameter has no
@@ -320,17 +333,22 @@ def _used_hashes(text: bytes) -> set[int]:
             re.finditer(rb"0x([0-9A-Fa-f]{1,8})\s*:", text)}
 
 
-def convert_pack(data: bytes, maps: dict, name: str = "pack") -> bytes:
+def convert_pack(data: bytes, maps: dict, name: str = "pack",
+                 regs: dict[int, int] | None = None) -> bytes:
     """``data`` (a pack or scene archive) drawing with the brought shaders: ``maps`` is
-    `Carry.to_json` (``{"sd": {old: new}, "ps": {old: new}}``)."""
+    `Carry.to_json` (``{"sd": {old: new}, "ps": {old: new}}``). ``regs``
+    (`register_moves`): a value set whose pixel shader is brought gets its values'
+    registers renumbered too: a value set record names the **register** it fills (the
+    Laser Sword's blade glowed in Case West, was pale in Case Zero while its glow values
+    went to Case West's registers, U1 2026-10-13)."""
     sd = {int(k, 16): int(v, 16) for k, v in (maps.get("sd") or {}).items()}
     ps = {int(k, 16): int(v, 16) for k, v in (maps.get("ps") or {}).items()}
     arc = BigArchive.parse(data, name)
-    _convert(arc, sd, ps)
+    _convert(arc, sd, ps, regs or {})
     return arc.to_bytes()
 
 
-def _convert(arc: BigArchive, sd: dict, ps: dict) -> bool:
+def _convert(arc: BigArchive, sd: dict, ps: dict, regs: dict) -> bool:
     changed = False
     for e in arc.entries:
         low = e.name.lower()
@@ -348,7 +366,7 @@ def _convert(arc: BigArchive, sd: dict, ps: dict) -> bool:
                 e.set_data(out)
                 changed = True
         elif low.endswith(".scv") and ps:
-            out = _value_set(e.data(), ps)
+            out = _value_set(e.data(), ps, regs)
             if out is not None:
                 e.set_data(out)
                 changed = True
@@ -357,7 +375,7 @@ def _convert(arc: BigArchive, sd: dict, ps: dict) -> bool:
                 inner = BigArchive.parse(e.data(), e.name)
             except Exception:                                   # noqa: BLE001
                 continue
-            if _convert(inner, sd, ps):
+            if _convert(inner, sd, ps, regs):
                 e.set_data(inner.to_bytes())
                 changed = True
     return changed
@@ -378,10 +396,21 @@ def _commands(data: bytes, sd: dict) -> bytes | None:
     return b"".join(struct.pack(f">{1 + len(c.args)}I", c.word, *c.args) for c in out)
 
 
-def _value_set(data: bytes, ps: dict) -> bytes | None:
+def _value_set(data: bytes, ps: dict, regs: dict | None = None) -> bytes | None:
+    """A value set naming its brought pixel shader, its records' registers moved
+    (``{u32 kind, 0, count, 1, register, name hash}`` + floats; formats/shader.py)."""
     n = struct.unpack_from(">I", data, 0)[0]
     at = ((4 + n + 3) & ~3) + 8
     old = struct.unpack_from(">I", data, at)[0]
     if old not in ps:
         return None
-    return data[:at] + struct.pack(">I", ps[old]) + data[at + 4:]
+    out = bytearray(data)
+    struct.pack_into(">I", out, at, ps[old])
+    count = struct.unpack_from(">I", data, at + 4)[0]
+    o = at + 8
+    for _ in range(count):
+        k, reg = struct.unpack_from(">I", data, o + 8)[0], struct.unpack_from(">I", data, o + 16)[0]
+        if regs and reg in regs:
+            struct.pack_into(">I", out, o + 16, regs[reg])
+        o += 24 + 4 * k
+    return bytes(out)

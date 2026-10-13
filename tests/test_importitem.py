@@ -159,3 +159,39 @@ def test_impact_hammer_gets_the_players_grip(both):
     rec = p.recipes["data/streamedassets.big/impact_hammer_impact_hammer_right.big.copy.json"]
     assert rec["scene"] == "impact_hammer_impact_hammer_right"
     assert rec["locators"]["9"]["rotation"][3] > 0.5       # locator 1, not locator 0
+
+
+def test_brought_materials_fill_the_moved_registers(both):
+    """A value set record names the register it fills: the gas zombie's glow values must
+    land where its moved pixel shaders read them."""
+    from dr2kit.container.big import BigArchive
+    from dr2kit.formats.shader import ValueSet
+    src, dst = both["cw"], both["cz"]
+    data = src.resolve("data/models/zombies.big/zombie_gas.big").data()
+    sd, ps = shadercarry.used_shaders(data)
+    c = shadercarry.plan(src, dst, "cw", "cz", sd, ps)
+    regs = shadercarry.register_moves(str(src.root), str(dst.root))
+    numbers = shadercarry.number_map(str(src.root), str(dst.root))
+    names = {}
+    for n, e in shadercarry.banks(src).data["pd"].items():
+        if n.endswith(".pdo"):
+            names.update({p.hash: p.name for p in sb.ParamFile.parse_pdo(e.data()).params})
+    out = shadercarry.convert_pack(data, c.to_json(), "gas", regs)
+    inv = {v: k for k, v in c.ps.items()}
+    checked = 0
+    for arc, _ in shadercarry.scenes_of(out):
+        for e in arc.entries:
+            if e.name.lower() != "valuesets.big":
+                continue
+            for v in BigArchive.parse(e.data(), e.name).entries:
+                vs = ValueSet.parse(v.data(), v.name)
+                if vs.pixel_shader not in inv:
+                    continue
+                prog = shadercarry.move_registers(
+                    shadercarry.banks(src).get("ps", inv[vs.pixel_shader]), numbers)
+                table = {k.register + i: k.name for k in xenos.constants(prog)
+                         if k.set == "float4" for i in range(k.count)}
+                for reg, (h, _) in vs.values.items():
+                    assert table.get(reg) == names[h]
+                    checked += 1
+    assert checked > 50

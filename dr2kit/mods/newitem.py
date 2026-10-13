@@ -199,8 +199,13 @@ def build_copy(tree: AssetTree, recipe: dict, mod_root: Path, where: str = "") -
         rename_textures(pack, recipe["texture_names"], pre)
     out = pack.to_bytes()
     if recipe.get("shaders"):                      # draw with brought shaders (phase 15)
-        from ..convert.shadercarry import convert_pack
-        out = convert_pack(out, recipe["shaders"], src.vpath)
+        from ..convert.shadercarry import convert_pack, register_moves
+        regs = None
+        if recipe.get("from"):                     # values to the target's registers
+            from ..convert.crossgame import other, source_tree
+            regs = register_moves(str(source_tree(recipe["from"]).root),
+                                  str(source_tree(other(recipe["from"])).root))
+        out = convert_pack(out, recipe["shaders"], src.vpath, regs)
     if recipe.get("from"):                         # scenes as the target's program reads
         from ..convert.crossgame import fit_scenes, other
         out = fit_scenes(out, other(recipe["from"]), src.vpath)

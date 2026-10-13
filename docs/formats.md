@@ -1853,6 +1853,13 @@ Zero's registers, and all 1,279 Case Zero ones into Case West's, without a clash
 the engine fills a register only the brought shaders read (the value set's value at the
 `.pdo` number, or nothing): U1/U3.
 
+**Value sets name registers too** (2026-10-13): a material's value set record is
+`{kind, 0, count, 1, register, name hash}` + floats, the register being the source game's.
+So a value set whose pixel shader is brought gets its records' registers moved the same
+way (`shadercarry.register_moves`, at build time); checked: all 152 values of the gas
+zombie, Impact Hammer and Laser Sword packs then land on a register of the same name in
+their moved programs (the gas zombie's `gGlowScale`, CW c187, now c54).
+
 The descriptions differ too ❓: Case West's `LIT_CM2DDL_NM_RMX_SPEC` has 30 passes, Case
 Zero's 28 (Case West adds a pass with flags `0x210` after `0x200`, and one more shadow
 pass); whether the engine picks a pass by its flags or by its place is not known (the
