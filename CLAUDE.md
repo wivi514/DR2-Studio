@@ -92,16 +92,24 @@ level slots, `LEVEL_FOOD_BARN`) have their in-game tests T4a, T4b, T5 built
 (`~/.cache/dr2kit-p14/`) with the toolkit pieces they need (`.pieces.json` `new`, level
 piece / plain-file copy recipes, new files with `layout.bin` records); owed: the tests
 run by the user (away since 2026-10-12 evening; they play them when back), then the tools (`docs/phase14-kickoff.md` §Start here).
-Phases 15 (Case West ↔ Case Zero: items, zombies, bosses, whole maps, assigned
-automatically so nothing crashes; a requirements file for XenonLive) and 16 (the same
-from the PC Dead Rising 2 and Off the Record) are researched and planned, not started:
-`docs/phase15-kickoff.md`, `docs/phase16-kickoff.md`.** Read these before writing code:
+Phase 15 (Case West ↔ Case Zero: items, zombies, bosses, whole maps, assigned
+automatically so nothing crashes; a requirements file for XenonLive) **started
+2026-10-12, in progress** (user: "start phase 15 now", phase 14's tests later):
+requirements (`mods/requires.py`, `dr2 mod info`), the cross-game table
+(`tools/crossgame_table.py`), shader bank files (`formats/shaderbank.py`), the other
+game's own shaders brought (user's decision; `convert/shadercarry.py`), the item importer
+(`mods/importitem.py`, `dr2 mod import-item`, Studio *Other game's items…*, guide 23,
+`dr2 census --import`: 0 unresolved). **Blocked** on the engine's shader constant set
+pool (CZ 384, CW 1,340: ~26 / ~3 free; formats.md §Across the games): growing it is a
+recomp change asked of the user, then test U1. Rest (zombies, maps, bosses, effects):
+`docs/phase15-kickoff.md` §Status. Phase 16 (the same from the PC Dead Rising 2 and Off
+the Record) is planned, not started: `docs/phase16-kickoff.md`.** Read these before writing code:
 
 | Doc | What it holds |
 |---|---|
 | `docs/ARCHITECTURE.md` | Components, data flow, the asset index, the mod package format, stack choices |
 | `docs/formats.md` | Everything known about every file format, with a status per format (cracked / partial / unknown) |
-| `docs/phase15-kickoff.md` | Phase 15 (planned): the other game's items, zombies, bosses and maps, auto-assigned (empty slots, type maps, shaders, classes), the importer's checker, the requirements file (`[requires]`, `requirements.json`) for XenonLive; research facts, tests U1-U6, plan, decisions |
+| `docs/phase15-kickoff.md` | Phase 15 (in progress; §Status): the other game's items, zombies, bosses and maps, auto-assigned (empty slots, type maps, shaders, classes), the importer's checker, the requirements file (`[requires]`, `requirements.json`) for XenonLive; research facts, tests U1-U6, plan, decisions |
 | `docs/phase16-kickoff.md` | Phase 16 (planned): the same from PC Dead Rising 2 / Off the Record: PC formats first look, DR2 maps into CZ's own DR2 slots |
 | `docs/phase14-kickoff.md` | Phase 14 (animations played: done; buildings and maps of your own: in-game tests T4a, T4b, T5 built, not yet run): research (level pieces, item collision, the executable's level slots, `layout.bin`), the tests and what each answer gives, plan, decisions, gate, §Status, §Start here |
 | `docs/phase13-kickoff.md` | Phase 13 and 13.2 (Chuck holding it in 3D: §Status 13.2; steps 1-6.4 built; next steps in §Start here: weapons made easy, effects of one's own, the icon from the model, phase 12's tools): what phase 12 proved, plan, decisions, gate, §Status, handoff (where phase 12's working files are) |
@@ -255,6 +263,10 @@ python tools/wow_import.py extract|model|effect …   # WoW 3.3.5 → .glb / an 
 python tools/effect_table.py <recomp>/assets/game/default_image.bin --check cz   # effects.toml = exe?
 dr2 census --levels                       # every zone, placement, level text file, item model (~50 s / game)
 dr2 census --anims                        # every .anm: every key, to the last byte (~30 s / game)
+dr2 census cz --import                    # phase 15: every item of each game planned into the other
+dr2 mod import-item <mod> <Item> --from cw -g cz [-n]   # the other game's item (guide 23)
+dr2 mod info <mod> [--json]               # what a mod needs (requirements.json)
+python tools/crossgame_table.py [--check] # profiles/crossgame.toml from both executables
 dr2 hold Broadsword -g cz -o out --png    # Chuck in the item's idle holding it (.glb + picture);
 dr2 hold FrostBlade --mod my-mod -o out   #   or a mod's wizard weapon
 dr2 hold Broadsword --moves -g cz -o out  # + every attack as a glTF animation (Blender Action)

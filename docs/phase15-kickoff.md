@@ -321,6 +321,22 @@ the modder doesn't have to know. XenonLive's launcher has no mod support yet
 * Effects the target lacks are left off (listed); bringing them into the effect table's
   free slots (phase 13's own effects) is next after U1.
 
+### What is left (2026-10-12)
+
+| Step | State |
+|---|---|
+| 1 both games at once, 2 cross-game table, 3 import an item | built; in game: blocked (shader pool) |
+| Recomp change: grow the shader constant set pool (CZ, CW) | **asked of the user**, not made |
+| U1 the Laser Sword in CZ | headless: crashes on the pool; again after the recomp change |
+| Effects the target lacks → own effects in free slots | not started |
+| 4 zombie types (CW → CZ empty slots; CW's type table grown, approved) + U2 | not started |
+| U3 shaders in game | waits for the pool |
+| 5 maps (CZ slots, `w_mall`, CW level table grown) + U4/U5 | waits for phase 14's T5 |
+| 6 the checker for levels and zombies | items done (`dr2 census --import`) |
+| 7 bosses + U6 | not started |
+| 8 requirements | built; checked before Play through the build; in-launcher: XenonLive has no mod support yet |
+| 9 guides | 23 and 06 written; zombies/maps sections to come |
+
 ## Start here (when phase 15 starts)
 
 Phase 14's tests and tools first. Then: ask the decisions above, then U1 and U2 (the
