@@ -818,6 +818,23 @@ def cmd_mod(args) -> int:
               f"item…, or dr2 level edit {args.mod} <level> add \"cItemPlacement My{args.name}\" "
               f"ItemName={args.name} Location=x,y,z)")
         return 0
+    if args.action == "import-item":
+        from ..mods import importitem
+        from ..mods.deploy import recomp_folders
+        patched = recomp_folders(loc.root)["patched"]
+        src = args.source or ("cw" if game == "cz" else "cz")
+        if args.dry_run:
+            from ..convert.crossgame import source_tree
+            p = importitem.plan(source_tree(src), tree, src, game, args.item)
+            print(p.report())
+            return 1 if p.unresolved else 0
+        p, files = importitem.import_item(args.mod, args.item, src, game, tree,
+                                          [patched] if patched.is_dir() else [])
+        print(p.report())
+        print(f"wrote {len(files)} files into {args.mod}; the mod now needs both games' "
+              f"data to build (dr2 mod info {args.mod}). Place it from the Maps tab "
+              f"(Add item…), or dr2 level edit.")
+        return 0
     if args.action in ("new-weapon", "remove-weapon"):
         return _cmd_weapon(args, tree, loc)
     if args.action in ("effect", "new-effect", "effect-picture"):
@@ -1389,9 +1406,26 @@ def cmd_census(args) -> int:
                          anims=args.anims)
         print(format_report(rep))
         reports.append(rep)
+    bad = any(r.problems for r in reports)
+    if getattr(args, "imports", False):                   # phase 15: the importer's gate
+        from ..mods import importitem
+        trees = {g: AssetTree(locate(g).root) for g in GAME_IDS}
+        for src, dst in (("cw", "cz"), ("cz", "cw")):
+            r = importitem.census(trees[src], trees[dst], src, dst)
+            print(f"import {src} -> {dst}: {r['items']} items the target lacks, "
+                  f"{r['planned']} planned, {len(r['refused'])} refused, "
+                  f"{len(r['unresolved'])} unresolved; names {r['how']}")
+            print("  dropped: " + ", ".join(f"{k} ×{v}" for k, v in list(r["dropped"].items())[:12]))
+            for x in r["refused"] + r["unresolved"]:
+                print(f"  PROBLEM {x}")
+            bad = bad or bool(r["refused"] or r["unresolved"])
+            reports_json = getattr(args, "_imports", [])
+            reports_json.append({"from": src, "into": dst, **r})
+            args._imports = reports_json
     if args.json:
-        Path(args.json).write_text(json.dumps([r.to_json() for r in reports], indent=1))
-    return 1 if any(r.problems for r in reports) else 0
+        Path(args.json).write_text(json.dumps([r.to_json() for r in reports] +
+                                              getattr(args, "_imports", []), indent=1))
+    return 1 if bad else 0
 
 
 # ---- unpack ---------------------------------------------------------------------------
@@ -1662,6 +1696,16 @@ def build_parser() -> argparse.ArgumentParser:
                     help="a PNG over one of its textures (same size), e.g. "
                          "Sledgehammer_cm=red.png; repeat for more")
     game_opt(pm)
+    pm = msub.add_parser("import-item", help="use an item of the other game (Case West's in "
+                         "Case Zero, or the other way): its model, shaders, moves, sounds and "
+                         "text are brought, every name checked (phase 15)")
+    pm.add_argument("mod", help="the mod folder")
+    pm.add_argument("item", help="the item's items.txt name in the other game")
+    pm.add_argument("--from", dest="source", choices=GAME_IDS,
+                    help="the game it comes from (default: the other one)")
+    pm.add_argument("-g", "--game", choices=GAME_IDS, default="cz",
+                    help="the game it goes into (default: cz)")
+    pm.add_argument("-n", "--dry-run", action="store_true", help="only say what it would do")
     pm = msub.add_parser("new-weapon", help="a weapon of your own: the weapon wizard (kind, "
                          "model, damage, element, effects, icon, combo card); run again to "
                          "change it")
@@ -1895,6 +1939,9 @@ def build_parser() -> argparse.ArgumentParser:
                         "shirts…), and check every colour choice (phase 9)")
     p.add_argument("--levels", action="store_true",
                    help="also read every level: zones, placements, pieces (~1 min per game)")
+    p.add_argument("--import", dest="imports", action="store_true",
+                   help="also plan every item of each game into the other (phase 15's "
+                        "importer: every name resolved, ~10 s; needs both games)")
     p.add_argument("--anims", action="store_true",
                    help="also read every animation (.anm): header, tracks, every key "
                         "(~30 s per game)")

@@ -183,3 +183,10 @@ More in [`16-library.md`](16-library.md#if-something-went-wrong).
 See the tables in [`14-texturing-tools.md`](14-texturing-tools.md#if-something-went-wrong)
 (texture sets not found, wrong shape, normal maps lit the wrong way, transparency) and
 the limits in [`15-limits.md`](15-limits.md) (vertices, bones, weights, UVs, sizes).
+
+## The other game's items (phase 15)
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| The game crashes while loading after you added another game's item; its log has `Shader constant set overflow` | The item's shaders don't fit the game's room for pixel shaders (Case Zero ~26 extra, Case West ~3) | Remove the item for now; the recomps are being changed to make room ([guide 23](23-other-game.md)) |
+| `… needs Case West's game data on this computer` | The mod is made from the other game's files | **Game folders…** in Studio, or `dr2 games set cw <folder>` |

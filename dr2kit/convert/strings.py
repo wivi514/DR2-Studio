@@ -100,6 +100,37 @@ def read_mod_strings(mod_dir: str | Path, lang: str) -> dict[int, str]:
     return bcs.from_json(f.read_text("utf-8-sig"), str(f))
 
 
+def read_mod_copies(mod_dir: str | Path, lang: str) -> dict[str, dict]:
+    """The strings a mod copies from the other game for ``lang`` (``"copy"`` of its
+    ``.bcs.json``: ``{"<new id>": {"from": "cw", "id": n}}``, phase 15)."""
+    f = mod_strings_path(mod_dir, lang)
+    if not f.is_file():
+        return {}
+    return dict(json.loads(f.read_text("utf-8-sig")).get("copy") or {})
+
+
+def set_mod_copies(mod_dir: str | Path, lang: str, copies: dict[int, tuple[str, int] | None]
+                   ) -> Path:
+    """Add (``(game, id)``) or drop (``None``) strings a mod copies from the other game
+    (built from the player's own copy of it, `dr2kit.mods.build`)."""
+    f = mod_strings_path(mod_dir, lang)
+    doc = json.loads(f.read_text("utf-8-sig")) if f.is_file() else \
+        {"format": bcs.JSON_FORMAT, "bank": bank_vpath(lang), "strings": {}}
+    cur = dict(doc.get("copy") or {})
+    for i, v in copies.items():
+        if v is None:
+            cur.pop(str(i), None)
+        else:
+            cur[str(i)] = {"from": v[0], "id": int(v[1])}
+    doc["copy"] = {k: cur[k] for k in sorted(cur, key=int)}
+    if not doc["copy"] and not doc.get("strings"):
+        f.unlink(missing_ok=True)
+        return f
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n", "utf-8")
+    return f
+
+
 def set_mod_strings(mod_dir: str | Path, lang: str, changes: dict[int, str],
                     labels: dict[int, str] | None = None,
                     original: dict[int, str] | None = None) -> Path:
@@ -115,12 +146,15 @@ def set_mod_strings(mod_dir: str | Path, lang: str, changes: dict[int, str],
         else:
             current[i] = t
     f = mod_strings_path(mod_dir, lang)
-    if not current:
+    copies = read_mod_copies(mod_dir, lang)
+    if not current and not copies:
         f.unlink(missing_ok=True)
         return f
     f.parent.mkdir(parents=True, exist_ok=True)
     doc: dict = {"format": bcs.JSON_FORMAT, "bank": bank_vpath(lang),
                  "strings": {str(i): current[i] for i in sorted(current)}}
+    if copies:
+        doc["copy"] = copies
     if labels:
         doc["labels"] = {str(i): labels[i] for i in sorted(current) if i in labels}
     if original:

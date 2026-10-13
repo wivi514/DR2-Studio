@@ -327,6 +327,8 @@ def plan_mods(mods: list[Mod], game: str, tree: AssetTree) -> ModPlan:
                 continue
             vp = join(node.vpath, name)
             key = vp.lower()
+            if key in plan and recipe is not None and plan[key].data == recipe:
+                continue          # the same new entry from two mods (a brought shader)
             if key in plan and plan[key].mod.priority == mod.priority:
                 problems.append(f"{vp}: added by both {plan[key].mod.id} and {mod.id}")
                 continue
@@ -477,7 +479,42 @@ def _read_strings(tree: AssetTree, node, src: Path) -> dict[int, str]:
         by_label = {v.upper(): k for k, v in bcs.StringBank.parse(ids).strings.items()}
     except Dr2Error:
         pass
-    return bcs.from_json(src.read_text("utf-8-sig"), src.name, by_label)
+    text = src.read_text("utf-8-sig")
+    out = bcs.from_json(text, src.name, by_label)
+    copies = json.loads(text).get("copy") or {}
+    if copies:                                     # text from the other game (phase 15)
+        out = {**_copied_strings(node.vpath, copies, src.name), **out}
+    return out
+
+
+def _copied_strings(bank_vp: str, copies: dict, where: str) -> dict[int, str]:
+    """``"copy": {"<new id>": {"from": "cw", "id": 50324}}`` of a ``.bcs.json``: each new
+    id gets that string of the source game's bank of the same language (its English one
+    when it has no such bank), read when the mod is built, so the mod holds no game
+    text (`dr2kit.convert.crossgame`)."""
+    from ..convert.crossgame import source_tree
+    from ..formats import bcs
+    banks: dict[tuple[str, str], object] = {}
+    out = {}
+    for k, spec in copies.items():
+        if not str(k).isdigit() or not isinstance(spec, dict) or "id" not in spec:
+            raise Dr2Error(f'{where}: copy {k!r}: write "<new id>": {{"from": "cw", "id": n}}')
+        g = str(spec.get("from", "")).lower()
+        tree = source_tree(g, where)
+        if (g, bank_vp) not in banks:
+            for vp in (bank_vp, "data/frontend/str_en.bcs"):
+                try:
+                    banks[(g, bank_vp)] = bcs.StringBank.parse(tree.resolve(vp).data(), vp)
+                    break
+                except Dr2Error:
+                    continue
+            else:
+                raise Dr2Error(f"{where}: {g} has no string bank {bank_vp}")
+        bank = banks[(g, bank_vp)]
+        if int(spec["id"]) not in bank.strings:
+            raise Dr2Error(f"{where}: {g}'s {bank_vp} has no string {spec['id']}")
+        out[int(k)] = bank.strings[int(spec["id"])]
+    return out
 
 
 def _read_edits(node, src: Path):

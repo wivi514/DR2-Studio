@@ -573,6 +573,8 @@ def check_shaders(rep: "CensusReport", tree: AssetTree) -> None:
     """Phase 15 (module docstring): the shader banks' descriptions, parameter files and
     string table read and write back byte for byte."""
     from .formats import shaderbank
+    if not (tree.root / "data" / "shaders").is_dir():
+        return                                   # a partial game folder (tests): nothing to read
     try:
         r = shaderbank.census(tree)
     except Exception as ex:                      # noqa: BLE001 - reported, not fatal

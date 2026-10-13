@@ -381,6 +381,10 @@ class MainWindow(QMainWindow):
         b_weapon.setToolTip("A weapon of your own: its model, what it swings like, damage, "
                             "fire / ice / shock, effects, its icon and a combo card")
         b_weapon.clicked.connect(lambda: self.new_weapon())
+        b_other = QPushButton("Other game's items…")
+        b_other.setToolTip("Use an item of the other game (Case West's in Case Zero, or the "
+                           "other way): its model, shaders, moves, sounds and text come with it")
+        b_other.clicked.connect(lambda: self.other_game_items())
         b_effects = QPushButton("Effects…")
         b_effects.setToolTip("The game's particle effects: see them, recolour or resize one, "
                              "make your own for your weapons")
@@ -406,7 +410,7 @@ class MainWindow(QMainWindow):
         bl = QVBoxLayout(bw)
         mrow = QHBoxLayout()
         mrow.addWidget(self.mod_label, 1)
-        for b in (b_new, b_open, b_weapon, b_effects, b_share, b_install, b_deploy, b_undeploy):
+        for b in (b_new, b_open, b_weapon, b_other, b_effects, b_share, b_install, b_deploy, b_undeploy):
             mrow.addWidget(b)
         bl.addLayout(mrow)
         brow = QHBoxLayout()
@@ -1490,6 +1494,13 @@ class MainWindow(QMainWindow):
             return
         from .weapon_dialog import WeaponDialog
         WeaponDialog(self, self.mod_dir, name).exec()
+
+    def other_game_items(self) -> None:
+        """*Other game's items…* (`studio.import_dialog`) on the open mod (phase 15)."""
+        if not self.ensure_mod():
+            return
+        from .import_dialog import ImportDialog
+        ImportDialog(self, self.mod_dir).exec()
 
     def open_effects(self) -> None:
         """The particle effects window (`studio.effects_dialog`); changes go to the open mod."""

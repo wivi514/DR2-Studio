@@ -268,6 +268,9 @@ my_mod/
     data/models/environment/prologue/prologue_z02.big/my_box.big.copy.json   # a new level piece
     data/models/environment/food_barn/zonelist.big.copy.json  # a NEW FILE (phase 14): its
                               # folder is a folder, not an archive
+    data/shaders/deadrisingprologue-ps.big/1c2d3e40.po.copy.json  # phase 15: a recipe
+                              # "from": "cw" (built from the player's own Case West), here
+                              # a Case West shader brought under a new name ("shader")
   sources/                    # the modder's own .glb / PNGs a recipe uses
 ```
 
@@ -302,6 +305,17 @@ recomp (found beside its game folder; user decision 2026-10-09: Studio may start
 (`mod.toml`, `replace/`, `preview.png`, `README.md`; never game data), made by *Share…*
 / `dr2 mod pack` after a check against each game it names. Mod sets save which mods are
 on.
+
+**The other game's things (phase 15, `mods/importitem.py`, `convert/shadercarry.py`).**
+A recipe can read the other game (`"from": "cw"`), so a mod uses Case West's items in
+Case Zero and still holds no game data; text comes the same way (a `.bcs.json`'s
+`"copy"`). *Decision (user, 2026-10-12):* a brought model draws with **its own game's
+shaders**, copied into the target's banks under new names, never remapped to a nearest
+one. The importer resolves every name an item uses (kept / brought / renumbered /
+dropped with a reason); `dr2 census --import` checks every item of each game resolves
+into the other. Engine limit found on the way: the renderer's pool of shader constant
+sets (CZ 384, CW 1,340, one per pixel shader) leaves room for ~26 brought pixel shaders
+in CZ and ~3 in CW; growing it is a recomp change (asked, 2026-10-12).
 
 **What a mod needs (phase 15, `mods/requires.py`).** A mod made from the other game's
 files (a recipe with `"from": "cw"`) can only be built where that game's data is, and

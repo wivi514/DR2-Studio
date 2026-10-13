@@ -36,6 +36,12 @@ A recipe can also copy a **plain file** (not an archive: a level's ``.txt``), wi
 ``add/`` file whose folder is a folder becomes a **new file** (``mods.build``, kind
 ``file``): a map of one's own copies the game's level files under an empty slot's names.
 
+Phase 15 (the other game's things): ``"from": "cw"`` reads ``copy`` from that game's data
+(on the player's computer; `dr2kit.mods.requires` says the mod needs it); ``"shaders":
+{"sd": {old: new}, "ps": {old: new}}`` makes the copied pack draw with shaders brought from
+that game, and a recipe with ``"shader": {"kind", "old", "new", "rename"}`` is one of those
+brought bank entries (`dr2kit.convert.shadercarry`).
+
 and a recipe can copy a **texture** (a ``.bct``) instead of a pack, for a combo card's
 picture in ``data/frontend/combocards.tex``::
 
@@ -87,10 +93,17 @@ def build_copy(tree: AssetTree, recipe: dict, mod_root: Path, where: str = "") -
     pre = f"{where}: " if where else ""
     if recipe.get("format") != COPY_FORMAT or not recipe.get("copy"):
         raise Dr2Error(f"{pre}not a {COPY_FORMAT} recipe (needs \"copy\")")
+    src_tree = tree
+    if recipe.get("from"):                         # made from the other game (phase 15)
+        from ..convert.crossgame import source_tree
+        src_tree = source_tree(recipe["from"], where)
     try:
-        src = tree.resolve(recipe["copy"])
+        src = src_tree.resolve(recipe["copy"])
     except Dr2Error:
         raise Dr2Error(f"{pre}the game has no {recipe['copy']!r} to copy") from None
+    if recipe.get("shader"):                       # a brought shader bank entry
+        from ..convert.shadercarry import build_entry
+        return build_entry(src_tree, tree, recipe["shader"], where)
     from ..formats.bct import is_bct
     if is_bct(src.data()[:4]):                     # a texture (named with or without .bct)
         return _build_texture(tree, recipe, src, Path(mod_root) / SOURCES_DIR, pre)
@@ -175,6 +188,9 @@ def build_copy(tree: AssetTree, recipe: dict, mod_root: Path, where: str = "") -
         _set_icon(pack, recipe, sources, pre)
     if recipe.get("texture_names"):
         rename_textures(pack, recipe["texture_names"], pre)
+    if recipe.get("shaders"):                      # draw with brought shaders (phase 15)
+        from ..convert.shadercarry import convert_pack
+        return convert_pack(pack.to_bytes(), recipe["shaders"], src.vpath)
     return pack.to_bytes()
 
 

@@ -17,6 +17,32 @@ Entry template:
 
 ---
 
+## 2026-10-12 — Phase 15: the other game's items, shaders brought, the engine's shader pool
+**Done:** the cross-game table (`tools/crossgame_table.py` → `profiles/crossgame.toml`:
+each program's zombie type and level tables found by the code that builds their address,
+the script classes the other game uses that a program lacks, shaders); the shader banks'
+descriptions read and written (`formats/shaderbank.py`: `.sdo`, `.pdo`, `.vdo`,
+`strings.bin`, census byte for byte in both games); shaders brought from the other game
+(`convert/shadercarry.py`); recipes that read the other game (`"from"`) and text copied
+from it (`.bcs.json` `"copy"`); the item importer (`mods/importitem.py`, `dr2 mod
+import-item`, Studio *Other game's items…*, guide 23); `dr2 census --import` (every item
+both ways: 0 refused, 0 unresolved).
+**Why:** phase 15 steps 1-3. The user changed decision 2 mid-way: bring "the proper Case
+West shader and add it to the shader compilation", not the nearest one.
+**Learned:** no vertex shader and only 45 pixel shaders are the same bytes in both games,
+and pixel parameters are numbered by a per-game registry, so a brought shader gets new
+names and the target's numbers; the reflection cube is `gCubeEnvMapSampler` in CZ and
+`gReflectionTexture` in CW on the skinned shaders. Headless test U1 (CZ, the Laser
+Sword): the game has a fixed pool of shader constant sets, one per pixel shader (CZ
+384, ~26 free; CW 1,340, ~3 free), set from a table in the executable's data; more
+brought pixel shaders crash it ("Shader constant set overflow"), found by bisecting
+(vertex shaders alone fine, 26 pixel shaders fine, 29 not). formats.md §Across the
+games: shader banks.
+**Docs updated:** formats.md, ARCHITECTURE.md, code-tour.md, phase15-kickoff.md
+(§Status), guides 23 (new), 12, README table.
+**Next:** grow the shader constant set pool in both recomps (asked of the user), then U1
+again in game; effects brought into free slots; zombie types (step 4).
+
 ## 2026-10-12 — Phase 15 started: what a mod needs
 **Done:** `mods/requires.py`: `[requires]` in `mod.toml`, worked out by the toolkit where
 the modder didn't write it (other games its recipes copy from, saves, co-op), written as

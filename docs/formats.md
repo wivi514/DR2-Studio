@@ -1752,6 +1752,22 @@ the nested copy of a bank it changes).
   `gCubeEnvMapSampler` (`e9196ce0`) in CZ and `gReflectionTexture` (`1f61c700`) in CW
   (slot record +0x38 word; the draws bind it with command `0x33` and the same hash).
 
+**The engine's limit on pixel shaders: the "Shader Constant Sets" pool** (measured
+2026-10-12, Case Zero, headless loads of a copy of the user's save). Adding Case West
+pixel shaders to Case Zero's `-ps.big` (its `preload4.big` copy evicted, `layout.bin`
+re-pinned): 1, 20 and 26 more load to the street; 29 crash while the street loads, 33,
+40 and 45 crash right after the game opens the bank, on the assert
+`INVALID_HANDLE != shader_constant_set_handle && "Shader constant set overflow."`
+(`shaderconstantsetstack.cpp`, CZ `sub_827B0BB8` → free list `sub_82195EF8` returns -1).
+Bringing the vertex shaders alone, and with them evicting and re-reading the banks,
+loads fine. The renderer builds its pools from a **table of sizes in the executable's
+data**: CZ `0x829ED7F0` = `192, 384, 768, 18, 13824, 128, 8, 128, 256, -1, 1024, 512`,
+CW `0x82A00D30` the same but **`1340`** in place of `384`: Case West ships 1,337 pixel
+shaders, and the second value builds the pool kept at renderer `+3492` (CZ `0x827BEF48`:
+`lwz r4, 0x829ED7F4`). So the pool holds one constant set per loaded pixel shader (CZ:
+~358 used of 384, CW: ~1,337 of 1,340) ❓ the exact count used. **Bringing shaders past
+this needs the pool grown** (a recomp change: the value set at boot), in both games.
+
 All of it is read and written by `dr2kit/formats/shaderbank.py`; `dr2 census` checks every
 description, parameter file and string table of both games writes back byte for byte (0
 problems, 2026-10-12).

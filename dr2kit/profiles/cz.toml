@@ -43,7 +43,9 @@ digest_checked = ["data/audio/Prologue.txt"]
 # So a mod that changes one of these loose files EVICTS the nested copy instead: its
 # index hash is changed, lookups miss, the game reads the loose file (the recomp's
 # "part 60" road). Loose vpath -> the entry's name in preload4.big; only measured ones.
-preload_evict = { "data/models/effects.big" = "effects.big", "data/models/effects.tex" = "effects.tex" }
+# The shader banks (phase 15: shaders brought from the other game) are evicted the same
+# way; measured for the effects only so far, the banks wait for test U3.
+preload_evict = { "data/models/effects.big" = "effects.big", "data/models/effects.tex" = "effects.tex", "data/shaders/deadrisingprologue-sd.big" = "deadrisingprologue-sd.big", "data/shaders/deadrisingprologue-vs.big" = "deadrisingprologue-vs.big", "data/shaders/deadrisingprologue-vd.big" = "deadrisingprologue-vd.big", "data/shaders/deadrisingprologue-ps.big" = "deadrisingprologue-ps.big", "data/shaders/deadrisingprologue-pd.big" = "deadrisingprologue-pd.big", "data/shaders/deadrisingprologue-sc.big" = "deadrisingprologue-sc.big", "data/shaders/deadrisingprologue-ss.big" = "deadrisingprologue-ss.big" }
 
 
 

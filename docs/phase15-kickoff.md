@@ -303,6 +303,24 @@ the modder doesn't have to know. XenonLive's launcher has no mod support yet
   `play` is a list (a mod can play in both games) and `built_from` names the games its
   recipes copy from. Guide 06 §What a mod needs. Tests: `tests/test_requires.py`.
 
+* **Steps 1-3 built 2026-10-12** (both games at once, the cross-game table, importing an
+  item): recipes read the other game (`"from"`), `.bcs.json` copies text from it;
+  `profiles/crossgame.toml` (`tools/crossgame_table.py`: zombie type and level tables,
+  unknown classes, shaders); the shader banks' descriptions read and written
+  (`formats/shaderbank.py`, census 0 problems both games); brought shaders
+  (`convert/shadercarry.py`); the item importer (`mods/importitem.py`, `dr2 mod
+  import-item`, Studio *Other game's items…*, guide 23). Gate: `dr2 census --import`:
+  872 CW items into CZ and 291 CZ items into CW, **0 refused, 0 unresolved**.
+* **Test U1 (headless, CZ, Laser Sword): the engine's limit found.** The mod builds;
+  without its shaders it loads (no fault); with them the game asserts "Shader constant
+  set overflow": the renderer's pool of shader constant sets holds 384 in CZ (~26 free)
+  and 1,340 in CW (~3 free), set from a table in the executable's data (formats.md
+  §Across the games: shader banks). One CW weapon brings 45 pixel shaders, a gas zombie
+  73. **Next: grow that pool in both recomps** (a recomp change: the value set at boot,
+  like the zombie table's growth; asked of the user 2026-10-12), then U1 again.
+* Effects the target lacks are left off (listed); bringing them into the effect table's
+  free slots (phase 13's own effects) is next after U1.
+
 ## Start here (when phase 15 starts)
 
 Phase 14's tests and tools first. Then: ask the decisions above, then U1 and U2 (the

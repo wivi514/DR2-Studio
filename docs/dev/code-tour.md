@@ -794,6 +794,26 @@ pictures are drawn: bump `index.build.THUMB_VERSION`, and the next build redraws
   classes the other game uses that a program doesn't name, each game's shader
   descriptions); `zombie_types`, `level_slots`, `empty_level_slots`, `unknown_classes`;
   `source_tree(game)` opens the game a recipe copies from, or says the mod needs it.
+- `convert/shadercarry.py` (phase 15): a model of the other game drawn with its own
+  game's shaders. `used_shaders(pack)` (descriptions from every `UsedShaders.txt`, pixel
+  shaders from every value set), `plan(src_tree, dst_tree, src, dst, sd, ps)` → `Carry`
+  (old → new hash per kind, `new_name`: a crc of game/kind/hash, low 5 bits clear, free in
+  both games; a program is shared only when it and its `.vdo`/`.pdo` are byte-identical),
+  `recipes(carry, dst_tree)` (the `add/data/shaders/<bank>/<new>.<ext>.copy.json` files),
+  `build_entry` (a brought entry at build time: a description's hash and programs
+  renamed, a `.pdo`'s parameter numbers from `number_map`, a `.vdo`'s hash),
+  `convert_pack` (`UsedShaders.txt`, `0x3C`/`0x3F` commands, value sets' pixel shader).
+- `mods/importitem.py` (phase 15): an item of the other game. `plan(src_tree, dst_tree,
+  src, dst, item)` → `Plan`: every key of the block and its children resolved
+  (`Resolution`: kept / brought / renumbered / dropped, or `unresolved`), the closure of
+  items it names, recipes (pack with `"shaders"`, move bank, sound banks, card pictures,
+  shader bank entries), text copies; `write` (blocks into `items.txt.edits.json`,
+  recipes, `.bcs.json` `"copy"` in every language, `[requires] games`,
+  `sources/imported.json`); `import_item`; `census` (every item both ways, `dr2 census
+  --import`). Studio: `studio/import_dialog.py` (*Other game's items…*). The build side:
+  `newitem.build_copy` reads `"from"` (`crossgame.source_tree`), `"shader"` and
+  `"shaders"`; `build._copied_strings` makes a `.bcs.json`'s `"copy"` texts; the
+  profiles' `preload_evict` lists the seven shader banks.
 - `requires` (phase 15): what a mod needs. `Mod.requires` is `[requires]` as written
   (keys checked by `manifest._requires_table`); `infer(mod)` → `Requirements` (games,
   play, sources = games its recipes copy from via `"from"`, mods with version specs,
