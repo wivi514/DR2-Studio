@@ -1699,6 +1699,53 @@ shader programs they list are compiled differently in each; the descriptions mod
 that the other game lacks: CW `ZombieGlow`, `ZombieClothRGBSpec`,
 `ZombieClothRGBReflective`, `CM_SIX`, `Larvae` and CZ `Larvae` (`phase15-kickoff.md`).
 
+### Across the games: shader banks 🟡 (phase 15, 2026-10-12)
+
+Measured over every entry of both games' `data/shaders/deadrising{prologue,epilogue}-*.big`
+and every scene's `UsedShaders.txt` (`tools/crossgame_table.py` writes the lists to
+`dr2kit/profiles/crossgame.toml`):
+
+| Bank | CZ | CW | Same name | Same bytes |
+|---|---|---|---|---|
+| `-sd` descriptions `.sdo` | 223 | 231 | 222 | 46 |
+| `-vs` vertex shaders `.vo` | 143 | 146 | 143 | **0** |
+| `-vd` `.vdo` | 143 | 146 | 143 | 143 |
+| `-ps` pixel shaders `.po` | 1,280 | 1,338 | 45 | **0** |
+| `-pd` `.pdo` | 1,279 | 1,337 | 44 | 38 |
+| `-sc` value sets `.scv` | 149 | 265 | 149 | 0 |
+| `-ss` `strings.bin` | 1 | 1 | 1 | 0 |
+
+All seven banks are also inside `data/preload4.big` (like the effects: the build evicts
+the nested copy of a bank it changes).
+
+* **A description** (`.sdo`, named by the hash models put in `UsedShaders.txt` and the
+  draws' `0x3C`/`0x3F` commands): its own hash first, then pass records naming a vertex
+  shader and a pixel shader by hash (`651ba6c0.vo` + `e776bb80.po`…), then its name
+  (`ZombieGlow`) and `Default`. Shared names mostly carry the same hash (only `Larvae`
+  differs: CW `0064b9a0`, CZ `630cee60`), but the programs they list are compiled
+  differently in each game: a vertex shader of the same name never has the same bytes.
+* **Value sets** name their pixel shader by hash (§Materials), so a Case West material
+  points at a Case West pixel shader: Case Zero has only 45 of their names.
+* **`.pdo`** (one per pixel shader): its hash, a count, then per parameter its name
+  (`gGlowScale`), a hash (`c1a23fc0`: the same in both games, and the hash a value set's
+  record carries), a **parameter number** and its range and label (`Glow Scale`). The
+  numbers are a **registry per game**: 41 of the 99 names both games use have another
+  number (`gDiffuseColourControl` CZ 157, CW 159), and CW's `gGlowScale` 187 is CZ's
+  `gBodyPart4Colour`. A pixel shader brought across needs its numbers re-assigned.
+* **`strings.bin`**: `u32 count` (entries + 1), then entries `{u32 length, the text, NUL,
+  padded to 4}`, the first one empty: shader file names (`PosUVFullScreen.bvd`,
+  `CM_LM.bpd`, `LT-ZombieGlow.bpd`) and parameter names. CW has 26 more (its own shaders
+  and their parameters), CZ one CW lacks. ❓ who reads it, and by number or by text.
+* **Engine samplers** named differently: on `ProtoSkinnedEye`, `ProtoSkinnedLens`,
+  `ProtoSkinnedClothReflective`, `ZombieEye(LOD2)` the reflection cube slot is
+  `gCubeEnvMapSampler` (`e9196ce0`) in CZ and `gReflectionTexture` (`1f61c700`) in CW
+  (slot record +0x38 word; the draws bind it with command `0x33` and the same hash).
+
+*Decision (user, 2026-10-12):* a model brought from the other game draws with **its own
+game's shaders**, copied into the target's banks (not remapped to the nearest one), and
+the recomps translate them (both already translate a shader they meet for the first
+time, at the first draw that binds it).
+
 **The PC games** (phase 16 research): the same `.big` index; compressed entries are zlib
 behind a 4-byte big-endian uncompressed size; payloads little-endian (a skeleton node
 record is the console's byte-swapped); `.bct` headers differ (`phase16-kickoff.md`).

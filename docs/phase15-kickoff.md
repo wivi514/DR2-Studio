@@ -266,10 +266,15 @@ the modder doesn't have to know. XenonLive's launcher has no mod support yet
    Case West's program is built for 10 types: **grown to the engine's 32** (§How many
    types and levels: a Case West recomp change, approved by the user 2026-10-12), and its
    level table likewise. Every level stays within its zombie memory budget.
-2. **Shaders the target lacks: DECIDED (user, 2026-10-12, the proposed default):**
-   **remap to the nearest shared shader** (works with no recomp change); bringing shaders
-   over only if U3 shows the recomps can, and with the user's approval for any recomp
-   change.
+2. **Shaders: DECIDED (user, 2026-10-12): bring the other game's own shaders**, not
+   the nearest shared one: "we will use the proper Case West shader and add it to the
+   shader compilation". A brought model draws with its game's descriptions and programs,
+   copied into the target's banks under new names where the target has a same-named one
+   with other bytes (formats.md §Across the games: shader banks: no vertex shader and
+   only 45 pixel shader names are shared, and parameter numbers differ). Both recomps
+   already translate a shader at its first draw; adding the mods' banks to the first-run
+   shader build (no pop-in) is a recomp change in both, approved with this decision.
+   (The first proposal, remapping to the nearest shader, was dropped.)
 3. **A CZ level into CW: DECIDED (user, 2026-10-12):** the first one **into `w_mall`**,
    and Case West's **level table grown** (the approved recomp change, §How many types and
    levels) so it takes more than one: "we will need more than one level". Replacing a

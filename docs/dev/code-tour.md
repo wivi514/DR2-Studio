@@ -783,6 +783,12 @@ pictures are drawn: bump `index.build.THUMB_VERSION`, and the next build redraws
   update changed), and `pack` writes `<id>-<version>.dr2mod`. `manifest.Mod` gained
   `preview`, `preview_path`, `readme` and `save()` (writes `mod.toml` back). Phase 13:
   `Mod.local_only` (`local_only = true`), which `pack` refuses.
+- `convert/crossgame.py` (phase 15): `table()` reads `profiles/crossgame.toml` (written
+  and checked by `tools/crossgame_table.py`: each program's zombie type and level tables
+  found by their pointer arrays and the code that builds their address, the script
+  classes the other game uses that a program doesn't name, each game's shader
+  descriptions); `zombie_types`, `level_slots`, `empty_level_slots`, `unknown_classes`;
+  `source_tree(game)` opens the game a recipe copies from, or says the mod needs it.
 - `requires` (phase 15): what a mod needs. `Mod.requires` is `[requires]` as written
   (keys checked by `manifest._requires_table`); `infer(mod)` → `Requirements` (games,
   play, sources = games its recipes copy from via `"from"`, mods with version specs,
