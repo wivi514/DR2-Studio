@@ -576,6 +576,18 @@ Timing: (1) landed with phase 2, (2) with phase 5.
    can add zombie types and maps natively. Made in the CW repo following its CLAUDE.md,
    with a `CW_` off switch and the census of every place changed; Case Zero gets the same
    check (already 32). `phase15-kickoff.md` §How many types and levels.
+4. **Growing the shader constant set pool** (approved by the user 2026-10-12 for phase
+   15, "Yes you got my approval"; not built yet), **in both recomps**. The renderer's
+   pool of shader constant sets (one per loaded pixel shader) is sized from a table in
+   the executable's data: CZ `0x829ED7F4` = 384 (~26 free), CW `0x82A00D34` = 1,340 (~3
+   free); more brought pixel shaders assert "Shader constant set overflow" (formats.md
+   §Across the games: shader banks). Each recomp writes a larger value (proposed 4,096)
+   into guest memory after the image loads and before the renderer builds its pools,
+   with an off switch (`CZ_NO_SHADER_POOL_GROWTH=1` / `CW_…`), in a file of its own (the
+   CZ repo has the user's uncommitted `vk_renderer.cpp`: don't touch it), following each
+   repo's CLAUDE.md; checked by a headless load with the Laser Sword mod (test U1). The
+   same approval covers adding the deployed mods' shader banks to the first-run shader
+   build (no pop-in), if wanted.
 
 ## Non-goals (for now)
 

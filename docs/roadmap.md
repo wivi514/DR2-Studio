@@ -406,7 +406,7 @@ games at once and the cross-game table (steps 1-2), the item importer with broug
 shaders (step 3: `dr2 mod import-item`, Studio *Other game's items…*, guide 23, `dr2
 census --import` 0 unresolved both ways). Blocked: the engine's shader constant set pool
 (CZ 384, CW 1,340) is too small for brought pixel shaders: growing it is a recomp change
-awaiting the user's approval, then test U1 in game. Not started: effects brought into
+approved by the user 2026-10-12 (not built yet), then test U1 in game. Not started: effects brought into
 free slots, zombie types (step 4, with Case West's type table grown), maps (step 5, after
 phase 14's T5), bosses (step 7), the requirements shown before Play, guide 06/requirements
 in game tests, tests U2-U6.

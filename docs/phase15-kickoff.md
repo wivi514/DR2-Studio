@@ -316,8 +316,9 @@ the modder doesn't have to know. XenonLive's launcher has no mod support yet
   set overflow": the renderer's pool of shader constant sets holds 384 in CZ (~26 free)
   and 1,340 in CW (~3 free), set from a table in the executable's data (formats.md
   §Across the games: shader banks). One CW weapon brings 45 pixel shaders, a gas zombie
-  73. **Next: grow that pool in both recomps** (a recomp change: the value set at boot,
-  like the zombie table's growth; asked of the user 2026-10-12), then U1 again.
+  73. **Next: grow that pool in both recomps** (a recomp change: the value set at boot;
+  **approved by the user 2026-10-12**, ARCHITECTURE.md §Recomp integration 4), then U1
+  again.
 * Effects the target lacks are left off (listed); bringing them into the effect table's
   free slots (phase 13's own effects) is next after U1.
 
@@ -326,7 +327,7 @@ the modder doesn't have to know. XenonLive's launcher has no mod support yet
 | Step | State |
 |---|---|
 | 1 both games at once, 2 cross-game table, 3 import an item | built; in game: blocked (shader pool) |
-| Recomp change: grow the shader constant set pool (CZ, CW) | **asked of the user**, not made |
+| Recomp change: grow the shader constant set pool (CZ, CW) | **approved by the user 2026-10-12**, not made: ARCHITECTURE.md §Recomp integration 4 |
 | U1 the Laser Sword in CZ | headless: crashes on the pool; again after the recomp change |
 | Effects the target lacks → own effects in free slots | not started |
 | 4 zombie types (CW → CZ empty slots; CW's type table grown, approved) + U2 | not started |
@@ -336,6 +337,33 @@ the modder doesn't have to know. XenonLive's launcher has no mod support yet
 | 7 bosses + U6 | not started |
 | 8 requirements | built; checked before Play through the build; in-launcher: XenonLive has no mod support yet |
 | 9 guides | 23 and 06 written; zombies/maps sections to come |
+
+## Start here (next conversation: complete phase 15)
+
+The user will finish phase 15 in a fresh conversation (2026-10-12). In order:
+
+1. **Grow the shader constant set pool in both recomps** (approved; ARCHITECTURE.md
+   §Recomp integration 4). Find where each runtime loads the image (`runtime/main.cpp`,
+   after `Image::ParseImage` copies the sections) and write the new size (4,096, big-endian
+   u32) at CZ `0x829ED7F4` / CW `0x82A00D34`; first confirm in the generated code that the
+   pool built at renderer +3492 reads that address (CZ `0x827BEF48`, `sub_827BC868`) and
+   that its arrays are allocated from the count (not a fixed array), and find CW's same
+   site. Off switch, a line in the log, docs in each repo. Check: `pgrep` first; a headless
+   load (`~/.cache/dr2kit-p12-handoff/scripts/hl_run.py`) with the Laser Sword mod
+   (`dr2 mod import-item <mod> LaserLightSword --from cw -g cz`, placed at
+   `-278.5,3.39,-36.5` as `tools/weapon_gate.py` does) must reach the street with no
+   fault; then `dr2 play -g cz --deploy-only` to restore the user's deployment.
+2. **U1 with the user**: deploy, launch Case Zero windowed, they pick up and swing the
+   Laser Sword (model and shaders drawn right? moves? sounds? card?). Then the same into
+   Case West (a Case Zero item).
+3. Effects the target lacks: bring them into the effect table's free slots (phase 13's
+   own effects, `mods/neweffect.py`) instead of leaving them off.
+4. Zombie types (step 4, U2): Case West's into Case Zero's empty slots; Case West's type
+   table grown to 32 and its level table grown (recomp change 3, approved).
+5. Phase 14's T5 with the user, then maps (step 5, U4/U5), bosses (U6), guides.
+
+Done before the restart: requirements, the cross-game table, shader bank files, brought
+shaders, the item importer (§Status). The old start notes follow.
 
 ## Start here (when phase 15 starts)
 

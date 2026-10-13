@@ -100,8 +100,9 @@ requirements (`mods/requires.py`, `dr2 mod info`), the cross-game table
 game's own shaders brought (user's decision; `convert/shadercarry.py`), the item importer
 (`mods/importitem.py`, `dr2 mod import-item`, Studio *Other game's items…*, guide 23,
 `dr2 census --import`: 0 unresolved). **Blocked** on the engine's shader constant set
-pool (CZ 384, CW 1,340: ~26 / ~3 free; formats.md §Across the games): growing it is a
-recomp change asked of the user, then test U1. Rest (zombies, maps, bosses, effects):
+pool (CZ 384, CW 1,340: ~26 / ~3 free; formats.md §Across the games): growing it in both
+recomps was **approved by the user 2026-10-12** (`ARCHITECTURE.md` §Recomp integration 4),
+not built yet; then test U1. Next conversation: `docs/phase15-kickoff.md` §Start here. Rest (zombies, maps, bosses, effects):
 `docs/phase15-kickoff.md` §Status. Phase 16 (the same from the PC Dead Rising 2 and Off
 the Record) is planned, not started: `docs/phase16-kickoff.md`.** Read these before writing code:
 
@@ -153,7 +154,8 @@ Both recomps sit next to this repo. They are separate repos with their own CLAUD
 files and conventions. Treat them as **read-only references**, except for the
 approved integration changes (a `game_mods/` VFS layer and PCM audio substitution; and,
 approved 2026-10-12 for phase 15, **growing Case West's zombie type table to the
-engine's 32 and its level table**: `docs/ARCHITECTURE.md` §Recomp integration). Make
+engine's 32 and its level table**, and **growing the shader constant set pool in both
+recomps**: `docs/ARCHITECTURE.md` §Recomp integration). Make
 those in each recomp following its own CLAUDE.md, and keep CZ and CW in step.
 
 | | Case Zero | Case West |
