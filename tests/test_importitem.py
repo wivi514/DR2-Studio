@@ -150,3 +150,12 @@ def test_audio_type_keeps_the_targets_bits(both):
     assert props["PropAudioType"] == "1024"
     assert any(r.how == "renumbered" and "audio type 132096 -> 1024" in r.what for r in p.log)
     assert "AttachmentItemName" not in props          # it named a block left out
+
+
+def test_impact_hammer_gets_the_players_grip(both):
+    """Case Zero takes a model's first right-hand locator; Case West's hammer picks its
+    second through a block Case Zero doesn't know, so it was held upside down."""
+    p = importitem.plan(both["cw"], both["cz"], "cw", "cz", "ImpactHammer")
+    rec = p.recipes["data/streamedassets.big/impact_hammer_impact_hammer_right.big.copy.json"]
+    assert rec["scene"] == "impact_hammer_impact_hammer_right"
+    assert rec["locators"]["9"]["rotation"][3] > 0.5       # locator 1, not locator 0

@@ -2002,6 +2002,16 @@ a node record (same position and rotation). **There are two copies:** in the mod
 archive and in its nested `persistent.big`, and **the game reads the `persistent.big`
 copy**: moving only the first one changed nothing in game; moving both did.
 
+**Several locators of one type, and which one holds the item** (phase 15, 2026-10-13):
+Case West's Impact Hammer has three type-9 (right hand) records, their number in the 3rd
+of the five trailing words: 0, 1 (the player's) and 2 (the hazmat suit's), turned
+differently. Case West picks one through the item's `AttachmentItemName` →
+`cPropCharacterAttachmentItem {Locator = 9, LocatorID = 1}`, a class Case Zero's program
+doesn't know; Case Zero then held the hammer by record 0, **upside down** (user, in game).
+The importer copies the chosen record into every record of that type (recipe `scene` +
+`locators`). Case West items picking a record other than 0 this way: `ImpactHammer`,
+`ImpactHammerBFG`, `Shovel`, `WaterBottle_fromcooler` (1), `PoolCueBroken` (3).
+
 `PropEffectLocator<n> = 16` puts an `items.txt` effect at locator type 16. The
 Broadsword's (and the Katana's) is mid-blade, **turned 180° about the blade**, so its +y
 points across the blade: the Flaming Sword's flame (its box 0 → 0.7 m along +y) hung

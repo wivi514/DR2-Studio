@@ -132,7 +132,8 @@ def build_copy(tree: AssetTree, recipe: dict, mod_root: Path, where: str = "") -
                     e.name = e.name[:6] + new + e.name[6 + len(old):]
                     e.hash = None
     sources = Path(mod_root) / SOURCES_DIR
-    scene_name = next((n for n in (recipe.get("rename") or {}).values()), None)
+    scene_name = recipe.get("scene") or next((n for n in (recipe.get("rename") or {}).values()),
+                                             None)
     if scene_name and not any(e.name.lower() == f"{scene_name.lower()}.big"
                               for e in pack.entries):
         comp = f"_comp_{scene_name.lower()}.big"         # a level piece: _COMP_<name>.big

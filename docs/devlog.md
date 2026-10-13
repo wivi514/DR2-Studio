@@ -17,6 +17,16 @@ Entry template:
 
 ---
 
+## 2026-10-13 — Phase 15: the user's U1 again: textured; the hammer's grip
+**Done:** the user played the rebuilt test (no guards): the weapons are textured, gas
+zombies are in the street; "only issue is impact hammer is on the wrong side". The importer
+now gives an item the player's hand locator when the target can't read the block that picks
+it (`importitem._player_grip`, recipe `scene` + `locators`); test; relaunched for the user.
+**Why:** the hammer was held by its default locator, turned the other way.
+**Learned:** formats.md §Weapons (several locators of one type).
+**Docs updated:** formats.md, guide 23.
+**Next:** the user's check of the hammer; the guards' load fault.
+
 ## 2026-10-13 — Phase 15: the combined test crashed: voices, then the guard
 **Done:** `importzombie.voice_banks` (voice banks the target's sound list names but lacks:
 the six gas zombie voices); test. The combined test (both weapons, gas zombies, guards)

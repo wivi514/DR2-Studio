@@ -46,6 +46,7 @@ every setting of the item (its block of `items.txt`) and decides, for each name:
 | Its moves in the game's animation graph | brought when this game lacks them (the Impact Hammer's attacks; the Laser Sword's are already in Case Zero) |
 | Its sound kind (`PropAudioType`) | only the kinds this game's program knows are kept (Case West's Impact Hammer has one Case Zero doesn't, which crashed the load) |
 | Parts this game's program doesn't know (Case West's `cExternalLocatorItem`, `cTurretInfoItem`…) | left out, listed: Case Zero's program couldn't build them; a setting naming a part left out is left out too |
+| How it is held | a Case West item that picks one of several hand points through a part Case Zero doesn't know (the Impact Hammer, its BFG, the Shovel, a water bottle, the broken pool cue) gets that hand point made the first one, the one Case Zero uses: otherwise the hammer was held upside down |
 | The model's insides | made the way this game's program reads them: a Case West model gets the node list Case Zero needs (without it Case Zero hangs while loading) |
 | A model this game has under the same name (`clothesbox`, `bowieknife`) | this game's own copy is used: it is the same object |
 

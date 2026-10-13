@@ -440,7 +440,49 @@ def _pack(a: _Game, b: _Game, p: Plan, item: str) -> None:
                                 f"{len(c.ps)} pixel shaders)"))
     else:
         p.log.append(Resolution(where, "brought", f"pack {pack}"))
+    grip = _player_grip(a, b, item, data, pack)
+    if grip:
+        kind, lid, rec = grip
+        recipe["scene"] = pack
+        recipe["locators"] = {str(kind): rec}
+        p.log.append(Resolution(f"{item}: grip", "brought",
+                                f"the player's hand locator (type {kind}, number {lid}) made "
+                                f"the model's first one: {b.game.upper()}'s program doesn't know "
+                                f"the attachment block that picks it"))
     p.recipes[path] = recipe
+
+
+def _player_grip(a: _Game, b: _Game, item: str, data: bytes, pack: str):
+    """``(type, number, {"position", "rotation"})`` when the item holds onto the player
+    through a ``cPropCharacterAttachmentItem`` (``AttachmentItemName``, ``Locator``,
+    ``LocatorID``) the target's program doesn't know: the target then takes the model's
+    *first* locator of that type. Case West's Impact Hammer has three right-hand locators
+    (0 default, 1 the player's, 2 the hazmat suit's) turned differently; in Case Zero it
+    was held upside down (user, 2026-10-13). None when nothing needs moving."""
+    import struct
+    from ..container.big import BigArchive
+    blk = a.models.blocks.get(item.lower())
+    att = (blk.get("AttachmentItemName") or "").lower() if blk else ""
+    child = next((c for c in blk.children if c.name and c.name.lower() == att), None) if att else None
+    if child is None or child.cls not in crossgame.unknown_classes(b.game):
+        return None
+    kind, lid = int(child.get("Locator") or -1), int(child.get("LocatorID") or 0)
+    if kind < 0 or lid == 0:
+        return None
+    arc = BigArchive.parse(data, pack)
+    scene = next((e for e in arc.entries if e.name.lower() == f"{pack.lower()}.big"), None)
+    if scene is None:
+        return None
+    by = {e.name: e for e in BigArchive.parse(scene.data(), pack).entries}
+    if "LocatorArray" not in by or "NumLocatorArray" not in by:
+        return None
+    raw = by["LocatorArray"].data()
+    for i in range(struct.unpack(">I", by["NumLocatorArray"].data()[:4])[0]):
+        r = struct.unpack_from(">I3f4f5I", raw, i * 52)
+        if r[0] == kind and r[10] == lid:
+            return kind, lid, {"position": [round(x, 6) for x in r[1:4]],
+                               "rotation": [round(x, 6) for x in r[4:8]]}
+    return None
 
 
 def write(p: Plan, mod_dir: str | Path, dst_tree: AssetTree, base_dirs=()) -> list[Path]:
