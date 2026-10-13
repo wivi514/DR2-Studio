@@ -9,6 +9,7 @@ import pytest
 from dr2kit.container.vpath import AssetTree
 from dr2kit.convert import shadercarry
 from dr2kit.formats import shaderbank as sb
+from dr2kit.formats import xenos
 from dr2kit.mods import importitem
 from dr2kit.mods.build import plan_mods
 from dr2kit.mods.manifest import Mod, create
@@ -56,6 +57,27 @@ def test_brought_description_and_parameters(both):
     reg = sb.registry(both["cz"], "pd")
     for prm in pdo.params:                        # the target's numbers, or a free one
         assert prm.number == reg.get(prm.name, prm.number)
+    # the program itself reads each parameter at the register its .pdo now names
+    po = shadercarry.build_entry(both["cw"], both["cz"], {
+        "kind": "ps", "old": f"{old_pd:08x}", "new": f"{c.ps[old_pd]:08x}"})
+    numbers = {prm.name: prm.number for prm in pdo.params}
+    for k in xenos.constants(po):
+        if k.set == "float4":
+            assert k.register == numbers[k.name]
+
+
+def test_brought_pixel_shaders_read_the_targets_registers(both):
+    """Case West's gShaderDebugParameters is c21, Case Zero's c20 (c21 is its point
+    light): a brought program read the light and drew flat white (U1, 2026-10-13)."""
+    src = both["cw"]
+    numbers = shadercarry.number_map(str(src.root), str(both["cz"].root))
+    assert numbers["gShaderDebugParameters"] == 20 and numbers["gFogParameters"] == 18
+    taken = set(sb.registry(both["cz"], "pd").values())
+    assert numbers["gGlowScale"] not in taken      # Case West's own: a free register
+    raw = shadercarry.banks(src).get("ps", 0xF7279B20)   # LIT_CM2DDL_NM_RMX_SPEC, pass 0
+    out = shadercarry.move_registers(raw, numbers)
+    regs = {k.name: k.register for k in xenos.constants(out) if k.set == "float4"}
+    assert regs["gShaderDebugParameters"] == 20 and len(out) == len(raw)
 
 
 def test_import_writes_a_mod_that_plans(both, tmp_path):

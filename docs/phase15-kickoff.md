@@ -351,6 +351,13 @@ the modder doesn't have to know. XenonLive's launcher has no mod support yet
   zombies' animation bank brought; Case West's guards need graph *states* merged (warned,
   not done). **Open: brought shaders draw without textures** (formats.md §Zombie types /
   U1 notes; a recomp draw capture is next). Then U1/U2 again with the user.
+* **Untextured brought shaders: cause found and fixed 2026-10-13** (no capture needed):
+  a parameter's number is its constant register and the games' pixel registers differ
+  (41 names), so a Case West program read Case Zero's point light as its
+  `gShaderDebugParameters` and drew its flat debug output. Brought pixel shaders now have
+  their constant operands moved to the target's registers (`formats/xenos.py`,
+  `shadercarry.move_registers`; all 1,337 / 1,279 pixel shaders move both ways; formats.md
+  §Across the games: constant registers). Owed: U1 again in a window.
 * **Case Zero → Case West zombies: blocked on recomp change 3, which is bigger than
   planned** (formats.md §Zombie types: Case West's type data sits in arrays inline in a
   manager object, so growing it means re-laying out that object). **User's decision
@@ -362,7 +369,7 @@ the modder doesn't have to know. XenonLive's launcher has no mod support yet
 | Step | State |
 |---|---|
 | 1 both games at once, 2 cross-game table | **done** |
-| 3 import an item | **built**: brought shaders, effects into free slots, moves into the animation graph, `PropAudioType` bits, `_BONEHIERARCHY_`; loads headless both ways. **Open: brought shaders draw untextured** (user's U1) |
+| 3 import an item | **built**: brought shaders (constant registers moved, 2026-10-13), effects into free slots, moves into the animation graph, `PropAudioType` bits, `_BONEHIERARCHY_`; loads headless both ways. Untextured brought shaders **fixed** (registers), U1 again owed |
 | Recomp change 4: shader pools (CZ, CW) | **done** (three pools, 4,096 each) |
 | U1 items in game (Laser Sword, Impact Hammer) | played once by the user: untextured, hammer attacks broken (moves now carried); **again after the texture fix** |
 | U3 shaders in game | same as the texture fix |

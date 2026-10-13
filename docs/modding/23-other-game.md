@@ -36,7 +36,7 @@ every setting of the item (its block of `items.txt`) and decides, for each name:
 
 | What | What happens |
 |---|---|
-| The model | copied from the other game, drawn with **that game's own shaders**, which are copied into this game's shader banks under new names (the two games compiled their shaders differently) |
+| The model | copied from the other game, drawn with **that game's own shaders**, which are copied into this game's shader banks under new names (the two games compiled their shaders differently). Each brought shader is changed to read its settings (fog, lights…) where **this** game's engine puts them: the two games keep them in different places, and without the change a Case West weapon drew flat white in Case Zero |
 | Its moves (`AnimBankName`) | the other game's move bank is copied when this game lacks it |
 | Its sounds (`AudioFilename`) | the other game's sound bank is copied when this game lacks it |
 | Its name and texts | new text numbers in your mod; the words are read from the other game's text when the mod is built, in every language |
@@ -88,6 +88,7 @@ out` builds without errors. In game, the item lies where you placed it.
 | `… needs Case West's game data on this computer` | The other game's folder isn't set | **Game folders…** in Studio, or `dr2 games set cw <folder>` |
 | `Case Zero already has an item named X` | Both games have it | Use this game's own (place it from the Maps tab) |
 | The window says *This window needs both games' data* | Same as the first row | Same fix |
+| A brought item or zombie is flat white, without its textures | An older toolkit built it (before 2026-10-13 brought shaders read their settings from the wrong places) | Build again (**Play**, or `dr2 play`) with this toolkit |
 | An effect is missing on the weapon | The report says *… no free effect slot is left* | Your mod's effects (yours and brought ones) used all 36 free numbers: take some out (**Effects…**, guide 21) or split the mod |
 | The game hangs on the loading screen, or stops with a fault, after you placed a Case West item | An older toolkit built it (the model lacked a part Case Zero needs, written since 2026-10-13), or an item kind Case Zero can't use | Build again with this toolkit; if it still happens, take the item out and tell us which one |
 

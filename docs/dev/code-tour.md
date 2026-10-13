@@ -789,6 +789,12 @@ pictures are drawn: bump `index.build.THUMB_VERSION`, and the next build redraws
   `.vdo`: `Param`s with their per-game numbers and sliders), `StringTable`
   (`strings.bin`, `add`), `registry(tree)` (name → number), `census` (every file of a
   game, byte for byte; `census.check_shaders`).
+- `formats/xenos.py` (phase 15): 360 shader programs (`.vo` / `.po`): `constants(d)`
+  (the D3DX constant table: name, register set, register, count), `literals(d)` (the
+  definition table's own registers), `alu_instructions(d)` (from the control-flow exec
+  blocks), `constant_operands`, and `remap_constants(d, moves)` (every constant operand
+  and table entry moved; reports registers nothing names). Why: the games' pixel
+  registers differ (formats.md §Across the games: constant registers).
 - `convert/crossgame.py` (phase 15): `table()` reads `profiles/crossgame.toml` (written
   and checked by `tools/crossgame_table.py`: each program's zombie type and level tables
   found by their pointer arrays and the code that builds their address, the script
@@ -806,7 +812,8 @@ pictures are drawn: bump `index.build.THUMB_VERSION`, and the next build redraws
   both games; a program is shared only when it and its `.vdo`/`.pdo` are byte-identical),
   `recipes(carry, dst_tree)` (the `add/data/shaders/<bank>/<new>.<ext>.copy.json` files),
   `build_entry` (a brought entry at build time: a description's hash and programs
-  renamed, a `.pdo`'s parameter numbers from `number_map`, a `.vdo`'s hash),
+  renamed, a `.pdo`'s parameter numbers from `number_map`, a `.vdo`'s hash, a pixel
+  shader's constant operands moved to the target's registers by `move_registers`),
   `convert_pack` (`UsedShaders.txt`, `0x3C`/`0x3F` commands, value sets' pixel shader).
 - `mods/importitem.py` (phase 15): an item of the other game. `plan(src_tree, dst_tree,
   src, dst, item)` → `Plan`: every key of the block and its children resolved

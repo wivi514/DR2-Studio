@@ -19,7 +19,12 @@ banks:
   entry when the mod is built, its own hash and the hashes it names renamed, and a
   ``.pdo``'s parameter numbers turned into the target's (`number_map`: a name the target
   has keeps the target's number; a name it lacks gets a number no shader of the target
-  uses ❓ in game: U3).
+  uses ❓ in game: U3). **The number is the constant register** the program reads the
+  parameter from, and the games' registers differ (Case West's ``gShaderDebugParameters``
+  is c21, Case Zero's c20: a brought program read Case Zero's point light there and drew
+  flat white, U1 2026-10-13), so a brought pixel shader's constant operands are moved to
+  the same numbers (`move_registers`, `formats.xenos`; formats.md §"Across the games:
+  constant registers"). Vertex shaders' registers are the same in both games.
 * `convert_pack` rewrites the model itself: ``UsedShaders.txt``, the draws' ``0x3C`` /
   ``0x3F`` shader commands, and each value set's pixel shader.
 
@@ -40,9 +45,11 @@ from ..container.big import BigArchive, is_big
 from ..container.vpath import AssetTree
 from ..errors import Dr2Error
 from ..formats import shaderbank as sb
+from ..formats import xenos
 from ..formats.scene import Command, parse_command_buffer
 
 USED = "usedshaders.txt"
+LITERAL_FLOOR = 248          # the lowest literal register a game's pixel shader defines
 EXT = {"sd": "sdo", "vs": "vo", "vd": "vdo", "ps": "po", "pd": "pdo"}
 
 
@@ -155,19 +162,65 @@ def plan(src_tree: AssetTree, dst_tree: AssetTree, src: str, dst: str,
     return c
 
 
+def _pixel_extents(tree: AssetTree) -> dict[str, tuple[int, int]]:
+    """Pixel parameter name -> (register, the most registers any program reads of it),
+    from every pixel shader's constant table (the register is the ``.pdo`` number: the
+    same in every program and ``.pdo`` of a game, census in formats.md)."""
+    out: dict[str, tuple[int, int]] = {}
+    for name, e in banks(tree).data["ps"].items():
+        if not name.endswith(".po"):
+            continue
+        for c in xenos.constants(e.data(), name):
+            if c.set == "float4":
+                reg, n = out.get(c.name, (c.register, 0))
+                out[c.name] = (reg, max(n, c.count))
+    return out
+
+
 @lru_cache(maxsize=4)
 def number_map(src_root: str, dst_root: str) -> dict[str, int]:
-    """Pixel parameter name -> the number it gets in the target (module docstring)."""
+    """Pixel parameter name -> its register (= ``.pdo`` number) in the target.
+
+    A name the target has keeps the target's register: the target's engine writes it
+    there. A name only the source has (Case West's ``gGlowScale``, ``gPowerOffParameter``
+    …) gets registers no program of the target reads, in the gaps below the target's
+    highest one first (so the number stays inside the range the target's engine knows),
+    then above it, never into the literal registers (248 and up)."""
     from pathlib import Path
-    src, dst = AssetTree(Path(src_root)), AssetTree(Path(dst_root))
-    theirs = sb.registry(dst, "pd")
-    used = set(theirs.values()) | set(sb.registry(dst, "vd").values())
-    out = dict(theirs)
-    mine = sb.registry(src, "pd")
-    free = (n for n in range(1, 4096) if n not in used)
-    for name, _ in sorted(mine.items(), key=lambda kv: kv[1]):
-        if name not in out:
-            out[name] = next(free)
+    src = _pixel_extents(AssetTree(Path(src_root)))
+    dst = _pixel_extents(AssetTree(Path(dst_root)))
+    taken = {r + k for r, n in dst.values() for k in range(n)}
+    out = {name: reg for name, (reg, _) in dst.items()}
+    for name, (_, n) in sorted(src.items(), key=lambda kv: kv[1][0]):
+        if name in out:
+            continue
+        reg = next((r for r in range(1, LITERAL_FLOOR - n + 1)
+                    if all(r + k not in taken for k in range(n))), None)
+        if reg is None:
+            raise Dr2Error(f"no free pixel shader registers left for {name}")
+        out[name] = reg
+        taken |= {reg + k for k in range(n)}
+    return out
+
+
+def move_registers(raw: bytes, numbers: dict[str, int], where: str = "") -> bytes:
+    """A brought pixel shader reading each parameter at the target's register
+    (`number_map`; formats/xenos.py says why). Raises `Dr2Error` when a parameter has no
+    register in the map or would land on one of the program's own literals."""
+    moves = {}
+    for c in xenos.constants(raw, where):
+        if c.set != "float4":
+            continue
+        if c.name not in numbers:
+            raise Dr2Error(f"{where}: pixel parameter {c.name} has no register in the target")
+        for k in range(c.count):
+            moves[c.register + k] = numbers[c.name] + k
+    clash = set(moves.values()) & set(xenos.literals(raw))
+    if clash:
+        raise Dr2Error(f"{where}: registers {sorted(clash)} are the program's own literals")
+    out, unknown = xenos.remap_constants(raw, moves, where)
+    if unknown:
+        raise Dr2Error(f"{where}: reads constant registers {unknown} no parameter names")
     return out
 
 
@@ -200,7 +253,9 @@ def build_entry(src_tree: AssetTree, dst_tree: AssetTree, spec: dict, where: str
         pf = sb.ParamFile.parse_vdo(raw, old, where)
         pf.hash = new
         return pf.to_bytes()
-    return raw                                     # a program: the same bytes, a new name
+    if kind == "ps":                               # read at the target's registers
+        return move_registers(raw, number_map(str(src_tree.root), str(dst_tree.root)), where)
+    return raw                                     # a vertex shader: the same bytes
 
 
 def recipes(c: Carry, dst_tree: AssetTree) -> dict[str, dict]:

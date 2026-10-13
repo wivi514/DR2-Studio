@@ -17,6 +17,24 @@ Entry template:
 
 ---
 
+## 2026-10-13 — Phase 15: why brought shaders drew white (constant registers)
+**Done:** `dr2kit/formats/xenos.py` reads a 360 shader's constant table and microcode and
+moves its constant operands; `shadercarry.move_registers` makes every brought pixel shader
+read the target's registers, `number_map` now comes from the programs' own tables (with
+room for multi-register parameters). Tests (`tests/test_xenos.py`, game-data checks in
+`test_importitem.py`). A test mod for the user (Laser Sword, Impact Hammer at the safehouse
+exit; the street's crowds retyped to gas zombies and Case West guards, `zombie_fat` taken out
+of the load set to stay in budget), launched in a window.
+**Why:** the user's U1: brought weapons untextured.
+**Learned:** a shader parameter's `.pdo` number is its constant register; Case West inserted
+`gPowerOffParameter` at c17 and shifted 41 names, so its programs read Case Zero's point light
+as `gShaderDebugParameters` and took the debug branch. Vertex registers and texture slots are
+the same in both games. 0 unnamed constant reads over 2,907 programs. Case West's descriptions
+also have more passes (an extra `0x210` one) ❓.
+**Docs updated:** formats.md (§Across the games: constant registers, U1 notes), code-tour,
+glossary (constant register), guide 23, phase15-kickoff.
+**Next:** U1/U2 again with the user on the rebuilt mod; the guards' graph states; maps.
+
 ## 2026-10-13 — Growing Case West's zombie table deferred: `docs/TODO.md`
 **Done:** a new `docs/TODO.md` (open work for contributors, linked from docs/README.md,
 CONTRIBUTING.md, CLAUDE.md); item 1 holds everything found about growing Case West's

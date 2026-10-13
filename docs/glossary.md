@@ -621,6 +621,12 @@ game's graph, so the importer copies the missing entries (`dr2kit/convert/graphc
 zombie types (Case Zero 32, of which 20 have no model: **empty slots**; Case West 10, all
 used). A zombie type from the other game takes an empty slot's name.
 
+<a id="constant-register"></a>**Constant register.** One of the numbered slots (c0, c1…)
+a shader program reads its settings from (fog, lights, a material's colours). The engine
+writes each setting into its slot before drawing; the two games number them differently,
+so a shader brought from the other game is changed to read this game's slots
+(`dr2kit/formats/xenos.py`).
+
 <a id="shader-pool"></a>**Shader pool.** A fixed-size table the game's renderer fills as it
 loads shaders (one entry per pixel shader, per shader description…). Shaders brought from
 the other game need room in them; both recomps make them bigger (4,096 entries).

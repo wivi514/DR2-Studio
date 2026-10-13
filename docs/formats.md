@@ -1820,6 +1820,44 @@ drew. Grown to 4,096 with the other two in both recomps. A pool sized 192
 (CZ `0x829ED7F0`, CW `0x82A00D30`; renderer CZ `+3488`) sits beside them; its size is
 close to the vertex shader counts (143 / 146) ❓ not measured, not grown.
 
+### Across the games: constant registers ✅ read and moved (phase 15, 2026-10-13)
+
+**A shader parameter's number is its constant register.** In every pixel shader of a
+game, a parameter's register in the program's constant table (the D3DX table inside the
+`.po` container) is its `.pdo` number (census: 1,280 CZ and 1,338 CW pixel shaders, every
+name one register, the same as the `.pdo` registry). Each engine writes its parameters at
+its own numbers, and the programs were compiled against them. The games differ on **41
+of the 95 pixel parameter names they share**: Case West inserted `gPowerOffParameter` at
+c17, so its `gBumpLightParameters` (18), `gFogParameters` (19), `gShaderDebugParameters`
+(21), `gPointLight0Parameters` (22), `gKeyLightParameters` (24),
+`gCascadedShadowLightMatrices` (29), … are one higher than Case Zero's (17, 18, 20, 21,
+23, 28); the shift grows further up (Case West's `gBodyPart1Colour` 191, Case Zero's
+184). **Vertex shaders agree** (53 names, the same registers), **texture slots agree**
+(samplers are per program, the same in both games' programs of a description), and no
+program of either game uses bool or integer constants.
+
+So a program brought from the other game must read the target's registers:
+`dr2kit/formats/xenos.py` walks the microcode (the control-flow exec blocks and their
+sequence bits, as the hardware and XenosRecomp do), finds each ALU instruction's constant
+operands (a source whose select bit is 0; `src3` of the scalar `mulsc`/`addsc`/`subsc`
+ops always) and renumbers them; the constant table's entries move with them, so the
+recomps' translator names them right. Every constant register any program reads is named
+by its table or is one of its own literals (c248-c255): **0 unnamed** over all 2,907
+programs of both games. Names only the source game has (Case West's `gPowerOffParameter`,
+`gGlowScale`, `gGlowSpeed`, `gGlowWaveLengthScale`, `gMultiplierGlowSI`,
+`gSpecularScale`, `gReflectionScale`, `gCharRimLightIntensity`, `gCamHUDFXParameters`,
+`gCameraTexParameters`) get registers no program of the target reads, in the gaps below
+the target's highest (Case Zero: 43, 51-59), and the brought `.pdo` names the same
+numbers (`shadercarry.number_map`). All 1,337 Case West pixel shaders move into Case
+Zero's registers, and all 1,279 Case Zero ones into Case West's, without a clash. ❓ how
+the engine fills a register only the brought shaders read (the value set's value at the
+`.pdo` number, or nothing): U1/U3.
+
+The descriptions differ too ❓: Case West's `LIT_CM2DDL_NM_RMX_SPEC` has 30 passes, Case
+Zero's 28 (Case West adds a pass with flags `0x210` after `0x200`, and one more shadow
+pass); whether the engine picks a pass by its flags or by its place is not known (the
+brought description keeps Case West's passes).
+
 **Scenes: `_BONEHIERARCHY_` is Case Zero's, and its program needs it** (2026-10-12).
 Every streamed item scene of Case Zero has the chunk (192 of 192; 1,485 scenes in all) and
 **no scene of Case West does** (0 of 237 item scenes, 0 anywhere): Case West's program
@@ -2046,14 +2084,16 @@ to Case West's types stayed **empty** (only scattered native zombies). Found sin
   program asks for it and **its graph names all 69 of its moves** (Case Zero is ready for
   gas zombies). The guards' moves are not: of Case West's 154 extra `mercs.big` moves,
   Case Zero's graph names 2 (a merge of graph *states*, not done).
-* **Brought shaders draw without textures** (open ❓): the same Impact Hammer pack drawn
-  with Case Zero's own same-named descriptions shows its yellow and black textures; with
-  the brought Case West descriptions and programs it is flat white, also with the
-  recomp's shader JIT off (and no "no translated shader" report), so the brought programs
-  are probably not what the draw binds. Not the cause: the textures' byte 9 (CZ `0x23`,
-  CW `0x24`, now set to the target's anyway, profile `texture_version`), their names and
-  hashes, the sampler names (the same in both games' programs), the materials' slots.
-  Next: a draw capture in the recomp.
+* **Brought shaders drew without textures: found 2026-10-13, the constant registers**
+  (§Across the games: constant registers). The same Impact Hammer pack drawn with Case
+  Zero's own same-named descriptions showed its yellow and black textures; with the
+  brought Case West descriptions and programs it was flat white. Not the textures (byte 9,
+  names, hashes), not the samplers (the same slots in both games' programs). Reading the
+  programs (XenosRecomp) showed why: a Case West pixel shader reads
+  `gShaderDebugParameters` at register c21, which Case Zero's engine fills with
+  `gPointLight0Parameters`; with `.x > 0` the program takes its debug branch and outputs
+  flat lighting. Brought pixel shaders now read Case Zero's registers
+  (`formats/xenos.py`, `shadercarry.move_registers`). ❓ in game: U1 again.
 
 **`PropAudioType` is a bit set each program reads up to its own bits** (2026-10-13): Case
 Zero's items use bits 0-11 (`0xF77`), Case West's add bits 13 and 17 (`0x22F72`). Case
