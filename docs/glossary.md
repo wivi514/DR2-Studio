@@ -621,6 +621,10 @@ game's graph, so the importer copies the missing entries (`dr2kit/convert/graphc
 zombie types (Case Zero 32, of which 20 have no model: **empty slots**; Case West 10, all
 used). A zombie type from the other game takes an empty slot's name.
 
+<a id="armed-enemy"></a>**Armed enemy.** A zombie type that shoots (its behaviour has
+`Range_Shoot`): Case Zero's soldiers, Case West's security guards. The game gives them their
+gun itself, and they must be spawned one at a time, never in a crowd.
+
 <a id="constant-register"></a>**Constant register.** One of the numbered slots (c0, c1…)
 a shader program reads its settings from (fog, lights, a material's colours). The engine
 writes each setting into its slot before drawing; the two games number them differently,

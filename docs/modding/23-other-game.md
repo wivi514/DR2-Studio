@@ -89,6 +89,8 @@ out` builds without errors. In game, the item lies where you placed it.
 | `… needs Case West's game data on this computer` | The other game's folder isn't set | **Game folders…** in Studio, or `dr2 games set cw <folder>` |
 | `Case Zero already has an item named X` | Both games have it | Use this game's own (place it from the Maps tab) |
 | The window says *This window needs both games' data* | Same as the first row | Same fix |
+| The game crashes as soon as guards appear | They are in a crowd (`cMissionZombieFactory`) | Retype single zombies instead (`dr2 mod check` warns) |
+| Guards stand, aim once and fall over | An older toolkit gave them Case West's behaviour | Import them again with this toolkit |
 | A brought item or zombie is flat white, without its textures | An older toolkit built it (before 2026-10-13 brought shaders read their settings from the wrong places) | Build again (**Play**, or `dr2 play`) with this toolkit |
 | An effect is missing on the weapon | The report says *… no free effect slot is left* | Your mod's effects (yours and brought ones) used all 36 free numbers: take some out (**Effects…**, guide 21) or split the mod |
 | The game hangs on the loading screen, or stops with a fault, after you placed a Case West item | An older toolkit built it (the model lacked a part Case Zero needs, written since 2026-10-13), or an item kind Case Zero can't use | Build again with this toolkit; if it still happens, take the item out and tell us which one |
@@ -107,21 +109,29 @@ name such as `zombie_bride`. Then, as for an item, the importer brings:
 |---|---|
 | The model and its detail levels | copied from Case West under the slot's name, drawn with Case West's own shaders |
 | Its settings (health, damage, how it fights) | Case Zero's settings for that slot get Case West's |
-| Its behaviours (`EnemyRanged` for the guards…) | Case Zero's own when it has one of that name, else brought |
+| Its behaviours | Case Zero's own when it has one of that name, else brought |
+| **An armed guard** (`security_light`, `security_light_hat`) | goes into one of Case Zero's **mercenary** slots and fights with **Case Zero's soldier behaviour** (`ArmyMerc`): with Case West's own (`EnemyRanged`) a guard aimed once, then fell over like a zombie, because Case Zero's animations lack its moves. Its **rifle** comes too (Case West's `SecurityAssaultRifle`, also under the name `MercAssaultRifle`, the gun Case Zero's program gives its mercenaries): it shoots, and a dead guard drops it for you to pick up |
 | Its moves and voices | the animation and voice banks Case Zero's own files already name but don't ship (the gas zombies' `gaszombies.big` and their six voices) are copied: without the voices the street's load crashed |
 | A level's zombie memory (the *load set*) | it is added to the levels you name, with its memory cost. If a level then needs more than any of Case Zero's own levels, you get a **warning**: spawn fewer types there |
 
 Then spawn it with the slot's name: **Maps** tab → a crowd's type or a zombie's type
-([guide 19](19-edit-a-level.md)).
+([guide 19](19-edit-a-level.md)). **Armed guards one at a time only:** retype single
+zombies (the Maps tab, or a mission's `cMissionSpawnZombie`), never a crowd: a crowd that
+spawned guards crashed the game as soon as they appeared, and `dr2 mod check` warns about
+it. Changing a single zombie's type is safe for saves (adding new spawns to the game's own
+missions is not, [guide 19](19-edit-a-level.md)).
 
 ```
 dr2 mod import-zombie my_mod zombie_gas --from cw -g cz --level prologue
-dr2 mod import-zombie my_mod security_light --from cw -g cz --level prologue --slot zombie_dealer
+dr2 mod import-zombie my_mod security_light --from cw -g cz --level prologue
+dr2 level edit my_mod missions set "cMissionDefinition PrologueZombies/cMissionLevelReady PrologueZombieReady/cMissionSpawnZombie SherriffDept1" ZombieType=mercenary -g cz
 ```
 
-> **Seen loading (headless, 2026-10-13)**: the gas zombie and the security guards with every
-> crowd of Case Zero's street changed to them. **Not yet seen walking and fighting** (test
-> U2). **Case Zero's zombies in Case West** need Case West's
+> **Played in Case Zero (2026-10-13)**: gas zombies in every street crowd, and security
+> guards in single spawns near the Sheriff's office: they carry their rifles, fight, and
+> drop the rifle when they die. Too much at once runs out of memory: the guards, the gas
+> zombies and two other brought weapons in the street together stopped the load ("Failed to
+> allocate memory"); any two of them load. **Case Zero's zombies in Case West** need Case West's
 > program to have room for more than its own 10 types: that is a change to the Case West
 > recomp, not done yet (open for contributors: [`docs/TODO.md`](../TODO.md) #1), so the
 > command says so and stops.

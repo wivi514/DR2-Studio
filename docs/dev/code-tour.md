@@ -789,6 +789,8 @@ pictures are drawn: bump `index.build.THUMB_VERSION`, and the next build redraws
   `.vdo`: `Param`s with their per-game numbers and sliders), `StringTable`
   (`strings.bin`, `add`), `registry(tree)` (name → number), `census` (every file of a
   game, byte for byte; `census.check_shaders`).
+- `convert/levelcheck.py` also warns when a crowd spawns an armed type
+  (`GameFacts.armed_types`, phase 15).
 - `formats/xenos.py` (phase 15): 360 shader programs (`.vo` / `.po`): `constants(d)`
   (the D3DX constant table: name, register set, register, count), `literals(d)` (the
   definition table's own registers), `alu_instructions(d)` (from the control-flow exec
@@ -842,7 +844,9 @@ pictures are drawn: bump `index.build.THUMB_VERSION`, and the next build redraws
   then one the source game doesn't name), the model recipe (renamed to the slot, its
   shaders `shadercarry`), the `cZombieClassItem` keys, the `cZombieBehaviourItem` blocks
   the target lacks, `anim_banks` and `voice_banks` (move and voice banks the target names
-  but lacks), the load sets with `costs` and the `budget` warning; `write` (also
+  but lacks, by the type's name words), armed enemies (`_is_armed`: profile
+  `armed_enemies` slot and behaviour, `_bring_gun`: the gun imported and copied under the
+  target's weapon name), the load sets with `costs` and the `budget` warning; `write` (also
   mirrors `zombiesets.txt`'s edits into `persistent_filecache.big`'s copy), `import_zombie`,
   `mod_slots`, `census`. CLI `dr2 mod import-zombie`. The build's level check counts the
   zombie models mods add (`build.plan_mods`: `facts.zombie_types`).

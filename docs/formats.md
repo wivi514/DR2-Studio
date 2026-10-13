@@ -1722,6 +1722,23 @@ zombie (each in an empty slot, its load-set entry added) load into gameplay; tog
 (gas + `security_light`) too. Whether they show, walk, fight and gas: the user's test U2
 (the night street near the safehouse shows no zombie in view even unmodded).
 
+**Armed enemies (measured in game, 2026-10-13):** a soldier's gun is not data: Case
+Zero's program gives it (`sub_82233EE0`: type 24 `mercenary_army` → `MercArmyM16`, other
+mercenary types → `MercAssaultRifle`, an item Case Zero lacks); Case West's names only
+`SecurityAssaultRifle`. Case West's `security_light` in `zombie_bride` with its own
+`EnemyRanged` spawned without a gun, aimed once and fell like a zombie (its moves are not
+in Case Zero's graph). In the `mercenary` slot with Case Zero's `ArmyMerc` it **faulted
+the game when a crowd spawned it** (guest `0xC` in `sub_823FBB18`: the soldier AI reads a
+position from `*(*(controller + 20) + 1188)`, null for a crowd's zombie); spawned by
+single `cMissionSpawnZombie` blocks (as both games spawn their soldiers) it **carried a
+gun, fought, and**, with `MercAssaultRifle` a copy of Case West's `SecurityAssaultRifle`
+(`IsWeapon = true`; Case Zero's `MercArmyM16` is `false`), **dropped it**. Armed = a
+behaviour with `Range_Shoot` (not `NPC`: every behaviour has it). Profile
+`armed_enemies`; `importzombie` does all of this, `levelcheck` warns about armed types in
+crowds. **Memory**: the guard + gas zombies + Laser Sword + Impact Hammer together faulted
+the street's load in the renderer's surface allocation ("Failed to allocate memory!",
+guest `0x1C` in `sub_8277E778`, a `SURF` allocation); any two of them loaded ❓ which pool.
+
 **Shaders across the games** (same research): a model's shader descriptions
 (`-sd.big`) are shared by name between the games (CZ 223, CW 231, 222 in common), the
 shader programs they list are compiled differently in each; the descriptions models use

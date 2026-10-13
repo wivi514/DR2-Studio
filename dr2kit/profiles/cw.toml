@@ -60,6 +60,10 @@ digest_checked = [
 preload_evict = { "data/models/effects.big" = "effects.big", "data/models/effects.tex" = "effects.tex", "data/shaders/deadrisingepilogue-sd.big" = "deadrisingepilogue-sd.big", "data/shaders/deadrisingepilogue-vs.big" = "deadrisingepilogue-vs.big", "data/shaders/deadrisingepilogue-vd.big" = "deadrisingepilogue-vd.big", "data/shaders/deadrisingepilogue-ps.big" = "deadrisingepilogue-ps.big", "data/shaders/deadrisingepilogue-pd.big" = "deadrisingepilogue-pd.big", "data/shaders/deadrisingepilogue-sc.big" = "deadrisingepilogue-sc.big", "data/shaders/deadrisingepilogue-ss.big" = "deadrisingepilogue-ss.big" , "data/datafile/persistent_filecache.big" = "persistent_filecache.big" }
 
 
+# Armed enemies (phase 15): the gun Case West's guards carry (the one gun name of the
+# program's built-in item names, 0x82001AD0; which guard type gets which ❓).
+armed_enemies = { gun = "SecurityAssaultRifle" }
+
 # The in-game map's other floors (phase 10): see cz.toml. map_2f fitted to the blueprint
 # (its octagon and outer walls), map_b1 to the tunnel pieces of storage_pens_z09.
 [[map_floors]]

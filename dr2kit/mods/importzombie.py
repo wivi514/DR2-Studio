@@ -52,6 +52,7 @@ from ..formats.levelscript import Document
 from .importitem import Resolution
 from .manifest import ADD_DIR, REPLACE_DIR
 from .newitem import COPY_EXT, COPY_FORMAT
+from ..profiles import load_profile
 
 ZOMBIES = "data/models/zombies.big"
 ITEMS = "data/datafile.big/items.txt"
@@ -74,6 +75,9 @@ class ZombiePlan:
     cost: int = 0
     log: list[Resolution] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    armed: bool = False              # an armed enemy (a behaviour that shoots)
+    gun: tuple[str, str] | None = None   # (the source game's gun, the item name the
+                                         #  target's program gives this slot)
 
     def report(self) -> str:
         names = {"cz": "Case Zero", "cw": "Case West"}
@@ -150,6 +154,11 @@ def plan(src_tree: AssetTree, dst_tree: AssetTree, src: str, dst: str, zombie: s
                        "growing that table is a change to the Case West recomp that is "
                        "not done yet (docs/TODO.md #1)")
     free = empty_slots(dst_tree, dst, set(taken))
+    a_items = _items(src_tree)
+    armed = _is_armed(a_items, zombie)
+    rules = load_profile(dst).armed_enemies if armed else {}
+    if slot is None and rules.get("slots"):
+        slot = next((s for s in rules["slots"] if s in free), None)
     if slot is None:
         prev = next((s for s, t in taken.items() if t.lower() == zl), None)
         # the same name when empty; else the first empty slot that is not one of the
@@ -168,7 +177,7 @@ def plan(src_tree: AssetTree, dst_tree: AssetTree, src: str, dst: str, zombie: s
                        f"{', '.join(free)})")
     if slot in taken and taken[slot].lower() != zl:
         raise Dr2Error(f"the mod already puts {taken[slot]} in {slot!r}")
-    p = ZombiePlan(src, dst, zombie, slot)
+    p = ZombiePlan(src, dst, zombie, slot, armed=armed)
 
     # 1. the model pack under the slot's name, with its own game's shaders
     data = src_tree.resolve(f"{ZOMBIES}/{zombie}.big").data()
@@ -187,14 +196,26 @@ def plan(src_tree: AssetTree, dst_tree: AssetTree, src: str, dst: str, zombie: s
     p.log.append(Resolution(f"{slot}: model", "brought", what))
 
     # 2. its class and the behaviours it names
-    a, b = _items(src_tree), _items(dst_tree)
+    a, b = a_items, _items(dst_tree)
     src_cls = a.get(f"cZombieClassItem {zombie}")
     if src_cls is None:
         raise Dr2Error(f"{src.upper()}'s items.txt has no cZombieClassItem {zombie}")
     have = {blk.name.lower() for blk in b.blocks if blk.cls == "cZombieBehaviourItem"}
     src_beh = {blk.name.lower(): blk for blk in a.blocks if blk.cls == "cZombieBehaviourItem"}
     from ..formats.levelscript import to_spec
+    own = rules.get("behaviour")
     for pr in src_cls.props:
+        if own and pr.key.startswith(("BehaviourNames", "ChanceOfBehaviour")):
+            # an armed enemy fights with the target's own soldier behaviour: the other
+            # game's (Case West's EnemyRanged) has moves the target's animation graph
+            # lacks, and its guards aimed once then fell like zombies (user, 2026-10-13)
+            if pr.key == "BehaviourNames0":
+                p.class_keys += [("BehaviourNames0", own), ("ChanceOfBehaviour0", "100")]
+                p.log.append(Resolution(f"{slot}: {pr.key}", "kept",
+                                        f"behaviour {own} ({dst.upper()}'s own soldiers', in "
+                                        f"place of {pr.value}: its moves are in this game's "
+                                        f"animation graph)"))
+            continue
         p.class_keys.append((pr.key, pr.value))
         if pr.key.startswith("BehaviourNames") and pr.value:
             v = pr.value.lower()
@@ -215,17 +236,29 @@ def plan(src_tree: AssetTree, dst_tree: AssetTree, src: str, dst: str, zombie: s
     # 2b. animation banks the target lacks but its own animation graph names: Case Zero's
     # graph has all 69 of the gas zombies' moves and asks for data/anim/gaszombies.big,
     # which only Case West ships (U2, 2026-10-13: the gas crowds stayed empty without it)
-    for bank, why in anim_banks(src_tree, dst_tree):
+    for bank, why in anim_banks(src_tree, dst_tree, zombie):
         p.recipes.setdefault(f"{bank}{COPY_EXT}", {"format": COPY_FORMAT, "from": src,
                                                   "copy": bank})
         p.log.append(Resolution(f"{slot}: animations", "brought", f"{bank} ({why})"))
     # 2c. voice banks likewise: Case Zero's sound list (scenegraph.txt) names the gas
     # zombies' voices (fx_gzombieakalem…) but ships none of their banks; the street's load
     # faulted (guest 0x1C) right after asking for data/audio/fx_gzombieakalem2.big
-    for bank, why in voice_banks(src_tree, dst_tree):
+    for bank, why in voice_banks(src_tree, dst_tree, zombie):
         p.recipes.setdefault(f"{bank}{COPY_EXT}", {"format": COPY_FORMAT, "from": src,
                                                   "copy": bank})
         p.log.append(Resolution(f"{slot}: voices", "brought", f"{bank} ({why})"))
+    if armed:
+        gun = load_profile(src).armed_enemies.get("gun")
+        weapon = rules.get("weapon")
+        if gun and weapon and slot in rules.get("slots", ()):
+            p.gun = (gun, weapon)
+            p.log.append(Resolution(f"{slot}: gun", "brought",
+                                    f"{gun} as {weapon} (the item {dst.upper()}'s program "
+                                    f"gives a soldier of this slot)"))
+        p.warnings.append(
+            "an armed enemy: spawn it one at a time (a mission's single spawn, "
+            "cMissionSpawnZombie, or the Maps tab's zombie retype), never in a crowd "
+            "(cMissionZombieFactory): the soldier AI faults the game when a crowd spawns it")
     if p.behaviours:
         p.warnings.append(
             f"its behaviours ({', '.join(b[1] for b in p.behaviours)}) are "
@@ -254,16 +287,33 @@ def plan(src_tree: AssetTree, dst_tree: AssetTree, src: str, dst: str, zombie: s
     return p
 
 
-def anim_banks(src_tree: AssetTree, dst_tree: AssetTree) -> list[tuple[str, str]]:
+def _is_armed(items: Document, zombie: str) -> bool:
+    """Whether a type is an armed enemy: a behaviour its class names shoots
+    (``Range_Shoot``: Case West's guards' ``EnemyRanged``, Case Zero's ``ArmyMerc`` and
+    ``DefaultMerc``). Not ``NPC = true``: every behaviour of both games has it."""
+    cls = items.get(f"cZombieClassItem {zombie}")
+    if cls is None:
+        return False
+    for v in cls.numbered("BehaviourNames"):
+        b = items.get(f"cZombieBehaviourItem {v}")
+        if b is not None and b.get("Range_Shoot") is not None:
+            return True
+    return False
+
+
+def anim_banks(src_tree: AssetTree, dst_tree: AssetTree,
+               zombie: str = "") -> list[tuple[str, str]]:
     """``data/anim/*.big`` banks the source game has and the target lacks, whose moves the
     target's own animation graph (``sgraph.txt``) names (most of them): the target's
-    program asks for these files, so they come with any zombie type."""
+    program asks for these files. With ``zombie``, only banks whose name holds a word of
+    the type's name (``zombie_gas`` → ``gaszombies.big``)."""
+    words = [w for w in zombie.lower().split("_") if w and w != "zombie"]
     from ..container.big import BigArchive
     have = {n.lower() for n, _ in _anim_files(dst_tree)}
     graph = dst_tree.resolve("data/datafile.big/sgraph.txt").data().decode("latin-1").lower()
     out = []
     for name, vp in _anim_files(src_tree):
-        if name.lower() in have:
+        if name.lower() in have or (zombie and not any(w in name.lower() for w in words)):
             continue
         moves = set()
         for e in BigArchive.parse(src_tree.resolve(vp).data(), vp).entries:
@@ -281,15 +331,21 @@ SCENEGRAPH = "data/datafile.big/scenegraph.txt"
 STREAMED = "data/streamedassets.big"
 
 
-def voice_banks(src_tree: AssetTree, dst_tree: AssetTree) -> list[tuple[str, str]]:
-    """``data/streamedassets.big/<voice><n>.big`` banks of every voice the target's sound
-    list names (``cVoiceTalentEntry`` ``Source``) whose banks the target lacks and the
-    source has: the target's program asks for them when a zombie of that voice loads."""
+def voice_banks(src_tree: AssetTree, dst_tree: AssetTree,
+                zombie: str = "") -> list[tuple[str, str]]:
+    """``data/streamedassets.big/<voice><n>.big`` banks of the voices the target's sound
+    list names (``cVoiceTalentEntry <talent>`` ``Source``) whose banks the target lacks
+    and the source has: the target's program asks for them when a zombie of that voice
+    loads. With ``zombie``, only voices whose talent name holds a word of the type's name
+    (``zombie_gas`` → ``AKalemAGas``…, ``looter`` → ``Looter``)."""
     try:
         text = dst_tree.resolve(SCENEGRAPH).data().decode("latin-1")
     except Exception:                                           # noqa: BLE001
         return []
-    voices = {v.lower() for v in re.findall(r'Source = "(\w+)"', text)}
+    words = [w for w in zombie.lower().split("_") if w and w != "zombie"]
+    voices = {v.lower() for t, v in re.findall(
+        r'cVoiceTalentEntry (\w+)\s*\{[^}]*?Source = "(\w+)"', text)
+        if not zombie or any(w in t.lower() for w in words)}
     have = {e.name.lower() for e in dst_tree.open_archive(STREAMED).entries}
     theirs = [e.name for e in src_tree.open_archive(STREAMED).entries]
     out = []
@@ -389,11 +445,37 @@ def import_zombie(mod_dir: str | Path, zombie: str, src: str, dst: str, dst_tree
     p = plan(crossgame.source_tree(src), dst_tree, src, dst, zombie, slot, levels,
              mod_slots(mod_dir), sets.decode("latin-1"))
     files = write(p, mod_dir, dst_tree, base_dirs)
+    if p.gun:
+        files += _bring_gun(mod_dir, p, dst_tree, base_dirs)
     m = Mod.load(mod_dir)
     if tuple(m.games) != (dst,):
         m.games = (dst,)
         m.save()
     return p, files
+
+
+def _bring_gun(mod_dir, p: ZombiePlan, dst_tree: AssetTree, base_dirs) -> list[Path]:
+    """The armed enemy's own gun (imported like any item) and a copy of its block under
+    the name the target's program hands to the slot (Case Zero: ``MercAssaultRifle``).
+    A real pickup: Case Zero's own soldier gun ``MercArmyM16`` (``IsWeapon = false``)
+    vanished when the guard died (user, 2026-10-13)."""
+    from .importitem import import_item
+    from .leveledit import TextEdits
+    gun, weapon = p.gun
+    out = []
+    items = TextEdits(mod_dir, "items.txt", dst_tree, base_dirs)
+    if not any(b.name.lower() == gun.lower() for b in items.doc.blocks):
+        _, files = import_item(mod_dir, gun, p.src, p.dst, dst_tree, base_dirs)
+        out += files
+        items = TextEdits(mod_dir, "items.txt", dst_tree, base_dirs)
+    d = items.doc
+    src = next(b for b in d.blocks if b.name.lower() == gun.lower())
+    old = next((b for b in d.blocks if b.name.lower() == weapon.lower()), None)
+    if old is not None:
+        d.remove(old)
+    d.add(None, src.cls, weapon, {pr.key: pr.value for pr in src.props})
+    out.append(items.save())
+    return out
 
 
 def census(src_tree: AssetTree, dst_tree: AssetTree, src: str, dst: str) -> dict:

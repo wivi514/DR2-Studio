@@ -358,6 +358,16 @@ the modder doesn't have to know. XenonLive's launcher has no mod support yet
   their constant operands moved to the target's registers (`formats/xenos.py`,
   `shadercarry.move_registers`; all 1,337 / 1,279 pixel shaders move both ways; formats.md
   §Across the games: constant registers). Owed: U1 again in a window.
+* **U1 and U2 played by the user, 2026-10-13 (Case Zero, windowed): pass.** Laser Sword
+  and Impact Hammer textured, the sword's glow (Case West's engine-only `gPowerOffParameter`
+  read as 1), the hammer held right (the player's hand locator); gas zombies in the street
+  crowds (their voices brought); Case West's guards in single spawns with Case Zero's
+  soldier behaviour, carrying Case West's rifle, fighting, dropping it. Fixed on the way:
+  value-set registers, engine-only parameters, voice banks, the grip, armed enemies
+  (`importzombie` + profile `armed_enemies`, `levelcheck`'s crowd warning). Open: guards +
+  gas + both weapons in one street run out of a renderer pool ("Failed to allocate
+  memory"); `security_heavy` / `security_lab` (no `Range_Shoot`) still use Case West's
+  behaviours.
 * **Case Zero → Case West zombies: blocked on recomp change 3, which is bigger than
   planned** (formats.md §Zombie types: Case West's type data sits in arrays inline in a
   manager object, so growing it means re-laying out that object). **User's decision
@@ -371,9 +381,9 @@ the modder doesn't have to know. XenonLive's launcher has no mod support yet
 | 1 both games at once, 2 cross-game table | **done** |
 | 3 import an item | **built**: brought shaders (constant registers moved, 2026-10-13), effects into free slots, moves into the animation graph, `PropAudioType` bits, `_BONEHIERARCHY_`; loads headless both ways. Untextured brought shaders **fixed** (registers), U1 again owed |
 | Recomp change 4: shader pools (CZ, CW) | **done** (three pools, 4,096 each) |
-| U1 items in game (Laser Sword, Impact Hammer) | played once by the user: untextured, hammer attacks broken (moves now carried); **again after the texture fix** |
-| U3 shaders in game | same as the texture fix |
-| 4 zombie types CW → CZ + U2 | **built** (`dr2 mod import-zombie`, gas zombies' animation bank); played once: crowds empty (fixed headless for gas zombies); **open: the guards need graph states merged**; U2 again |
+| U1 items in game (Laser Sword, Impact Hammer) | **passed** (user, 2026-10-13): textured, glowing, held right, attacks work |
+| U3 shaders in game | **passed** with U1 (registers moved, engine-only parameters fixed to 1) |
+| 4 zombie types CW → CZ + U2 | **passed** (user, 2026-10-13): gas zombies in crowds; guards armed, fighting, dropping rifles (single spawns, Case Zero's soldier behaviour). Open: `security_heavy` / `security_lab` behaviours; the memory limit with everything at once |
 | 4 zombie types CZ → CW | **deferred by the user**: Case West's type table, [`TODO.md`](TODO.md) #1 |
 | 5 maps (CZ slots, `w_mall`, CW level table) + U4/U5 | **not started**: waits for phase 14's T5 (user); Case West's level table not examined (beside `TODO.md` #1) |
 | 6 the checker | items and zombie types done (`dr2 census --import`); levels with maps |

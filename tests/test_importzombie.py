@@ -37,7 +37,7 @@ def test_case_zero_into_case_west_waits_for_the_recomp(both):
 def test_security_brings_its_behaviour_and_load_set(both):
     p = iz.plan(both["cw"], both["cz"], "cw", "cz", "security_light", levels=("prologue",))
     assert p.slot not in ("zombie_fat_female", "zombie_gas")      # left for CW's own
-    assert [b[1] for b in p.behaviours] == ["EnemyRanged"]
+    assert p.behaviours == [] and ("BehaviourNames0", "ArmyMerc") in p.class_keys
     assert p.cost == 3904 and p.load_sets["LEVEL_PROLOGUE"] > iz.budget(both["cz"])
     assert p.warnings                                             # over the street's budget
     recipe = p.recipes[f"data/models/zombies.big/{p.slot}.big.copy.json"]
@@ -89,6 +89,17 @@ def test_build_knows_a_filled_slot(both, tmp_path):
 
 def test_gas_zombies_bring_their_voices(both):
     """Case Zero's sound list names the gas zombies' voices but ships none of their banks."""
-    banks = [b for b, _ in iz.voice_banks(both["cw"], both["cz"])]
+    banks = [b for b, _ in iz.voice_banks(both["cw"], both["cz"], "zombie_gas")]
     assert "data/streamedassets.big/fx_gzombieakalem2.big" in banks
     assert not any("fx_zombieakalema" in b for b in banks)       # Case Zero has these
+
+
+def test_guards_come_armed(both):
+    """Case West's guards: Case Zero's soldier slot and behaviour, their own rifle under
+    the name Case Zero's program hands out, the crowd warning; no gas zombie voices."""
+    p = iz.plan(both["cw"], both["cz"], "cw", "cz", "security_light")
+    assert p.armed and p.slot == "mercenary"
+    assert ("BehaviourNames0", "ArmyMerc") in p.class_keys and not p.behaviours
+    assert p.gun == ("SecurityAssaultRifle", "MercAssaultRifle")
+    assert any("never in a crowd" in w for w in p.warnings)
+    assert not any("gzombie" in k or "gaszombies" in k for k in p.recipes)

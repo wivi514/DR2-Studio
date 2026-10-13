@@ -17,6 +17,21 @@ Entry template:
 
 ---
 
+## 2026-10-13 — Phase 15: U1/U2 pass in game; armed guards
+**Done:** the user's windowed tests: sword glows (engine-only parameters read 1.0), hammer
+right; gas zombies in crowds; Case West's guards: first no gun and fell over (Case West's
+behaviour), then faulted when crowds spawned them (Case Zero's soldier AI), then worked in
+single spawns, then dropped their rifle once it was Case West's real pickup. The importer now
+does all of it (`importzombie` armed enemies: profile `armed_enemies`, `_bring_gun`; voices and
+move banks by the type's name), `levelcheck` warns about armed types in crowds; tests; census
+--import 0 unresolved (guards → `mercenary`, `mercenary_pheno`).
+**Why:** the user: "security guards are there but they hold no weapon…", "it works only issue
+is that they do not drop their weapon".
+**Learned:** formats.md §Zombie types (armed enemies): guns come from the program by type,
+soldiers need single spawns, `NPC = true` marks nothing.
+**Docs updated:** formats.md, guide 23, glossary (armed enemy), code-tour, phase15-kickoff.
+**Next:** the memory limit (which renderer pool), `security_heavy` / `security_lab`, then maps.
+
 ## 2026-10-13 — Phase 15: the user's U1 again: textured; the hammer's grip
 **Done:** the user played the rebuilt test (no guards): the weapons are textured, gas
 zombies are in the street; "only issue is impact hammer is on the wrong side". The importer

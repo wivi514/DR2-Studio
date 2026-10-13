@@ -50,6 +50,9 @@ class Profile:
     preload_evict: dict = field(default_factory=dict)   # loose file -> its preload4.big entry
     scene_hierarchy: bool = False   # its program needs _BONEHIERARCHY_ in every scene (CZ)
     texture_version: int = 0        # byte 9 of its .bct headers (CZ 0x23, CW 0x24); 0 = any
+    # armed enemies (phase 15): the type slots, behaviour and gun item the program uses for
+    # them (`mods.importzombie`), and the gun its own armed enemies carry
+    armed_enemies: dict = field(default_factory=dict)
 
 
 def load_profile(game: str) -> Profile:
@@ -72,7 +75,8 @@ def load_profile(game: str) -> Profile:
                    preload_evict={str(k): str(v) for k, v in
                                   raw.get("preload_evict", {}).items()},
                    scene_hierarchy=bool(raw.get("scene_hierarchy", False)),
-                   texture_version=int(raw.get("texture_version", 0)))
+                   texture_version=int(raw.get("texture_version", 0)),
+                   armed_enemies=dict(raw.get("armed_enemies", {})))
 
 
 def config_path() -> Path:

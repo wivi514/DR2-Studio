@@ -80,6 +80,7 @@ class GameFacts:
         self.added_items: set[str] = set()       # items (lower) mods add, with their pack
         self._areas: dict[str, set[str] | None] = {}
         self.scripts = {s.lower() for s in placed.script_names(tree)}
+        self.armed_types = _armed_types(tree)
 
     def spawn_points(self, script: str) -> set[str]:
         """The names of the ``cSpawnPoint`` blocks of ``<script>.txt`` (lower case)."""
@@ -109,6 +110,21 @@ class GameFacts:
                 except Dr2Error:
                     self._areas[script] = set()
         return self._areas[script]
+
+
+def _armed_types(tree: AssetTree) -> set[str]:
+    """Zombie types whose behaviour shoots (``Range_Shoot``: Case Zero's soldiers, the
+    mercenary slots Case West's guards take). Their AI needs a single spawn: a crowd
+    spawning one faulted Case Zero (phase 15, 2026-10-13)."""
+    try:
+        doc = Document.parse(tree.resolve(join(placed.DATAFILE, "items.txt")).data(),
+                             "items.txt")
+    except Dr2Error:
+        return set()
+    shoots = {b.name.lower() for b in doc.blocks
+              if b.cls == "cZombieBehaviourItem" and b.get("Range_Shoot") is not None}
+    return {b.name.lower() for b in doc.blocks if b.cls == "cZombieClassItem" and
+            any(v.lower() in shoots for v in b.numbered("BehaviourNames"))}
 
 
 def load_sets(tree: AssetTree) -> dict[str, list[dict]]:
@@ -282,6 +298,10 @@ def _check_block(facts: GameFacts, path: str, b: Block, level: str | None,
         for p in b.props:
             if p.key.lower().startswith("type") and p.key[4:].isdigit() and p.value:
                 zombie(p.value, p.key)
+                if p.value.lower() in facts.armed_types:
+                    warn(f"{p.key} {p.value!r} is an armed enemy: a crowd spawning one "
+                         f"crashed the game; spawn it one at a time (cMissionSpawnZombie, "
+                         f"or retype a single zombie in the Maps tab)", p.key)
             if p.key.lower().startswith("amount") and p.key[6:].isdigit() and \
                     _int(p.value) is None:
                 err(f"{p.key} {p.value!r} is not a whole number", p.key)

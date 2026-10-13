@@ -60,6 +60,14 @@ preload_evict = { "data/models/effects.big" = "effects.big", "data/models/effect
 
 
 
+# Armed enemies (phase 15, measured 2026-10-13 in game). The program gives a soldier its gun
+# itself (sub_82233EE0): type 24 (mercenary_army) gets MercArmyM16, the other mercenary
+# types the item MercAssaultRifle, which Case Zero doesn't ship. Its soldier AI needs a
+# mission's single spawn (cMissionSpawnZombie): one spawned by a crowd faulted at once.
+# A guard of the other game: an empty slot of these, this behaviour (its moves are in the
+# animation graph), its own gun under the weapon name. docs/formats.md §Zombie types.
+armed_enemies = { slots = ["mercenary", "mercenary_pheno", "mercenary_tk"], behaviour = "ArmyMerc", weapon = "MercAssaultRifle", gun = "MercArmyM16" }
+
 # The in-game map's other floors (phase 10): picture, where its top-left corner sits on
 # the main map picture and its scale, both in the main picture's pixels, and when it
 # shows ("above" the map's second-floor height, "below" its basement height, from
