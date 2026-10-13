@@ -369,32 +369,34 @@ the modder doesn't have to know. XenonLive's launcher has no mod support yet
 | 8 requirements | built; checked before Play through the build; in-launcher: XenonLive has no mod support yet |
 | 9 guides | 23 (items, effects, zombies) and 06 written; maps section to come |
 
-## Start here (next conversation: complete phase 15)
+## Start here (next conversation, updated 2026-10-13)
 
-The user will finish phase 15 in a fresh conversation (2026-10-12). In order:
+Built and committed: requirements, cross-game table, shader banks, the item importer with
+effects into free slots, `PropAudioType` bits, moves carried into the animation graph
+(`convert/graphcarry.py`), the zombie importer (Case West → Case Zero, `dr2 mod
+import-zombie`, gas zombies' animation bank), three shader pools grown in both recomps
+(CZ `6be8e81` `d2e5701` `090bb9b`, CW `2bb20d1` `1933315` `429cc9a`), `_BONEHIERARCHY_`
+for Case West scenes. The user played U1/U2 once (§Status). In order:
 
-1. **Grow the shader constant set pool in both recomps** (approved; ARCHITECTURE.md
-   §Recomp integration 4). Find where each runtime loads the image (`runtime/main.cpp`,
-   after `Image::ParseImage` copies the sections) and write the new size (4,096, big-endian
-   u32) at CZ `0x829ED7F4` / CW `0x82A00D34`; first confirm in the generated code that the
-   pool built at renderer +3492 reads that address (CZ `0x827BEF48`, `sub_827BC868`) and
-   that its arrays are allocated from the count (not a fixed array), and find CW's same
-   site. Off switch, a line in the log, docs in each repo. Check: `pgrep` first; a headless
-   load (`~/.cache/dr2kit-p12-handoff/scripts/hl_run.py`) with the Laser Sword mod
-   (`dr2 mod import-item <mod> LaserLightSword --from cw -g cz`, placed at
-   `-278.5,3.39,-36.5` as `tools/weapon_gate.py` does) must reach the street with no
-   fault; then `dr2 play -g cz --deploy-only` to restore the user's deployment.
-2. **U1 with the user**: deploy, launch Case Zero windowed, they pick up and swing the
-   Laser Sword (model and shaders drawn right? moves? sounds? card?). Then the same into
-   Case West (a Case Zero item).
-3. Effects the target lacks: bring them into the effect table's free slots (phase 13's
-   own effects, `mods/neweffect.py`) instead of leaving them off.
-4. Zombie types (step 4, U2): Case West's into Case Zero's empty slots; Case West's type
-   table grown to 32 and its level table grown (recomp change 3, approved).
+1. **Brought shaders draw untextured** (formats.md §Zombie types, "The user's in-game test
+   U1/U2"). Known: the same Impact Hammer pack with Case Zero's same-named descriptions is
+   textured; with the brought ones it is flat white, also with `CZ_VK_NO_SHADER_JIT=1`;
+   the brought pixel shaders are bound (new `[imload]` hashes); `CZ_VK_DIM_DISAGREE` finds
+   no dimension disagreement. Next: capture one brought draw in the recomp (its fetch
+   constants and which textures the renderer binds; `docs/instruments.md` of the CZ repo)
+   and compare with the same draw drawn with Case Zero's description. Test mods:
+   `~/.cache/dr2kit-p15/hammer-cz` (brought), `hamN` (Case Zero's shaders); scripts in the
+   session scratchpad were throwaway (`place.py` = `TextEdits.doc.add` of a
+   `cItemPlacement`; `p15deploy.py` = build + deploy without the library).
+2. **U1/U2 again with the user** once (1) is fixed: Laser Sword and Impact Hammer (looks,
+   attacks, effects), gas zombies (`zomb-cz`: crowds retyped).
+3. **Case West's guards in Case Zero**: their moves need graph *states* (154 `mercs.big`
+   moves, `cNPCAIAnimationState`…) merged into Case Zero's `sgraph.txt` (the importer warns).
+4. **Recomp change 3, Case West's zombie type table → 32: the user chose the full
+   re-layout** (2026-10-13): map every access to the manager object that keeps per-type
+   arrays inline (CW `+700…`, CZ `+2196…`; the five functions in formats.md §Zombie types),
+   move them, census-proven; then Case Zero → Case West zombies; then Case West's level table.
 5. Phase 14's T5 with the user, then maps (step 5, U4/U5), bosses (U6), guides.
-
-Done before the restart: requirements, the cross-game table, shader bank files, brought
-shaders, the item importer (§Status). The old start notes follow.
 
 ## Start here (when phase 15 starts)
 
