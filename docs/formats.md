@@ -21,7 +21,7 @@ Case West census before they count as rules (CLAUDE.md rule 7).
 | `.bcf` font | `system/**` | 🟡 | 9 of 11 in CZ and 6 of 11 in CW are plain `.big` archives (read by the census); the rest start `04 03 02 01`, an unknown sibling container ❓ |
 | `.anm` animation | `anim/**` (`default.big/<part>.big`), weapon banks `streamedassets.big/anm_<bank>.big` | ✅ every key read | `dr2kit/formats/anim.py` (§Animations): header, track table, key mask and **every key** of every `.anm` of both games, read as the game's decoder reads them, to the file's last byte (census `--anims`); the rig from the skeleton id. Played in Studio and exported as glTF animations (`convert/holding.py`). The idle per item kind comes from `sgraph.txt` |
 | ragdoll `.dat` | `skeleton/*_ragdoll.dat` | ❓ | Havok likely (`hkp*` RTTI in the XEX) |
-| shader banks `.vo/.po/.vdo/.pdo/.sdo/.scv` | `shaders/*-{vs,ps,vd,pd,sc,sd,ss}.big` | 🟡 | `.vo`/`.po` are standard 360 D3D shader containers (`10 2A 11 01`, XenosRecomp translates them); `.sdo` = a shader name's permutations (`5cef4d20.sdo` → `ProtoSkinnedClothRGB`). Models carry their **own** vertex declarations, so the decoder doesn't need `-vd.big` (phase 0 guessed it did) |
+| shader banks `.vo/.po/.vdo/.pdo/.sdo/.scv` | `shaders/*-{vs,ps,vd,pd,sc,sd,ss}.big` | 🟡 | `.vo`/`.po` are standard 360 D3D shader containers (`10 2A 11 01`, XenosRecomp translates them); `.sdo` = a shader name's permutations (`5cef4d20.sdo` → `ProtoSkinnedClothRGB`). `.sdo`, `.pdo`, `.vdo`, `strings.bin` ✅ read and written (`dr2kit/formats/shaderbank.py`, phase 15, §Across the games: shader banks). Models carry their **own** vertex declarations, so the decoder doesn't need `-vd.big` (phase 0 guessed it did) |
 | mission / data `.txt`, `.csv` | `datafile.big`, CW loose `.csv` | ✅ text | engine scripting; edited for co-op in the CZ recomp |
 | weapon blocks, effect numbers | `items.txt`; a table in the executable | 🟡 | elements (shock, fire, freeze) measured in game; effect numbers = 1-based index into the executable's effect table (§Weapons) |
 | `.bik` | **CW only**, `data/movies` | ✅ read (Bink) | `dr2kit/convert/video.py` through PyAV: all 10 movies decode, every frame and the sound (`census --audio`); export to `.mp4`. Replacing one needs a Bink encoder (§Movies) |
@@ -1719,20 +1719,31 @@ All seven banks are also inside `data/preload4.big` (like the effects: the build
 the nested copy of a bank it changes).
 
 * **A description** (`.sdo`, named by the hash models put in `UsedShaders.txt` and the
-  draws' `0x3C`/`0x3F` commands): its own hash first, then pass records naming a vertex
-  shader and a pixel shader by hash (`651ba6c0.vo` + `e776bb80.po`…), then its name
-  (`ZombieGlow`) and `Default`. Shared names mostly carry the same hash (only `Larvae`
-  differs: CW `0064b9a0`, CZ `630cee60`), but the programs they list are compiled
-  differently in each game: a vertex shader of the same name never has the same bytes.
+  draws' `0x3C`/`0x3F` commands): `u32 hash, u32 link, u32 n`, then `n` pass records
+  `{0, flags, vertex shader hash, 0, pixel shader hash, 0}` (`0xFFFFFFFF`: no pixel
+  shader), then its name (`u32 length` with the NUL, text: `ZombieGlow`), `Default` and
+  lists of numbers. `link` is `0xFFFFFFFF` or (CZ 106, CW 105, the `CM_…` level shaders)
+  a hash that names no bank entry, the same in both games (`CM_LM`: `d55e4300`) ❓.
+  Shared names mostly carry the same hash (only `Larvae` differs: CW `0064b9a0`, CZ
+  `630cee60`), but the programs they list are compiled differently in each game: a
+  vertex shader of the same name never has the same bytes. Every program a description
+  names is in its game's banks (census).
 * **Value sets** name their pixel shader by hash (§Materials), so a Case West material
   points at a Case West pixel shader: Case Zero has only 45 of their names.
-* **`.pdo`** (one per pixel shader): its hash, a count, then per parameter its name
-  (`gGlowScale`), a hash (`c1a23fc0`: the same in both games, and the hash a value set's
-  record carries), a **parameter number** and its range and label (`Glow Scale`). The
-  numbers are a **registry per game**: 41 of the 99 names both games use have another
-  number (`gDiffuseColourControl` CZ 157, CW 159), and CW's `gGlowScale` 187 is CZ's
-  `gBodyPart4Colour`. A pixel shader brought across needs its numbers re-assigned.
-* **`strings.bin`**: `u32 count` (entries + 1), then entries `{u32 length, the text, NUL,
+* **`.pdo`** (one per pixel shader): `u32 hash, u32 n`, `n` parameters, `u32 word` (0
+  or a hash ❓), `u32 hash` again. A parameter: its name (`u32 length` with the NUL, padded
+  to 4: `gGlowScale`), a hash (`c1a23fc0`: the same in both games, and the hash a value
+  set's record carries), a **parameter number**, `0`, a type (1-4: float … float4), a
+  register count, 4 flag bytes; when flag byte 1 is set a slider follows: `1 + 3 × type`
+  words (a word, then min, default and max per component) and a label (`Glow Scale`).
+  **`.vdo`**: a vertex-input header, then the same `hash, n, parameters, word` without
+  the trailing hash. The numbers are a **registry per game and stage**: in the pixel
+  files each number has one name (CZ 100 numbers, CW 109); vertex and pixel files reuse
+  numbers for different names (`17`). 41 of the 99 pixel names both games use have
+  another number (`gDiffuseColourControl` CZ 157, CW 159), and CW's `gGlowScale` 187 is
+  CZ's `gBodyPart4Colour`: a pixel shader brought across gets the target's numbers, and
+  a free number for a name the target lacks ❓ (in-game test U3).
+* **`strings.bin`**: `u32 count`, then `count` entries `{u32 length, the text, NUL,
   padded to 4}`, the first one empty: shader file names (`PosUVFullScreen.bvd`,
   `CM_LM.bpd`, `LT-ZombieGlow.bpd`) and parameter names. CW has 26 more (its own shaders
   and their parameters), CZ one CW lacks. ❓ who reads it, and by number or by text.
@@ -1740,6 +1751,10 @@ the nested copy of a bank it changes).
   `ProtoSkinnedClothReflective`, `ZombieEye(LOD2)` the reflection cube slot is
   `gCubeEnvMapSampler` (`e9196ce0`) in CZ and `gReflectionTexture` (`1f61c700`) in CW
   (slot record +0x38 word; the draws bind it with command `0x33` and the same hash).
+
+All of it is read and written by `dr2kit/formats/shaderbank.py`; `dr2 census` checks every
+description, parameter file and string table of both games writes back byte for byte (0
+problems, 2026-10-12).
 
 *Decision (user, 2026-10-12):* a model brought from the other game draws with **its own
 game's shaders**, copied into the target's banks (not remapped to the nearest one), and

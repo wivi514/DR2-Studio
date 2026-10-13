@@ -783,6 +783,11 @@ pictures are drawn: bump `index.build.THUMB_VERSION`, and the next build redraws
   update changed), and `pack` writes `<id>-<version>.dr2mod`. `manifest.Mod` gained
   `preview`, `preview_path`, `readme` and `save()` (writes `mod.toml` back). Phase 13:
   `Mod.local_only` (`local_only = true`), which `pack` refuses.
+- `formats/shaderbank.py` (phase 15): the shader banks' descriptions: `Description`
+  (`.sdo`: passes naming programs by hash, `programs()`), `ParamFile` (`.pdo` /
+  `.vdo`: `Param`s with their per-game numbers and sliders), `StringTable`
+  (`strings.bin`, `add`), `registry(tree)` (name → number), `census` (every file of a
+  game, byte for byte; `census.check_shaders`).
 - `convert/crossgame.py` (phase 15): `table()` reads `profiles/crossgame.toml` (written
   and checked by `tools/crossgame_table.py`: each program's zombie type and level tables
   found by their pointer arrays and the code that builds their address, the script

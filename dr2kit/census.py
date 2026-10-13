@@ -71,6 +71,12 @@ Phase 13 adds **particle effects** (always, under a second; `check_effects`,
 ``preload4.big``'s copy (the one the game reads) is the same; the effect table's names
 with an effect and the free slots are counted.
 
+Phase 15 adds the **shader banks' descriptions** (always, a few seconds; `check_shaders`,
+`dr2kit.formats.shaderbank`): every ``.sdo``, ``.pdo``, ``.vdo`` and ``strings.bin``
+parses and writes back byte for byte, every program a description names is in the
+banks, and the parameter numbers each stage uses are counted (a number with two names
+is listed).
+
 Phase 13.2 adds **animations** (``anims=True``, `check_anims`, `dr2kit.formats.anim`):
 every ``.anm`` of every archive reads its header, track table and key mask; since phase
 14 **every key** is read the way the game's decoder reads it, and must end at the file's
@@ -248,6 +254,8 @@ class CensusReport:
     effects: dict = field(default_factory=dict)               # effects, emitters, shapes
     # animations (phase 13.2)
     anims: dict = field(default_factory=dict)                 # files, frames, kinds, unread
+    # shader banks (phase 15)
+    shaders: dict = field(default_factory=dict)               # descriptions, pdo, vdo…
     seconds: float = 0.0
     lzx_backend: str = ""
 
@@ -542,6 +550,7 @@ def run_census(game: str, tree: AssetTree, *, python_lzx: bool = False,
             visit(arc, raw, vp, 0)
         drain(0)
         check_effects(rep, tree, game)
+        check_shaders(rep, tree)
         if var_ctx is not None:
             check_colour_list(rep, var_ctx)
         if levels:
@@ -558,6 +567,19 @@ def run_census(game: str, tree: AssetTree, *, python_lzx: bool = False,
             audio_pool.shutdown(cancel_futures=True)
     rep.seconds = time.time() - t0
     return rep
+
+
+def check_shaders(rep: "CensusReport", tree: AssetTree) -> None:
+    """Phase 15 (module docstring): the shader banks' descriptions, parameter files and
+    string table read and write back byte for byte."""
+    from .formats import shaderbank
+    try:
+        r = shaderbank.census(tree)
+    except Exception as ex:                      # noqa: BLE001 - reported, not fatal
+        rep.problems.append(("shaders", f"shader banks: {ex}"))
+        return
+    rep.problems += [("shaders", p) for p in r.pop("problems")]
+    rep.shaders = r
 
 
 def check_anims(rep: "CensusReport", tree: AssetTree) -> None:
@@ -1330,6 +1352,13 @@ def format_report(rep: CensusReport) -> str:
           f"{e['emitters']} emitters (shapes {_fmt(e['shapes'], sort_keys=True)}); effect table "
           f"{e['table']} names, {e['free slots']} free slots; preload4.big's copy "
           f"{'the same' if e['preload copy same'] else 'DIFFERENT'}")
+    if rep.shaders:
+        s = rep.shaders
+        w(f"shader banks: {s['descriptions']} descriptions, {s['pdo']} pixel and {s['vdo']} "
+          f"vertex parameter files, {s['strings']} strings, all re-written identically; "
+          f"programs named but missing: {s['missing programs']}; parameter numbers: pixel "
+          f"{s['pixel parameter numbers']}, vertex {s['vertex parameter numbers']} (two names "
+          f"on one: {s['numbers with two names']})")
     if rep.anims:
         a = rep.anims
         w(f"animations (.anm): {a['files']} read to their last byte, {a['keys']:,} keys "
