@@ -30,7 +30,9 @@ it (`importitem._player_grip`, recipe `scene` + `locators`); test; relaunched fo
 its effect (189 `lightsword_wpn_c_2`, condition 2 like the Flashlight's) is byte-identical in
 both games ❓. Found on the way: value set records name the register they fill, so brought
 materials now get their registers moved too (`register_moves`; the gas zombies' glow values
-went to Case West's registers).
+went to Case West's registers). The sword's missing glow (user: "an fx glow… around the sword"):
+the self-lit part is multiplied by Case West's engine-only `gPowerOffParameter`, 0 in Case Zero;
+brought programs now read a 1.0 literal for it (`xenos.read_literal`, `ENGINE_ONLY`).
 
 ## 2026-10-13 — Phase 15: the combined test crashed: voices, then the guard
 **Done:** `importzombie.voice_banks` (voice banks the target's sound list names but lacks:

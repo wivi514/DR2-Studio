@@ -1853,6 +1853,17 @@ Zero's registers, and all 1,279 Case Zero ones into Case West's, without a clash
 the engine fills a register only the brought shaders read (the value set's value at the
 `.pdo` number, or nothing): U1/U3.
 
+**Parameters only one engine writes** (2026-10-13): a `.pdo` parameter without a slider
+(flag byte 0 set) is set by the engine; with a slider it is a material's (value sets).
+Case West's engine writes two globals Case Zero's doesn't know: `gPowerOffParameter` (read by
+379 Case West pixel shaders: the self-lit colour is multiplied by its `.x`, `r5 = selfIllum *
+gPowerOffParameter.xxx`; presumably 1 while the power is on) and `gMultiplierGlowSI` (9) ❓.
+In Case Zero they read 0: the **Laser Sword's blade glow was gone** (user, U1). A brought
+program reads a fixed 1.0 instead: the operand points at a component of one of the
+program's own literals holding 1.0 (every one of the 379 has one: `c254.w`…), its swizzle
+set so every lane reads it (`xenos.read_literal`; `shadercarry.ENGINE_ONLY`). Case Zero has
+no such global Case West lacks.
+
 **Value sets name registers too** (2026-10-13): a material's value set record is
 `{kind, 0, count, 1, register, name hash}` + floats, the register being the source game's.
 So a value set whose pixel shader is brought gets its records' registers moved the same

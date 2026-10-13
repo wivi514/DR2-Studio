@@ -79,3 +79,4 @@ def test_unnamed_registers_are_reported():
 def test_not_a_shader():
     with pytest.raises(FormatError):
         xenos.constants(b"\0" * 64)
+

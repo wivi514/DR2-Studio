@@ -32,6 +32,10 @@ Layout (big-endian; the field names follow the sibling XenosRecomp's ``shader.h`
   is a constant**, its 8 bits the register. The scalar opcodes 42-47 (``mulsc``,
   ``addsc``, ``subsc``) read ``src3`` as a constant whatever its select bit.
 
+A parameter the target's engine never writes can be pointed at one of the program's own
+literals instead (`read_literal`: Case West's ``gPowerOffParameter`` read 0 in Case Zero and
+switched off the Laser Sword's self-lit blade).
+
 Literal constants (the definition table, ``c252``-``c255`` style) are the program's own
 and are never moved.
 """
@@ -182,3 +186,52 @@ def literals(d: bytes) -> list[int]:
         out += range(reg - base, reg - base + (count + 3) // 4)
         o += 8
     return out
+
+
+def literal_values(d: bytes) -> dict[int, tuple[float, float, float, float]]:
+    """The program's own float4 literals: register -> its four values (stored at the
+    container's virtual size + each definition's physical offset)."""
+    dt = _u32(d, 0x14)
+    if not dt:
+        return {}
+    base = 256 if not is_vertex(d) else 0
+    virtual = _u32(d, 4)
+    out = {}
+    o = dt + 20
+    while o + 8 <= len(d):
+        w = _u32(d, o)
+        if w == 0:
+            break
+        reg, count = w >> 16, w & 0xFFFF
+        phys = _u32(d, o + 4)
+        for i in range((count + 3) // 4):
+            out[reg - base + i] = struct.unpack_from(">4f", d, virtual + phys + 16 * i)
+        o += 8
+    return out
+
+
+def read_literal(d: bytes, register: int, value: float, where: str = "<shader>") -> bytes:
+    """``d`` with every constant operand reading ``register`` reading ``value`` instead:
+    pointed at a component of one of the program's own literals that holds exactly that
+    value, its swizzle set so every lane reads that component (the swizzle of lane ``i``
+    is stored as ``(component - i) & 3``, 2 bits per lane, as XenosRecomp decodes it).
+    For a parameter the target's engine never writes (Case West's
+    ``gPowerOffParameter``: 0 there switched off every self-lit part). Raises
+    `FormatError` when no literal holds the value."""
+    spot = next(((r, c) for r, v in sorted(literal_values(d).items())
+                 for c in range(4) if v[c] == value), None)
+    if spot is None:
+        raise FormatError(f"{where}: no literal holds {value}")
+    reg, comp = spot
+    swz = sum(((comp - i) & 3) << (2 * i) for i in range(4))
+    out = bytearray(d)
+    for at in alu_instructions(d):
+        for word_at, shift, r in constant_operands(d, at):
+            if r != register:
+                continue
+            w2 = struct.unpack_from(">I", out, word_at)[0]
+            struct.pack_into(">I", out, word_at, (w2 & ~(0xFF << shift)) | (reg << shift))
+            # the operand's swizzle sits in word 1 at the same shift (src1 16, src2 8, src3 0)
+            w1 = struct.unpack_from(">I", out, at + 4)[0]
+            struct.pack_into(">I", out, at + 4, (w1 & ~(0xFF << shift)) | (swz << shift))
+    return bytes(out)

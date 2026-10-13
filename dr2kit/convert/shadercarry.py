@@ -49,6 +49,11 @@ from ..formats import xenos
 from ..formats.scene import Command, parse_command_buffer
 
 USED = "usedshaders.txt"
+# Parameters only one game's engine writes (globals, no slider), and the value a brought
+# program reads instead in the other game: Case West's power switch (1: the power is on;
+# 0 switched off every self-lit part: the Laser Sword had no glow, U1 2026-10-13) and its
+# self-lit glow multiplier ❓ (1: neutral).
+ENGINE_ONLY = {"gPowerOffParameter": 1.0, "gMultiplierGlowSI": 1.0}
 LITERAL_FLOOR = 248          # the lowest literal register a game's pixel shader defines
 EXT = {"sd": "sdo", "vs": "vo", "vd": "vdo", "ps": "po", "pd": "pdo"}
 
@@ -216,7 +221,17 @@ def register_moves(src_root: str, dst_root: str) -> dict[int, int]:
     return out
 
 
-def move_registers(raw: bytes, numbers: dict[str, int], where: str = "") -> bytes:
+@lru_cache(maxsize=4)
+def fixed_values(src_root: str, dst_root: str) -> dict[str, float]:
+    """`ENGINE_ONLY` parameters the target's engine doesn't write (its programs never
+    read them): a brought program reads the fixed value instead."""
+    from pathlib import Path
+    dst = _pixel_extents(AssetTree(Path(dst_root)))
+    return {n: v for n, v in ENGINE_ONLY.items() if n not in dst}
+
+
+def move_registers(raw: bytes, numbers: dict[str, int], where: str = "",
+                   fixed: dict[str, float] | None = None) -> bytes:
     """A brought pixel shader reading each parameter at the target's register
     (`number_map`; formats/xenos.py says why). Raises `Dr2Error` when a parameter has no
     register in the map or would land on one of the program's own literals."""
@@ -234,6 +249,12 @@ def move_registers(raw: bytes, numbers: dict[str, int], where: str = "") -> byte
     out, unknown = xenos.remap_constants(raw, moves, where)
     if unknown:
         raise Dr2Error(f"{where}: reads constant registers {unknown} no parameter names")
+    for c in xenos.constants(out, where):
+        if c.set == "float4" and c.name in (fixed or {}):
+            try:
+                out = xenos.read_literal(out, c.register, fixed[c.name], where)
+            except Exception as ex:                             # noqa: BLE001
+                raise Dr2Error(f"{where}: {c.name}: {ex}") from None
     return out
 
 
@@ -267,7 +288,8 @@ def build_entry(src_tree: AssetTree, dst_tree: AssetTree, spec: dict, where: str
         pf.hash = new
         return pf.to_bytes()
     if kind == "ps":                               # read at the target's registers
-        return move_registers(raw, number_map(str(src_tree.root), str(dst_tree.root)), where)
+        roots = (str(src_tree.root), str(dst_tree.root))
+        return move_registers(raw, number_map(*roots), where, fixed_values(*roots))
     return raw                                     # a vertex shader: the same bytes
 
 

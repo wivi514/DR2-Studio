@@ -195,3 +195,21 @@ def test_brought_materials_fill_the_moved_registers(both):
                     assert table.get(reg) == names[h]
                     checked += 1
     assert checked > 50
+
+
+def test_power_switch_reads_one(both):
+    """Case West's gPowerOffParameter (no slider: its engine sets it) multiplies the
+    self-lit part: Case Zero never writes it, so a brought program reads a 1.0 literal."""
+    src, dst = both["cw"], both["cz"]
+    roots = (str(src.root), str(dst.root))
+    assert shadercarry.fixed_values(*roots) == {"gPowerOffParameter": 1.0,
+                                                "gMultiplierGlowSI": 1.0}
+    raw = shadercarry.banks(src).get("ps", 0x33E5DFA0)    # CM_SM_NM_SI_SPEC, pass 0
+    out = shadercarry.move_registers(raw, shadercarry.number_map(*roots), "t",
+                                     shadercarry.fixed_values(*roots))
+    power = shadercarry.number_map(*roots)["gPowerOffParameter"]
+    reads = {r for at in xenos.alu_instructions(out)
+             for _, _, r in xenos.constant_operands(out, at)}
+    assert power not in reads and len(out) == len(raw)
+    lits = xenos.literal_values(out)
+    assert any(1.0 in v for v in lits.values())

@@ -36,7 +36,7 @@ every setting of the item (its block of `items.txt`) and decides, for each name:
 
 | What | What happens |
 |---|---|
-| The model | copied from the other game, drawn with **that game's own shaders**, which are copied into this game's shader banks under new names (the two games compiled their shaders differently). Each brought shader is changed to read its settings (fog, lights…) where **this** game's engine puts them: the two games keep them in different places, and without the change a Case West weapon drew flat white in Case Zero |
+| The model | copied from the other game, drawn with **that game's own shaders**, which are copied into this game's shader banks under new names (the two games compiled their shaders differently). Each brought shader is changed to read its settings (fog, lights…) where **this** game's engine puts them: the two games keep them in different places, and without the change a Case West weapon drew flat white in Case Zero. A setting only Case West's engine fills (its "power is on" switch, which lights self-lit parts such as the Laser Sword's blade) is fixed to *on* |
 | Its moves (`AnimBankName`) | the other game's move bank is copied when this game lacks it |
 | Its sounds (`AudioFilename`) | the other game's sound bank is copied when this game lacks it |
 | Its name and texts | new text numbers in your mod; the words are read from the other game's text when the mod is built, in every language |
