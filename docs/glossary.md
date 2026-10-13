@@ -650,3 +650,9 @@ and placed by a record of its own (`.pieces.json` `new`).
 
 <a id="layout-bin"></a>**`layout.bin`.** The game's list of its loose files with their
 sizes. A mod build writes a new one when a file changes size or a mod adds a file.
+
+**Heap (engine memory).** A fixed-size part of the game's memory set aside for one kind of
+data: the game takes one block of about 448 MB when it starts and cuts it into heaps
+(the Zombie heap for loaded zombie types, the SW Texture heap for the streaming world's
+textures…). When a heap is full the game crashes, even if others have room.
+[formats.md §Engine memory: the heaps](formats.md#engine-memory-the-heaps--measured-phase-15-2026-10-13).

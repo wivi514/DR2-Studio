@@ -112,7 +112,8 @@ name such as `zombie_bride`. Then, as for an item, the importer brings:
 | Its behaviours | Case Zero's own when it has one of that name, else brought |
 | **An armed guard** (`security_light`, `security_light_hat`) | goes into one of Case Zero's **mercenary** slots and fights with **Case Zero's soldier behaviour** (`ArmyMerc`): with Case West's own (`EnemyRanged`) a guard aimed once, then fell over like a zombie, because Case Zero's animations lack its moves. Its **rifle** comes too (Case West's `SecurityAssaultRifle`, also under the name `MercAssaultRifle`, the gun Case Zero's program gives its mercenaries): it shoots, and a dead guard drops it for you to pick up |
 | Its moves and voices | the animation and voice banks Case Zero's own files already name but don't ship (the gas zombies' `gaszombies.big` and their six voices) are copied: without the voices the street's load crashed |
-| A level's zombie memory (the *load set*) | it is added to the levels you name, with its memory cost. If a level then needs more than any of Case Zero's own levels, you get a **warning**: spawn fewer types there |
+| A level's zombie list (the *load set*) | it is added to the levels you name |
+| **Memory** | the import says how much of the game's **Zombie heap** the type takes when it is loaded (its model and textures: the gas zombie 4.1 MB). That heap is a fixed 30.2 MB, and Case Zero's street already fills it to 1.6 MB with its own zombies, so you get a **warning**: where your type spawns, it must **replace** a Case Zero type at least that big in the crowds (`zombie_skinny` 9.6 MB, `zombie_fat` 8.6 MB, `zombie_skinny_female` 4.6 MB). If it is only *added*, the game crashes while the street loads ("Failed to allocate memory") |
 
 Then spawn it with the slot's name: **Maps** tab → a crowd's type or a zombie's type
 ([guide 19](19-edit-a-level.md)). **Armed guards one at a time only:** retype single
@@ -131,7 +132,9 @@ dr2 level edit my_mod missions set "cMissionDefinition PrologueZombies/cMissionL
 > guards in single spawns near the Sheriff's office: they carry their rifles, fight, and
 > drop the rifle when they die. Too much at once runs out of memory: the guards, the gas
 > zombies and two other brought weapons in the street together stopped the load ("Failed to
-> allocate memory"); any two of them load. **Case Zero's zombies in Case West** need Case West's
+> allocate memory"); any two of them load. The full Zombie heap was the cause (measured
+> 2026-10-13, [formats.md §Engine memory](../formats.md#engine-memory-the-heaps--measured-phase-15-2026-10-13)):
+> make the gas zombies take the place of `zombie_fat` in the crowds rather than adding them. **Case Zero's zombies in Case West** need Case West's
 > program to have room for more than its own 10 types: that is a change to the Case West
 > recomp, not done yet (open for contributors: [`docs/TODO.md`](../TODO.md) #1), so the
 > command says so and stops.

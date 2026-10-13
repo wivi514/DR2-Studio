@@ -17,6 +17,26 @@ Entry template:
 
 ---
 
+## 2026-10-13 — Phase 15: the memory limit is the Zombie heap
+**Done:** found the heap the combined test mod ran out of: gdb on the headless recomp
+(copy of the user's save) stopped in the engine's out-of-memory reporter and listed every
+heap the game makes: heap 71, the **Zombie heap**, a constant 30,177,280 bytes in both
+games, full (11,968 free, 33,664 asked). Measured each Case Zero type's cost in it (ten
+builds with the street's load set cut to one type): its pack unpacked plus a shared
+~5.48 MB; the unmodded street leaves 1.6 MB. The importer now gives a type's bytes and
+warns when it must replace a type (`importzombie.pack_bytes`, profile `zombie_heap`).
+Found why `security_heavy` / `security_lab` can't work as in Case West: Case West's
+program has their AI (`HazardUnit`, `ZombieController`), Case Zero's doesn't.
+**Why:** phase 15 restart list items 1 and 2.
+**Learned:** formats.md §Engine memory: the heaps (the 448 MiB block, the heap table,
+which heaps have room); the game reads `persistent_filecache.big`'s `zombiesets.txt`
+(edits to `datafile.big`'s alone changed nothing); `total_cost` is not memory; which
+types are loaded follows the running mission, not the whole load set ❓.
+**Docs updated:** formats.md, glossary (heap), guide 23, phase15-kickoff §Status and
+§Start here, profiles, `importzombie` docstring.
+**Next:** the user's two decisions (grow the Zombie heap from the SW Texture heap: a
+recomp change; what the heavy and lab guards become).
+
 ## 2026-10-13 — Phase 15: U1/U2 pass in game; armed guards
 **Done:** the user's windowed tests: sword glows (engine-only parameters read 1.0), hammer
 right; gas zombies in crowds; Case West's guards: first no gun and fell over (Case West's

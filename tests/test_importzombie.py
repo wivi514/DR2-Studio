@@ -103,3 +103,14 @@ def test_guards_come_armed(both):
     assert p.gun == ("SecurityAssaultRifle", "MercAssaultRifle")
     assert any("never in a crowd" in w for w in p.warnings)
     assert not any("gzombie" in k or "gaszombies" in k for k in p.recipes)
+
+
+def test_memory_is_the_pack_unpacked(both):
+    # formats.md §Engine memory: a loaded type takes its pack unpacked in the Zombie heap
+    # (zombie_fat alone: 14,068,400 used = 8,620,860 + the shared ~5.48 MB, measured)
+    assert iz.pack_bytes(both["cz"], "zombie_fat") == 8_620_860
+    p = iz.plan(both["cw"], both["cz"], "cw", "cz", "zombie_gas", levels=("prologue",))
+    assert p.heap_bytes == iz.pack_bytes(both["cw"], "zombie_gas") > 1_586_656
+    assert any(r.where.endswith("memory") for r in p.log)
+    # the street leaves 1.6 MB unmodded: the gas zombies must replace a type there
+    assert any("Zombie heap free there" in w for w in p.warnings)

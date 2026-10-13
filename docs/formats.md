@@ -1214,6 +1214,58 @@ What the game *does* with more than its own content (a 50,000-vertex character, 
 own v1 rules add: models are changed by replacing existing shapes (no new shapes,
 materials or bones), a texture keeps its size and format, a sound keeps its length.
 
+### Engine memory: the heaps ✅ measured (phase 15, 2026-10-13)
+
+The game asks the system for **one fixed block of 469,852,160 bytes (448 MiB)** at boot (CZ `sub_82496D98`:
+`0x1BF16000` bytes, 1 KB less each time the allocation fails; the recomp's log shows
+`[heap] big MmAllocatePhysicalMemoryEx: 447 MB`) and carves it into **heaps**, each a
+fixed size set by the code (`sub_8277DD40(base, size, name, parent)` creates one; the id
+is the first free slot of 128; allocations name the heap: `sub_8277E778(size, flags,
+heap, tag)`; on failure `sub_8277DF48(size, heap)` would print `out of memory! heap: = %d
+"%s"…` but the message goes nowhere in the recomp). Measured in Case Zero with gdb on a
+copy of the user's save (breakpoints on `__imp__sub_8277DD40` / `__imp__sub_8277DF48`,
+the engine's own `sub_8277C288` total-free and `sub_8277C1A8` largest-free called on each
+heap), the street after loading, no mods:
+
+| Heap (CZ id) | Size | Free after the street loads |
+|---|---|---|
+| 0 main (the 448 MiB block) | — | 4.7 MB (8.4 MB at the fault below, largest piece 4.4 MB) |
+| 66 SW Texture heap (streaming world textures; size from `sub_82483860`: 200,653,824, or 199,546,880 with a flag) | 200.7 MB | 46 MB (134 MB midway through the load) |
+| 65 Streaming world heap (`sub_82483848`: 27,036,672) | 27.0 MB | 16.8 MB (midway) |
+| 14 Physics heap | 17.8 MB | 12.6 MB (midway) |
+| **71 Zombie heap** (the loaded zombie types: models and textures) | **30,177,280** (30.2 MB) | **1,586,656** |
+| 72 Zombie sprite heap | 1.5 MB | 1.5 MB |
+
+The Zombie heap's size is a constant in the code (CZ `sub_825B7548` at `0x825B76A0`, CW
+`0x82588978`: `0x01E19000 − 0x151800`, or 20 MB when the byte at CZ `0x82A57BE0` is set),
+**the same in both games**, taken from heap 0 (`sub_8277F0B8(size, 15, 0, 2)`, return
+address `0x825B76BC`, then `sub_8277DD40` returning to `0x825B76D4`). It is re-created
+for each level.
+
+**What a zombie type costs in it** (nine Case Zero types, each run with the street's load
+set cut to that one type in both copies of `zombiesets.txt`): **the type's pack unpacked
+(`zombies.big/<type>.big`: its `_2/_3/_4` scenes and textures) plus a shared ~5.48 MB**
+(5.30–5.66 MB over the nine; e.g. `zombie_fat` alone 14,068,400 used, pack 8,620,860;
+`zombie_waitress` 7,057,856, pack 1,583,920). The load set's `total_cost` numbers do not
+measure it (`zombie_skinny` costs 2,200 there and 9.6 MB here; Case West's budget is
+23,436 against Case Zero's 18,304 for the same heap size).
+
+**The game does not load the whole load set.** The street's set adds up to 33.6 MB of
+packs (35.5 MB with `mercenary_army`), more than the heap; the unmodded street uses
+28.6 MB = 5.48 + 23.1 MB of packs, the same to the byte with the set's order reversed.
+Which types are loaded follows what the running mission spawns (`missions.txt` names the
+types of 137 single spawns and of the crowds' `Type0`–`Type3`; a type not in the set
+loads too, §Level edits), so it changes as the story moves ❓ (which types at which
+point is not measured). With the gas zombies as `type0` in place of `zombie_fat`, 0.71 MB
+more was free; with them last in the set and Case West's guards in single spawns, the
+same as unmodded (neither loaded yet at the safehouse exit).
+
+**The crash** (test mod `session-cz`: gas zombies, a Case West guard, Laser Sword, Impact
+Hammer): heap 71 had 11,968 bytes free and was asked for 33,664 while the street loaded.
+Unmodded, the street has 1.6 MB to spare in this heap, so a mod that makes the loaded
+types bigger than the ones they replace runs out. Ways out: load lighter types (drop a
+type from the set or the crowds), or a bigger Zombie heap (a recomp change: the 448 MiB block cannot grow, so it would come out of the SW Texture heap; `phase15-kickoff.md`).
+
 ## Levels: zones, placements, level text files 🟡
 
 Researched 2026-10-11 for phase 10 (`phase10-kickoff.md`). **Read by the toolkit since
@@ -1736,8 +1788,18 @@ gun, fought, and**, with `MercAssaultRifle` a copy of Case West's `SecurityAssau
 behaviour with `Range_Shoot` (not `NPC`: every behaviour has it). Profile
 `armed_enemies`; `importzombie` does all of this, `levelcheck` warns about armed types in
 crowds. **Memory**: the guard + gas zombies + Laser Sword + Impact Hammer together faulted
-the street's load in the renderer's surface allocation ("Failed to allocate memory!",
-guest `0x1C` in `sub_8277E778`, a `SURF` allocation); any two of them loaded ❓ which pool.
+the street's load ("Failed to allocate memory!", guest `0x1C` in `sub_8277E778`): the
+**Zombie heap** was full (§Engine memory: the heaps, measured 2026-10-13).
+
+**Heavy and lab guards** (`security_heavy` `EnemyHazardUnit`, `security_lab`
+`EnemyZombieController`, 2026-10-13): these are not behaviours Case Zero can run with more
+data. Case West's program has its own code for them (strings `HazardUnit`,
+`ZombieController`, `ZOMBIEGRAPPLE_SEQUENCE_ZOMBIECONTROL_*`, the battle files
+`data/datafile/battles/battle_enemy_hazardunit.txt` / `…zombiecontroller.txt`, debug
+entries `x_Boss_HazardUnit` / `x_Boss_ZombieController`); Case Zero's has none of it.
+Their behaviour blocks only hold numbers (`AnimSetNames0 = "MercSet01"`, melee and grapple
+cooldowns, no `Range_Shoot`). In Case Zero they can only be given one of its own enemies'
+programs (a soldier slot) or a zombie's: a choice for the user (`phase15-kickoff.md`).
 
 **Shaders across the games** (same research): a model's shader descriptions
 (`-sd.big`) are shared by name between the games (CZ 223, CW 231, 222 in common), the

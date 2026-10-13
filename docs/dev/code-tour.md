@@ -846,8 +846,10 @@ pictures are drawn: bump `index.build.THUMB_VERSION`, and the next build redraws
   the target lacks, `anim_banks` and `voice_banks` (move and voice banks the target names
   but lacks, by the type's name words), armed enemies (`_is_armed`: profile
   `armed_enemies` slot and behaviour, `_bring_gun`: the gun imported and copied under the
-  target's weapon name), the load sets with `costs` and the `budget` warning; `write` (also
-  mirrors `zombiesets.txt`'s edits into `persistent_filecache.big`'s copy), `import_zombie`,
+  target's weapon name), memory (`pack_bytes`: the type's pack unpacked, what it takes in
+  the Zombie heap; the warning against profile `zombie_heap`'s `spare`), the load sets
+  (`costs` keeps `total_cost` in step); `write` (also mirrors `zombiesets.txt`'s edits into
+  `persistent_filecache.big`'s copy, the one the game reads), `import_zombie`,
   `mod_slots`, `census`. CLI `dr2 mod import-zombie`. The build's level check counts the
   zombie models mods add (`build.plan_mods`: `facts.zombie_types`).
 - `requires` (phase 15): what a mod needs. `Mod.requires` is `[requires]` as written

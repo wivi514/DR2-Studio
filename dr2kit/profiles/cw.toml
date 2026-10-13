@@ -64,6 +64,10 @@ preload_evict = { "data/models/effects.big" = "effects.big", "data/models/effect
 # program's built-in item names, 0x82001AD0; which guard type gets which ❓).
 armed_enemies = { gun = "SecurityAssaultRifle" }
 
+# The Zombie heap (phase 15): the same constant as Case Zero's (docs/formats.md
+# §Engine memory); what its types and levels use is not measured here yet.
+zombie_heap = { size = 30177280 }
+
 # The in-game map's other floors (phase 10): see cz.toml. map_2f fitted to the blueprint
 # (its octagon and outer walls), map_b1 to the tunnel pieces of storage_pens_z09.
 [[map_floors]]

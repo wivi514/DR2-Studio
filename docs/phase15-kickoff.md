@@ -374,6 +374,23 @@ the modder doesn't have to know. XenonLive's launcher has no mod support yet
   2026-10-13: do the full re-layout**, then the same day: **not now; kept as open work for a
   contributor**, everything found in [`TODO.md`](TODO.md) #1.
 
+* **The memory limit, found 2026-10-13 (evening, headless with gdb on a copy of the
+  user's save):** the full heap is the program's **Zombie heap** (heap 71), a constant
+  30,177,280 bytes in both games, which Case Zero's street already fills to 1.6 MB with its
+  own types. A loaded type takes its pack unpacked plus a shared ~5.5 MB (nine types
+  measured); the load sets' `total_cost` doesn't measure memory; the game reads
+  `persistent_filecache.big`'s `zombiesets.txt`, not `datafile.big`'s. The importer now
+  reports a type's bytes and warns when it must replace a type (profile `zombie_heap`,
+  `importzombie.pack_bytes`). formats.md §Engine memory: the heaps. **Waiting on the
+  user:** whether to grow the Zombie heap (a recomp change; the 448 MiB block can't grow,
+  so it would come out of the SW Texture heap, 46 MB free after the street loads).
+* **`security_heavy` / `security_lab`, 2026-10-13:** Case West's program has its own code
+  for them (`HazardUnit`, `ZombieController`, their battle files, `x_Boss_*` debug
+  entries); Case Zero's has none, so they can't behave in Case Zero as in Case West.
+  **Waiting on the user:** soldiers (a mercenary slot, `ArmyMerc`, with a gun), melee
+  (Case Zero's soldier program without `Range_Shoot`: untested), zombies, or left to the
+  bosses step (7).
+
 ### What is left (2026-10-13)
 
 | Step | State |
@@ -400,17 +417,16 @@ read 1.0 (the Laser Sword's glow), gas zombie voice banks, the hammer's grip, ar
 (`importzombie`: mercenary slot, Case Zero's `ArmyMerc`, Case West's rifle as
 `MercAssaultRifle`; single spawns only, `levelcheck` warns about crowds). In order:
 
-1. **The memory limit with everything at once.** `security_light` + gas zombies + Laser
-   Sword + Impact Hammer in the street: the load faults (guest `0x1C`, "Failed to allocate
-   memory!" at `0x820B0188`, in `sub_8277E778` after a `SURF` allocation, called from the
-   renderer `0x827B7E08`); any two of the four load (headless bisect on a copy of the user's
-   save, `hl_run.py` in `~/.cache/dr2kit-p12-handoff/scripts/`). Find which pool or heap
-   (like the shader pools, formats.md §Across the games: shader banks); growing it is a
-   recomp change: **ask the user's approval first**.
-2. **`security_heavy` / `security_lab`**: no `Range_Shoot`, so they keep Case West's
-   `EnemyHazardUnit` / `EnemyZombieController`, whose moves Case Zero's graph lacks (the
-   light guard with Case West's behaviour aimed once and fell): pick Case Zero behaviours for
-   them, or merge their graph states (`mercs.big`, 154 moves).
+1. **The memory limit: found** (the Zombie heap, §Status; formats.md §Engine memory).
+   The user's answer on growing it decides the next step: if yes, a recomp change in
+   both recomps like the shader pools (hook `sub_8277F0B8` / `sub_8277DD40` at the return
+   addresses `0x825B76BC` / `0x825B76D4` in CZ, `0x82588994` / `0x825889AC` in CW, and
+   take the same bytes off `sub_82483860`'s SW Texture heap), then measure the SW Texture
+   heap's low point over a walk through the street. How it was measured: gdb attached to
+   the headless recomp (`-iex "set libthread-db-search-path /nonexistent"`, break on
+   `__imp__sub_8277DF48`, call `__imp__sub_8277C288` per heap).
+2. **`security_heavy` / `security_lab`**: Case West-only program code (§Status); the
+   user's choice decides.
 3. Phase 14's T5 with the user, then maps (step 5, U4/U5), bosses (U6), guides.
 4. Case Zero → Case West zombies: deferred ([`TODO.md`](TODO.md) #1).
 

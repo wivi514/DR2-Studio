@@ -23,10 +23,16 @@ zombie spawn area"). A zombie type is, in the data (docs/formats.md §Zombie typ
 * its place in a level's **load set** (``zombiesets.txt``: ``cZombieLoadSet
   LEVEL_<SCRIPT>`` → each time-of-day entry's ``type<n>``, ``number``, ``total_cost``)
   with its memory cost read from the other game's load sets. The importer adds it to the
-  levels asked for and warns when a level then costs more than the target's own levels
-  ever do (its budget; Case Zero 18,304). The same edits go to the copy in
+  levels asked for (``total_cost`` kept in step). The same edits go to the copy in
   ``data/datafile/persistent_filecache.big`` (the build evicts ``preload4.big``'s copy of
-  that archive, profile ``preload_evict``): which copy the game reads is test U2.
+  that archive, profile ``preload_evict``): **that copy is the one the game reads**
+  (measured 2026-10-13: a load set edited in ``datafile.big`` only changed nothing);
+* its **memory**: the ``total_cost`` numbers don't measure it (formats.md §Engine memory).
+  A loaded type takes its pack unpacked in the program's fixed **Zombie heap** (30.2 MB in
+  both games), the loaded types sharing ~5.5 MB more; Case Zero's street leaves 1.6 MB of
+  it unmodded (profile ``zombie_heap``). The plan says how much the type takes and warns
+  when it can't fit beside a level's own types unless it replaces one of them in the
+  crowds (the test mod with gas zombies, a guard and two brought weapons ran out of it).
 
 Spawning it is then the same as for a native type: the Maps editor's zombie retype /
 spawns (phase 11, guide 19) name the slot.
@@ -73,6 +79,7 @@ class ZombiePlan:
     behaviours: list = field(default_factory=list)               # blocks to add (spec)
     load_sets: dict[str, int] = field(default_factory=dict)      # level set -> its new cost
     cost: int = 0
+    heap_bytes: int = 0              # the type's pack unpacked: what it takes in the Zombie heap
     log: list[Resolution] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     armed: bool = False              # an armed enemy (a behaviour that shoots)
@@ -115,7 +122,8 @@ def costs(tree: AssetTree) -> dict[str, int]:
 
 
 def budget(tree: AssetTree) -> int:
-    """The most a level of the game's own costs (its load sets' ``total_cost``)."""
+    """The most a level of the game's own costs (its load sets' ``total_cost``). Not a
+    memory measure (formats.md §Engine memory): `pack_bytes` is."""
     return max((int(c) for c in re.findall(r'total_cost = "(\d+)"', _sets(tree))), default=0)
 
 
@@ -265,9 +273,14 @@ def plan(src_tree: AssetTree, dst_tree: AssetTree, src: str, dst: str, zombie: s
             f"{src.upper()}'s own: {dst.upper()}'s animation graph has no states for their "
             f"moves yet, so it may not spawn or move (docs/formats.md §Zombie types)")
 
-    # 3. the load sets
+    # 3. memory and the load sets
     p.cost = costs(src_tree).get(zl, 0)
-    limit = budget(dst_tree)
+    p.heap_bytes = pack_bytes(src_tree, zombie)
+    heap = load_profile(dst).zombie_heap
+    if heap.get("size"):
+        p.log.append(Resolution(f"{slot}: memory", "brought",
+                                f"{_mb(p.heap_bytes)} of the {_mb(heap['size'])} Zombie heap "
+                                f"when loaded (its pack unpacked)"))
     text = sets_text if sets_text is not None else _sets(dst_tree)
     for level in levels:
         name = f"LEVEL_{level.upper()}"
@@ -280,11 +293,32 @@ def plan(src_tree: AssetTree, dst_tree: AssetTree, src: str, dst: str, zombie: s
         p.load_sets[name] = new
         p.log.append(Resolution(f"{slot}: {name}", "brought",
                                 f"in the load set (cost {p.cost}, the level then {new})"))
-        if new > limit:
-            p.warnings.append(f"{name} then costs {new}, more than any of {dst.upper()}'s own "
-                              f"levels ({limit}): it may run out of zombie memory; spawn "
-                              f"fewer types there")
+        spare = heap.get("spare", {}).get(name)
+        if spare is not None and p.heap_bytes > spare:
+            p.warnings.append(
+                f"{name}: {dst.upper()}'s own zombies leave {_mb(spare)} of the Zombie heap "
+                f"free there and {slot} takes {_mb(p.heap_bytes)}: where it spawns, it must "
+                f"replace a type at least {_mb(p.heap_bytes - spare)} big among the types loaded "
+                f"({_heaviest(dst_tree)}), or the game runs out of memory and crashes")
     return p
+
+
+def pack_bytes(tree: AssetTree, zombie: str) -> int:
+    """What a zombie type takes in the program's Zombie heap when loaded: its pack
+    ``zombies.big/<type>.big`` unpacked (measured over nine Case Zero types, formats.md
+    §Engine memory; brought shaders live in the shader banks, not here)."""
+    sub = tree.open_archive(f"{ZOMBIES}/{zombie}.big")
+    return sum(e.size2 or e.size for e in sub.entries)
+
+
+def _mb(n: int) -> str:
+    return f"{n / 1e6:.1f} MB"
+
+
+def _heaviest(tree: AssetTree, n: int = 3) -> str:
+    """The game's heaviest shipped types, for the warning."""
+    sizes = sorted(((pack_bytes(tree, t), t) for t in shipped_types(tree)), reverse=True)
+    return ", ".join(f"{t} {_mb(b)}" for b, t in sizes[:n])
 
 
 def _is_armed(items: Document, zombie: str) -> bool:

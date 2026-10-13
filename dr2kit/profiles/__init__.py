@@ -53,6 +53,9 @@ class Profile:
     # armed enemies (phase 15): the type slots, behaviour and gun item the program uses for
     # them (`mods.importzombie`), and the gun its own armed enemies carry
     armed_enemies: dict = field(default_factory=dict)
+    # the Zombie heap (phase 15): its size, the bytes the loaded types share, what levels
+    # leave free unmodded (`mods.importzombie`, docs/formats.md §Engine memory)
+    zombie_heap: dict = field(default_factory=dict)
 
 
 def load_profile(game: str) -> Profile:
@@ -76,7 +79,8 @@ def load_profile(game: str) -> Profile:
                                   raw.get("preload_evict", {}).items()},
                    scene_hierarchy=bool(raw.get("scene_hierarchy", False)),
                    texture_version=int(raw.get("texture_version", 0)),
-                   armed_enemies=dict(raw.get("armed_enemies", {})))
+                   armed_enemies=dict(raw.get("armed_enemies", {})),
+                   zombie_heap=dict(raw.get("zombie_heap", {})))
 
 
 def config_path() -> Path:

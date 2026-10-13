@@ -68,6 +68,13 @@ preload_evict = { "data/models/effects.big" = "effects.big", "data/models/effect
 # animation graph), its own gun under the weapon name. docs/formats.md §Zombie types.
 armed_enemies = { slots = ["mercenary", "mercenary_pheno", "mercenary_tk"], behaviour = "ArmyMerc", weapon = "MercAssaultRifle", gun = "MercArmyM16" }
 
+# The Zombie heap (phase 15, measured 2026-10-13 with gdb, docs/formats.md §Engine memory):
+# its size is a constant in the program, the same in both games. A loaded zombie type
+# takes its pack unpacked; the loaded types share `shared` bytes more (measured over
+# nine Case Zero types). `spare`: what a level leaves free unmodded, at the safehouse
+# exit of the street (more types load as the story goes, so it is an upper bound).
+zombie_heap = { size = 30177280, shared = 5480000, spare = { LEVEL_PROLOGUE = 1586656 } }
+
 # The in-game map's other floors (phase 10): picture, where its top-left corner sits on
 # the main map picture and its scale, both in the main picture's pixels, and when it
 # shows ("above" the map's second-floor height, "below" its basement height, from
