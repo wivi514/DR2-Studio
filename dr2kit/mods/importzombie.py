@@ -30,9 +30,13 @@ zombie spawn area"). A zombie type is, in the data (docs/formats.md §Zombie typ
 * its **memory**: the ``total_cost`` numbers don't measure it (formats.md §Engine memory).
   A loaded type takes its pack unpacked in the program's fixed **Zombie heap** (30.2 MB in
   both games), the loaded types sharing ~5.5 MB more; Case Zero's street leaves 1.6 MB of
-  it unmodded (profile ``zombie_heap``). The plan says how much the type takes and warns
-  when it can't fit beside a level's own types unless it replaces one of them in the
-  crowds (the test mod with gas zombies, a guard and two brought weapons ran out of it).
+  it unmodded (profile ``zombie_heap``); both recomps grow it by 16 MiB since 2026-10-13
+  (``recomp_growth``). The plan says how much the type takes and warns when it fits only in
+  the grown heap, or not even there unless it replaces one of the level's types (the test
+  mod with gas zombies, a guard and two brought weapons ran out of the title's size);
+* **guards whose fighting is program code** (Case West's ``security_heavy`` /
+  ``security_lab``: ``HazardUnit`` / ``ZombieController``, profile ``armed_enemies``
+  ``as_soldiers``) become the target's soldiers with a gun, like the armed guards.
 
 Spawning it is then the same as for a native type: the Maps editor's zombie retype /
 spawns (phase 11, guide 19) name the slot.
@@ -65,6 +69,10 @@ ITEMS = "data/datafile.big/items.txt"
 SETS = "data/datafile.big/zombiesets.txt"
 CACHE = "data/datafile/persistent_filecache.big"     # holds a copy of zombiesets.txt
 COST = re.compile(r'type\d+ = "(\w+)" // (\d+)')
+# A load-set entry holds at most 13 types (type0..type12): with a 14th Case Zero faulted
+# at boot reading index 13 (measured 2026-10-13, formats.md §Zombie types). A type left out
+# still loads where something spawns it.
+LOAD_SET_MAX = 13
 
 
 @dataclass
@@ -163,7 +171,11 @@ def plan(src_tree: AssetTree, dst_tree: AssetTree, src: str, dst: str, zombie: s
                        "not done yet (docs/TODO.md #1)")
     free = empty_slots(dst_tree, dst, set(taken))
     a_items = _items(src_tree)
-    armed = _is_armed(a_items, zombie)
+    # guards whose fighting is their own program's code (Case West's HazardUnit and
+    # ZombieController: no data brings it) become the target's soldiers, armed (user's
+    # choice 2026-10-13; docs/formats.md §Zombie types)
+    as_soldier = zl in [t.lower() for t in load_profile(src).armed_enemies.get("as_soldiers", ())]
+    armed = as_soldier or _is_armed(a_items, zombie)
     rules = load_profile(dst).armed_enemies if armed else {}
     if slot is None and rules.get("slots"):
         slot = next((s for s in rules["slots"] if s in free), None)
@@ -186,6 +198,11 @@ def plan(src_tree: AssetTree, dst_tree: AssetTree, src: str, dst: str, zombie: s
     if slot in taken and taken[slot].lower() != zl:
         raise Dr2Error(f"the mod already puts {taken[slot]} in {slot!r}")
     p = ZombiePlan(src, dst, zombie, slot, armed=armed)
+    if as_soldier:
+        p.log.append(Resolution(f"{slot}: fighting", "kept",
+                                f"{dst.upper()}'s soldier program with a gun: {zombie}'s own "
+                                f"fighting is {src.upper()} program code, which "
+                                f"{dst.upper()}'s program lacks"))
 
     # 1. the model pack under the slot's name, with its own game's shaders
     data = src_tree.resolve(f"{ZOMBIES}/{zombie}.big").data()
@@ -293,13 +310,30 @@ def plan(src_tree: AssetTree, dst_tree: AssetTree, src: str, dst: str, zombie: s
         p.load_sets[name] = new
         p.log.append(Resolution(f"{slot}: {name}", "brought",
                                 f"in the load set (cost {p.cost}, the level then {new})"))
-        spare = heap.get("spare", {}).get(name)
-        if spare is not None and p.heap_bytes > spare:
+        body = text[m.end():_next_block(text, m.end())]
+        full = [e for e in re.split(r"cZombieLoadSetEntry ", body)[1:]
+                if slot not in [v.lower() for v in re.findall(r'type\d+ = "(\w+)"', e)]
+                and len(re.findall(r'type\d+ = "', e)) >= LOAD_SET_MAX]
+        if full:
             p.warnings.append(
-                f"{name}: {dst.upper()}'s own zombies leave {_mb(spare)} of the Zombie heap "
-                f"free there and {slot} takes {_mb(p.heap_bytes)}: where it spawns, it must "
-                f"replace a type at least {_mb(p.heap_bytes - spare)} big among the types loaded "
+                f"{name}: {len(full)} of its time-of-day entries already list {LOAD_SET_MAX} "
+                f"types, the most the game takes (a 14th crashes it at boot): {slot} is left "
+                f"out of those and loads where something spawns it")
+        spare = heap.get("spare", {}).get(name)
+        grown = spare + heap.get("recomp_growth", 0) if spare is not None else None
+        if spare is not None and p.heap_bytes > grown:
+            p.warnings.append(
+                f"{name}: {dst.upper()}'s own zombies leave {_mb(grown)} of the Zombie heap "
+                f"free there (with the recomp's grown heap) and {slot} takes "
+                f"{_mb(p.heap_bytes)}: where it spawns, it must replace a type at least "
+                f"{_mb(p.heap_bytes - grown)} big among the types loaded "
                 f"({_heaviest(dst_tree)}), or the game runs out of memory and crashes")
+        elif spare is not None and p.heap_bytes > spare:
+            p.warnings.append(
+                f"{name}: {slot} ({_mb(p.heap_bytes)}) fits beside {dst.upper()}'s own zombies "
+                f"only in the recomp's grown Zombie heap ({_mb(grown)} free there; recomps "
+                f"from 2026-10-13 on); in an older recomp it must replace a type at least "
+                f"{_mb(p.heap_bytes - spare)} big, or the game crashes while the level loads")
     return p
 
 
@@ -438,16 +472,16 @@ def write(p: ZombiePlan, mod_dir: str | Path, dst_tree: AssetTree, base_dirs=())
             top = sets.doc.get(f"cZombieLoadSet {level}")
             for entry in top.children:
                 types = [v.lower() for v in entry.numbered("type")]
-                if p.slot in types:
-                    continue
+                if p.slot in types or len(types) >= LOAD_SET_MAX:
+                    continue                # full: a 14th type crashes the game at boot
                 sets.doc.set(entry, f"type{len(types)}", p.slot)
                 sets.doc.set(entry, "number", str(len(types) + 1))
                 total = int(entry.get("total_cost") or 0) + p.cost
                 sets.doc.set(entry, "total_cost", str(total))
         saved = sets.save()
         out.append(saved)
-        # the same edits on the copy in persistent_filecache.big (which copy the game
-        # reads is test U2; the build evicts preload4.big's, profile preload_evict)
+        # the same edits on the copy in persistent_filecache.big, the one the game reads
+        # (measured 2026-10-13; the build evicts preload4.big's, profile preload_evict)
         mirror = root.joinpath(REPLACE_DIR, *split(CACHE), saved.name)
         mirror.parent.mkdir(parents=True, exist_ok=True)
         doc = json.loads(saved.read_text("utf-8"))

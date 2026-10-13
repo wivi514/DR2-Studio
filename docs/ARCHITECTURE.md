@@ -607,6 +607,22 @@ Timing: (1) landed with phase 2, (2) with phase 5.
    same approval covers adding the deployed mods' shader banks to the first-run shader
    build (no pop-in), if wanted.
 
+5. **Growing the Zombie heap** (approved by the user 2026-10-13 for phase 15, "Yes, +16 MB",
+   asked with the measurements of formats.md §Engine memory; **built 2026-10-13**, CZ
+   `85900b8`, CW `3f17411`, `runtime/cpu/zombie_heap.cpp`), **in both recomps**. The
+   program's Zombie heap (the loaded zombie types' models and textures) is a constant
+   30,177,280 bytes in both games, which Case Zero's street fills to 1.6 MB, so brought
+   zombie types crash the load when they are added rather than swapped. The game's memory
+   is one fixed 448 MiB block, so the 16 MB come from the streaming world's texture heap
+   (200.7 MB, 46 MB free after the street loads): each recomp hooks the function that
+   returns that heap's size (CZ `sub_82483860`) to give 16 MB less, and the Zombie heap's
+   two calls (its block from heap 0 and the heap made in it; CZ return addresses
+   `0x825B76BC` / `0x825B76D4`, CW `0x82588994` / `0x825889AC`) to ask 16 MB more, only
+   when they carry the title's size. Off switch `CZ_NO_ZOMBIE_HEAP_GROWTH=1` / `CW_…`, a
+   file of its own, following each repo's CLAUDE.md; checked headless (the combined test
+   mod loads; the texture heap's lowest free point over a run), then by the user in a
+   window.
+
 ## Non-goals (for now)
 
 - Editing levels/zones (`models/environment/prologue/*.big`, 10-73 MB each). We index and

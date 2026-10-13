@@ -1264,7 +1264,16 @@ same as unmodded (neither loaded yet at the safehouse exit).
 Hammer): heap 71 had 11,968 bytes free and was asked for 33,664 while the street loaded.
 Unmodded, the street has 1.6 MB to spare in this heap, so a mod that makes the loaded
 types bigger than the ones they replace runs out. Ways out: load lighter types (drop a
-type from the set or the crowds), or a bigger Zombie heap (a recomp change: the 448 MiB block cannot grow, so it would come out of the SW Texture heap; `phase15-kickoff.md`).
+type from the set or the crowds), or a bigger Zombie heap. **Both recomps grow it by 16 MiB
+since 2026-10-13** (user's approval; `runtime/cpu/zombie_heap.cpp`, ARCHITECTURE.md
+§Recomp integration 5): the 448 MiB block can't grow, so the bytes come off the SW Texture
+heap (CZ 200,653,824 → 183,876,608; CW 205,054,976 → 188,277,760). Measured headless in
+Case Zero: the crashing mod loads into play with 16.7 MB of the Zombie heap free and the
+SW Texture heap at 27.2 MB free over 16 samples in the street (14.8 MB at the lowest seen,
+the ending film); `CZ_NO_ZOMBIE_HEAP_GROWTH=1` is the control. *Correction (same day):*
+the first "free after the street loads" readings were taken at 200 s, which in a headless
+run is the ending film or the summary screen; the Zombie heap reads the same in play
+(1,586,656), the SW Texture heap 45.4 MB in play.
 
 ## Levels: zones, placements, level text files 🟡
 
@@ -1799,7 +1808,19 @@ data. Case West's program has its own code for them (strings `HazardUnit`,
 entries `x_Boss_HazardUnit` / `x_Boss_ZombieController`); Case Zero's has none of it.
 Their behaviour blocks only hold numbers (`AnimSetNames0 = "MercSet01"`, melee and grapple
 cooldowns, no `Range_Shoot`). In Case Zero they can only be given one of its own enemies'
-programs (a soldier slot) or a zombie's: a choice for the user (`phase15-kickoff.md`).
+programs (a soldier slot) or a zombie's. **User's choice (2026-10-13): Case Zero
+soldiers**, armed like the light guards (profile `cw.toml` `armed_enemies.as_soldiers`):
+headless, both load into play in `mercenary_pheno` / `mercenary_tk` with Case Zero's
+`ArmyMerc` (in-game look owed).
+
+**A load-set entry holds at most 13 types** (measured 2026-10-13): with
+`security_heavy` and `security_lab` added after the gas zombie and the light guard, one
+`LEVEL_PROLOGUE` entry listed 14 types and Case Zero faulted while the title screen's
+level loaded (guest `0x0`, the loop index `r31 = 13`, the type-name table
+`0x820407B4…` in the registers); the same mod with that entry cut to 13 loads into play,
+and each guard alone (12-13 types) loads. The game parses every load set at boot, so the
+fault comes before any level. `importzombie` leaves a type out of a full entry (it still
+loads where something spawns it).
 
 **Shaders across the games** (same research): a model's shader descriptions
 (`-sd.big`) are shared by name between the games (CZ 223, CW 231, 222 in common), the

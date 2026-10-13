@@ -61,12 +61,14 @@ preload_evict = { "data/models/effects.big" = "effects.big", "data/models/effect
 
 
 # Armed enemies (phase 15): the gun Case West's guards carry (the one gun name of the
-# program's built-in item names, 0x82001AD0; which guard type gets which ❓).
-armed_enemies = { gun = "SecurityAssaultRifle" }
+# program's built-in item names, 0x82001AD0; which guard type gets which ❓). `as_soldiers`:
+# guards whose fighting is Case West program code (HazardUnit, ZombieController), not data;
+# in the other game they become its soldiers, with a gun (user's choice, 2026-10-13).
+armed_enemies = { gun = "SecurityAssaultRifle", as_soldiers = ["security_heavy", "security_lab"] }
 
 # The Zombie heap (phase 15): the same constant as Case Zero's (docs/formats.md
 # §Engine memory); what its types and levels use is not measured here yet.
-zombie_heap = { size = 30177280 }
+zombie_heap = { size = 30177280, recomp_growth = 16777216 }
 
 # The in-game map's other floors (phase 10): see cz.toml. map_2f fitted to the blueprint
 # (its octagon and outer walls), map_b1 to the tunnel pieces of storage_pens_z09.

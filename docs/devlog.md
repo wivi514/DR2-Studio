@@ -17,6 +17,22 @@ Entry template:
 
 ---
 
+## 2026-10-13 — Phase 15: the Zombie heap grown (recomp change 5), heavy and lab guards as soldiers
+**Done:** the user approved growing the Zombie heap by 16 MB and chose Case Zero soldiers
+for the heavy and lab guards. Both recomps take 16 MiB off the SW Texture heap and give
+them to the Zombie heap (`runtime/cpu/zombie_heap.cpp`, CZ `85900b8`, CW `3f17411`); the
+mix that crashed loads headless. The importer counts the grown heap (`recomp_growth`),
+makes `as_soldiers` guards armed soldiers, and leaves a type out of a load-set entry that
+already lists 13 types. Test mod u2b built and checked headless.
+**Why:** the user's answers to the two questions of the previous entry.
+**Learned:** a load-set entry takes 13 types at most (a 14th faults at boot, index 13);
+headless runs of the test save reach the ending film by ~200 s, so heap readings belong
+at ~100 s (the earlier "after the street loads" texture-heap figure was the ending's).
+**Docs updated:** formats.md (§Engine memory, §Zombie types), guide 23, ARCHITECTURE.md
+§Recomp integration 5, CLAUDE.md, phase15-kickoff, the recomps' gotchas (CZ 644, CW 333)
+and CZ instruments.md.
+**Next:** u2b in a window with the user.
+
 ## 2026-10-13 — Phase 15: the memory limit is the Zombie heap
 **Done:** found the heap the combined test mod ran out of: gdb on the headless recomp
 (copy of the user's save) stopped in the engine's out-of-memory reporter and listed every

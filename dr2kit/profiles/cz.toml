@@ -72,8 +72,9 @@ armed_enemies = { slots = ["mercenary", "mercenary_pheno", "mercenary_tk"], beha
 # its size is a constant in the program, the same in both games. A loaded zombie type
 # takes its pack unpacked; the loaded types share `shared` bytes more (measured over
 # nine Case Zero types). `spare`: what a level leaves free unmodded, at the safehouse
-# exit of the street (more types load as the story goes, so it is an upper bound).
-zombie_heap = { size = 30177280, shared = 5480000, spare = { LEVEL_PROLOGUE = 1586656 } }
+# exit of the street, the title's size. `recomp_growth`: what the recomp adds since
+# 2026-10-13 (runtime/cpu/zombie_heap.cpp, CZ_NO_ZOMBIE_HEAP_GROWTH=1 turns it off).
+zombie_heap = { size = 30177280, shared = 5480000, recomp_growth = 16777216, spare = { LEVEL_PROLOGUE = 1586656 } }
 
 # The in-game map's other floors (phase 10): picture, where its top-left corner sits on
 # the main map picture and its scale, both in the main picture's pixels, and when it

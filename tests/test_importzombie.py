@@ -112,5 +112,20 @@ def test_memory_is_the_pack_unpacked(both):
     p = iz.plan(both["cw"], both["cz"], "cw", "cz", "zombie_gas", levels=("prologue",))
     assert p.heap_bytes == iz.pack_bytes(both["cw"], "zombie_gas") > 1_586_656
     assert any(r.where.endswith("memory") for r in p.log)
-    # the street leaves 1.6 MB unmodded: the gas zombies must replace a type there
-    assert any("Zombie heap free there" in w for w in p.warnings)
+    # the street leaves 1.6 MB unmodded: the gas zombies (4.1 MB) fit only in the recomps'
+    # grown Zombie heap (+16 MiB since 2026-10-13), else they must replace a type there
+    assert any("only in the recomp's grown Zombie heap" in w for w in p.warnings)
+    big = iz.plan(both["cw"], both["cz"], "cw", "cz", "security_light_hat", levels=("prologue",))
+    assert big.heap_bytes < 18_363_872          # 7.8 MB: fits in the grown heap too
+    assert not any("Zombie heap free there" in w for w in big.warnings)
+
+
+def test_a_full_load_set_entry_is_left_alone(both, tmp_path):
+    # a load-set entry holds 13 types at most: a 14th faulted Case Zero at boot (measured)
+    root = create(tmp_path / "zomb", "zomb")
+    for z in ("zombie_gas", "security_light", "security_heavy", "security_lab"):
+        iz.import_zombie(root, z, "cw", "cz", both["cz"], levels=("prologue",))
+    doc = json.loads((root / "replace/data/datafile/persistent_filecache.big/"
+                      "zombiesets.txt.edits.json").read_text())
+    for entry, keys in doc["set"].items():
+        assert int(keys["number"]) <= iz.LOAD_SET_MAX, entry

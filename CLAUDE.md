@@ -113,7 +113,10 @@ U1/U2 (2026-10-13): items untextured, hammer attacks and retyped crowds broken; 
 moves are carried into the animation graph (`convert/graphcarry.py`) and the gas zombies'
 animation bank brought; brought shaders fixed (constant registers, engine-only parameters); **U1/U2 passed in game
 2026-10-13** (weapons textured and glowing, gas zombies, armed guards in single spawns);
-open: one renderer pool runs out with everything at once. Next conversation: `docs/phase15-kickoff.md` §Start here. Rest (zombies, maps, bosses, effects):
+everything at once ran out of the program's fixed Zombie heap: both recomps give it
+16 MiB from the SW Texture heap (recomp change 5, 2026-10-13, formats.md §Engine memory), a load-set
+entry takes 13 types at most, the heavy and lab guards become Case Zero soldiers; owed: test mod u2b
+in a window with the user. Next conversation: `docs/phase15-kickoff.md` §Start here. Rest (zombies, maps, bosses, effects):
 `docs/phase15-kickoff.md` §Status. Phase 16 (the same from the PC Dead Rising 2 and Off
 the Record) is planned, not started: `docs/phase16-kickoff.md`.** Read these before writing code:
 
@@ -167,7 +170,8 @@ files and conventions. Treat them as **read-only references**, except for the
 approved integration changes (a `game_mods/` VFS layer and PCM audio substitution; and,
 approved 2026-10-12 for phase 15, **growing Case West's zombie type table to the
 engine's 32 and its level table**, and **growing the shader constant set pool in both
-recomps**: `docs/ARCHITECTURE.md` §Recomp integration). Make
+recomps**, and (approved 2026-10-13) **growing the Zombie heap by 16 MB from the streaming
+world's texture heap in both recomps**: `docs/ARCHITECTURE.md` §Recomp integration). Make
 those in each recomp following its own CLAUDE.md, and keep CZ and CW in step.
 
 | | Case Zero | Case West |
