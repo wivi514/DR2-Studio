@@ -17,6 +17,32 @@ Entry template:
 
 ---
 
+## 2026-10-14 — Phase 15 maps: a whole level of the other game; the `.big` writer's layout fixed
+**Done:** phase 14's T5 answered headless (an empty slot loads, if its audio scene does);
+the slot table read from both executables (level names, zone lists, audio scenes) and
+`dr2 level slots`; the level checker uses the real level names; the level importer
+(`mods/importlevel.py`, `dr2 mod import-level`, Studio *Other game's levels…*): zones with
+their shaders, text files with every name resolved, items and zombie types brought, the
+source's zombie mission as the mod's own, doors back, an entry door; a cache for big
+recipes from the other game and a parallel prebuild; `fit_scenes` adds `_BONEHIERARCHY_`
+only to scenes with nodes. **Case West's Storage Pens loads in Case Zero** (headless).
+Case Zero's street into Case West's `w_mall` is built, its door not seen working yet.
+**Why:** the user's "Do phase 15 maps".
+**Learned:** a level loads its audio scene `data/audio/<name>.txt` and the program
+digest-checks it, so only 42 of Case Zero's 78 empty slots (and Case West's `w_mall`) can
+take a level; level names aren't always `LEVEL_` + the script's name. **Every payload of
+every archive sits at the previous one's end aligned up to its `flags`, and the game
+relies on it**: our writer's extra padding made Case Zero misread a re-encoded zone (an
+archive's size taken for its entry count, a 256 MiB request) or stall, even for its own
+`prologue_z05`. Case West zones have many more lights, occluders and light probes than
+Case Zero's; Case Zero copes.
+**Docs updated:** formats.md (§`.big` container with a retraction, §Level slots: level
+names, audio scenes, which slots load, the vertex heap table; §Across the games:
+`_BONEHIERARCHY_`), guide 23 (§A whole level), guides README, 12-troubleshooting,
+glossary (level slot, audio scene, declared alignment, recipe cache), ARCHITECTURE.md,
+code-tour, phase14-kickoff (T5), phase15-kickoff (§Status, §Start here), CLAUDE.md.
+**Next:** U4 in a window with the user; U5's door in Case West; u2b; T4a/T4b/T5; bosses.
+
 ## 2026-10-13 — Phase 15: the Zombie heap grown (recomp change 5), heavy and lab guards as soldiers
 **Done:** the user approved growing the Zombie heap by 16 MB and chose Case Zero soldiers
 for the heavy and lab guards. Both recomps take 16 MiB off the SW Texture heap and give

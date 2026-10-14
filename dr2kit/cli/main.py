@@ -280,6 +280,22 @@ def cmd_variants(args) -> int:
 def cmd_level(args) -> int:
     """Levels: list them and their zones, or describe a level, a zone, its placements."""
     from ..convert import level as clevel
+    if args.action == "slots":
+        from ..convert import crossgame
+        game = args.game or "cz"
+        slots = crossgame.level_slot_list(game)
+        free = {s.level for s in crossgame.free_level_slots(game)}
+        print(f"{'level':<30} {'script':<24} {'zone list':<42} audio scene     state")
+        for s in slots:
+            state = ("the game's own" if s.shipped else
+                     "free" if s.level in free else "can't load: needs data/audio/"
+                     f"{s.audio}.txt")
+            if args.free and s.level not in free:
+                continue
+            print(f"{s.level:<30} {s.script:<24} {s.zonelist:<42} {s.audio:<15} {state}")
+        print(f"{len(free)} free slot(s) a level of your own or of the other game can go "
+              f"into (dr2 mod import-level)")
+        return 0
     tree = _tree(args)
     if args.action == "list":
         for L in clevel.list_levels(tree):
@@ -852,6 +868,28 @@ def cmd_mod(args) -> int:
         print(p.report())
         print(f"wrote {len(files)} files into {args.mod}. Spawn it as {p.slot!r}: the Maps "
               f"tab's zombies (retype a crowd, add spawns), or dr2 level edit.")
+        return 0
+    if args.action == "import-level":
+        from ..mods import importlevel
+        from ..mods.deploy import recomp_folders
+        patched = recomp_folders(loc.root)["patched"]
+        src = args.source or ("cw" if game == "cz" else "cz")
+        if args.dry_run:
+            from ..convert.crossgame import source_tree
+            p = importlevel.plan(source_tree(src), tree, src, game, args.level, args.slot,
+                                 args.door, taken_slots=tuple(importlevel.mod_levels(args.mod)))
+            print(p.report())
+            return 1 if p.unresolved else 0
+        p, files = importlevel.import_level(args.mod, args.level, src, game, tree, args.slot,
+                                            args.door, [patched] if patched.is_dir() else [])
+        print(p.report())
+        print(f"wrote {len(files)} files into {args.mod}.")
+        if not args.no_prebuild:
+            print("building the zones now (cached: later builds take seconds)…")
+            importlevel.prebuild(args.mod, tree, progress=lambda d, n, f: print(
+                f"  {d}/{n} {f}", flush=True))
+        print(f"Go through the door ({p.door.get('props', {}).get('Location', '?')} in "
+              f"{p.door.get('file', '?')[9:-4]}) to reach it. Its zombies show in a new game.")
         return 0
     if args.action in ("new-weapon", "remove-weapon"):
         return _cmd_weapon(args, tree, loc)
@@ -1593,6 +1631,10 @@ def build_parser() -> argparse.ArgumentParser:
     pl.add_argument("edited", help="your edited copy of it")
     pl.add_argument("--mod", help="write it into this mod folder (else print it)")
     game_opt(pl)
+    pl = lsub.add_parser("slots", help="the program's level slots: which hold the game's "
+                         "levels, which are free for a level of your own")
+    pl.add_argument("--free", action="store_true", help="only the free ones")
+    game_opt(pl)
     pl = lsub.add_parser("info", help="a level's zones, or one zone's placements")
     pl.add_argument("level", help="a level, e.g. prologue (Case Zero) or living_research (Case West)")
     pl.add_argument("zone", nargs="?", help="a zone, e.g. z05 or prologue_z05")
@@ -1742,6 +1784,24 @@ def build_parser() -> argparse.ArgumentParser:
                                    "name when empty, else a free one)")
     pm.add_argument("--level", action="append", metavar="SCRIPT",
                     help="add it to this level's load set (prologue); repeat for more")
+    pm.add_argument("--from", dest="source", choices=GAME_IDS,
+                    help="the game it comes from (default: the other one)")
+    pm.add_argument("-g", "--game", choices=GAME_IDS, default="cz",
+                    help="the game it goes into (default: cz)")
+    pm.add_argument("-n", "--dry-run", action="store_true", help="only say what it would do")
+    pm = msub.add_parser("import-level", help="bring a whole level of the other game "
+                         "(Case West's Storage Pens in Case Zero, or Case Zero's street in "
+                         "Case West): its zones, items, zombies, doors, into a free level "
+                         "slot, with a door to it (phase 15)")
+    pm.add_argument("mod", help="the mod folder")
+    pm.add_argument("level", help="the level in the other game (storage_pens, prologue…: "
+                                  "dr2 level slots -g <other>)")
+    pm.add_argument("--slot", help="the free slot it goes into (default: the first free "
+                                   "one; dr2 level slots --free)")
+    pm.add_argument("--door", metavar="X,Y,Z", help="where its entry door goes (default: "
+                    "Case Zero by the safehouse exit, Case West in the Storage Pens)")
+    pm.add_argument("--no-prebuild", action="store_true",
+                    help="don't build the zones now (the first build then takes minutes)")
     pm.add_argument("--from", dest="source", choices=GAME_IDS,
                     help="the game it comes from (default: the other one)")
     pm.add_argument("-g", "--game", choices=GAME_IDS, default="cz",

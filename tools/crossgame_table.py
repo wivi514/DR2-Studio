@@ -17,9 +17,13 @@ What it reads, per game:
   name, CW after its last); the type table is the other one. CZ: 32 at ``0x829DF688``;
   CW: 10 at ``0x829F2598`` (formats.md §Levels "Zombie types").
 * **The level table**: the array of pointers to the levels' script names (``*.txt``)
-  holding ``safehouse.txt``, and the zone-list array that follows it in Case Zero (82
-  slots, ``0x829D4DFC`` / ``0x829D5F7C``); Case West's script names at ``0x829EED1C``
-  (10). A slot is **shipped** when its script is in ``datafile.big``, else **empty**.
+  holding ``safehouse.txt`` (Case Zero 82 slots at ``0x829D4DFC``, Case West 10), the
+  array of zone lists in the same order (`zone_lists`), the level names (`level_ids`:
+  ``LEVEL_LIGHTINGTEST`` is ``lighting.txt``), and each slot's **audio scene**
+  (`level_audio`, read from the switch that hands it to the audio manager). A slot is
+  **shipped** when its script is in ``datafile.big``, else **empty**; an empty slot
+  loads only when its audio scene is one the game ships or needs no file
+  (`dr2kit.convert.crossgame.level_slot`, formats.md §Level slots).
 * **Script classes**: every block class of every text file of either game's
   ``datafile.big``, and whether this program names it (the string ``cName`` with a NUL
   after it): a class the target's program lacks can't be built there.
@@ -143,13 +147,144 @@ def level_table(img: bytes) -> tuple[int, list[str], list[str]]:
             best = (BASE + first, names, at)
     if best is None:
         raise SystemExit("level table not found")
-    zl, at = [], best[2]
-    while (s := _ptr(img, at)) and "zonelist" in s:
-        zl.append(s)
-        at += 4
-    if len(zl) != len(best[1]):
-        zl = []
-    return best[0], best[1], zl
+    return best[0], best[1], zone_lists(img, len(best[1]))
+
+
+def zone_lists(img: bytes, count: int) -> list[str]:
+    """The zone list each slot loads (relative to ``data/models/environment/``), slot
+    order: the run of ``count`` pointers to ``…zonelist….big`` names (Case Zero
+    ``0x829D5F7C``; Case West keeps one too). [] when there is none."""
+    for p in _pointers_to(img, b"safehouse/zonelist.big") + \
+            _pointers_to(img, b"living_research/zonelist.big"):
+        first = p
+        while (s := _ptr(img, first - 4)) and "zonelist" in s:
+            first -= 4
+        out, at = [], first
+        while (s := _ptr(img, at)) and "zonelist" in s:
+            out.append(s)
+            at += 4
+        if len(out) == count:
+            return out
+    return []
+
+
+def level_ids(img: bytes, count: int) -> list[str]:
+    """The level enum's names (``LEVEL_PROLOGUE``…) in slot order: the program keeps them
+    as one run of strings, the slots' names from the last to the first (``LEVEL_NONE``
+    stands apart; both games, 2026-10-13). A door's ``Level`` and a mission's ``LevelName`` are
+    these names; they are not always ``LEVEL_`` + the script's name
+    (``LEVEL_LIGHTINGTEST`` is ``lighting.txt``, ``LEVEL_MADHATTER`` ``gs_hattrick.txt``)."""
+    for m in re.finditer(rb"\0(LEVEL_[A-Z0-9_]+)\0", img):
+        names, o = [], m.start() + 1
+        while len(names) < count and img.startswith(b"LEVEL_", o):
+            end = img.find(b"\0", o)
+            names.append(img[o:end].decode("ascii"))
+            o = end
+            while img[o] == 0:
+                o += 1
+        if len(names) == count and "LEVEL_NONE" not in names:
+            return names[::-1]
+    raise SystemExit("the level names (one run of LEVEL_ strings, one per slot) were not "
+                     "found")
+
+
+def _word(img: bytes, at: int) -> int:
+    return struct.unpack_from(">I", img, at)[0]
+
+
+def _lis_addi(img: bytes, at: int, reg: int | None = None) -> str | None:
+    """The string ``lis rX, hi`` at ``at`` and ``addi rY, rX, lo`` right after build."""
+    a, b = _word(img, at), _word(img, at + 4)
+    if a >> 26 != 15 or b >> 26 != 14 or (b >> 16) & 0x1F != (a >> 21) & 0x1F:
+        return None
+    if reg is not None and (b >> 21) & 0x1F != reg:
+        return None
+    lo = b & 0xFFFF
+    return _cstr(img, ((a & 0xFFFF) << 16) + (lo - 0x10000 if lo & 0x8000 else lo))
+
+
+def level_audio(img: bytes, count: int) -> list[str]:
+    """Each slot's **audio scene** (slot order): the name the program gives the audio
+    manager when the level loads, which then reads ``data/audio/<name>.txt`` and checks
+    that file's digest (formats.md §Level slots "audio scene"). Read from the switch that
+    passes the names in ``r5`` (with ``r4 = 2``): Case Zero's is a jump table on
+    ``level - 1`` (``addi r11,r4,-1; cmplwi cr6,r11,N; bgt default; …lbzx; …bctr``),
+    Case West's a run of ``cmpwi cr6,r4,K; beq`` (each case: ``lis``, ``addi r5``).
+    Found by the code that builds ``MainMenu`` into ``r5``. Slots past the switch get its
+    default (``Default``)."""
+    target = img.find(b"\0MainMenu\0") + 1
+    if target <= 0:
+        raise SystemExit("MainMenu not found")
+    sites = [o for o in range(0, len(img) - 8, 4)
+             if _lis_addi(img, o, 5) == "MainMenu"]
+    for site in sites:
+        for o in range(site, max(site - 1600, 0), -4):
+            w = _word(img, o)
+            if w == 0x396BFFFF or w == 0x3964FFFF:            # addi r11,r4,-1
+                out = _jump_table(img, o, count)
+            elif w == 0x2F040001:                              # cmpwi cr6,r4,1
+                out = _compare_chain(img, o, count)
+            else:
+                continue
+            if out and "MainMenu" in out:
+                return out
+    raise SystemExit("the level audio switch was not found")
+
+
+def _first_r5(img: bytes, at: int) -> str | None:
+    """The first string a ``lis rX`` + ``addi r5, rX`` pair (up to 3 instructions apart)
+    builds from ``at`` on (Case Zero's ``YucatanCasino`` case has ``li r4,2`` between)."""
+    for k in range(0, 40, 4):
+        a = _word(img, at + k)
+        if a >> 26 != 15:
+            continue
+        for j in range(4, 16, 4):
+            b = _word(img, at + k + j)
+            if b >> 26 == 14 and (b >> 21) & 0x1F == 5 and (b >> 16) & 0x1F == (a >> 21) & 0x1F:
+                lo = b & 0xFFFF
+                return _cstr(img, ((a & 0xFFFF) << 16) + (lo - 0x10000 if lo & 0x8000 else lo))
+    return None
+
+
+def _jump_table(img: bytes, at: int, count: int) -> list[str] | None:
+    cmp, bgt = _word(img, at + 4), _word(img, at + 8)
+    if cmp >> 16 != 0x2B0B or bgt >> 26 != 16:
+        return None
+    n = (cmp & 0xFFFF) + 1
+    default = _first_r5(img, at + 8 + ((bgt & 0xFFFC) - (0x10000 if bgt & 0x8000 else 0)))
+    tab = _lis_addi(img, at + 12)
+    hi, lo = _word(img, at + 12), _word(img, at + 16)
+    lo = lo & 0xFFFF
+    table = ((hi & 0xFFFF) << 16) + (lo - 0x10000 if lo & 0x8000 else lo) - BASE
+    for k in range(20, 60, 4):                                 # the case code's base
+        a = _word(img, at + k)
+        if a >> 26 == 15 and (a >> 21) & 0x1F == 12 and k > 24:
+            b = next(_word(img, at + j) for j in range(k + 4, k + 16, 4)
+                     if _word(img, at + j) >> 26 == 14)
+            lo = b & 0xFFFF
+            base = ((a & 0xFFFF) << 16) + (lo - 0x10000 if lo & 0x8000 else lo) - BASE
+            break
+    else:
+        return None
+    del tab
+    out = []
+    for i in range(count):
+        out.append(_first_r5(img, base + 4 * img[table + i]) if i < n else default)
+    return out if all(out) else None
+
+
+def _compare_chain(img: bytes, at: int, count: int) -> list[str] | None:
+    cases, o = {}, at
+    while True:
+        c, b = _word(img, o), _word(img, o + 4)
+        if c >> 16 != 0x2F04 or b >> 26 != 16:
+            break
+        cases[c & 0xFFFF] = _first_r5(img, o + 4 + ((b & 0xFFFC) - (0x10000 if b & 0x8000 else 0)))
+        o += 8
+    default = _first_r5(img, o)
+    if not cases or not default:
+        return None
+    return [cases.get(i + 1) or default for i in range(count)]
 
 
 def _games():
@@ -214,8 +349,11 @@ def build() -> str:
              "# zombie_types   the program's zombie type table, in number order (a type is a",
              "#                model name of data/models/zombies.big)",
              "# levels         the level table's script names, in slot order; level_zonelists",
-             "#                the zone list each slot loads (Case Zero only: Case West keeps",
-             "#                them elsewhere); levels_shipped the slots whose script ships",
+             "#                the zone list each slot loads (under data/models/environment);",
+             "#                levels_shipped the slots whose script ships; level_ids the",
+             "#                slots' level names (a door's Level); level_audio each slot's",
+             "#                audio scene (data/audio/<name>.txt, digest-checked);",
+             "#                audio_scenes the audio scene files the game ships",
              "# classes_unknown  block classes the OTHER game's text files use that this",
              "#                program doesn't name: they can't be built here",
              "# shaders        name = hash of every shader description this game holds (that",
@@ -244,6 +382,14 @@ def build() -> str:
                   "levels_shipped = [" + ", ".join(f'"{n[:-4]}"' for n in shipped) + "]"]
         if zl:
             lines.append("level_zonelists = [" + ", ".join(f'"{n}"' for n in zl) + "]")
+        lines.append("level_ids = [" + ", ".join(f'"{n}"' for n in level_ids(img, len(lv)))
+                     + "]")
+        lines.append("level_audio = [" + ", ".join(f'"{n}"' for n in level_audio(img, len(lv)))
+                     + "]")
+        audio = tree.root / "data" / "audio"
+        lines.append("audio_scenes = [" + ", ".join(
+            f'"{f.stem}"' for f in sorted(audio.iterdir(), key=lambda f: f.name.lower())
+            if f.suffix.lower() == ".txt" and f.stem[:1].isupper()) + "]")
         lines.append("classes_unknown = [" + ", ".join(f'"{c}"' for c in unknown) + "]")
         lines.append(f"[{g}.shaders]")
         lines += [f'"{n}" = 0x{h:08X}' for n, h in own.items()]

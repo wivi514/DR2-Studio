@@ -852,6 +852,24 @@ pictures are drawn: bump `index.build.THUMB_VERSION`, and the next build redraws
   `persistent_filecache.big`'s copy, the one the game reads), `import_zombie`,
   `mod_slots`, `census`. CLI `dr2 mod import-zombie`. The build's level check counts the
   zombie models mods add (`build.plan_mods`: `facts.zombie_types`).
+- `mods/importlevel.py` (phase 15 step 5, maps): a whole level of the other game.
+  `plan(src_tree, dst_tree, src, dst, level, slot, door, mod_id, taken_slots, taken_ids,
+  taken_zombies, sets_text)` → `LevelPlan`: the slot (`crossgame.free_level_slots`), the
+  zones (`_zones`: one recipe per zone archive, `"from"` + the level's shaders from one
+  `shadercarry.plan`; the zone list copied under the slot's path), the zombies
+  (`_load_set` + `_zombie_mission`: the source mission's `cMissionLevelReady` that spawns
+  most crowds; types through `importzombie.plan`; `_new_load_set`; `_mission` builds the
+  mod's own `cMissionDefinition` from the target's own zombie mission's settings,
+  `_zombie_block` drops left-out and armed-in-a-crowd types), the text files (`_script`:
+  a copy recipe of each with `"edits"` = `leveledits.diff` of `_rewrite`: unknown classes,
+  items through `_item` (kept, queued for `importitem`, or dropped with its placement),
+  `_door` (missing levels lead back, profile `level_door`), text copied under new ids,
+  light setting files brought), `_entry_door`, `_asked_spawns`; `write` (text first, then
+  `importitem.import_item` per item, `importzombie.write`, recipes, mission, load set +
+  its `persistent_filecache.big` mirror, the door, `[requires]`, `sources/levels.json`),
+  `import_level`, `prebuild` (builds the zone recipes in a process pool to fill the
+  recipe cache), `mod_levels`. CLI `dr2 mod import-level`, `dr2 level slots`; Studio
+  `studio/import_dialog.LevelImportDialog`.
 - `requires` (phase 15): what a mod needs. `Mod.requires` is `[requires]` as written
   (keys checked by `manifest._requires_table`); `infer(mod)` → `Requirements` (games,
   play, sources = games its recipes copy from via `"from"`, mods with version specs,

@@ -76,6 +76,12 @@ armed_enemies = { slots = ["mercenary", "mercenary_pheno", "mercenary_tk"], beha
 # 2026-10-13 (runtime/cpu/zombie_heap.cpp, CZ_NO_ZOMBIE_HEAP_GROWTH=1 turns it off).
 zombie_heap = { size = 30177280, shared = 5480000, recomp_growth = 16777216, spare = { LEVEL_PROLOGUE = 1586656 } }
 
+# A level brought from the other game (phase 15 maps, mods.importlevel): its entry door
+# goes into the street by the safehouse exit (where test T5's door was: it loaded the new
+# level, 2026-10-13), and the brought level's doors to levels this game lacks lead back to
+# the spot Chuck comes out of the safehouse at (AlternateExit).
+level_door = { level = "prologue", location = "-281.5,4.2,-31.5", return_spawn = "AlternateExit" }
+
 # The in-game map's other floors (phase 10): picture, where its top-left corner sits on
 # the main map picture and its scale, both in the main picture's pixels, and when it
 # shows ("above" the map's second-floor height, "below" its basement height, from

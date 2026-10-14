@@ -434,6 +434,24 @@ this way, and the recomp's own changes to it stay.
 (a save point, a workbench, a door to another level…), so it works like the real one.
 DR2 Studio's **Add from prefab…** lists them; you can save your own (`.dr2prefab`).
 
+**Level slot.** One place in a game's built-in list of levels: a level name
+(`LEVEL_X_PROLOGUE`), the text file it reads (`x_prologue.txt`) and its zone list. Case Zero
+has 82 slots (named after Dead Rising 2's places and test levels) and uses 4; a level of
+your own or of the other game goes into an **empty slot** (`dr2 level slots`).
+
+**Audio scene.** The set of sounds and music a level plays, named per level slot
+(`Prologue`, `FoodBarn`, `Default`…). The game loads `data/audio/<name>.txt` for it and
+checks that file against a list in its program, so an empty slot whose audio scene file
+doesn't ship can't take a level; `Default` and `MainMenu` need no file.
+
+**Declared alignment.** A number in each `.big` entry's record (`flags`): the entry's data
+starts at a multiple of it, right after the entry before. The game relies on that layout,
+so the toolkit writes it exactly so.
+
+**Recipe cache.** Where the toolkit keeps what big recipes made from the other game build
+(a brought level's zones), so only the first build takes minutes. In the user cache folder
+(`recipes/`); safe to delete.
+
 **Load set.** The zombie types a level loads into memory, by time of day
 (`zombiesets.txt`). A zombie of a type the level doesn't load probably doesn't appear,
 so adding a new type to a level means adding it to the load set too.

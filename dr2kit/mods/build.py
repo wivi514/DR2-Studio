@@ -387,7 +387,7 @@ def plan_mods(mods: list[Mod], game: str, tree: AssetTree) -> ModPlan:
             from ..convert import levelcheck
             from ..formats.levelscript import Document
             if facts is None:
-                facts = levelcheck.GameFacts(tree)
+                facts = levelcheck.GameFacts(tree, game)
                 _added_scripts(facts, plan)
                 facts.zombie_types |= {      # zombie types a mod fills (phase 15)
                     p.vpath.rsplit("/", 1)[-1].lower()[:-4] for p in plan.values()
@@ -741,7 +741,8 @@ def register_in_scene(arc: BigArchive, names: list[str]) -> None:
 def _added_scripts(facts, plan: dict) -> None:
     """Level scripts the mods add (phase 14, maps of one's own: ``add/…/datafile.big/
     <x>.txt`` with ``waypoint_<x>.txt`` or ``nm_<x>.txt``) count as levels for the level
-    checks, with their spawn points, so a door can lead to them."""
+    checks, with their spawn points and zombie areas, so a door can lead to them and a
+    mission can spawn zombies there."""
     from ..formats.levelscript import Document
     added = {p.vpath.rsplit("/", 1)[-1].lower(): p for p in plan.values()
              if p.override.kind == "add" and p.vpath.lower().startswith("data/datafile.big/")}
@@ -751,13 +752,12 @@ def _added_scripts(facts, plan: dict) -> None:
         stem = name[:-4]
         if f"waypoint_{stem}.txt" not in added and f"nm_{stem}.txt" not in added:
             continue
-        facts.scripts.add(stem)
         try:
             doc = Document.parse(new_bytes(p, b""), p.vpath)
         except Dr2Error:
+            facts.add_script(stem)
             continue
-        facts.spawn_points(stem).update(b.name.lower() for b in doc.blocks
-                                        if b.cls == "cSpawnPoint")
+        facts.add_script(stem, doc)
 
 
 def _new_file_folder(tree: AssetTree, parent: str) -> str | None:

@@ -2,7 +2,7 @@
 
 > **Status 2026-10-12: started** (user: "Do phase 15"; phase 14's in-game tests moved
 > after it by the user: "Later, start phase 15 now"). Decisions 2-5 taken (§Decisions).
-> Map import (step 5, tests U4/U5) waits for phase 14's T5 (does an empty level slot load?).
+> Map import (step 5) built 2026-10-14: U4 loads headless, U5 built (§Status).
 > Progress: §Status. Phase 16 (the same from the PC games):
 > [`phase16-kickoff.md`](phase16-kickoff.md).
 
@@ -395,6 +395,44 @@ the modder doesn't have to know. XenonLive's launcher has no mod support yet
   the Sheriff's office and junkyard single spawns, Laser Sword and Impact Hammer at the
   safehouse exit) loads headless. **Owed: u2b in a window with the user.**
 
+* **Step 5, maps: built 2026-10-13/14** (user: "Do phase 15 maps"; phase 14's T5 answered
+  headless first). Found on the way, each measured headless:
+  - **Which empty slots load** (formats.md §Level slots "Audio scenes"): a level loads its
+    *audio scene* `data/audio/<name>.txt`, digest-checked; a slot whose scene the game
+    doesn't ship stalls (`FoodBarn`). 42 of Case Zero's 78 empty slots and Case West's
+    `w_mall` can take a level. The slot table (level names, zone lists, audio scenes) is
+    read from both executables (`tools/crossgame_table.py`); level names aren't always
+    `LEVEL_` + the script (`LEVEL_LIGHTINGTEST`), the level checker now knows them.
+  - **The `.big` writer's layout was wrong for edited archives**: the game puts each
+    payload at the previous one's end aligned up to its `flags`, and Case Zero's level
+    streaming relies on it. Our writer padded more; a re-encoded zone then made Case Zero
+    read a texture pack 4 bytes early and ask for 256 MiB, or stall. Fixed in
+    `container/big.py` (round trip still identical for every archive of both games), which
+    may also help earlier mods with big edited archives. formats.md §`.big` container.
+  - `_BONEHIERARCHY_` only for scenes with nodes (`ZONE_ORGANIZATION.big` never has it).
+  - **The level importer** (`mods/importlevel.py`, `dr2 mod import-level`, `dr2 level
+    slots`, Studio *Other game's levels…*, guide 23 §A whole level): zones with the source's
+    shaders, text files with every name resolved (items brought through `importitem`,
+    unknown classes dropped, doors to missing levels lead back: profile `level_door`, text
+    copied), the source's zombie mission for the level as the mod's own (types through
+    `importzombie`, armed ones out of crowds), the load set, an entry door, spawn points
+    the target's doors ask for. Big recipes from the other game are **cached**
+    (`newitem.build_copy`, `recipes/` in the cache folder) and built in parallel at import
+    (`importlevel.prebuild`): ~2 min for a level on 16 threads, then seconds.
+  - **U4 headless: Case West's Storage Pens loads in Case Zero** (slot
+    `LEVEL_PROLOGUE_BOWLING`, door by the safehouse exit, prompt "Storage Pens"): Chuck
+    arrives at its `Start`, textured and lit, zombies about. Test mod
+    `~/.cache/dr2kit-p15/u4`. **Owed: U4 in a window with the user** (walk, items, doors
+    out, a new game for the zombies).
+  - **U5 (Case Zero's street in Case West's `w_mall`): built** (`~/.cache/dr2kit-p15/u5`,
+    `dr2 mod check` OK), **its door not seen working**: headless, Case West's test save
+    starts in a fight in Case 3-1 and no prompt showed even with a 300 m trigger (maybe the
+    mission switches doors off, maybe Case West's triggers need more). Next: find where
+    Chuck is (Case West's recomp has no `[pos]` log) or try a quieter save, then the door.
+  - Not done: Case West's level table grown (decision 3; only `w_mall` now), the 36 Case
+    Zero slots whose audio scene would need a recomp change, the in-game map's points for
+    a brought level, its own sound.
+
 ### What is left (2026-10-13)
 
 | Step | State |
@@ -407,13 +445,25 @@ the modder doesn't have to know. XenonLive's launcher has no mod support yet
 | U3 shaders in game | **passed** with U1 (registers moved, engine-only parameters fixed to 1) |
 | 4 zombie types CW → CZ + U2 | **passed** (user, 2026-10-13): gas zombies in crowds; guards armed, fighting, dropping rifles (single spawns, Case Zero's soldier behaviour). Since: the memory limit fixed (recomp change 5, the Zombie heap +16 MiB), 13 types per load-set entry, `security_heavy` / `security_lab` as Case Zero soldiers; test mod u2b loads headless, **owed in a window** |
 | 4 zombie types CZ → CW | **deferred by the user**: Case West's type table, [`TODO.md`](TODO.md) #1 |
-| 5 maps (CZ slots, `w_mall`, CW level table) + U4/U5 | **not started**: waits for phase 14's T5 (user); Case West's level table not examined (beside `TODO.md` #1) |
-| 6 the checker | items and zombie types done (`dr2 census --import`); levels with maps |
+| 5 maps (CZ slots, `w_mall`, CW level table) + U4/U5 | **built** 2026-10-14 (`importlevel`, Studio, guide 23): U4 (Storage Pens in Case Zero) **loads headless**, owed in a window; U5 (street in Case West) built, door not yet seen working; Case West's level table not grown |
+| 6 the checker | items and zombie types done (`dr2 census --import`); levels: `dr2 mod check` on a brought level (real level names, a mod's own level scripts' areas and spawn points); a census of every level each way: not yet |
 | 7 bosses + U6 | **not started** |
 | 8 requirements | **done** (XenonLive's launcher has no mod support yet) |
 | 9 guides | 23 (items, effects, zombies) and 06 written; maps and bosses sections to come |
 
-## Start here (next conversation, updated 2026-10-13 night)
+## Start here (next conversation, updated 2026-10-14)
+
+Maps (step 5) are built (§Status "Step 5"). In order: **U4 in a window with the user**
+(`~/.cache/dr2kit-p15/u4`: link it into their library, `dr2 play -g cz`; the door is a few
+metres from where Chuck leaves the safehouse; then a new game for the zombies, on a copy
+of their saves); **U5**: get Case West's door working (where is Chuck in the test save? a
+quieter save? does Case 3-1 switch doors off?); u2b (below); phase 14's T5 (now in
+`LEVEL_X_PROLOGUE`), T4a, T4b; bosses (step 7). Headless helpers of this session were in
+the session scratchpad (gone); the method: `hl_gdb.py` with B pressed as `B@3000` entries
+after the menus (`START,A,A,A,A,NONE@4000,B@3000…`), a door copy moved onto the save's
+spot, `heaps_at_oom.gdb`.
+
+## Start here (2026-10-13 night)
 
 Done on 2026-10-13 (commits `0505cc2`..`554d3a4`): **U1 and U2 played by the user in Case
 Zero and passed** (brought pixel shaders on the target's constant registers, Case West's

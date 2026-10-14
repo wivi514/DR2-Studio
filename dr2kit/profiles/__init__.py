@@ -56,6 +56,10 @@ class Profile:
     # the Zombie heap (phase 15): its size, the bytes the loaded types share, what levels
     # leave free unmodded (`mods.importzombie`, docs/formats.md §Engine memory)
     zombie_heap: dict = field(default_factory=dict)
+    # a level brought from the other game (phase 15 maps, `mods.importlevel`): the level
+    # its entry door goes into, the door's place, and the spawn point the brought level's
+    # doors lead back to
+    level_door: dict = field(default_factory=dict)
 
 
 def load_profile(game: str) -> Profile:
@@ -80,7 +84,8 @@ def load_profile(game: str) -> Profile:
                    scene_hierarchy=bool(raw.get("scene_hierarchy", False)),
                    texture_version=int(raw.get("texture_version", 0)),
                    armed_enemies=dict(raw.get("armed_enemies", {})),
-                   zombie_heap=dict(raw.get("zombie_heap", {})))
+                   zombie_heap=dict(raw.get("zombie_heap", {})),
+                   level_door=dict(raw.get("level_door", {})))
 
 
 def config_path() -> Path:

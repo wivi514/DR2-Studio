@@ -16,20 +16,24 @@ Key facts (all measured over every archive of Case Zero and Case West, nested on
   LZX-compressed entry and 0 for a stored one (rule 3).
 * The ``hash`` is the engine's string hash of the **lower-cased** name
   (`dr2kit.hashing.name_hash`).
-* Payloads are in index order. Every gap between payloads is zero bytes of alignment
-  padding: each payload starts at the next multiple of some power of two (2 to 0x800)
-  that depends on the archive and the entry. No archive has bytes after its last payload.
+* Payloads are in index order, **each at the end of the one before, aligned up to its
+  own declared alignment** (the index's ``flags``; the first from ``data_start``): the
+  gaps are zero bytes. No archive has bytes after its last payload.
 * Names repeat inside one archive (a scene has several ``Combined Vertices``), so
   entries are addressed by **position** first; names are a convenience.
 
 Round trip: ``BigArchive.parse(data).to_bytes() == data`` for every archive of both
 games (the phase 1 gate, ``dr2 roundtrip``). The writer gets there without storing the
-original offsets: it lays payloads out in order, and starts each one at the next multiple
-of its *alignment*, the largest power of two (at most 0x800) that divided its original
-offset. The true requirement always divides the original offset, so this is never
-smaller than what the game needs, and on an unedited archive it lands every payload
-exactly where it was. Edited entries keep their alignment, so a payload after a resized
-one stays aligned.
+original offsets: it lays payloads out in order, each at the next multiple of its
+``flags`` after the previous payload's end, which is where every payload of both games
+sits (checked by the round trip over every archive, 2026-10-13). **The game relies on it**:
+Case Zero's level streaming finds a zone's payloads that way, not by their index offsets.
+*Retraction:* until 2026-10-13 the writer started each payload at the largest power of two
+(≤ 0x800) that divided its original offset; unedited archives came out the same, but an
+edited zone (its textures re-encoded) got extra padding, and Case Zero then read a
+texture pack 4 bytes early and stalled or asked for 256 MiB (a Case West level brought
+into Case Zero, and Case Zero's own ``prologue_z05`` re-encoded). ``alignment`` (that power
+of two) is still read, for the census.
 
 Origin: ported from the CZ recomp's ``tools/big_list.py`` (listing, parse checks) and
 ``tools/gen_pc_options.py`` (``read_big``/``write_big``), same author.
@@ -84,7 +88,7 @@ class BigEntry:
     flags: int = 0
     compression: int = STORED
     hash: int | None = None   # None means "compute from the name when writing"
-    alignment: int = 4
+    alignment: int = 4         # the largest power of two dividing its offset (census only)
     # As read from the file; informational (the writer recomputes offsets).
     index: int = -1
     data_offset: int = 0
@@ -309,7 +313,7 @@ class BigArchive:
         offsets = []
         pos = data_start
         for e in self.entries:
-            pos = _align_up(pos, e.alignment)
+            pos = _align_up(pos, e.flags or 1)       # module docstring: where the game looks
             offsets.append(pos)
             pos += e.size
         total = pos

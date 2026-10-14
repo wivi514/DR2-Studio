@@ -30,11 +30,13 @@ def _isolated_user_folders(tmp_path_factory, monkeypatch):
 
 
 def make_archive(*entries, alignment: int = 4) -> BigArchive:
-    """Build an archive from ``(name, data)`` or ``(name, data, compression)`` tuples."""
+    """Build an archive from ``(name, data)`` or ``(name, data, compression)`` tuples,
+    every entry declared ``alignment`` (its ``flags``, where the writer puts it)."""
     arc = BigArchive(source="<test>")
     for spec in entries:
         name, data, *rest = spec
-        arc.add(name, data, compression=rest[0] if rest else STORED, alignment=alignment)
+        arc.add(name, data, compression=rest[0] if rest else STORED, flags=alignment,
+                alignment=alignment)
     return arc
 
 

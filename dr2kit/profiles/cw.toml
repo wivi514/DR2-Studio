@@ -70,6 +70,12 @@ armed_enemies = { gun = "SecurityAssaultRifle", as_soldiers = ["security_heavy",
 # §Engine memory); what its types and levels use is not measured here yet.
 zombie_heap = { size = 30177280, recomp_growth = 16777216 }
 
+# A level brought from the other game (phase 15 maps, mods.importlevel): its entry door
+# goes into the Storage Pens beside the walkway from the safehouse's left door, and the
+# brought level's doors to levels this game lacks lead back there (EntrySafehouseLeft).
+# The door's place is a first guess, not yet seen in game.
+level_door = { level = "storage_pens", location = "-34.0,6.1,33.5", return_spawn = "EntrySafehouseLeft" }
+
 # The in-game map's other floors (phase 10): see cz.toml. map_2f fitted to the blueprint
 # (its octagon and outer walls), map_b1 to the tunnel pieces of storage_pens_z09.
 [[map_floors]]

@@ -116,7 +116,13 @@ animation bank brought; brought shaders fixed (constant registers, engine-only p
 everything at once ran out of the program's fixed Zombie heap: both recomps give it
 16 MiB from the SW Texture heap (recomp change 5, 2026-10-13, formats.md §Engine memory), a load-set
 entry takes 13 types at most, the heavy and lab guards become Case Zero soldiers; owed: test mod u2b
-in a window with the user. Next conversation: `docs/phase15-kickoff.md` §Start here. Rest (zombies, maps, bosses, effects):
+in a window with the user. **Maps (step 5) built 2026-10-14** (user: "Do phase 15 maps"): empty level
+slots load when their audio scene does (42 in CZ, `w_mall` in CW; `dr2 level slots`), the level importer
+(`mods/importlevel.py`, `dr2 mod import-level`, Studio *Other game's levels…*, guide 23 §A whole level),
+a cache for big recipes from the other game; **the `.big` writer now lays payloads out as the game does**
+(each at the previous end aligned to its `flags`: the old padding broke edited zones); **Case West's
+Storage Pens loads in Case Zero** (headless, U4 owed in a window); CZ's street in CW (U5) built, its door
+not yet working. Next conversation: `docs/phase15-kickoff.md` §Start here. Rest (zombies, maps, bosses, effects):
 `docs/phase15-kickoff.md` §Status. Phase 16 (the same from the PC Dead Rising 2 and Off
 the Record) is planned, not started: `docs/phase16-kickoff.md`.** Read these before writing code:
 
@@ -285,6 +291,8 @@ dr2 census cz --import                    # phase 15: every item of each game pl
 dr2 mod import-item <mod> <Item> --from cw -g cz [-n]   # the other game's item (guide 23)
 dr2 mod info <mod> [--json]               # what a mod needs (requirements.json)
 dr2 mod import-zombie <mod> security_light --from cw -g cz [--slot zombie_dealer] [--level prologue]
+dr2 level slots -g cz [--free]            # the program's level slots: which can take a level
+dr2 mod import-level <mod> storage_pens --from cw -g cz [--slot x_prologue] [--door x,y,z] [-n]
 python tools/crossgame_table.py [--check] # profiles/crossgame.toml from both executables
 dr2 hold Broadsword -g cz -o out --png    # Chuck in the item's idle holding it (.glb + picture);
 dr2 hold FrostBlade --mod my-mod -o out   #   or a mod's wizard weapon

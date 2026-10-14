@@ -712,7 +712,8 @@ def check_level_scripts(rep: CensusReport, tree: AssetTree) -> None:
             lc["navigation polygons"] += len(ls.navmesh.polygons)
 
 
-def check_level_edits(rep: CensusReport, tree: AssetTree, sample: int = 30) -> None:
+def check_level_edits(rep: CensusReport, tree: AssetTree, sample: int = 30,
+                      game: str | None = None) -> None:
     """The level-edit gate (module docstring); counts in ``rep.level_counts``."""
     from .convert import placed
     from .formats import leveledits as le
@@ -730,7 +731,7 @@ def check_level_edits(rep: CensusReport, tree: AssetTree, sample: int = 30) -> N
         return "same apart from blank lines" if strip[0] == strip[1] else "differs"
 
     from .convert import levelcheck
-    facts = levelcheck.GameFacts(tree)
+    facts = levelcheck.GameFacts(tree, game)
     for name in names:
         vp = f"{placed.DATAFILE}/{name}"
         try:
@@ -840,7 +841,7 @@ def check_levels(rep: CensusReport, tree: AssetTree, game: str) -> None:
     check_level_scripts(rep, tree)
     from .convert.model import TextureFinder, read_scene
     from .formats import level as lvlfmt
-    check_level_edits(rep, tree)
+    check_level_edits(rep, tree, game=game)
     lc = rep.level_counts
     for L in clevel.list_levels(tree):
         info = rep.levels.setdefault(L.name, Counter())

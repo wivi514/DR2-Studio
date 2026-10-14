@@ -66,8 +66,9 @@ class Finding:
 class GameFacts:
     """What the checks look things up in, read once per game tree (cached by callers)."""
 
-    def __init__(self, tree: AssetTree):
+    def __init__(self, tree: AssetTree, game: str | None = None):
         self.tree = tree
+        self.game = game
         self.models = placed.ItemModels(tree)
         self.items = {k for k in self.models.blocks}
         try:
@@ -80,7 +81,35 @@ class GameFacts:
         self.added_items: set[str] = set()       # items (lower) mods add, with their pack
         self._areas: dict[str, set[str] | None] = {}
         self.scripts = {s.lower() for s in placed.script_names(tree)}
+        self.levels: dict[str, str] = {}       # level name (no LEVEL_) -> script (lower)
+        for s in self.scripts:
+            self.add_script(s)
         self.armed_types = _armed_types(tree)
+
+    def add_script(self, script: str, doc: Document | None = None) -> None:
+        """``<script>.txt`` is a level (the game's, or one a mod adds: ``doc``, its text,
+        gives its spawn points and zombie areas): every slot of the program's level table
+        that loads it now names a level (formats.md §Level slots: ``LEVEL_LIGHTINGTEST`` is
+        ``lighting.txt``)."""
+        script = script.lower()
+        self.scripts.add(script)
+        if doc is not None:
+            self.spawn_points(script).update(b.name.lower() for b in doc.blocks
+                                             if b.cls == "cSpawnPoint")
+            self._areas[script] = {b.name.lower() for b in doc.walk()
+                                   if b.cls == "cZombieWarehouse"}
+        if self.game:
+            from . import crossgame
+            for s in crossgame.level_slot_list(self.game):
+                if s.script.lower() == script:
+                    self.levels[s.name] = script
+        else:
+            self.levels[script.upper()] = script
+
+    def script_of(self, level: str) -> str | None:
+        """The script of a level name (``LEVEL_PROLOGUE``, ``PROLOGUE``), None when no
+        script of this game (or of a mod's added ones) is that level."""
+        return self.levels.get(level.strip().upper().removeprefix("LEVEL_"))
 
     def spawn_points(self, script: str) -> set[str]:
         """The names of the ``cSpawnPoint`` blocks of ``<script>.txt`` (lower case)."""
@@ -96,8 +125,8 @@ class GameFacts:
         return self._spawns[key]
 
     def areas(self, level: str) -> set[str] | None:
-        """The zombie areas of ``LEVEL_<SCRIPT>`` (None: no such level script)."""
-        script = level.lower().removeprefix("level_")
+        """The zombie areas of a level (``LEVEL_PROLOGUE``; None: no such level)."""
+        script = self.script_of(level) or level.lower().removeprefix("level_")
         if script not in self._areas:
             if script not in self.scripts:
                 self._areas[script] = None
@@ -291,7 +320,7 @@ def _check_block(facts: GameFacts, path: str, b: Block, level: str | None,
             err(f"NumberOfZombies {b.get('NumberOfZombies')!r} is not a whole number",
                 "NumberOfZombies")
         held = b.get("SpawnWithItem")
-        if held and held.lower() not in facts.items:
+        if held and held.lower() not in facts.items and held.lower() not in facts.added_items:
             err(f"SpawnWithItem {held!r} is not an item of this game's items.txt",
                 "SpawnWithItem")
     elif b.cls == "cMissionZombieFactory":
@@ -322,11 +351,12 @@ def _check_block(facts: GameFacts, path: str, b: Block, level: str | None,
                      "trigger's Location as in the game's own (0-1.5 m below, at most 1.5 m "
                      "across): the prompt may not show", "ActionPoint")
         if kind == "3":
-            lv = (b.get("Level") or "").lower().removeprefix("level_")
-            if lv and lv not in facts.scripts:
-                err(f"Level {b.get('Level')!r} is not a level of this game", "Level")
+            name = b.get("Level") or ""
+            lv = facts.script_of(name) if name else None
+            if name and lv is None:
+                err(f"Level {name!r} is not a level of this game", "Level")
             arrive = b.get("LevelSpawnPoint")
-            spawns = facts.spawn_points(lv) if lv in facts.scripts else None
+            spawns = facts.spawn_points(lv) if lv else None
             if arrive and spawns is not None and arrive.lower() not in spawns:
                 warn(f"LevelSpawnPoint {arrive!r} is not a spawn point of {lv}.txt (unless "
                      f"your mod adds it there)", "LevelSpawnPoint")

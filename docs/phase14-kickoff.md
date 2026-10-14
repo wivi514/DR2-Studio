@@ -80,7 +80,7 @@ save there.
 |---|---|---|---|
 | **T4a** a building's look | `p14-t4a` | a 4 × 3 × 4 m box with a doorway (orange bricks, a blue band) as a **new level piece** `mod_box01` of zone `prologue_z02`, at (−277, 3.18, −39), its doorway toward the street, draw distance 200 m, small `_LOD` picture | Is it there, in front of you when you come out? Does it stay when you walk away (and from far: the picture gets coarser)? Light and shadow on it? |
 | **T4b** a building's collision | `p14-t4b` | the same box as an **invisible item** `ModBoxCol` (`cBlockingVolumeItem`, `MeshVisible = false`, `CollisionType 3`, its pack a copy of the road block's with the box shape) at the same place | Does the box stop Chuck? Can he walk **through the doorway** into the box (collision = the mesh), or does the doorway block (a box or hull)? Is the item invisible? |
-| **T5** a map in an empty slot | `p14-t5` | `LEVEL_FOOD_BARN` = copies of the safehouse script files (`food_barn.txt` + three road blocks by its `Start` spawn point) and of the street's zone list (`food_barn/zonelist.big`, a **new file** with a `layout.bin` record); a **door** at (−281.5, 4.2, −31.5) in the street, a few metres from where Chuck comes out, to `LEVEL_FOOD_BARN` / `Start` | Does the prompt show at the door? Does it load? Do you arrive at (−266, 3.2, −32) with **three road blocks** in front of you (that is the new level)? Zombies? The map? Going back through the safehouse door? What breaks |
+| **T5** a map in an empty slot | `p14-t5` | `LEVEL_X_PROLOGUE` (was `LEVEL_FOOD_BARN`, which can't load: §Status) = copies of the safehouse script files (`food_barn.txt` + three road blocks by its `Start` spawn point) and of the street's zone list (`food_barn/zonelist.big`, a **new file** with a `layout.bin` record); a **door** at (−281.5, 4.2, −31.5) in the street, a few metres from where Chuck comes out, to `LEVEL_FOOD_BARN` / `Start` | Does the prompt show at the door? Does it load? Do you arrive at (−266, 3.2, −32) with **three road blocks** in front of you (that is the new level)? Zombies? The map? Going back through the safehouse door? What breaks |
 
 What each answer gives the tools:
 
@@ -140,6 +140,15 @@ What each answer gives the tools:
   `file`) with `layout.bin` records (`build.new_layout_record`), the level checker taking
   a mod's own level scripts (`build._added_scripts`). Unit tests: `test_mods.py`,
   `test_pieceedits.py`.
+* **T5 answered headless (2026-10-13, phase 15 maps): an empty slot loads**, when its
+  audio scene needs no file or ships (formats.md §Level slots "Audio scenes"):
+  `LEVEL_PROLOGUE_BOWLING`, `LEVEL_MAIN_MENU`, `LEVEL_X_PROLOGUE` load and play (Chuck at
+  the copy's `Start`); `LEVEL_FOOD_BARN`, the slot T5 used, **stalls** (its audio scene
+  `FoodBarn.txt` doesn't ship; a copy fails the digest check). So `p14-t5` now uses
+  `LEVEL_X_PROLOGUE` (`make_t5.py` too). The tools came with phase 15's level import
+  (`crossgame.LevelSlot`, `free_level_slots`, `dr2 level slots`; levelcheck reads the real
+  level names). Still for the user: T5 in a window (the prompt, the road blocks, back
+  through the safehouse door), T4a, T4b.
 * **T4a, T4b, T5 built** (`~/.cache/dr2kit-p14/mods/p14-t4a`, `p14-t4b`, `p14-t5`) and
   checked by build and pictures (the piece and the item's shape rendered from the built
   files); **not yet run**: the user's Case Zero was open (started 16:44, before this

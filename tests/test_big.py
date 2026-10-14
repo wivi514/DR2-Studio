@@ -14,8 +14,9 @@ from conftest import make_archive
 def hand_built() -> bytes:
     """An archive laid out by hand from the spec in docs/formats.md, not by the writer.
 
-    Two entries, "a.txt" (5 bytes at 0x40) and "B.bin" (3 bytes at 0x48, 8-aligned),
-    so the parser is checked against the format, not against itself.
+    Two entries, "a.txt" (5 bytes at 0x5C) and "B.bin" (3 bytes at 0x68: declared
+    8-aligned, the next multiple of 8 after a.txt's end, where the game puts it), so the
+    parser is checked against the format, not against itself.
     """
     count = 2
     names_offset = HEADER_SIZE + count * 28           # 0x18 + 56 = 0x50
@@ -28,7 +29,7 @@ def hand_built() -> bytes:
     struct.pack_into("<6I", out, 0, 0x03040506, data_start, total, count, 0x18, names_offset)
     struct.pack_into("<7I", out, 0x18, names_offset, entry_hash("a.txt"), 5, 5, off_a, 0x4, 0)
     struct.pack_into("<7I", out, 0x18 + 28, names_offset + 6, entry_hash("B.bin"), 3, 3,
-                     off_b, 0x800, 0)
+                     off_b, 0x8, 0)
     out[names_offset:data_start] = names
     out[off_a:off_a + 5] = b"hello"
     out[off_b:off_b + 3] = b"xyz"
@@ -41,7 +42,7 @@ def test_parse_hand_built_archive():
     assert [e.name for e in arc] == ["a.txt", "B.bin"]
     a, b = arc.entries
     assert a.stored == b"hello" and a.size == 5 and a.size2 == 5 and a.flags == 0x4
-    assert b.stored == b"xyz" and b.flags == 0x800 and b.data_offset == 0x68
+    assert b.stored == b"xyz" and b.flags == 0x8 and b.data_offset == 0x68
     assert b.alignment == 8
     assert a.ext == "txt" and b.ext == "bin"
 
@@ -121,3 +122,19 @@ def test_ext_ignores_node_names():
     assert ext("dummy01.l_thigh") == ""
     assert ext("Combined Vertices") == ""
     assert ext("pc_options.TXT") == "txt"
+
+
+def test_payloads_sit_at_the_previous_end_aligned_to_their_flags():
+    """formats.md §`.big` container: the game finds a zone's packs by this layout, so an
+    edited entry moves the next ones only as far as their declared alignment asks (the
+    writer used to keep each payload's original, larger alignment: Case Zero then misread
+    an edited zone)."""
+    arc = make_archive(("a", b"x" * 5), ("b", b"y" * 3), alignment=4)
+    arc.entries[1].flags = 0x10
+    arc.entries[0].set_data(b"z" * 9)
+    raw = arc.to_bytes()
+    back = BigArchive.parse(raw)
+    a, b = back.entries
+    end = a.data_offset + a.size
+    assert b.data_offset == (end + 15) // 16 * 16
+    assert back.to_bytes() == raw

@@ -184,9 +184,13 @@ See the tables in [`14-texturing-tools.md`](14-texturing-tools.md#if-something-w
 (texture sets not found, wrong shape, normal maps lit the wrong way, transparency) and
 the limits in [`15-limits.md`](15-limits.md) (vertices, bones, weights, UVs, sizes).
 
-## The other game's items (phase 15)
+## The other game's items and levels (phase 15)
 
 | Symptom | Cause | Fix |
 |---|---|---|
 | The game crashes while loading after you added another game's item; its log has `Shader constant set overflow` | The item's shaders don't fit the game's room for pixel shaders (Case Zero ~26 extra, Case West ~3) | Remove the item for now; the recomps are being changed to make room ([guide 23](23-other-game.md)) |
 | `… needs Case West's game data on this computer` | The mod is made from the other game's files | **Game folders…** in Studio, or `dr2 games set cw <folder>` |
+| A door to a level of your own (or the other game's) leaves you on the loading screen forever | The level is in a slot whose audio scene the game doesn't ship (`food_barn`…) | Use a slot `dr2 level slots --free` lists ([guide 23](23-other-game.md#a-whole-level-of-the-other-game)) |
+| A door to a level shows the "disc can't be read" message and the game quits | The door names a level the program doesn't have (`LEVEL_LIGHTING` for `lighting.txt`: its name is `LEVEL_LIGHTINGTEST`) | `dr2 level slots` gives each slot's name; `dr2 mod check` says so too |
+| A mod with big edited archives (a brought level, many textures in one zone) stalls loading or crashes, built before 2026-10-14 | Older toolkits laid out edited archives differently from the game | Build it again (**Play**, or `dr2 play`) with this toolkit |
+| The first **Play** after adding a level of the other game takes minutes | Its zones (~160 MB) are converted once, then kept | Wait once; or let **Other game's levels…** build them when you add the level |

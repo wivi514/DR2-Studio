@@ -50,13 +50,20 @@ Verified over **every archive of both games, nested ones included** (`dr2 census
   `total_size` equals the data length, in every archive. Names sit back to back in index
   order and `data_start` is exactly the end of the last name (no padding). Payloads are
   in index order and never overlap; there are no bytes after the last payload.
-- **Padding.** Every gap between payloads is zero bytes, and every gap is explained by
-  aligning the payload to some power of two from 2 to 0x800 (no gap is unexplained).
-  Which power depends on the archive and the entry (0x800 for audio banks and model
-  packs, 16-32 for vertex data in scene chunks, 4 for most scene chunks). The writer
-  keeps, for each entry, the largest power of two (≤ 0x800) dividing its original offset.
-  That is never smaller than the real requirement, and on an unedited archive it lands
-  every payload where it was (`big.py` docstring has the argument).
+- **Padding: each payload sits right after the one before, aligned up to its own
+  declared alignment** (the index's `flags`, below; the first one from `data_start`).
+  Checked on 28,491 entries of zones, their nested packs and `streamedassets.big` in both
+  games, then by the round trip of every archive with a writer that lays them out only
+  that way (7,413 CZ + 8,017 CW, identical, 2026-10-13). **The game relies on it:** Case
+  Zero's level streaming reads a zone's packs by walking that layout, not by the index
+  offsets: a zone whose textures were re-encoded and whose packs got more padding than
+  that made Case Zero read a texture pack 4 bytes early (its entry count taken from the
+  archive size: 336,038 entries) and ask its heap for 256 MiB, or stall on the loading
+  screen (Case West's Storage Pens brought into Case Zero, and Case Zero's own
+  `prologue_z05` re-encoded; both load with the layout fixed).
+  *Retraction:* until 2026-10-13 this said each gap aligns the payload to "some power of
+  two", and the writer kept the largest power of two (≤ 0x800) dividing the original
+  offset: identical on unedited archives, wrong for edited ones.
 - **Entry order: no rule** (phase 13 census, CZ, every archive to two nesting levels:
   3,717 with two entries or more). 1,379 are in lower-case name order, 489 in name *and*
   hash order, 112 in hash order only, 13 in upper-case name order only, 1,724 in **no**
@@ -73,8 +80,9 @@ Verified over **every archive of both games, nested ones included** (`dr2 census
 - **`hash`** is the engine's string hash (`dr2kit/hashing.py`) **of the lower-cased
   name**, for all 124,932 (CZ) + 172,322 (CW) entries. Recompute it for new entries.
 - **`flags`** is the entry's **declared alignment**: every payload of both games starts
-  at a multiple of it (123,534 CZ + 170,360 CW entries with data, measured 2026-10-11), and
-  a new entry declared `0` made the game wait forever for it (an added item pack in
+  at a multiple of it (123,534 CZ + 170,360 CW entries with data, measured 2026-10-11),
+  exactly at the previous payload's end rounded up to it (Padding, above), and a new
+  entry declared `0` made the game wait forever for it (an added item pack in
   `streamedassets.big`, CZ, in game). Kept on write; a new entry takes the value of its
   siblings with the same extension (`BigArchive.sibling_flags`). *Retraction:* this page
   said "meaning still unknown" until phase 11. Values and where they occur:
@@ -1728,9 +1736,63 @@ What a level is made of, read from the shipped ones:
   in-game map), `missions.txt` (`LevelRequiredToStartName`), cutscenes
   (`PreferedLevel`).
 
-**A map of one's own** (test T5, built 2026-10-12, not yet in game): the slot's script
-files as copies (new entries of `datafile.big`), its zone list as a **new file**, and a
-door (`cTriggerVolume`, `ActionType 3`, `Level = LEVEL_<SLOT>`) to it.
+**A map of one's own** (test T5, built 2026-10-12; **loads, headless 2026-10-13**): the
+slot's script files as copies (new entries of `datafile.big`), its zone list as a **new
+file**, and a door (`cTriggerVolume`, `ActionType 3`, `Level = LEVEL_<SLOT>`) to it. The
+game reads a new file with a `layout.bin` record, and the door works.
+
+**Level names** (2026-10-13, both games): the program holds the enum's names as one run of
+strings, the slots' names from the last slot to the first (`LEVEL_NONE` stands apart), so
+slot *i* is level number *i + 1*. A name is **not always** `LEVEL_` + the script's name:
+`LEVEL_LIGHTINGTEST` is `lighting.txt`, `LEVEL_MADHATTER` `gs_hattrick.txt`,
+`LEVEL_ARENA_MINIGAMES` / `LEVEL_ARENA_STADIUM` both `arena_stadium.txt` (a door naming
+`LEVEL_LIGHTING`, which doesn't exist, made the game show its "dirty disc" error and quit).
+Doors and missions write the name with `LEVEL_` (`cTriggerVolume`, `cMissionLevelReady
+LevelName`) or without (`cDoorPlacement Level`, `LevelRequiredToStartName`). Case West's
+zone lists are an array like Case Zero's (`living_research/zonelist.big`…, `w_mall/…`).
+`tools/crossgame_table.py` reads all of it into `profiles/crossgame.toml` (`level_ids`,
+`level_zonelists`, `level_audio`).
+
+**Audio scenes: which empty slots load** (measured headless in Case Zero, 2026-10-13). When
+a level loads, the program hands the audio manager the level's **audio scene** name (a
+switch on the level number: Case Zero `0x82448F78`, a jump table; Case West `0x8244B1xx`, a
+chain of compares), and the audio manager reads `data/audio/<name>.txt` and checks its
+**digest** (§Digest-checked files: the check runs on every audio scene file, and a file
+missing from the executable's list fails it: `digestmanager.cpp`'s assert). Case Zero's
+names: `Prologue` for the street, `prologue_bowling` and the safehouse; `MainMenu` for the
+menus and `main_menu`; `Default` for 35 slots (the developers' `x_` and `z_` test levels,
+the boss arenas…); a name of its own for the rest (`FoodBarn`, `AmericanaCasino`,
+`PalisadesMall`…: 25 slots, files Case Zero doesn't ship). Case West: `LivingResearch`,
+`MainMenu`, `Safehouse`, `SecureLab`, `StoragePens`, and `Default` for `w_mall` and the
+cutscene sets.
+
+| Slot tried (door from the street) | Audio scene | Result |
+|---|---|---|
+| `LEVEL_PROLOGUE_BOWLING` | `Prologue` (ships) | loads, plays |
+| `LEVEL_MAIN_MENU` | `MainMenu` (no file) | loads, plays |
+| `LEVEL_X_PROLOGUE` | `Default` (no file) | loads, plays |
+| `LEVEL_FOOD_BARN` | `FoodBarn`, missing | stalls on the loading screen after asking for `data/audio/FoodBarn.txt` |
+| `LEVEL_FOOD_BARN` with a copy of `Prologue.txt` as `FoodBarn.txt` | `FoodBarn` | asserts "Bad file digest" (not in the executable's list) |
+
+So a slot takes a level of one's own when it is empty and its audio scene is `Default`,
+`MainMenu`, or one the game ships: **42 of Case Zero's 78 empty slots**, and Case West's
+`w_mall` (`crossgame.LevelSlot.loads`, `dr2 level slots`). Opening the other 36 would take
+a recomp change (adding mods' audio scene files to the digest list): not done. The
+street's own door to `PROLOGUE_BOWLING` (`cDoorPlacement Bowling`, locked) asks for a spawn
+point `BowlingStart`.
+
+**Vertex memory per level:** `sub_82373498` sizes the streaming world's vertex buffer heap
+from a table of 24 (level number, bytes) pairs at `0x82042EB8` (Case Zero: 25 MB for the
+minigames, 43-65 MB for Dead Rising 2's big levels); any other level gets
+`sub_82483858`'s 61 MB. Storage Pens fits in that.
+
+**A level of the other game** (phase 15 maps, `mods.importlevel`): Case West's zones load
+in Case Zero once their archives keep the game's layout (§`.big` container, *payloads at
+their declared alignment*), with `_BONEHIERARCHY_` added only to scenes with nodes
+(§Across the games). Case West's zones carry far more light objects (Storage Pens: 148 in
+one zone; Case Zero's street: 8 at most), occluders (38 / 7) and light probes (44 KB /
+8.5 KB) than Case Zero's; cutting them didn't change anything while the layout was wrong,
+and Case Zero loads them as they are.
 
 **`layout.bin`** (the game root, opened first: CZ `0x82786230` reads it) is the game's
 table of loose files: 238 records (CZ) of 152 bytes: the path (128 bytes), a hash word,
@@ -1991,7 +2053,12 @@ after them, stored, `flags` 4, as Case Zero's own; the Laser Sword then plays. P
 order: Case Zero writes parents first, sorted by (depth, parent, index) in 1,473 of 1,485
 scenes (the other 12, two-root rigs, parents first in another order;
 `Skeleton.hierarchy_pairs`). Case Zero's scenes going into Case West keep theirs (both
-programs name the chunk; the Parasol plays in Case West with it).
+programs name the chunk; the Parasol plays in Case West with it). **Only scenes with
+nodes get it** (2026-10-13): in Case Zero's street every level piece (662) and every
+`MERGED_COLLISION.big` (11) has it, but no `ZONE_ORGANIZATION.big` (11; it has no node
+records), so a brought zone's `ZONE_ORGANIZATION.big` gets none (an empty one was written
+until then; not the cause of the zone's load failure, which was the archive layout, §`.big`
+container, but not what Case Zero's own zones hold).
 
 All of it is read and written by `dr2kit/formats/shaderbank.py`; `dr2 census` checks every
 description, parameter file and string table of both games writes back byte for byte (0

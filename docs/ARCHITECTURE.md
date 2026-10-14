@@ -320,6 +320,20 @@ in both, §Recomp integration 4). Case West's scenes also lack the `_BONEHIERARC
 chunk Case Zero's program needs (it hangs a load without it), so a copied scene gets it
 written (`crossgame.fit_scenes`, profile data `scene_hierarchy`).
 
+**A whole level of the other game (phase 15 maps, `mods/importlevel.py`).** A brought
+level goes into an **empty slot** of the target's level table whose audio scene loads
+(`crossgame.LevelSlot`, read from both executables: 42 in Case Zero, `w_mall` in Case
+West), as recipes: its zones copied with their game's shaders, its text files copied with
+edits (every name resolved as for an item), its zombie mission as the mod's own, an entry
+door. A level is ~160 MB of the other game's archives to convert, nearly all of it the
+pure-Python LZX encoder, so **big recipes from the other game are cached** in the user's
+cache folder (`recipes/<key>.bin`, key = the recipe, the source's bytes, the target and a
+hash of the code that builds it: `newitem.build_copy`) and built in parallel once at
+import (`importlevel.prebuild`). *Decision (2026-10-13):* the cache stays a cache (never
+shipped, safe to delete), so mods keep holding recipes only. Writing those zones also
+showed the `.big` writer must lay payloads out exactly as the game does (each at the end
+of the previous one, aligned up to its `flags`): `container/big.py`, formats.md §`.big`.
+
 **What a mod needs (phase 15, `mods/requires.py`).** A mod made from the other game's
 files (a recipe with `"from": "cw"`) can only be built where that game's data is, and
 some mods need other mods, change what saves hold, or change the world every co-op player

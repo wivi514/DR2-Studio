@@ -1,7 +1,8 @@
-# Use the other game's items: Case West's in Case Zero, Case Zero's in Case West
+# Use the other game's items, zombies and levels: Case West's in Case Zero, Case Zero's in Case West
 
 **You will:** put an item of the other game (Case West's Laser Sword in Case Zero, a Case
-Zero item in Case West) into your mod, with everything it needs, and place it in a level.
+Zero item in Case West) into your mod, with everything it needs, and place it in a level;
+or a zombie type, or a [whole level](#a-whole-level-of-the-other-game) with a door to it.
 **Time:** ~5 min.   **Games:** both, **and you need both games' data** on your computer.
 **You need:** the toolkit with **both** game folders set
 ([`02-game-data.md`](02-game-data.md): **Game folders…** in DR2 Studio) and a mod
@@ -141,10 +142,91 @@ dr2 level edit my_mod missions set "cMissionDefinition PrologueZombies/cMissionL
 > recomp, not done yet (open for contributors: [`docs/TODO.md`](../TODO.md) #1), so the
 > command says so and stops.
 
+## A whole level of the other game
+
+You can bring a **whole level**: Case West's Storage Pens into Case Zero, with its
+buildings, items, zombie areas and doors, reached through a door of its own in the street.
+(Case Zero's street into Case West works the same way, but is not seen working yet: below.)
+
+Why it works: each game's program has a fixed list of **level slots** (Case Zero has 82,
+named after Dead Rising 2's places: `food_barn`, `palisades_mall`…; Case West has 10).
+Only a few hold the game's own levels; the rest are **empty**, and a level put under an
+empty slot's file names loads like the game's own. Not every empty slot works: when a
+level loads, the game also loads its **audio scene** (the level's sounds and music),
+and an empty slot whose audio scene the game doesn't ship (`FoodBarn`) stalls on the
+loading screen. A file of that name in your mod doesn't help either: the game checks those
+files against a list built into the program and crashes on any other. So the toolkit only
+offers the slots that load: **42 in Case Zero**, `w_mall` in Case West (`dr2 level slots`
+lists them all and says why).
+
+What the import does, the same way as for an item:
+
+| What | What happens |
+|---|---|
+| The level's **zones** (its buildings, floors, lights, collision) | copied from the other game, drawn with its own shaders |
+| Its **text files** (where every item, door, spawn point and zombie area is) | copied under the slot's names, every name checked |
+| Its **items** | the ones this game lacks are brought, like **Other game's items…** (Storage Pens brings 54) |
+| Its **doors** to the other game's levels | lead **back** to where you came from (in Case Zero: out of the safehouse door); keys and "locked" messages are taken off |
+| Its **zombies** | the other game's zombie mission for that level becomes a mission of your mod (crowds, single zombies, crates), and its zombie types are this game's own or brought ([above](#the-other-games-zombies)). Armed guards are left out of crowds (a crowd spawning them crashes the game) |
+| Its **zombie list** (load set) | made for the slot from the other game's |
+| An **entry door** | added to this game's level, with the level's name as its prompt ("Storage Pens") |
+
+Not brought: the other game's story missions, the in-game map (it shows nothing there),
+the level's own sounds and music (a slot plays its own audio scene: Case Zero's
+`prologue_bowling` plays the street's, most others none).
+
+> **Seen in Case Zero (headless, 2026-10-13):** the door by the safehouse exit shows
+> *Storage Pens*, the level loads, and Chuck walks in Case West's pens, textured and lit,
+> with zombies. **Not yet played by a person** (test U4): the doors out, the items, the
+> zombies in a new game. **Case Zero's street in Case West** (test U5) builds, but its
+> door hasn't been seen to work yet. Keep a copy of your saves.
+
+**Your saves:** the level's zombies come from your mod's own mission, which starts only
+in a **new game**, and a save made with it, or made inside the brought level, needs the
+mod: loaded without it, the game crashes ([guide 19](19-edit-a-level.md#zombies-what-you-can-change-and-new-zombies)).
+
+### In DR2 Studio
+
+1. Open your mod and pick the game it is for (the game box in the toolbar): the level goes
+   **into** this game.
+2. Click **Other game's levels…** (under the mod's buttons).
+3. Pick the **Level** (`storage_pens`), the **Slot** (the first free one is fine), and
+   where the **Door** goes (`x,y,z`; the default is by the safehouse exit in Case Zero,
+   in the Storage Pens in Case West). Click **Show what it does**: the report lists what
+   is brought, what leads back, what is left out and why.
+4. Click **Add to mod**. Studio then builds the level's zones in the background (a few
+   minutes, once: they are kept for the next builds). Leave the window open until it says
+   *Done*.
+5. **▶ Play**, go to the door and press the button it shows.
+
+### With the `dr2` command
+
+```
+dr2 level slots -g cz --free                                   # where a level can go
+dr2 mod import-level my_mod storage_pens --from cw -g cz -n    # only say what it does
+dr2 mod import-level my_mod storage_pens --from cw -g cz       # add it (and build the zones)
+dr2 mod import-level my_mod storage_pens --from cw -g cz --slot x_prologue --door -270,3.3,-40
+dr2 play -g cz
+```
+
+The first build of a brought level converts ~160 MB of the other game's zones (2 minutes
+on a 16-thread computer, longer on fewer); the result is kept in the toolkit's cache
+folder (`recipes/`), so later builds take seconds. Delete that folder to free the space.
+
+### If the level doesn't work
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| The door shows no prompt | It is somewhere Chuck can't stand | Move it: `--door x,y,z` (copy a position from the Maps tab) |
+| Stuck on the loading screen after the door | A slot whose audio scene the game doesn't ship (an older toolkit offered them) | Import again into a slot `dr2 level slots --free` lists |
+| Stuck loading, or a fault, with a level built by a toolkit before 2026-10-14 | Its archives were laid out with extra padding, which the game's level streaming misreads | Build again with this toolkit |
+| No zombies in the brought level | You loaded a save: the zombies come in a new game | Start a new game (keep your old saves: they don't need the mod) |
+| `… is not a zombie area of …` from `dr2 mod check` | An older toolkit | Update the toolkit |
+
 ## Going further
 
 - What a mod needs, and the `requirements.json` a launcher reads:
   [guide 06](06-mod-packages.md#what-a-mod-needs).
-- How it works, for developers: `dr2kit/mods/importitem.py`,
+- How it works, for developers: `dr2kit/mods/importitem.py`, `dr2kit/mods/importlevel.py`,
   `dr2kit/convert/shadercarry.py`, [`formats.md`](../formats.md) §"Across the games:
   shader banks", [`phase15-kickoff.md`](../phase15-kickoff.md).

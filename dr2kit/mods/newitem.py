@@ -42,6 +42,12 @@ Phase 15 (the other game's things): ``"from": "cw"`` reads ``copy`` from that ga
 that game, and a recipe with ``"shader": {"kind", "old", "new", "rename"}`` is one of those
 brought bank entries (`dr2kit.convert.shadercarry`).
 
+A recipe made from the other game whose source is big (a level's zone archive: ~100 s
+for 38 MB, nearly all of it the pure-Python LZX encoder) is **cached**: its bytes are kept
+in the user cache folder (``recipes/``), keyed on the recipe, the source's bytes, the
+target game and the code that builds it (`_cache_key`), so a level is converted once,
+not at every build. Delete the folder to clear it.
+
 and a recipe can copy a **texture** (a ``.bct``) instead of a pack, for a combo card's
 picture in ``data/frontend/combocards.tex``::
 
@@ -88,8 +94,65 @@ COPY_EXT = ".copy.json"
 SOURCES_DIR = "sources"
 
 
+CACHE_MIN = 1 << 20                  # cache a "from" recipe's output from 1 MB of source
+NOT_CACHED = ("glb", "textures", "icon", "icon_name", "image", "card")   # mod-source files
+
+
+def _code_stamp() -> str:
+    """A hash of the modules a cached recipe's bytes depend on (`build_copy`): changed
+    code makes new bytes, so the cache key changes with it."""
+    global _STAMP
+    if _STAMP is None:
+        import hashlib
+        root = Path(__file__).resolve().parents[1]
+        h = hashlib.sha1()
+        for rel in ("mods/newitem.py", "convert/shadercarry.py", "convert/crossgame.py",
+                    "formats/xenos.py", "formats/shaderbank.py", "formats/scene.py",
+                    "container/big.py", "container/xcompress.py", "container/lzx/encode.py",
+                    "profiles/crossgame.toml", "profiles/cz.toml", "profiles/cw.toml"):
+            f = root / rel
+            h.update(f.read_bytes() if f.is_file() else rel.encode())
+        _STAMP = h.hexdigest()
+    return _STAMP
+
+
+_STAMP: str | None = None
+
+
+def _cache_key(tree: AssetTree, recipe: dict, src_data: bytes) -> str:
+    import hashlib
+    h = hashlib.sha1(json.dumps(recipe, sort_keys=True).encode())
+    h.update(hashlib.sha1(src_data).digest())
+    h.update(str(tree.root).encode())
+    h.update(_code_stamp().encode())
+    return h.hexdigest()
+
+
 def build_copy(tree: AssetTree, recipe: dict, mod_root: Path, where: str = "") -> bytes:
-    """The bytes of a new entry made by a ``.copy.json`` recipe (module docstring)."""
+    """The bytes of a new entry made by a ``.copy.json`` recipe (module docstring); a big
+    recipe made from the other game comes from the cache when it was built before."""
+    if recipe.get("from") and recipe.get("copy") and \
+            not any(recipe.get(k) for k in NOT_CACHED):
+        from ..convert.crossgame import source_tree
+        try:
+            data = source_tree(recipe["from"], where).resolve(recipe["copy"]).data()
+        except Dr2Error:
+            data = b""
+        if len(data) >= CACHE_MIN:
+            from ..userdirs import cache_dir
+            f = cache_dir() / "recipes" / f"{_cache_key(tree, recipe, data)}.bin"
+            if f.is_file():
+                return f.read_bytes()
+            out = _build_copy(tree, recipe, mod_root, where)
+            f.parent.mkdir(parents=True, exist_ok=True)
+            tmp = f.with_suffix(".tmp")
+            tmp.write_bytes(out)
+            tmp.replace(f)
+            return out
+    return _build_copy(tree, recipe, mod_root, where)
+
+
+def _build_copy(tree: AssetTree, recipe: dict, mod_root: Path, where: str = "") -> bytes:
     pre = f"{where}: " if where else ""
     if recipe.get("format") != COPY_FORMAT or not recipe.get("copy"):
         raise Dr2Error(f"{pre}not a {COPY_FORMAT} recipe (needs \"copy\")")
