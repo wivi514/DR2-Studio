@@ -402,9 +402,10 @@ the modder doesn't have to know. XenonLive's launcher has no mod support yet
 | 1 both games at once, 2 cross-game table | **done** |
 | 3 import an item | **built**: brought shaders (constant registers moved, 2026-10-13), effects into free slots, moves into the animation graph, `PropAudioType` bits, `_BONEHIERARCHY_`; loads headless both ways. Untextured brought shaders **fixed** (registers), U1 again owed |
 | Recomp change 4: shader pools (CZ, CW) | **done** (three pools, 4,096 each) |
+| Recomp change 5: the Zombie heap (CZ, CW) | **done** 2026-10-13 (+16 MiB from the SW Texture heap) |
 | U1 items in game (Laser Sword, Impact Hammer) | **passed** (user, 2026-10-13): textured, glowing, held right, attacks work |
 | U3 shaders in game | **passed** with U1 (registers moved, engine-only parameters fixed to 1) |
-| 4 zombie types CW → CZ + U2 | **passed** (user, 2026-10-13): gas zombies in crowds; guards armed, fighting, dropping rifles (single spawns, Case Zero's soldier behaviour). Open: `security_heavy` / `security_lab` behaviours; the memory limit with everything at once |
+| 4 zombie types CW → CZ + U2 | **passed** (user, 2026-10-13): gas zombies in crowds; guards armed, fighting, dropping rifles (single spawns, Case Zero's soldier behaviour). Since: the memory limit fixed (recomp change 5, the Zombie heap +16 MiB), 13 types per load-set entry, `security_heavy` / `security_lab` as Case Zero soldiers; test mod u2b loads headless, **owed in a window** |
 | 4 zombie types CZ → CW | **deferred by the user**: Case West's type table, [`TODO.md`](TODO.md) #1 |
 | 5 maps (CZ slots, `w_mall`, CW level table) + U4/U5 | **not started**: waits for phase 14's T5 (user); Case West's level table not examined (beside `TODO.md` #1) |
 | 6 the checker | items and zombie types done (`dr2 census --import`); levels with maps |
