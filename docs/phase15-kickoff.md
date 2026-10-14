@@ -413,31 +413,39 @@ the modder doesn't have to know. XenonLive's launcher has no mod support yet
 | 8 requirements | **done** (XenonLive's launcher has no mod support yet) |
 | 9 guides | 23 (items, effects, zombies) and 06 written; maps and bosses sections to come |
 
-## Start here (next conversation, updated 2026-10-13 evening)
+## Start here (next conversation, updated 2026-10-13 night)
 
-Done since the morning (commits `0505cc2`..`34716f9`) and **played by the user in Case Zero:
-U1 and U2 pass** (§Status): brought pixel shaders read the target's constant registers
-(`formats/xenos.py`), their materials' value sets too, Case West's engine-only parameters
-read 1.0 (the Laser Sword's glow), gas zombie voice banks, the hammer's grip, armed guards
-(`importzombie`: mercenary slot, Case Zero's `ArmyMerc`, Case West's rifle as
-`MercAssaultRifle`; single spawns only, `levelcheck` warns about crowds). In order:
+Done on 2026-10-13 (commits `0505cc2`..`554d3a4`): **U1 and U2 played by the user in Case
+Zero and passed** (brought pixel shaders on the target's constant registers, Case West's
+engine-only parameters read 1.0, gas zombie voice banks, the hammer's grip, armed guards in
+single spawns). In the evening: the crash with everything at once was the program's fixed
+**Zombie heap** (formats.md §Engine memory); with the user's approval both recomps give it
+16 MiB from the SW Texture heap (recomp change 5, CZ `85900b8`, CW `3f17411`); a load-set
+entry takes 13 types at most; the heavy and lab guards are Case Zero soldiers (user's
+choice). The user was away when the last test build was ready (the game was closed at
+their request, their four mods redeployed). In order:
 
-1. **u2b with the user in a window** (§Status): everything at once with the grown Zombie
-   heap, and the heavy and lab guards as Case Zero soldiers. Watch the SW Texture heap on
-   a long walk (the 16 MiB came from it; a texture-heap failure would crash elsewhere in
-   the street). How heaps are measured: `~/.cache/dr2kit-p12-handoff/scripts/hl_gdb.py`
-   with `heaps_at_oom.gdb` / `zombie_heap_late.gdb` (gdb attached to the headless recomp,
-   the title's own `sub_8277C288` per heap); headless runs reach the ending film by
+1. **u2b with the user in a window**: everything at once with the grown Zombie heap, and
+   the heavy and lab guards as Case Zero soldiers (do they look right, shoot, drop their
+   rifles?). Watch the SW Texture heap on a long walk (the 16 MiB came from it; a
+   texture-heap failure would crash elsewhere in the street). How heaps are measured:
+   `~/.cache/dr2kit-p12-handoff/scripts/hl_gdb.py` with `heaps_at_oom.gdb` /
+   `zombie_heap_late.gdb` (gdb attached to the headless recomp, the title's own
+   `sub_8277C288` per heap); headless runs of the test save reach the ending film by
    ~200 s, so measure at ~100 s.
-2. (done: the heavy and lab guards are Case Zero soldiers.)
-3. Phase 14's T5 with the user, then maps (step 5, U4/U5), bosses (U6), guides.
+2. Phase 14's T5 with the user (does an empty level slot load?), then maps (step 5,
+   U4/U5, Case West's level table), the level checker (step 6).
+3. Bosses (step 7, U6), then guide 23's maps and bosses sections (step 9).
 4. Case Zero → Case West zombies: deferred ([`TODO.md`](TODO.md) #1).
 
-Test mods kept in `~/.cache/dr2kit-p15`: `v-merc` (gas zombies in crowds + armed guards in
-the `SherriffDept1-7` / `JunkyardLurker` single spawns: works), `v-noguard` (both weapons
-at the safehouse exit + gas zombies: works), `session-cz` (all four: faults, item 1).
-Deploy one with `dr2 mod deploy -g cz ~/.local/share/dr2kit/mods/keep-cz-test-save <mod>`;
-the user's own deployment is `dr2 play -g cz --deploy-only`.
+Test mods kept in `~/.cache/dr2kit-p15`: **`u2b`** (gas crowds; light guards in
+`SherriffDept4-7`, heavy in `SherriffDept1-2`, lab in `SherriffDept3` and
+`JunkyardLurker`; Laser Sword and Impact Hammer at the safehouse exit: loads headless,
+owed in a window), `v-merc` (gas crowds + light guards in single spawns: works),
+`v-noguard` (both weapons + gas: works), `session-cz` (the mix that crashed; loads with
+the grown heap), `parasol-cw`. Deploy one with `dr2 mod deploy -g cz
+~/.local/share/dr2kit/mods/keep-cz-test-save <mod>`, then launch the recomp; the user's
+own deployment is `dr2 play -g cz --deploy-only`.
 
 ## Start here (when phase 15 starts)
 
