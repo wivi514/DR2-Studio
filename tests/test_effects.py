@@ -199,6 +199,29 @@ def test_effect_mod_builds(game, game_root, tmp_path):
 
 
 @pytest.mark.gamedata
+def test_new_effect_refuses_a_slot_used_by_another_mod(game_root, tmp_path, monkeypatch):
+    """An explicit slot choice cannot collide with another mod in the library."""
+    from types import SimpleNamespace
+
+    from dr2kit.container.vpath import AssetTree
+    from dr2kit.mods import library, manifest, neweffect
+
+    tree = AssetTree(game_root("cz"))
+    free_slot = neweffect.free_slots(tree, "cz")[0][0]
+    current = tmp_path / "current"
+    manifest.create(current, "current")
+    other = tmp_path / "other"
+    folder = other / "add/data/models/effects.big"
+    folder.mkdir(parents=True)
+    (folder / f"EFFECT_Common{neweffect.OWN_ENTRY + free_slot}.copy.json").write_text("{}")
+
+    entry = SimpleNamespace(mod=SimpleNamespace(root=other, games=("cz",)))
+    monkeypatch.setattr(library, "ModLibrary", lambda: SimpleNamespace(entries=lambda: [entry]))
+    with pytest.raises(Dr2Error, match=f"effect slot {free_slot} is already used"):
+        neweffect.new_effect(tree, "cz", current, "flamingsword_wpn_c_3_unq", {}, free_slot)
+
+
+@pytest.mark.gamedata
 def test_particle_picture_of_ones_own(game_root, tmp_path):
     from dr2kit.container.vpath import AssetTree
     from dr2kit.convert import png

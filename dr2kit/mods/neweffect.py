@@ -78,13 +78,16 @@ def new_effect(tree: AssetTree, game: str, mod_dir: str | Path, base: str, chang
     with ``changes``. Returns (its number, the recipe)."""
     entry, fx = _entry_of(tree, base)
     free = free_slots(tree, game)
-    taken = {n for n, _ in own_effects(mod_dir)}
+    taken = {n for n, _ in own_effects(mod_dir)} | slots_of_other_mods(mod_dir, game)
     if slot is None:
         pick = next(((n, s) for n, s in free if n not in taken), None)
         if pick is None:
             raise Dr2Error("no free effect slot left")
     else:
         num = weapons.effect_number(game, slot)
+        if num in taken:
+            raise Dr2Error(f"effect slot {num} is already used by this mod or another mod "
+                           "in your library")
         pick = next(((n, s) for n, s in free if n == num), None)
         if pick is None:
             raise Dr2Error(f"effect {num} ({weapons.names(game)[num - 1]}) is a game effect, "
@@ -108,6 +111,22 @@ def own_effects(mod_dir: str | Path) -> list[tuple[int, dict]]:
     for f in sorted(folder.glob(f"EFFECT_Common*{COPY_EXT}")) if folder.is_dir() else []:
         num = int(f.name[len("EFFECT_Common"):-len(COPY_EXT)]) - OWN_ENTRY
         out.append((num, json.loads(f.read_text("utf-8"))))
+    return out
+
+
+def slots_of_other_mods(mod_dir: str | Path, game: str) -> set[int]:
+    """Effect slots the **other** mods of the user's library for ``game`` use (switched on
+    or not): a new effect, or one an import brings, takes another slot, so two mods never
+    put different effects under one number (phase 15: a brought level's Case West items
+    took 1006 and 1007, which the user's Frostmourne uses, 2026-10-14). Empty when there is
+    no library. A broken library is reported rather than silently allowing a collision."""
+    from .library import ModLibrary
+    here = Path(mod_dir).resolve()
+    out: set[int] = set()
+    for e in ModLibrary().entries():
+        if Path(e.mod.root).resolve() == here or game not in e.mod.games:
+            continue
+        out |= {n for n, _ in own_effects(e.mod.root)}
     return out
 
 

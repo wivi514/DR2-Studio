@@ -422,13 +422,32 @@ the modder doesn't have to know. XenonLive's launcher has no mod support yet
   - **U4 headless: Case West's Storage Pens loads in Case Zero** (slot
     `LEVEL_PROLOGUE_BOWLING`, door by the safehouse exit, prompt "Storage Pens"): Chuck
     arrives at its `Start`, textured and lit, zombies about. Test mod
-    `~/.cache/dr2kit-p15/u4`. **Owed: U4 in a window with the user** (walk, items, doors
-    out, a new game for the zombies).
+    `~/.cache/dr2kit-p15/u4`. U4 and the user's Frostmourne mod also boot together
+    headless. The two mods had assigned different effects to `EFFECT_Common1006` and
+    `EFFECT_Common1007`; effect imports and new effects now reserve slots used by every
+    mod in the user's library, including disabled mods. **Windowed launch still faults**:
+    Case Zero exits while loading the prologue menu background, when heap 0 is asked for
+    1,920 bytes with 668 free (`sub_8277DF48`, caller return `0x8277E50C`). Heap 71 still
+    has 32,092,032 bytes free. The no-mods control survives 30 seconds; U4 + Frostmourne
+    reproduces the fault without the save test mod. The pair passes headless. This points
+    to main-heap pressure in the windowed menu. The allocation comes from
+    `sub_8278DCF8` through the generic allocator `sub_8277E3D0`; identify what its
+    21-entry allocation represents and which modded resource pushes heap 0 over its limit.
+    **Owed: resolve that startup fault, then U4 in a window with the user** (walk, items,
+    doors out, a new game for the zombies).
   - **U5 (Case Zero's street in Case West's `w_mall`): built** (`~/.cache/dr2kit-p15/u5`,
-    `dr2 mod check` OK), **its door not seen working**: headless, Case West's test save
-    starts in a fight in Case 3-1 and no prompt showed even with a 300 m trigger (maybe the
-    mission switches doors off, maybe Case West's triggers need more). Next: find where
-    Chuck is (Case West's recomp has no `[pos]` log) or try a quieter save, then the door.
+    `dr2 mod check` OK). The door triggered a transition in the 2026-10-14 windowed run:
+    Case West opened the modded `w_mall/zonelist.big`, then loaded imported `prologue_z01`
+    through `prologue_z09` from the mod overlay. It crashed during that load with a guest
+    null-page read at `0x0000001C` (LR `0x827919EC`, CTR `0x827790F8`; guest backtrace
+    starts `0x827919EC, 0x827926E0, 0x821CAC64`). The rotated runtime log is
+    `cw_runtime.log.1` beside the Case West recomp (2026-10-14 13:20). The door works far enough to start loading the Prologue;
+    isolate the imported-level crash next. Addr2line maps the host PC to heap allocator
+    `sub_82791878`; registers show heap `0x3E`, a failed `0x11B000` (1.15 MiB) request,
+    and the null-page read. The heap name is unconfirmed. CW's Zombie heap growth was set
+    to 32 MiB for a retry, but the same allocation still failed. The runtime now logs the
+    per-level Zombie heap id and failed allocations; growth is set to 64 MiB for the next
+    windowed retry. This remains a hypothesis, not a confirmed fix.
   - Not done: Case West's level table grown (decision 3; only `w_mall` now), the 36 Case
     Zero slots whose audio scene would need a recomp change, the in-game map's points for
     a brought level, its own sound.
@@ -445,7 +464,7 @@ the modder doesn't have to know. XenonLive's launcher has no mod support yet
 | U3 shaders in game | **passed** with U1 (registers moved, engine-only parameters fixed to 1) |
 | 4 zombie types CW → CZ + U2 | **passed** (user, 2026-10-13): gas zombies in crowds; guards armed, fighting, dropping rifles (single spawns, Case Zero's soldier behaviour). Since: the memory limit fixed (recomp change 5, the Zombie heap +16 MiB), 13 types per load-set entry, `security_heavy` / `security_lab` as Case Zero soldiers; test mod u2b loads headless, **owed in a window** |
 | 4 zombie types CZ → CW | **deferred by the user**: Case West's type table, [`TODO.md`](TODO.md) #1 |
-| 5 maps (CZ slots, `w_mall`, CW level table) + U4/U5 | **built** 2026-10-14 (`importlevel`, Studio, guide 23): U4 (Storage Pens in Case Zero) **loads headless**, owed in a window; U5 (street in Case West) built, door not yet seen working; Case West's level table not grown |
+| 5 maps (CZ slots, `w_mall`, CW level table) + U4/U5 | **built** 2026-10-14 (`importlevel`, Studio, guide 23): U4 (Storage Pens in Case Zero) **loads headless**, owed in a window; U5 door triggers, but imported Prologue crashes during load; Case West's level table not grown |
 | 6 the checker | items and zombie types done (`dr2 census --import`); levels: `dr2 mod check` on a brought level (real level names, a mod's own level scripts' areas and spawn points); a census of every level each way: not yet |
 | 7 bosses + U6 | **not started** |
 | 8 requirements | **done** (XenonLive's launcher has no mod support yet) |
@@ -456,8 +475,8 @@ the modder doesn't have to know. XenonLive's launcher has no mod support yet
 Maps (step 5) are built (§Status "Step 5"). In order: **U4 in a window with the user**
 (`~/.cache/dr2kit-p15/u4`: link it into their library, `dr2 play -g cz`; the door is a few
 metres from where Chuck leaves the safehouse; then a new game for the zombies, on a copy
-of their saves); **U5**: get Case West's door working (where is Chuck in the test save? a
-quieter save? does Case 3-1 switch doors off?); u2b (below); phase 14's T5 (now in
+of their saves); **U5**: retry the transition with the 64 MiB Zombie heap setting and
+inspect the allocator's heap ID if it still crashes; u2b (below); phase 14's T5 (now in
 `LEVEL_X_PROLOGUE`), T4a, T4b; bosses (step 7). Headless helpers of this session were in
 the session scratchpad (gone); the method: `hl_gdb.py` with B pressed as `B@3000` entries
 after the menus (`START,A,A,A,A,NONE@4000,B@3000…`), a door copy moved onto the save's

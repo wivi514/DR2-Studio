@@ -589,8 +589,10 @@ def import_item(mod_dir: str | Path, item: str, src: str, dst: str, dst_tree: As
                 base_dirs=()) -> tuple[Plan, list[Path]]:
     """Plan and write (module docstring). The mod becomes a mod for ``dst``."""
     from .manifest import Mod
+    from .neweffect import slots_of_other_mods
     m = Mod.load(mod_dir)
     brought, used = mod_effects(mod_dir)
+    used |= slots_of_other_mods(mod_dir, dst)        # never another mod's effect number
     p = plan(crossgame.source_tree(src), dst_tree, src, dst, item, m.id, taken_ids(mod_dir),
              taken_effects=brought, used_slots=used)
     files = write(p, mod_dir, dst_tree, base_dirs)

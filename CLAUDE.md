@@ -1,4 +1,4 @@
-# CLAUDE.md — DR2 CZ/CW Modding Toolkit
+# CLAUDE.md — DR2 Studio
 
 A modding toolkit for **Dead Rising 2: Case Zero** and **Dead Rising 2: Case West**
 (Xbox 360 XBLA titles, Blue Castle Games engine) as run by the two Xenon recomps.
@@ -121,8 +121,19 @@ slots load when their audio scene does (42 in CZ, `w_mall` in CW; `dr2 level slo
 (`mods/importlevel.py`, `dr2 mod import-level`, Studio *Other game's levels…*, guide 23 §A whole level),
 a cache for big recipes from the other game; **the `.big` writer now lays payloads out as the game does**
 (each at the previous end aligned to its `flags`: the old padding broke edited zones); **Case West's
-Storage Pens loads in Case Zero** (headless, U4 owed in a window); CZ's street in CW (U5) built, its door
-not yet working. Next conversation: `docs/phase15-kickoff.md` §Start here. Rest (zombies, maps, bosses, effects):
+Storage Pens loads in Case Zero** (headless); U4 and Frostmourne boot together headless after
+effect imports and new effects began reserving slots already used in the user's mod library.
+The first windowed launch exited while loading the prologue menu through `sub_8277E778`'s
+allocation-failure path: heap 0 had 668 bytes free for a 1,920-byte request, while heap 71
+had ~32 MB free. No-mods survives 30 seconds; U4 + Frostmourne reproduces it without the
+save test mod, although the pair passes headless. The 21-entry allocation comes from
+`sub_8278DCF8` through `sub_8277E3D0`; its resource still needs identifying. U5's door
+triggers the transition, but Case West crashed loading the imported Prologue: heap
+allocator request on heap `0x3E` failed and read null at `0x1C` (2026-10-14; see
+`docs/phase15-kickoff.md`). A 32 MiB Zombie heap growth did not prevent the same allocation
+failure; the current retry uses 64 MiB and logs the Zombie heap ID and failed allocation's
+heap ID to identify the exhausted heap. Whether that fixes U5 remains unconfirmed. Next
+conversation: `docs/phase15-kickoff.md` §Start here. Rest (zombies, maps, bosses, effects):
 `docs/phase15-kickoff.md` §Status. Phase 16 (the same from the PC Dead Rising 2 and Off
 the Record) is planned, not started: `docs/phase16-kickoff.md`.** Read these before writing code:
 

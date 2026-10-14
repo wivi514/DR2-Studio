@@ -31,7 +31,7 @@ texture_version = 0x24
 # Source builds have no such file and start with the renderer OFF (the recomp's default
 # for headless test runs: "[vk] renderer OFF (set CW_VKDRAW=1 to enable it)"), so Play
 # sets these when the program has no defaults file beside it; your own environment wins.
-play_defaults = { CW_VKDRAW = "1" }
+play_defaults = { CW_VKDRAW = "1", CW_ZOMBIE_HEAP_GROWTH_MB = "64" }
 
 # Files the executable checks against a SHA-1 digest: an edited copy crashes the game.
 # Read from the XEX's Digest resource (6 entries; tools/xex_digests.py, 2026-10-09,
@@ -68,7 +68,10 @@ armed_enemies = { gun = "SecurityAssaultRifle", as_soldiers = ["security_heavy",
 
 # The Zombie heap (phase 15): the same constant as Case Zero's (docs/formats.md
 # §Engine memory); what its types and levels use is not measured here yet.
-zombie_heap = { size = 30177280, recomp_growth = 16777216 }
+# U5's windowed Prologue transition still fails a 1.15 MiB allocation on heap 0x3E
+# after a 32 MiB growth. Retry at the runtime's 64 MiB maximum; the recomp logs the
+# per-level Zombie heap id so we can confirm whether this is the heap that ran out.
+zombie_heap = { size = 30177280, recomp_growth = 67108864 }
 
 # A level brought from the other game (phase 15 maps, mods.importlevel): its entry door
 # goes into the Storage Pens beside the walkway from the safehouse's left door, and the

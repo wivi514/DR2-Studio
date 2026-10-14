@@ -1,4 +1,4 @@
-# DR2 CZ/CW Modding Toolkit
+# DR2 Studio
 
 Browse, preview, extract and replace assets in **Dead Rising 2: Case Zero** and
 **Dead Rising 2: Case West** (Xbox 360), built for the two Xenon recomps.

@@ -43,6 +43,33 @@ glossary (level slot, audio scene, declared alignment, recipe cache), ARCHITECTU
 code-tour, phase14-kickoff (T5), phase15-kickoff (§Status, §Start here), CLAUDE.md.
 **Next:** U4 in a window with the user; U5's door in Case West; u2b; T4a/T4b/T5; bosses.
 
+**Follow-up, 2026-10-14:** U4 and the user's Frostmourne mod faulted together because both
+used the same effect slots (`EFFECT_Common1006` and `EFFECT_Common1007`). Effect imports
+and new effects now reserve slots used by any mod in the user's library, even if disabled;
+headless boot with both mods passes. Explicit slot choices used by another library mod are
+refused. Targeted effect and import tests pass. A windowed launch then failed while loading
+the prologue menu: heap 0 had 668 bytes free and was asked for 1,920; heap 71 had ~32 MB
+free. The no-mods control survived 30 seconds, while U4 + Frostmourne reproduced the
+failure without the save test mod. The pair passes headless. The 21-entry allocation comes
+from `sub_8278DCF8` through generic allocator `sub_8277E3D0`; its resource and the modded
+input that tips heap 0 over its limit still need identifying, so the in-game U4 check remains open.
+
+**U5 follow-up, 2026-10-14:** found the Case West transition crash in the rotated runtime log
+`cw_runtime.log.1` beside the Case West recomp (2026-10-14 13:20). The log proves the door fired: the game read the modded `w_mall`
+zone list and opened imported Prologue zones `prologue_z01` through `prologue_z09` from
+the mods overlay. It then faulted on guest address `0x0000001C` (null page), LR
+`0x827919EC`, CTR `0x827790F8`; backtrace begins `0x827919EC, 0x827926E0, 0x821CAC64`.
+The door works; isolate the imported-level load crash next. Addr2line maps the host PC to
+`sub_82791878`, the title's heap allocator. Crash registers show heap index `0x3E`, a
+failed `0x11B000` request, and a null pointer read at `+0x1C`; the heap name is not yet
+confirmed. Increased CW's launch-time Zombie heap growth from 16 to 32 MiB in
+`dr2kit/profiles/cw.toml` (taken from the SW Texture heap) and started Case West with that
+setting for the next door retry. That run failed the same allocation. The Case West runtime
+now logs the per-level Zombie heap id and every failed generic heap allocation; the next
+retry is set to 64 MiB. The previous crash log is saved as
+`cw_runtime.prologue-crash-2026-10-14.log` beside the Case West recomp. Whether the larger
+heap fixes U5 remains unconfirmed; the user is away and will test later.
+
 ## 2026-10-13 — Phase 15: the Zombie heap grown (recomp change 5), heavy and lab guards as soldiers
 **Done:** the user approved growing the Zombie heap by 16 MB and chose Case Zero soldiers
 for the heavy and lab guards. Both recomps take 16 MiB off the SW Texture heap and give

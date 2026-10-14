@@ -178,8 +178,10 @@ the level's own sounds and music (a slot plays its own audio scene: Case Zero's
 > **Seen in Case Zero (headless, 2026-10-13):** the door by the safehouse exit shows
 > *Storage Pens*, the level loads, and Chuck walks in Case West's pens, textured and lit,
 > with zombies. **Not yet played by a person** (test U4): the doors out, the items, the
-> zombies in a new game. **Case Zero's street in Case West** (test U5) builds, but its
-> door hasn't been seen to work yet. Keep a copy of your saves.
+> zombies in a new game. **Case Zero's street in Case West** (test U5): the door triggered
+> the transition, but the imported Prologue load crashed in Case West (2026-10-14). The
+> next retry uses a larger Zombie heap; the outcome still needs checking. Keep a copy of
+> your saves.
 
 **Your saves:** the level's zombies come from your mod's own mission, which starts only
 in a **new game**, and a save made with it, or made inside the brought level, needs the
