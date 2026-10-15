@@ -17,6 +17,16 @@ Entry template:
 
 ---
 
+## 2026-10-15 — Approval by trusted collaborators
+**Done:** replaced the owner-only review policy with one required approval from any
+collaborator with write access or higher. Removed the owner-only CODEOWNERS file and
+the code-owner review requirement. New commits still dismiss old approvals, and the
+owner retains administrator control.
+**Why:** the owner wants to add trusted contributors who can approve pull requests.
+Adding repository collaborators now grants that ability without changing CODEOWNERS.
+**Docs updated:** CONTRIBUTING.md, this devlog.
+**Next:** the owner can invite trusted collaborators in repository access settings.
+
 ## 2026-10-15 — Owner review required for contributions
 **Done:** added `.github/CODEOWNERS` assigning all files to @wivi514 and documented
 the public fork/pull request workflow in CONTRIBUTING.md. Configured `main` protection
