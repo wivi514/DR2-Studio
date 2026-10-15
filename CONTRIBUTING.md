@@ -3,6 +3,11 @@
 Thanks for helping. Start with [`docs/README.md`](docs/README.md), which points you to
 the right guide.
 
+Anyone can fork the public repository and open a pull request. Pull requests into
+`main` require approval from **@wivi514**, the code owner for every file. New commits
+dismiss earlier approvals, so the latest changes need review again. Other contributors
+can leave reviews, but their approval does not replace the owner's approval.
+
 - **Code:** read [`docs/dev/README.md`](docs/dev/README.md). It has the documentation
   style and the **definition of done**: every change ships with its docstrings, tests, and
   doc updates (formats, modding guide, glossary, devlog).

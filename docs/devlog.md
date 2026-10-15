@@ -17,6 +17,16 @@ Entry template:
 
 ---
 
+## 2026-10-15 — Owner review required for contributions
+**Done:** added `.github/CODEOWNERS` assigning all files to @wivi514 and documented
+the public fork/pull request workflow in CONTRIBUTING.md. Configured `main` protection
+to require one approval, require code-owner review and dismiss approvals on new commits.
+The owner retains administrator control; no other account has repository write access.
+**Why:** anyone should be able to contribute, while the owner decides which changes
+are accepted.
+**Docs updated:** CONTRIBUTING.md, this devlog; `.github/CODEOWNERS`.
+**Next:** contributors open pull requests from their forks and request owner review.
+
 ## 2026-10-15 — Contributor handoff and README status update
 **Done:** created [the GitHub handoff index](https://github.com/wivi514/DR2-Studio/issues/1)
 and 30 linked work issues covering current bugs, unfinished validation and features,
