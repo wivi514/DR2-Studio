@@ -3,6 +3,12 @@
 Browse, preview, extract and replace assets in **Dead Rising 2: Case Zero** and
 **Dead Rising 2: Case West** (Xbox 360), built for the two Xenon recomps.
 
+**Development handoff — October 15, 2026:** the original developer has stopped active
+development. Contributors are welcome to pick up the remaining work. Start with the
+[handoff checklist](https://github.com/wivi514/DR2-Studio/issues/1), which links 30
+issues covering known bugs, unfinished features and planned phases. Each issue includes
+findings, source references, suggested next steps and completion criteria.
+
 - Find things by what they are (characters, zombies, music, rigs…) with pictures, and
   export a model with all its textures and its rig, or a whole group, in one go.
 - See every texture as a thumbnail, and which models use it.
@@ -10,27 +16,39 @@ Browse, preview, extract and replace assets in **Dead Rising 2: Case Zero** and
 - Export models **and skeletons** to Blender (glTF), and put rigged models back in.
 - Package changes as small mods that build against your own copy of the game.
 
-Runs on **Windows, Linux and macOS**.
+Targets **Windows, Linux and macOS**. Release packaging has been built and tried on
+Linux; [Windows/macOS package validation remains open](https://github.com/wivi514/DR2-Studio/issues/24).
 
-**Status:** phases 1-6 done (phase 6: strings, text, movies, mod manager, Blender
-add-on, release packaging, built on Linux so far). Phase 7 (mostly done): the guides
-inside the app (F1), a Welcome checklist, **▶ Play** (deploy + start the recomp), mods
-shared as one `.dr2mod` file, editing in your own image editor or Blender with automatic
-re-import, and textures from Substance Painter and other programs imported in one step.
-Phase 8 (done): a **Library** tab that shows both games by what things are, with a
-picture of every model, each model's textures and matching rig, and **Export all** for
-one model, a selection or a whole group (`dr2 library`, `dr2 export`). Every file of both games can be read, searched and
-extracted; every texture can be viewed and exported as PNG, and replaced by a mod that
-loads in both recomps (tested in game). Every model and skeleton can be viewed in 3D and
-exported to Blender (`.glb`) with its bones, skin weights and textures, and an edited or
-brand-new mesh rigged to the game's skeleton goes back into the game as a mod (checked
-in game: fingers and face follow). Every sound can be played and saved as WAV, and a
-mod can replace music, voices or effects with your own audio, played by the recomps
-(checked in game in both). DR2 Studio, the window-based app, does all of that without
-typing commands. Phase 6 added in-game text and translations (string banks), editing
-the game's text files with a diff, Case West's movies (play, export MP4), a mod manager
-(several mods, load order, conflicts), a Blender add-on, and release builds
-([roadmap](docs/roadmap.md)).
+Implemented features include the asset Library, texture and model previews, Blender
+export/import, audio replacement, text editing, the mod manager, `.dr2mod` sharing,
+in-app guides and **▶ Play**. Later phases added variants, the Maps viewer/editor,
+weapon and effect tools, animation playback/export, and imports between Case Zero and
+Case West. Some gameplay and usability checks remain unfinished; see the
+[handoff checklist](https://github.com/wivi514/DR2-Studio/issues/1) for current status.
+
+**Custom maps remain experimental.** Importing Still Creek (Case Zero's `prologue`)
+into Case West's `w_mall` has unresolved loading hangs, heap crashes and invisible
+collision walls. The latest attempts did not establish a working fix. Loading a title
+screen or passing a headless check does not establish that an imported map is playable.
+
+- [Infinite loading](https://github.com/wivi514/DR2-Studio/issues/2) and
+  [invisible collision walls](https://github.com/wivi514/DR2-Studio/issues/3).
+- Heap failures in [Case West](https://github.com/wivi514/DR2-Studio/issues/4) and
+  [Case Zero](https://github.com/wivi514/DR2-Studio/issues/5).
+- Increasing Case West's [level capacity](https://github.com/wivi514/DR2-Studio/issues/6)
+  and [zombie type capacity](https://github.com/wivi514/DR2-Studio/issues/7).
+- [Investigation handoff and preserved runtime experiment](https://github.com/wivi514/DR2-Studio/issues/9).
+
+Remaining plans include completing [new building](https://github.com/wivi514/DR2-Studio/issues/15)
+and [new map](https://github.com/wivi514/DR2-Studio/issues/16) tools from phase 14,
+finishing [cross-game map integration](https://github.com/wivi514/DR2-Studio/issues/10)
+and [boss imports](https://github.com/wivi514/DR2-Studio/issues/12) in phase 15, and
+adding PC Dead Rising 2 / Off the Record as sources in phase 16:
+[format readers](https://github.com/wivi514/DR2-Studio/issues/28),
+[game profiles](https://github.com/wivi514/DR2-Studio/issues/29) and
+[imports](https://github.com/wivi514/DR2-Studio/issues/30). Phase 16 has not started.
+The [roadmap](docs/roadmap.md) and phase kickoff documents hold the research history;
+the GitHub handoff issues record the latest known status.
 
 ```
 dr2 studio                                  # the app: browse, search, view, make mods

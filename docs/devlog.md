@@ -17,6 +17,21 @@ Entry template:
 
 ---
 
+## 2026-10-15 — Contributor handoff and README status update
+**Done:** created [the GitHub handoff index](https://github.com/wivi514/DR2-Studio/issues/1)
+and 30 linked work issues covering current bugs, unfinished validation and features,
+and the remaining phase 14–16 plans. Preserved the uncommitted Case West runtime
+experiment in issue #9. Updated the README with development status, priority blockers
+and contributor entry points.
+**Why:** the original developer has stopped active development and wants others to
+be able to continue from the recorded findings.
+**Learned:** the latest loading/collision attempts remain unsuccessful according to
+the user. A title screen, an isolated loaded scene or a headless pass does not prove
+the imported map works. Heap growth experiments remain unverified.
+**Docs updated:** README.md, this devlog; GitHub issues #1–31.
+**Next:** contributors can start with the handoff checklist and reproduce the loading,
+collision and heap failures before completing the remaining tools and phases.
+
 ## 2026-10-15 — Handoff: public DR2 Studio repo; U5 map test awaiting the user
 **Done:** published the source as [wivi514/DR2-Studio](https://github.com/wivi514/DR2-Studio),
 public, on `main` (commit `c22ed01`); updated the README and license title. Recorded the
