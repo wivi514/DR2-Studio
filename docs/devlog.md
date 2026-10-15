@@ -17,6 +17,20 @@ Entry template:
 
 ---
 
+## 2026-10-15 — README installation and modding walkthrough
+**Done:** expanded the README with source installation for Windows/Linux/macOS,
+optional native LZX setup, first-launch game/runtime configuration, indexing, a first
+texture mod, custom weapons and combo cards, effects, level editing, sharing/installing
+mods, CLI examples, troubleshooting and links to the detailed guides.
+**Why:** people should be able to install Studio and understand what they can create
+without piecing together phase handoffs.
+**Learned:** no GitHub releases are published yet, so the README uses source setup as
+the current installation path. The implemented weapon wizard and combo tools are
+documented alongside their remaining gameplay checks; whole-map imports and future
+PC-game imports retain explicit status.
+**Docs updated:** README.md, this devlog.
+**Next:** contributors can use the existing issue checklist for remaining bugs and gates.
+
 ## 2026-10-15 — Approval by trusted collaborators
 **Done:** replaced the owner-only review policy with one required approval from any
 collaborator with write access or higher. Removed the owner-only CODEOWNERS file and
