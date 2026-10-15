@@ -2,7 +2,8 @@
 
 > **Status 2026-10-12: started** (user: "Do phase 15"; phase 14's in-game tests moved
 > after it by the user: "Later, start phase 15 now"). Decisions 2-5 taken (§Decisions).
-> Map import (step 5) built 2026-10-14: U4 loads headless, U5 built (§Status).
+> Map import (step 5) built 2026-10-14: U4 loads headless; U5's door reaches the imported
+> Prologue but its load failed twice. The 64 MiB retry awaits the user (§Status).
 > Progress: §Status. Phase 16 (the same from the PC games):
 > [`phase16-kickoff.md`](phase16-kickoff.md).
 
@@ -447,7 +448,12 @@ the modder doesn't have to know. XenonLive's launcher has no mod support yet
     and the null-page read. The heap name is unconfirmed. CW's Zombie heap growth was set
     to 32 MiB for a retry, but the same allocation still failed. The runtime now logs the
     per-level Zombie heap id and failed allocations; growth is set to 64 MiB for the next
-    windowed retry. This remains a hypothesis, not a confirmed fix.
+    windowed retry. The 64 MiB build reached the opening screen, logging a 97,286,144-byte
+    Zombie heap, but the user did not test the Prologue. No runtime is currently open. The
+    Case West recomp has a local uncommitted diagnostic hook in `runtime/cpu/zombie_heap.cpp`
+    for the per-level heap ID and failed allocation; the rebuilt binary is ready. Saved
+    crash log: `cw_runtime.prologue-crash-2026-10-14.log` beside that recomp. This remains
+    a hypothesis, not a confirmed fix. Next conversation: the user will retry when available.
   - Not done: Case West's level table grown (decision 3; only `w_mall` now), the 36 Case
     Zero slots whose audio scene would need a recomp change, the in-game map's points for
     a brought level, its own sound.

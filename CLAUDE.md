@@ -1,5 +1,9 @@
 # CLAUDE.md — DR2 Studio
 
+**Public source repository:** [wivi514/DR2-Studio](https://github.com/wivi514/DR2-Studio)
+(published 2026-10-14; default branch `main`). The local folder remains
+`DR2_CZ_CW_Modding`.
+
 A modding toolkit for **Dead Rising 2: Case Zero** and **Dead Rising 2: Case West**
 (Xbox 360 XBLA titles, Blue Castle Games engine) as run by the two Xenon recomps.
 
@@ -131,9 +135,12 @@ save test mod, although the pair passes headless. The 21-entry allocation comes 
 triggers the transition, but Case West crashed loading the imported Prologue: heap
 allocator request on heap `0x3E` failed and read null at `0x1C` (2026-10-14; see
 `docs/phase15-kickoff.md`). A 32 MiB Zombie heap growth did not prevent the same allocation
-failure; the current retry uses 64 MiB and logs the Zombie heap ID and failed allocation's
-heap ID to identify the exhausted heap. Whether that fixes U5 remains unconfirmed. Next
-conversation: `docs/phase15-kickoff.md` §Start here. Rest (zombies, maps, bosses, effects):
+failure. The current source build has a 64 MiB retry and diagnostics for the per-level
+Zombie heap ID and failed allocation heap ID. The game reached its opening screen with
+64 MiB, but the user had to leave before testing the Prologue. No runtime is currently
+open. The diagnostic change in the sibling Case West recomp is local and uncommitted.
+Next conversation: read `docs/phase15-kickoff.md` §Start here and retry U5 when the user is
+available. Rest (zombies, maps, bosses, effects):
 `docs/phase15-kickoff.md` §Status. Phase 16 (the same from the PC Dead Rising 2 and Off
 the Record) is planned, not started: `docs/phase16-kickoff.md`.** Read these before writing code:
 

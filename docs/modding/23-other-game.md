@@ -180,8 +180,8 @@ the level's own sounds and music (a slot plays its own audio scene: Case Zero's
 > with zombies. **Not yet played by a person** (test U4): the doors out, the items, the
 > zombies in a new game. **Case Zero's street in Case West** (test U5): the door triggered
 > the transition, but the imported Prologue load crashed in Case West (2026-10-14). The
-> next retry uses a larger Zombie heap; the outcome still needs checking. Keep a copy of
-> your saves.
+> 32 MiB Zombie heap increase did not fix it. A 64 MiB retry is ready, but has not been
+> tested in the Prologue yet. Keep a copy of your saves.
 
 **Your saves:** the level's zombies come from your mod's own mission, which starts only
 in a **new game**, and a save made with it, or made inside the brought level, needs the

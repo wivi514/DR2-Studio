@@ -17,6 +17,25 @@ Entry template:
 
 ---
 
+## 2026-10-15 — Handoff: public DR2 Studio repo; U5 map test awaiting the user
+**Done:** published the source as [wivi514/DR2-Studio](https://github.com/wivi514/DR2-Studio),
+public, on `main` (commit `c22ed01`); updated the README and license title. Recorded the
+second Case West Prologue crash and the 64 MiB diagnostic retry in the phase 15 handoff.
+**Why:** the user wants to resume the map issue in a fresh conversation and cannot test
+the Prologue until later.
+**Learned:** the 32 MiB attempt still failed the same 1.15 MiB allocation on heap `0x3E`.
+The 64 MiB run reached the opening screen and logged that the Zombie heap grew to
+97,286,144 bytes, but the user did not retry the transition. No game process is currently
+running. The sibling Case West recomp's local `runtime/cpu/zombie_heap.cpp` now logs the
+Zombie heap ID and failed allocation heap ID; its binary was rebuilt. These diagnostic
+changes are uncommitted in that separate repository. The crash log is
+`cw_runtime.prologue-crash-2026-10-14.log` beside the Case West recomp.
+**Docs updated:** CLAUDE.md, phase15-kickoff.md, guide 23, this devlog.
+**Next:** when the user is available, launch the current Case West build with its deployed
+U5 mod and `CW_ZOMBIE_HEAP_GROWTH_MB=64`; retry the transition. Read the `[zombieheap]`
+and `[heapfail]` lines in the new `cw_runtime.log` to determine whether heap `0x3E` is the
+expanded Zombie heap. If loading succeeds, continue in-game map checks.
+
 ## 2026-10-14 — Phase 15 maps: a whole level of the other game; the `.big` writer's layout fixed
 **Done:** phase 14's T5 answered headless (an empty slot loads, if its audio scene does);
 the slot table read from both executables (level names, zone lists, audio scenes) and
